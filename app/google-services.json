@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBbFzFgRRq_0y-0G40c0Ii-8Et3iqbIpmQ"
+          "current_key": {{PHONE_APP_KEY}}
         }
       ],
       "services": {
