@@ -1,0 +1,208 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.mrpeel.cricketbattingtracker"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="30"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-feature android:name="android.hardware.type.watch" />
+11-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:4:5-64
+11-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:4:19-61
+12
+13    <!-- Health / Body Sensors purely for required services, though we will mostly use accel/gyro -->
+14    <uses-permission android:name="android.permission.BODY_SENSORS" />
+14-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:7:5-71
+14-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:7:22-68
+15    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+15-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:8:5-79
+15-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:8:22-76
+16    <!-- Foreground service -->
+17    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+17-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:10:5-77
+17-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:10:22-74
+18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+18-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:11:5-84
+18-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:11:22-81
+19    <uses-permission android:name="android.permission.WAKE_LOCK" />
+19-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:12:5-68
+19-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:12:22-65
+20
+21    <queries>
+21-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:19:5-21:15
+22        <package android:name="com.google.android.wearable.healthservices" />
+22-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:20:9-78
+22-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:20:18-75
+23    </queries>
+24
+25    <permission
+25-->[androidx.core:core:1.12.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/7d797c063ac3282ecaff67339eb69f87/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+26        android:name="com.mrpeel.cricketbattingtracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+26-->[androidx.core:core:1.12.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/7d797c063ac3282ecaff67339eb69f87/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+27        android:protectionLevel="signature" />
+27-->[androidx.core:core:1.12.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/7d797c063ac3282ecaff67339eb69f87/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+28
+29    <uses-permission android:name="com.mrpeel.cricketbattingtracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+29-->[androidx.core:core:1.12.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/7d797c063ac3282ecaff67339eb69f87/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+29-->[androidx.core:core:1.12.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/7d797c063ac3282ecaff67339eb69f87/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+30
+31    <application
+31-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:14:5-43:19
+32        android:allowBackup="true"
+32-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:15:9-35
+33        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+33-->[androidx.core:core:1.12.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/7d797c063ac3282ecaff67339eb69f87/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+34        android:debuggable="true"
+35        android:extractNativeLibs="false"
+36        android:label="@string/app_name"
+36-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:16:9-41
+37        android:supportsRtl="true"
+37-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:17:9-35
+38        android:theme="@android:style/Theme.DeviceDefault" >
+38-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:18:9-59
+39        <uses-library
+39-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:20:9-22:39
+40            android:name="com.google.android.wearable"
+40-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:21:13-55
+41            android:required="true" />
+41-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:22:13-36
+42
+43        <meta-data
+43-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:24:9-26:36
+44            android:name="com.google.android.wearable.standalone"
+44-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:25:13-66
+45            android:value="true" />
+45-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:26:13-33
+46
+47        <activity
+47-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:28:9-37:20
+48            android:name="com.mrpeel.cricketbattingtracker.MainActivity"
+48-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:29:13-41
+49            android:exported="true"
+49-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:30:13-36
+50            android:taskAffinity=""
+50-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:31:13-36
+51            android:theme="@android:style/Theme.DeviceDefault" >
+51-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:32:13-63
+52            <intent-filter>
+52-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:33:13-36:29
+53                <action android:name="android.intent.action.MAIN" />
+53-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:34:17-69
+53-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:34:25-66
+54
+55                <category android:name="android.intent.category.LAUNCHER" />
+55-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:35:17-77
+55-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:35:27-74
+56            </intent-filter>
+57        </activity>
+58
+59        <service
+59-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:39:9-42:40
+60            android:name="com.mrpeel.cricketbattingtracker.services.TrackerService"
+60-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:40:13-52
+61            android:exported="false"
+61-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:42:13-37
+62            android:foregroundServiceType="health" />
+62-->/home/mrpeel/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:41:13-51
+63        <service
+63-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:24:9-31:19
+64            android:name="androidx.health.services.client.VersionApiService"
+64-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:25:13-77
+65            android:exported="true"
+65-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:26:13-36
+66            android:permission="com.google.android.wearable.healthservices.permission.PASSIVE_DATA_BINDING" >
+66-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:27:13-108
+67            <intent-filter>
+67-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:28:13-30:29
+68                <action android:name="hs.versionclient.BIND" />
+68-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:29:17-64
+68-->[androidx.health:health-services-client:1.0.0-rc01] /home/mrpeel/.gradle/caches/9.0.0/transforms/f46f3d22e4d2579175556ef76e7fd4bb/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:29:25-61
+69            </intent-filter>
+70        </service>
+71
+72        <activity
+72-->[com.google.android.gms:play-services-base:18.0.1] /home/mrpeel/.gradle/caches/9.0.0/transforms/4a99784d22947e0bb8f255c2b4c6d78c/transformed/play-services-base-18.0.1/AndroidManifest.xml:20:9-22:45
+73            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+73-->[com.google.android.gms:play-services-base:18.0.1] /home/mrpeel/.gradle/caches/9.0.0/transforms/4a99784d22947e0bb8f255c2b4c6d78c/transformed/play-services-base-18.0.1/AndroidManifest.xml:20:19-85
+74            android:exported="false"
+74-->[com.google.android.gms:play-services-base:18.0.1] /home/mrpeel/.gradle/caches/9.0.0/transforms/4a99784d22947e0bb8f255c2b4c6d78c/transformed/play-services-base-18.0.1/AndroidManifest.xml:22:19-43
+75            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+75-->[com.google.android.gms:play-services-base:18.0.1] /home/mrpeel/.gradle/caches/9.0.0/transforms/4a99784d22947e0bb8f255c2b4c6d78c/transformed/play-services-base-18.0.1/AndroidManifest.xml:21:19-78
+76
+77        <meta-data
+77-->[com.google.android.gms:play-services-basement:18.0.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/96dc2bbf1c6116a6b20ff8041f248303/transformed/play-services-basement-18.0.0/AndroidManifest.xml:21:9-23:69
+78            android:name="com.google.android.gms.version"
+78-->[com.google.android.gms:play-services-basement:18.0.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/96dc2bbf1c6116a6b20ff8041f248303/transformed/play-services-basement-18.0.0/AndroidManifest.xml:22:13-58
+79            android:value="@integer/google_play_services_version" />
+79-->[com.google.android.gms:play-services-basement:18.0.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/96dc2bbf1c6116a6b20ff8041f248303/transformed/play-services-basement-18.0.0/AndroidManifest.xml:23:13-66
+80
+81        <provider
+81-->[androidx.emoji2:emoji2:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/65d7e6bfe2a6831fbdbd8a1f2be3f167/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+82            android:name="androidx.startup.InitializationProvider"
+82-->[androidx.emoji2:emoji2:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/65d7e6bfe2a6831fbdbd8a1f2be3f167/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+83            android:authorities="com.mrpeel.cricketbattingtracker.androidx-startup"
+83-->[androidx.emoji2:emoji2:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/65d7e6bfe2a6831fbdbd8a1f2be3f167/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+84            android:exported="false" >
+84-->[androidx.emoji2:emoji2:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/65d7e6bfe2a6831fbdbd8a1f2be3f167/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
+85            <meta-data
+85-->[androidx.emoji2:emoji2:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/65d7e6bfe2a6831fbdbd8a1f2be3f167/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+86                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+86-->[androidx.emoji2:emoji2:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/65d7e6bfe2a6831fbdbd8a1f2be3f167/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+87                android:value="androidx.startup" />
+87-->[androidx.emoji2:emoji2:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/65d7e6bfe2a6831fbdbd8a1f2be3f167/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+88            <meta-data
+88-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/309c7fffdbb7f518673474997c7e2908/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+89                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+89-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/309c7fffdbb7f518673474997c7e2908/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+90                android:value="androidx.startup" />
+90-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/309c7fffdbb7f518673474997c7e2908/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+91            <meta-data
+91-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+92                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+93                android:value="androidx.startup" />
+93-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+94        </provider>
+95
+96        <receiver
+96-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+97            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+97-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+98            android:directBootAware="false"
+98-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+99            android:enabled="true"
+99-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+100            android:exported="true"
+100-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+101            android:permission="android.permission.DUMP" >
+101-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
+102            <intent-filter>
+102-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+103                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+103-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+103-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
+104            </intent-filter>
+105            <intent-filter>
+105-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+106                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+107            </intent-filter>
+108            <intent-filter>
+108-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+109                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+109-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+109-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+110            </intent-filter>
+111            <intent-filter>
+111-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+112                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+112-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+112-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/mrpeel/.gradle/caches/9.0.0/transforms/e0a3bc153020d06a0479db36195966a2/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+113            </intent-filter>
+114        </receiver>
+115    </application>
+116
+117</manifest>

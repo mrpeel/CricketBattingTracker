@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.firebase.appdistribution")
 }
 
 android {
@@ -20,6 +21,8 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        getByName("debug") {
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -34,6 +37,12 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
+}
+
+// Configure Firebase App Distribution for all variants
+configure<com.google.firebase.appdistribution.gradle.AppDistributionExtension> {
+    artifactType = "APK"
+    groups = "testers"
 }
 
 dependencies {

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "501965887086",
+    "project_id": "batting-tracker",
+    "storage_bucket": "batting-tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:501965887086:android:25c220eb827c5269c1f87f",
+        "android_client_info": {
+          "package_name": "com.mrpeel.cricketbattingtracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbFzFgRRq_0y-0G40c0Ii-8Et3iqbIpmQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
