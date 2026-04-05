@@ -4,7 +4,7 @@
             "outputFile": "com.mrpeel.cricketbattingtracker.app-mergeDebugResources-47:/values-uk/values-uk.xml",
             "map": [
                 {
-                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/7d797c063ac3282ecaff67339eb69f87/transformed/core-1.12.0/res/values-uk/values-uk.xml",
+                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/0a589978f17507e54af79ef5f25b3ccc/transformed/core-1.12.0/res/values-uk/values-uk.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
                         "startColumns": "4,4,4,4,4,4,4,4",
@@ -21,24 +21,7 @@
                     }
                 },
                 {
-                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/96dc2bbf1c6116a6b20ff8041f248303/transformed/play-services-basement-18.0.0/res/values-uk/values.xml",
-                    "from": {
-                        "startLines": "4",
-                        "startColumns": "0",
-                        "startOffsets": "195",
-                        "endColumns": "141",
-                        "endOffsets": "336"
-                    },
-                    "to": {
-                        "startLines": "19",
-                        "startColumns": "4",
-                        "startOffsets": "2020",
-                        "endColumns": "145",
-                        "endOffsets": "2161"
-                    }
-                },
-                {
-                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/4a99784d22947e0bb8f255c2b4c6d78c/transformed/play-services-base-18.0.1/res/values-uk/values.xml",
+                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/38678a9ae0df9a7a7865d3282977f163/transformed/play-services-base-18.0.1/res/values-uk/values.xml",
                     "from": {
                         "startLines": "4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20",
                         "startColumns": "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0",
@@ -55,7 +38,7 @@
                     }
                 },
                 {
-                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/c1a5d9d8b7480c1f9a51590580f1157f/transformed/material3-release/res/values-uk/values-uk.xml",
+                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/c43f9f7a89c528325caff1810ff1c79c/transformed/material3-release/res/values-uk/values-uk.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -72,7 +55,7 @@
                     }
                 },
                 {
-                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/b105e725b9632957e4ed9d53450a9481/transformed/foundation-release/res/values-uk/values-uk.xml",
+                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/750e165b3b2a0ea12c33146aefe27d05/transformed/foundation-release/res/values-uk/values-uk.xml",
                     "from": {
                         "startLines": "2,3",
                         "startColumns": "4,4",
@@ -89,7 +72,7 @@
                     }
                 },
                 {
-                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/a9c027454fadb814805ac7ef067b3648/transformed/ui-release/res/values-uk/values-uk.xml",
+                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/1b1da7e11aaa0835f777e91af25bd00d/transformed/ui-release/res/values-uk/values-uk.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -103,6 +86,23 @@
                         "startOffsets": "832,925,3235,3337,3438,3522,3604,9874,9962,10044,10114,10185,10270,10358,10531,10611,10681",
                         "endColumns": "92,83,101,100,83,81,88,87,81,69,70,84,87,71,79,69,122",
                         "endOffsets": "920,1004,3332,3433,3517,3599,3688,9957,10039,10109,10180,10265,10353,10425,10606,10676,10799"
+                    }
+                },
+                {
+                    "source": "/home/mrpeel/.gradle/caches/9.0.0/transforms/cf4069139b132205057b6bb11f2fc4b5/transformed/play-services-basement-18.0.0/res/values-uk/values.xml",
+                    "from": {
+                        "startLines": "4",
+                        "startColumns": "0",
+                        "startOffsets": "195",
+                        "endColumns": "141",
+                        "endOffsets": "336"
+                    },
+                    "to": {
+                        "startLines": "19",
+                        "startColumns": "4",
+                        "startOffsets": "2020",
+                        "endColumns": "145",
+                        "endOffsets": "2161"
                     }
                 }
             ]

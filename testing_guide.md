@@ -1,36 +1,35 @@
-# Emulator Testing Guide for Cricket Batting Tracker
+# Local Testing Guide for Cricket Batting Tracker
 
-This guide explains how to build, deploy, and test the `app` (Phone) and `wear` (Watch) modules of the Cricket Batting Tracker locally using Android Emulators.
+This guide explains how to build, deploy, and test the `app` (Phone) and `wear` (Watch) modules of the Cricket Batting Tracker locally using a Chromebook with Linux Development environment and ADB enabled.
 
 ## Prerequisites
 
-- Android SDK installed (`$HOME/Android/Sdk`)
-- ADB (`platform-tools/adb`) and Emulator (`emulator/emulator`) tools available in your PATH or SDK directory.
-- AVDs (Android Virtual Devices) created for both a Phone and a Wear OS watch.
-  - Required AVDs for this project: `Pixel_6_API_34` and `GalaxyWatch7`.
+- Chromebook with Linux Development Environment (Crostini) enabled.
+- ADB debugging enabled in ChromeOS:
+  1. Go to **Settings > Advanced > Developers > Linux development environment**.
+  2. Turn on **Develop Android apps** -> **Enable ADB debugging**.
+  3. Restart the Chromebook when prompted to apply changes.
+- Android SDK installed (`$HOME/Android/Sdk`) in the Linux environment.
+- ADB (`platform-tools/adb`) available in your PATH.
+- (Optional) A physical Wear OS watch connected via wireless ADB or a cloud emulator for the `wear` module testing.
 
-## 1. Starting the Emulators
+## 1. Connecting to the Chromebook Android Subsystem
 
-To list all available emulators:
+The Chromebook's Android environment can be accessed directly from your Linux container via ADB.
+
+Connect to the local Android container:
 ```bash
-~/Android/Sdk/emulator/emulator -list-avds
+~/Android/Sdk/platform-tools/adb connect arc
 ```
+*(Alternatively, your device may show up automatically or require `adb connect 100.115.92.2:5555` depending on your ChromeOS setup).*
 
-Start the phone emulator (e.g., `Pixel_6_API_34`):
-```bash
-ANDROID_AVD_HOME=~/.config/.android/avd ~/Android/Sdk/emulator/emulator -avd Pixel_6_API_34 -no-boot-anim &
-```
+A prompt may appear on your Chromebook screen asking to "Allow USB debugging". Check "Always allow" and click OK.
 
-Start the watch emulator (e.g., `GalaxyWatch7`):
-```bash
-ANDROID_AVD_HOME=~/.config/.android/avd ~/Android/Sdk/emulator/emulator -avd GalaxyWatch7 -no-boot-anim &
-```
-
-Verify that both devices are running and attached:
+Verify the connection:
 ```bash
 ~/Android/Sdk/platform-tools/adb devices
 ```
-You should see two `emulator-XXXX` devices listed.
+You should see `arc`, an IP address, or `emulator-XXXX` representing the ChromeOS Android subsystem.
 
 ## 2. Building the Applications
 
@@ -44,52 +43,49 @@ This will generate the following APKs:
 - **Phone App:** `app/build/outputs/apk/debug/app-debug.apk`
 - **Watch App:** `wear/build/outputs/apk/debug/wear-debug.apk`
 
-## 3. Deploying to Emulators
+## 3. Deploying using ADB
 
-If you only have one emulator running, you can install the APK directly using `adb install`:
-```bash
-~/Android/Sdk/platform-tools/adb install app/build/outputs/apk/debug/app-debug.apk
-```
-
-If multiple emulators are running, you must specify the target emulator using its serial number (`-s emulator-XXXX`).
-
-Find the serial numbers using `adb devices`. Suppose the phone is `emulator-5554` and the watch is `emulator-5556`:
+With your Chromebook Android subsystem connected, you can install the phone APK directly to test the UI.
 
 **Deploy the Phone App:**
 ```bash
-~/Android/Sdk/platform-tools/adb -s emulator-5554 install app/build/outputs/apk/debug/app-debug.apk
+~/Android/Sdk/platform-tools/adb -s arc install app/build/outputs/apk/debug/app-debug.apk
+# Replace "arc" with your device's identifier from `adb devices` if different.
 ```
 
 **Deploy the Watch App:**
-```bash
-~/Android/Sdk/platform-tools/adb -s emulator-5556 install wear/build/outputs/apk/debug/wear-debug.apk
-```
+For the watch app, connect your physical watch (e.g., Galaxy Watch) via Wireless Debugging:
+1. Enable Developer Options and Wireless Debugging on your watch.
+2. Note the watch's IP address and port from the Wireless Debugging screen.
+3. Connect via ADB:
+   ```bash
+   ~/Android/Sdk/platform-tools/adb connect <watch-ip>:<port>
+   ```
+4. Install the watch APK:
+   ```bash
+   ~/Android/Sdk/platform-tools/adb -s <watch-ip>:<port> install wear/build/outputs/apk/debug/wear-debug.apk
+   ```
 
 ## 4. Running Tests
 
 ### Automated Tests
-To run the automated instrumented tests on all attached emulators:
+To run the automated instrumented tests on your attached devices:
 ```bash
 ./gradlew connectedAndroidTest
 ```
-This requires the emulators to be running. It will run the UI and integration tests defined in your `androidTest` directories.
+This will run the UI and integration tests defined in your `androidTest` directories on the connected Chromebook Android instance and any connected watch.
 
-To run regular unit tests (does not require emulators):
+To run regular unit tests (does not require a connected device):
 ```bash
 ./gradlew test
 ```
 
 ### Manual Verification
-Once deployed, you can launch the applications directly from the terminal or manually by interacting with the emulators.
+Once deployed, you can launch the applications directly from the Chromebook launcher or your watch's app drawer.
 
 To launch the phone app from the terminal:
 ```bash
-~/Android/Sdk/platform-tools/adb -s emulator-5554 shell monkey -p com.mrpeel.cricketbattingtracker -c android.intent.category.LAUNCHER 1
+~/Android/Sdk/platform-tools/adb -s arc shell monkey -p com.mrpeel.cricketbattingtracker -c android.intent.category.LAUNCHER 1
 ```
 
-To launch the watch app from the terminal:
-```bash
-~/Android/Sdk/platform-tools/adb -s emulator-5556 shell monkey -p com.mrpeel.cricketbattingtracker -c android.intent.category.LAUNCHER 1
-```
-
-By following these instructions, you can successfully emulate the physical hardware and verify the functionality and sync operations of your Cricket Batting Tracker system.
+By following these instructions, you can successfully test the app using your Chromebook's built-in Android capabilities.
