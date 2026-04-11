@@ -1,91 +1,73 @@
-# Local Testing Guide for Cricket Batting Tracker
+# Local Testing Guide for Cricket Batting Tracker on macOS
 
-This guide explains how to build, deploy, and test the `app` (Phone) and `wear` (Watch) modules of the Cricket Batting Tracker locally using a Chromebook with Linux Development environment and ADB enabled.
+This guide explains how to build, deploy, and test the `app` (Phone) and `wear` (Watch) modules of the Cricket Batting Tracker utilizing a Mac.
 
 ## Prerequisites
 
-- Chromebook with Linux Development Environment (Crostini) enabled.
-- ADB debugging enabled in ChromeOS:
-  1. Go to **Settings > Advanced > Developers > Linux development environment**.
-  2. Turn on **Develop Android apps** -> **Enable ADB debugging**.
-  3. Restart the Chromebook when prompted to apply changes.
-- Android SDK installed (`$HOME/Android/Sdk`) in the Linux environment.
-- ADB (`platform-tools/adb`) available in your PATH.
-- (Optional) A physical Wear OS watch connected via wireless ADB or a cloud emulator for the `wear` module testing.
+- **macOS** with **Android Studio** installed.
+- Android platform-tools (`adb`) installed and added to your PATH (default location: `~/Library/Android/sdk/platform-tools`).
+- USB cable or Wi-Fi connected for physical device debugging.
 
-## 1. Connecting to the Chromebook Android Subsystem
+## 1. Device Setup
 
-The Chromebook's Android environment can be accessed directly from your Linux container via ADB.
+You can use either Android Studio Emulators (AVDs) or physical devices.
 
-Connect to the local Android container:
+### Using Emulators
+Launch Android Studio and use the **Device Manager** to start:
+- An Android Phone Emulator (for the `:app` module).
+- A Wear OS Emulator (for the `:wear` module).
+
+### Using Physical Devices
+1. **Enable Developer Options**: Go to Settings -> About Phone/Watch -> repeatedly tap "Build Number" until Developer Options are enabled.
+2. **Enable USB Debugging** on your phone (or Wireless Debugging for the watch).
+3. Connect devices to your Mac. If using the watch through wireless debugging, connect using:
+   ```bash
+   adb connect <watch-ip-address>:<port>
+   ```
+
+Verify your devices are connected:
 ```bash
-~/Android/Sdk/platform-tools/adb connect arc
+adb devices
 ```
-*(Alternatively, your device may show up automatically or require `adb connect 100.115.92.2:5555` depending on your ChromeOS setup).*
-
-A prompt may appear on your Chromebook screen asking to "Allow USB debugging". Check "Always allow" and click OK.
-
-Verify the connection:
-```bash
-~/Android/Sdk/platform-tools/adb devices
-```
-You should see `arc`, an IP address, or `emulator-XXXX` representing the ChromeOS Android subsystem.
 
 ## 2. Building the Applications
 
-The project uses Gradle to manage builds. To build the debug APKs for both the phone and watch apps, open a terminal in the root of your project and run:
+The project uses Gradle for builds. From the terminal in the root directory:
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-This will generate the following APKs:
-- **Phone App:** `app/build/outputs/apk/debug/app-debug.apk`
-- **Watch App:** `wear/build/outputs/apk/debug/wear-debug.apk`
+This will generate the required APKs under the `/build/outputs/apk/` directory of their respective modules.
 
 ## 3. Deploying using ADB
 
-With your Chromebook Android subsystem connected, you can install the phone APK directly to test the UI.
+You can bypass Android Studio's UI to deploy directly from the command line once your devices or emulators are connected.
 
 **Deploy the Phone App:**
 ```bash
-~/Android/Sdk/platform-tools/adb -s arc install app/build/outputs/apk/debug/app-debug.apk
-# Replace "arc" with your device's identifier from `adb devices` if different.
+adb -s <phone-device-id> install app/build/outputs/apk/debug/app-debug.apk
 ```
 
 **Deploy the Watch App:**
-For the watch app, connect your physical watch (e.g., Galaxy Watch) via Wireless Debugging:
-1. Enable Developer Options and Wireless Debugging on your watch.
-2. Note the watch's IP address and port from the Wireless Debugging screen.
-3. Connect via ADB:
-   ```bash
-   ~/Android/Sdk/platform-tools/adb connect <watch-ip>:<port>
-   ```
-4. Install the watch APK:
-   ```bash
-   ~/Android/Sdk/platform-tools/adb -s <watch-ip>:<port> install wear/build/outputs/apk/debug/wear-debug.apk
-   ```
+```bash
+adb -s <watch-device-id> install wear/build/outputs/apk/debug/wear-debug.apk
+```
+
+*(Note: If you only have one device attached, you can drop the `-s <device-id>` flag).*
 
 ## 4. Running Tests
 
 ### Automated Tests
-To run the automated instrumented tests on your attached devices:
-```bash
-./gradlew connectedAndroidTest
-```
-This will run the UI and integration tests defined in your `androidTest` directories on the connected Chromebook Android instance and any connected watch.
-
-To run regular unit tests (does not require a connected device):
+To run unit tests locally on your Mac's JVM without needing a device/emulator:
 ```bash
 ./gradlew test
 ```
 
-### Manual Verification
-Once deployed, you can launch the applications directly from the Chromebook launcher or your watch's app drawer.
-
-To launch the phone app from the terminal:
+To run instrumented integration and UI tests on your connected physical devices or emulators:
 ```bash
-~/Android/Sdk/platform-tools/adb -s arc shell monkey -p com.mrpeel.cricketbattingtracker -c android.intent.category.LAUNCHER 1
+./gradlew connectedAndroidTest
 ```
 
-By following these instructions, you can successfully test the app using your Chromebook's built-in Android capabilities.
+### Manual Verification
+After the applications have been successfully installed, locate them in the app drawer of your emulator or physical device. Launch both the watch and phone apps to verify synchronization, UI responsiveness, and correct rendering.

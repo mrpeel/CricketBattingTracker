@@ -26,23 +26,23 @@ class SwingDetector {
     private var maxAngularObserved = 0f
     private var maxImpactObserved = 0f
 
-    fun processGyro(event: SensorEvent) {
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
+    fun processGyro(values: FloatArray, timestamp: Long) {
+        val x = values[0]
+        val y = values[1]
+        val z = values[2]
         currentGyroMag = sqrt(x * x + y * y + z * z)
         
         if (currentGyroMag > SWING_ANGULAR_VELOCITY_THRESHOLD) {
             if (!isSwinging) {
                 isSwinging = true
-                swingStartTime = event.timestamp
+                swingStartTime = timestamp
                 maxAngularObserved = currentGyroMag
                 maxImpactObserved = currentAccelMag
                 Log.d(TAG, "Swing started!")
             } else {
                 if (currentGyroMag > maxAngularObserved) maxAngularObserved = currentGyroMag
             }
-        } else if (isSwinging && (event.timestamp - swingStartTime) > 1_000_000_000L) {
+        } else if (isSwinging && (timestamp - swingStartTime) > 1_000_000_000L) {
             // 1 second after swing start, angular velocity drops - swing is over
             Log.d(TAG, "Swing finished. Max angular: $maxAngularObserved, Max Impact: $maxImpactObserved")
             if (maxImpactObserved > 10.0f) { // Arbitrary small threshold to count as a "hit" vs "leave"
@@ -52,10 +52,10 @@ class SwingDetector {
         }
     }
 
-    fun processAccel(event: SensorEvent) {
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
+    fun processAccel(values: FloatArray, timestamp: Long) {
+        val x = values[0]
+        val y = values[1]
+        val z = values[2]
         currentAccelMag = sqrt(x * x + y * y + z * z)
         
         if (isSwinging) {

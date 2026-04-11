@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "/Users/neilkloot/.gradle/daemon/8.4/com.mrpeel.cricketbattingtracker.wear-merged_res-60:/font_space_grotesk_bold.ttf.flat",
+        "source": "/Users/neilkloot/.gradle/daemon/8.4/com.mrpeel.cricketbattingtracker.wear-main-62:/font/space_grotesk_bold.ttf"
+    },
+    {
+        "merged": "/Users/neilkloot/.gradle/daemon/8.4/com.mrpeel.cricketbattingtracker.wear-merged_res-60:/font_space_grotesk_regular.ttf.flat",
+        "source": "/Users/neilkloot/.gradle/daemon/8.4/com.mrpeel.cricketbattingtracker.wear-main-62:/font/space_grotesk_regular.ttf"
+    }
+]

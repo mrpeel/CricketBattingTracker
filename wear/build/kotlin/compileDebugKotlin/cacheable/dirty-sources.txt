@@ -1,5 +1,0 @@
-/home/mrpeel/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/services/TrackerService.kt
-/home/mrpeel/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/MainActivity.kt
-/home/mrpeel/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/services/DataSyncManager.kt
-/home/mrpeel/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingDetector.kt
-/home/mrpeel/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/services/HealthServicesManager.kt

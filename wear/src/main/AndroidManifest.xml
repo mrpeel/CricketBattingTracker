@@ -39,7 +39,7 @@
         <service
             android:name=".services.TrackerService"
             android:foregroundServiceType="health"
-            android:exported="false" />
+            android:exported="true" />
     </application>
 
 </manifest>

@@ -1,0 +1,15 @@
+# 2026-04-11T06:54:39.339Z:
+test_suite_meta_data {
+}
+test_status: SKIPPED
+output_artifact {
+  label {
+    label: "test-results.log"
+    namespace: "com.google.testing.platform.runtime.android.driver.AndroidInstrumentationDriver"
+  }
+  source_path {
+    path: "/Users/neilkloot/Code/CricketBattingTracker/wear/build/outputs/androidTest-results/connected/debug/WearAVD(AVD) - 13/testlog/test-results.log"
+  }
+  type: TEST_DATA
+  mime_type: "text/plain"
+}

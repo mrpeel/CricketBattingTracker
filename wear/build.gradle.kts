@@ -20,8 +20,10 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
-        getByName("debug") {
-        }
+
+    }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -49,8 +51,16 @@ dependencies {
     implementation("androidx.wear:wear-tooling-preview:1.0.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.wear.compose:compose-navigation:1.3.0")
+    implementation("androidx.compose.material:material-icons-extended:1.5.4")
     
     // Health Services
     implementation("androidx.health:health-services-client:1.0.0-rc01")
     implementation("com.google.guava:guava:31.0.1-android")
+
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.3.0")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.3.0")
 }

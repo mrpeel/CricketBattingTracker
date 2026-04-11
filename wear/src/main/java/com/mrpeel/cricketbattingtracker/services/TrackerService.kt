@@ -53,16 +53,18 @@ class TrackerService : Service(), SensorEventListener {
         swingDetector.onShotDetected = { angular, impact ->
             Log.d(TAG, "Shot detected! Angular: $angular, Impact: $impact")
             sessionTimeline.add("Shot detected: Ang=$angular, Imp=$impact")
-            // Here we would typically write to local database or queue for DataLayer API
+            SessionManager.addShot(impact)
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP_TRACKING") {
+            SessionManager.setTracking(false)
             stopSelf()
             return START_NOT_STICKY
         }
         
+        SessionManager.setTracking(true)
         startForegroundService()
         wakeLock?.acquire(3 * 60 * 60 * 1000L) // maximum 3 hours
         
@@ -96,6 +98,7 @@ class TrackerService : Service(), SensorEventListener {
         )
 
         val notification: Notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.star_on)
             .setContentTitle("Cricket Tracking Active")
             .setContentText("Recording batting session...")
             .setContentIntent(pendingIntent)
@@ -129,8 +132,8 @@ class TrackerService : Service(), SensorEventListener {
         if (event == null) return
         
         when (event.sensor.type) {
-            Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(event)
-            Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(event)
+            Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(event.values, event.timestamp)
+            Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(event.values, event.timestamp)
         }
     }
 
