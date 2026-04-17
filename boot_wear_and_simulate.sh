@@ -35,4 +35,4 @@ adb -s emulator-5556 shell monkey -p com.mrpeel.cricketbattingtracker -c android
 sleep 5
 
 echo "Triggering the hardware kinematic simulation sequence!"
-./simulate_shot.sh
+./simulate_shots.sh

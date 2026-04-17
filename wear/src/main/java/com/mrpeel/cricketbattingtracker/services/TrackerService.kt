@@ -50,10 +50,10 @@ class TrackerService : Service(), SensorEventListener {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::BattingWakeLock")
         
-        swingDetector.onShotDetected = { angular, impact ->
-            Log.d(TAG, "Shot detected! Angular: $angular, Impact: $impact")
-            sessionTimeline.add("Shot detected: Ang=$angular, Imp=$impact")
-            SessionManager.addShot(impact)
+        swingDetector.onShotDetected = { shot ->
+            Log.d(TAG, "Shot detected! Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
+            sessionTimeline.add("Shot: Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}")
+            SessionManager.addShot(shot)
         }
     }
 

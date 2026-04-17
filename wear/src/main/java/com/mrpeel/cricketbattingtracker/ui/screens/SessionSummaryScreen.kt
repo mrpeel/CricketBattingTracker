@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import com.mrpeel.cricketbattingtracker.ui.theme.*
 
 @Composable
@@ -23,20 +24,25 @@ fun SessionSummaryScreen(
     avgSpeed: Float,
     maxSpeed: Float,
     shotCount: Int,
+    excellent: Int,
+    good: Int,
+    poor: Int,
+    lastSpeed: Float,
+    lastRating: String,
     onSyncClick: () -> Unit
 ) {
-    Box(
+    val misses = shotCount - (excellent + good + poor)
+
+    ScalingLazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(TrueBlack),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp)
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-        ) {
-            
+        
+        item {
             Text(
                 text = "SESSION ACTIVE",
                 color = LightBlueSecondary,
@@ -44,11 +50,11 @@ fun SessionSummaryScreen(
                 fontSize = 11.sp,
                 letterSpacing = 1.sp
             )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-
+        }
+        
+        item {
             // Main Metric Ring
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(110.dp)) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
                 Canvas(modifier = Modifier.matchParentSize()) {
                     // Background track
                     drawArc(
@@ -56,7 +62,7 @@ fun SessionSummaryScreen(
                         startAngle = 135f,
                         sweepAngle = 270f,
                         useCenter = false,
-                        style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                     )
                     
                     // Foregound progress (Clamp at 160f impact for full circle visual)
@@ -66,7 +72,7 @@ fun SessionSummaryScreen(
                         startAngle = 135f,
                         sweepAngle = 270f * progress,
                         useCenter = false,
-                        style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                     )
                 }
                 
@@ -74,21 +80,20 @@ fun SessionSummaryScreen(
                     Text(
                         text = "AVG SPEED",
                         color = NeonGreen,
-                        fontSize = 10.sp,
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = String.format("%.1f", avgSpeed),
                         color = Color.White,
-                        fontSize = 28.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Secondary Stats Grid
+        item {
             Row(
                 modifier = Modifier.fillMaxWidth(0.9f),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -98,13 +103,52 @@ fun SessionSummaryScreen(
                     Text(String.format("%.1f", maxSpeed), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("SHOTS", color = NeonGreen, fontSize = 10.sp)
+                    Text("TOTAL SHOTS", color = NeonGreen, fontSize = 10.sp)
                     Text("$shotCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
+        }
+        
+        item {
+            // Sweet Spot Box
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .background(Color(0xFF111111), RoundedCornerShape(12.dp))
+                    .padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("QUALITY BREAKDOWN", color = LightBlueSecondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("E", color = NeonGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("$excellent", color = Color.White, fontSize = 12.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("G", color = Color(0xFFFFB300), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("$good", color = Color.White, fontSize = 12.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("P", color = Color(0xFFE53935), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("$poor", color = Color.White, fontSize = 12.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("M", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("$misses", color = Color.White, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
 
+        item {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("LAST SHOT", color = LightBlueSecondary, fontSize = 10.sp)
+                Text("${String.format("%.1f", lastSpeed)} km/h • $lastRating", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        item {
             // Sync Action
             Button(
                 onClick = onSyncClick,
@@ -124,5 +168,6 @@ fun SessionSummaryScreen(
                 }
             }
         }
+        
     }
 }

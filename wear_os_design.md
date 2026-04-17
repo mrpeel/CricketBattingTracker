@@ -44,7 +44,7 @@ web application/stitch/projects/5364758526892918808/screens/b0decd98a8c748938d07
     *   Metric Label: "AVG SPEED" (Neon Green).
     *   Large Value: "84 MPH" (Space Grotesk, Bold).
 *   **Secondary Metric Grid:**
-    *   Horizontal split for "MAX SPEED" and "SHOTS" (not fully shown in screenshot but implied for the data model).
+    *   Horizontal split for "MAX SPEED", "SHOTS", and "SWEET SPOT" breakdown (Excellent/Good/Poor).
 *   **Primary Action:**
     *   Button: "SYNC SESSION" (Neon Green).
     *   Icon: Sync/Refresh.

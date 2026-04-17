@@ -4,17 +4,16 @@ This document outlines the architecture for an automated cricket batting tracker
 
 ## User Review Required
 > [!IMPORTANT]
-> **Machine Learning & Auto-Detection Reality for V1**
+> **Kinematics & Shot Detection Reality**
 > 
-> Achieving 100% automatic detection of specific shot types (e.g., Pull vs. Drive vs. Cut) exclusively from wrist IMU data without the user explicitly telling the watch what they did is a complex classification problem requiring a trained Machine Learning model. 
+> Achieving reliable automatic detection of shots exclusively from wrist IMU data requires a robust mechanism to filter out noise, bat-twirling, and repositioning. Our Python data analysis proved that real-time semantic shot-type inference (Pull vs. Drive) is unreliable due to the sheer variety of individual execution styles.
 > 
-> For **V1**, I propose we build the core end-to-end system: 
-> 1. The Wear OS background tracking service
-> 2. The Bluetooth device sync 
-> 3. The Mobile Activity Timeline UI
-> 4. A **heuristic physics algorithm** using Accelerometer/Gyroscope peaks to automatically detect when an "impact" or "swing" occurs, and approximate the bat speed from wrist angular velocity.
+> Instead, our Wear OS pipeline uses a **6-State Ring-Buffered State Machine**: 
+> 1. Requires a strict `Quiet Stance` (std < 0.9 rad/s) barrier to reset the lock and explicitly suppress double-counting.
+> 2. Searches a narrow contact Window (-0.45s to +0.75s) around the derived Swing Peak.
+> 3. Captures exactly when the true physics shock arrives, generating the relative Sweet Spot (Shock-to-Speed) ratio.
 > 
-> Once V1 is built, you can use it in the nets. The data captured during these sessions can then be exported to train a custom on-device AI model (like TensorFlow Lite) for **V2**, which will categorize the exact semantic shot types. We should also lean on Google's Health Services API to calculate the running distances and automatically sync to Samsung Health.
+> This approach allows the watch to track every genuine Swing + Contact event immediately on device, operating directly on batched Android sensor events in constant O(1) memory via primitive `FloatArray` ring buffers.
 
 ## Proposed Changes
 

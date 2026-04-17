@@ -28,6 +28,12 @@ class MainActivity : ComponentActivity() {
                 val shotCount = SessionManager.shotCount.collectAsState()
                 val avgSpeed = SessionManager.avgSpeed.collectAsState()
                 val maxSpeed = SessionManager.maxSpeed.collectAsState()
+                
+                val excellentShots = SessionManager.excellentShots.collectAsState()
+                val goodShots = SessionManager.goodShots.collectAsState()
+                val poorShots = SessionManager.poorShots.collectAsState()
+                val lastShotSpeed = SessionManager.lastShotSpeed.collectAsState()
+                val lastShotRating = SessionManager.lastShotRating.collectAsState()
 
                 SwipeDismissableNavHost(
                     navController = navController,
@@ -47,6 +53,11 @@ class MainActivity : ComponentActivity() {
                             avgSpeed = avgSpeed.value,
                             maxSpeed = maxSpeed.value,
                             shotCount = shotCount.value,
+                            excellent = excellentShots.value,
+                            good = goodShots.value,
+                            poor = poorShots.value,
+                            lastSpeed = lastShotSpeed.value,
+                            lastRating = lastShotRating.value,
                             onSyncClick = {
                                 stopTrackerService()
                                 SessionManager.resetSession()
