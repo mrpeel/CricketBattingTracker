@@ -1,5 +1,6 @@
 package com.mrpeel.cricketbattingtracker.services
 
+import android.content.Intent
 import android.util.Log
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
@@ -13,7 +14,24 @@ import kotlinx.coroutines.launch
 
 class DataSyncListenerService : WearableListenerService() {
     private val TAG = "DataSyncListener"
-    
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "com.mrpeel.cricketbattingtracker.INJECT_TIMELINE") {
+            try {
+                // Read the pushed wear OS file directly off disk to avoid ADB shell string collision
+                val file = java.io.File("/data/local/tmp/wear_timeline.txt")
+                if (file.exists()) {
+                    val payload = file.readText().split("\n").filter { it.isNotBlank() }.toTypedArray()
+                    Log.d(TAG, "ADB Injection Detected! Processing \${payload.size} events...")
+                    ingestTimeline(System.currentTimeMillis(), payload)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Injection read failed", e)
+            }
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         val database = AppDatabase.getDatabase(applicationContext)
         val dao = database.inningsEventDao()
@@ -29,41 +47,56 @@ class DataSyncListenerService : WearableListenerService() {
                     val eventsList = dataMap.getStringArray("events")
                     
                     Log.d(TAG, "Received timeline sync: \${eventsList?.size} events")
-                    
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val newInningsId = (dao.getLatestInningsId() ?: 0) + 1
-                        
-                        eventsList?.forEachIndexed { index, eventString ->
-                            // Basic parsing since we just passed simple strings from the watch V1
-                            // We would map these to proper data structures in a production environment
-                            var speed: Float? = null
-                            var impact: Float? = null
-                            if (eventString.contains("Shot detected")) {
-                                // Extract naive floats (e.g. "Shot detected: Ang=12.5, Imp=45.2")
-                                try {
-                                    val regex = Regex("Ang=([0-9.]+), Imp=([0-9.]+)")
-                                    val match = regex.find(eventString)
-                                    if (match != null) {
-                                        speed = match.groupValues[1].toFloat()
-                                        impact = match.groupValues[2].toFloat()
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Parse error", e)
-                                }
-                            }
-                            
-                            val dbEvent = InningsEvent(
-                                inningsId = newInningsId,
-                                timestamp = timestamp + index, // mock chronological distribution
-                                description = eventString.substringBefore(":"),
-                                batSpeed = speed,
-                                impactForce = impact
-                            )
-                            dao.insertEvent(dbEvent)
-                        }
+                    if (eventsList != null) {
+                        ingestTimeline(timestamp, eventsList)
                     }
                 }
             }
+        }
+    }
+
+    private fun ingestTimeline(timestamp: Long, eventsList: Array<String>) {
+        val database = AppDatabase.getDatabase(applicationContext)
+        val dao = database.inningsEventDao()
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            val newInningsId = (dao.getLatestInningsId() ?: 0) + 1
+            
+            eventsList.forEachIndexed { index, eventString ->
+                var speed: Float? = null
+                var impact: Float? = null
+                var desc = eventString
+
+                if (eventString.startsWith("Shot:")) {
+                    try {
+                        val regex = Regex("Spd=([0-9.]+), Hit=(true|false), Acc=([0-9.]+), SS=([A-Za-z/]+)")
+                        val match = regex.find(eventString)
+                        if (match != null) {
+                            speed = match.groupValues[1].toFloat()
+                            val isHit = match.groupValues[2].toBoolean()
+                            impact = match.groupValues[3].toFloat()
+                            val sweetSpot = match.groupValues[4]
+                            desc = if (isHit) "Shot Detected (\$sweetSpot)" else "Play and Miss"
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Parse error", e)
+                    }
+                }
+                
+                val dbEvent = InningsEvent(
+                    inningsId = newInningsId,
+                    timestamp = timestamp + index,
+                    description = desc,
+                    batSpeed = speed,
+                    impactForce = impact
+                )
+                dao.insertEvent(dbEvent)
+            }
+
+            // Pass the downloaded batch asynchronously up to Google Firestore
+            // val mockUserId = "neilkloot_production"
+            // val eventsSnapshot = dao.getTimelineForInningsListSync(newInningsId) 
+            // FirebaseCloudManager().syncToCloud(mockUserId, timestamp, eventsSnapshot)
         }
     }
 }

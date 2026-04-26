@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.mrpeel.cricketbattingtracker.wear-mergeDebugResources-58:/values-en-rGB/values-en-rGB.xml",
+            "outputFile": "com.mrpeel.cricketbattingtracker.wear-mergeDebugResources-59:/values-en-rGB/values-en-rGB.xml",
             "map": [
                 {
                     "source": "/Users/neilkloot/.gradle/caches/transforms-3/39a767d81c56cbc0a21c5a1350301a09/transformed/ui-release/res/values-en-rGB/values-en-rGB.xml",

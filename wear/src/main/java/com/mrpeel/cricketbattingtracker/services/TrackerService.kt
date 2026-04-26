@@ -19,6 +19,12 @@ import com.mrpeel.cricketbattingtracker.MainActivity
 import com.mrpeel.cricketbattingtracker.ml.SwingDetector
 import android.content.pm.ServiceInfo
 import android.os.Build
+import androidx.wear.ongoing.OngoingActivity
+import androidx.wear.ongoing.Status
+import java.io.File
+import java.io.BufferedWriter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 class TrackerService : Service(), SensorEventListener {
 
@@ -34,6 +40,12 @@ class TrackerService : Service(), SensorEventListener {
     
     // Store timeline data
     private val sessionTimeline = mutableListOf<String>()
+
+    // Hybrid Raw Debug Logging
+    private var enableRawLogging = false
+    private var accWriter: BufferedWriter? = null
+    private var gyroWriter: BufferedWriter? = null
+    private var sessionStartNanos: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -64,13 +76,32 @@ class TrackerService : Service(), SensorEventListener {
             return START_NOT_STICKY
         }
         
+        enableRawLogging = intent?.getBooleanExtra("ENABLE_RAW_LOGGING", false) ?: false
+        if (enableRawLogging) {
+            try {
+                val ts = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
+                val sessionDir = File(getExternalFilesDir(null), "sessions/session-$ts")
+                sessionDir.mkdirs()
+                
+                accWriter = File(sessionDir, "WatchAccelerometer.csv").bufferedWriter()
+                accWriter?.write("seconds_elapsed,x,y,z\n")
+                
+                gyroWriter = File(sessionDir, "WatchGyroscope.csv").bufferedWriter()
+                gyroWriter?.write("seconds_elapsed,x,y,z\n")
+                
+                Log.d(TAG, "Raw Logging ENABLED to \${sessionDir.absolutePath}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to prep log writers: \${e.message}")
+            }
+        }
+        
         SessionManager.setTracking(true)
         startForegroundService()
         wakeLock?.acquire(3 * 60 * 60 * 1000L) // maximum 3 hours
         
-        // SENSOR_DELAY_GAME = 50Hz, good for sports mechanics without destroying battery like FASTEST
-        sensorManager.registerListener(this, accelSensor, SensorManager.SENSOR_DELAY_GAME)
-        sensorManager.registerListener(this, gyroSensor, SensorManager.SENSOR_DELAY_GAME)
+        // SENSOR_DELAY_GAME = 50Hz, explicit 0 latency out of caution against Wear OS suspending listeners
+        sensorManager.registerListener(this, accelSensor, SensorManager.SENSOR_DELAY_GAME, 0)
+        sensorManager.registerListener(this, gyroSensor, SensorManager.SENSOR_DELAY_GAME, 0)
         
         Log.d(TAG, "Service Started, tracking sensors")
         return START_STICKY
@@ -96,14 +127,27 @@ class TrackerService : Service(), SensorEventListener {
             notificationIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
-
-        val notification: Notification = NotificationCompat.Builder(this, channelId)
+        val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.star_on)
             .setContentTitle("Cricket Tracking Active")
             .setContentText("Recording batting session...")
             .setContentIntent(pendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_WORKOUT)
             .setOngoing(true)
+
+        val ongoingActivityStatus = Status.Builder()
+            .addTemplate("Tracking Swings")
             .build()
+
+        val ongoingActivity = OngoingActivity.Builder(applicationContext, 1, builder)
+            .setAnimatedIcon(android.R.drawable.star_on)
+            .setStaticIcon(android.R.drawable.star_on)
+            .setTouchIntent(pendingIntent)
+            .setStatus(ongoingActivityStatus)
+            .build()
+            
+        ongoingActivity.apply(applicationContext)
+        val notification = builder.build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
@@ -123,7 +167,18 @@ class TrackerService : Service(), SensorEventListener {
                 it.release()
             }
         }
-        // Save timeline data or initiate sync
+        if (enableRawLogging) {
+            try {
+                accWriter?.close()
+                gyroWriter?.close()
+            } catch (e: Exception) {}
+        }
+        
+        // Expose timeline to ADB for headless integration testing
+        try {
+            val timelineFile = File(getExternalFilesDir(null), "latest_timeline.txt")
+            timelineFile.writeText(sessionTimeline.joinToString("\n"))
+        } catch (e: Exception) {}
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -131,9 +186,24 @@ class TrackerService : Service(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null) return
         
-        when (event.sensor.type) {
-            Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(event.values, event.timestamp)
-            Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(event.values, event.timestamp)
+        val type = event.sensor.type
+        val ts = event.timestamp
+        val vals = event.values
+
+        when (type) {
+            Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(vals, ts)
+            Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(vals, ts)
+        }
+
+        if (enableRawLogging) {
+            if (sessionStartNanos == 0L) sessionStartNanos = ts
+            val elapsedSecs = (ts - sessionStartNanos) / 1_000_000_000.0
+            val line = String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2])
+            
+            try {
+                if (type == Sensor.TYPE_ACCELEROMETER) accWriter?.write(line)
+                else if (type == Sensor.TYPE_GYROSCOPE) gyroWriter?.write(line)
+            } catch (e: Exception) {}
         }
     }
 

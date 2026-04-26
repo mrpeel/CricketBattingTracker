@@ -3,7 +3,7 @@
 # Connects to the active Wear OS emulator and injects realistic sensor telemetry
 # traversing the new 6-state ring-buffered kinetics model.
 
-EMULATOR_PORT="5556"
+EMULATOR_PORT="5554"
 
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
@@ -56,5 +56,11 @@ inject_shot "Poor Strike (Toe/Handle)" 6.0 60.0
 
 # 8.0 rad/s = 23.0 km/h. Accel 9.8 (Just gravity). Ratio = N/A (Hit = false)
 inject_shot "Play and Miss" 8.0 9.8
+
+# Cut Shot: 6.5 rad/s = 18.7 km/h. Accel 65.0. Ratio = 3.47 (> 3.0 Poor)
+inject_shot "Cut Shot (Miss-timed)" 6.5 65.0
+
+# Cut Shot: 7.2 rad/s = 20.7 km/h. Accel 45.0. Ratio = 2.17 (< 2.5 Excellent)
+inject_shot "Cut Shot (Clean Hit)" 7.2 45.0
 
 echo "✅ Multi-Shot Session Simulation complete!"

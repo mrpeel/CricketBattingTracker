@@ -1,0 +1,6 @@
+Shot: Spd=28.8, Hit=true, Acc=20.000002, SS=Excellent
+Shot: Spd=28.8, Hit=true, Acc=80.00001, SS=Good
+Shot: Spd=17.280003, Hit=true, Acc=60.000004, SS=Poor
+Shot: Spd=23.039999, Hit=false, Acc=9.800007, SS=N/A
+Shot: Spd=18.720001, Hit=true, Acc=65.0, SS=Poor
+Shot: Spd=20.736, Hit=true, Acc=45.000004, SS=Excellent

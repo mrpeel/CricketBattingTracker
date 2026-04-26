@@ -96,5 +96,6 @@ In Python, we removed "duplicate" shots by enforcing an arbitrary time gap (`INT
 3. As observed in the Python tests, the narrowed contact window (`-0.45s to +0.75s`) filters out follow-through vibrations. We do not need an arbitrary 1.8 second blackout timer because the stance-lock mechanic naturally protects the pipeline.
 
 ## 6. Implementation Cautions
+- **Sensor Suspension (CRITICAL)**: Wear OS aggressively optimizes battery by suspending sensor listeners if the screen goes to sleep or the arm drops. Data analysis has proven this will cause massive (minutes-long) blackouts in the datastream where swings are completely lost. You MUST implement a `PARTIAL_WAKE_LOCK` combined with a persistent **Foreground Service** (like Strava) to ensure the `SensorManager` is never throttled or suspended during a live session.
 - Android's `SensorEvent.timestamp` is in nanoseconds since boot (`SystemClock.elapsedRealtimeNanos()`), not Unix epoch time. All time-math (`+ 0.75s`, `- 0.45s`) must be calculated strictly against the native sensor system clock.
 - **Do not perform heavy math on the `onSensorChanged` main thread**. When pushing into the Circular Buffer, keep it O(1). The `STATE_EVALUATION` step should preferably run in an async coroutine/worker, allowing the ring buffer to continue recording un-interrupted.

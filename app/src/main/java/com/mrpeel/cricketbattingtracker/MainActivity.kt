@@ -3,6 +3,7 @@ package com.mrpeel.cricketbattingtracker
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,25 +25,23 @@ import java.util.*
 
 class MainActivity : ComponentActivity() {
 
+    private val viewModel: InningsViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Mock data for preview until sync is verified
-        val mockTimeline = listOf(
-            InningsEvent(1, 1, System.currentTimeMillis() - 600000, "Innings Started"),
-            InningsEvent(2, 1, System.currentTimeMillis() - 500000, "Shot detected (Drive)", 65.4f, 20.1f),
-            InningsEvent(3, 1, System.currentTimeMillis() - 400000, "Running between wickets", distanceRun = 18.0f),
-            InningsEvent(4, 1, System.currentTimeMillis() - 300000, "Shot detected (Pull)", 72.1f, 35.0f),
-            InningsEvent(5, 1, System.currentTimeMillis() - 200000, "Running between wickets", distanceRun = 36.0f),
-            InningsEvent(6, 1, System.currentTimeMillis() - 100000, "Innings Ended")
-        )
-
         setContent {
+            val timeline by viewModel.currentTimeline.collectAsState()
+            
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF4CAF50),
-                    background = Color(0xFF1E1E1E),
-                    surface = Color(0xFF2C2C2C)
+                    primary = Color(0xFF58FF63),      // Neon green from SVG
+                    secondary = Color(0xFFBCD2FE),   // Ice blue from SVG
+                    background = Color(0xFF000C1B),  // Deep navy from SVG gradient end
+                    surface = Color(0xFF001B3D),     // Navy surface from SVG gradient start
+                    onBackground = Color.White,
+                    onSurface = Color.White,
+                    onPrimary = Color(0xFF000C1B)
                 )
             ) {
                 Surface(
@@ -51,9 +50,15 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         TopBar()
-                        DashboardSummary(mockTimeline)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        TimelineList(mockTimeline)
+                        if (timeline.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Awaiting Session Sync...", color = Color.Gray)
+                            }
+                        } else {
+                            DashboardSummary(timeline)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            TimelineList(timeline)
+                        }
                     }
                 }
             }
@@ -69,11 +74,11 @@ fun TopBar() {
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
             Text(
-                "Innings Review", 
-                fontSize = 20.sp, 
+                "Pitch Analytix Pro",
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 16.dp),
-                color = Color.White
+                color = Color(0xFF58FF63)  // Neon green header accent
             )
         }
     }

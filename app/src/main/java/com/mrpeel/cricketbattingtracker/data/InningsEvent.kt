@@ -23,6 +23,9 @@ interface InningsEventDao {
     @Query("SELECT * FROM innings_events WHERE inningsId = :inningsId ORDER BY timestamp ASC")
     fun getTimelineForInnings(inningsId: Long): Flow<List<InningsEvent>>
 
+    @Query("SELECT * FROM innings_events WHERE inningsId = :inningsId ORDER BY timestamp ASC")
+    suspend fun getTimelineForInningsListSync(inningsId: Long): List<InningsEvent>
+
     @Insert
     suspend fun insertEvent(event: InningsEvent)
     

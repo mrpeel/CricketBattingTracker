@@ -41,8 +41,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     composable("start") {
                         StartSessionScreen(
-                            onStartClick = {
-                                startTrackerService()
+                            onStartClick = { isDebug ->
+                                startTrackerService(isDebug)
                                 navController.navigate("summary")
                             }
                         )
@@ -72,8 +72,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startTrackerService() {
+    private fun startTrackerService(enableRawLogging: Boolean) {
         val intent = Intent(this, TrackerService::class.java)
+        intent.putExtra("ENABLE_RAW_LOGGING", enableRawLogging)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {

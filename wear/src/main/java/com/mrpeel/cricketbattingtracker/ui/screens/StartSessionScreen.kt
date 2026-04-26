@@ -7,7 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SportsCricket
 import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,8 +20,9 @@ import com.mrpeel.cricketbattingtracker.ui.theme.*
 
 @Composable
 fun StartSessionScreen(
-    onStartClick: () -> Unit
+    onStartClick: (Boolean) -> Unit
 ) {
+    var isDebugChecked by remember { mutableStateOf(false) }
     ScalingLazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -67,12 +68,30 @@ fun StartSessionScreen(
             )
         }
             
-        item { Spacer(modifier = Modifier.height(24.dp)) }
+        item { Spacer(modifier = Modifier.height(16.dp)) }
+        
+        item {
+            ToggleChip(
+                checked = isDebugChecked,
+                onCheckedChange = { isDebugChecked = it },
+                label = { Text("Save Raw DBG Logs", color = Color.White, fontSize = 11.sp) },
+                toggleControl = {
+                    Icon(
+                        imageVector = ToggleChipDefaults.switchIcon(checked = isDebugChecked),
+                        contentDescription = if (isDebugChecked) "On" else "Off",
+                        tint = NeonGreen
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(0.9f).height(40.dp)
+            )
+        }
+            
+        item { Spacer(modifier = Modifier.height(16.dp)) }
         
         item {
             // Primary Action
             Button(
-                onClick = onStartClick,
+                onClick = { onStartClick(isDebugChecked) },
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = Color.Transparent,
                     contentColor = NeonGreen

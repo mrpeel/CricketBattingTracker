@@ -310,6 +310,8 @@ layout notification_template_media
 layout notification_template_media_custom
 layout notification_template_part_chronometer
 layout notification_template_part_time
+mipmap ic_launcher
+mipmap ic_launcher_round
 string androidx_startup
 string app_name
 string call_notification_answer_action

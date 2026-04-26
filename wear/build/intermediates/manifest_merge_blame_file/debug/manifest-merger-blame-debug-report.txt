@@ -19,16 +19,18 @@
 15    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 15-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:8:5-79
 15-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:8:22-76
-16    <!-- Foreground service -->
-17    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-17-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:10:5-77
-17-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:10:22-74
-18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
-18-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:11:5-84
-18-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:11:22-81
-19    <uses-permission android:name="android.permission.WAKE_LOCK" />
-19-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:12:5-68
-19-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:12:22-65
+16    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+16-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:9:5-77
+16-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:9:22-74
+17    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+17-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:10:5-84
+17-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:10:22-81
+18    <uses-permission android:name="android.permission.WAKE_LOCK" />
+18-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:11:5-68
+18-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:11:22-65
+19    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+19-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:12:5-85
+19-->/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:12:22-82
 20
 21    <queries>
 21-->[androidx.health:health-services-client:1.0.0-rc01] /Users/neilkloot/.gradle/caches/transforms-3/8c5a458a4bbcac15e60e60e39212d1bc/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:19:5-21:15

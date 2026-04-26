@@ -53,6 +53,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.wear.compose:compose-navigation:1.3.0")
     implementation("androidx.compose.material:material-icons-extended:1.5.4")
+    implementation("androidx.wear:wear-ongoing:1.0.0")
     
     // Health Services
     implementation("androidx.health:health-services-client:1.0.0-rc01")

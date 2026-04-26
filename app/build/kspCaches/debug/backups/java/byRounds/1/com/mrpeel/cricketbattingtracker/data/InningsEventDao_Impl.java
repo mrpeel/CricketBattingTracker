@@ -154,6 +154,68 @@ public final class InningsEventDao_Impl implements InningsEventDao {
   }
 
   @Override
+  public Object getTimelineForInningsListSync(final long inningsId,
+      final Continuation<? super List<InningsEvent>> $completion) {
+    final String _sql = "SELECT * FROM innings_events WHERE inningsId = ? ORDER BY timestamp ASC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, inningsId);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<InningsEvent>>() {
+      @Override
+      @NonNull
+      public List<InningsEvent> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfInningsId = CursorUtil.getColumnIndexOrThrow(_cursor, "inningsId");
+          final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfBatSpeed = CursorUtil.getColumnIndexOrThrow(_cursor, "batSpeed");
+          final int _cursorIndexOfImpactForce = CursorUtil.getColumnIndexOrThrow(_cursor, "impactForce");
+          final int _cursorIndexOfDistanceRun = CursorUtil.getColumnIndexOrThrow(_cursor, "distanceRun");
+          final List<InningsEvent> _result = new ArrayList<InningsEvent>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final InningsEvent _item;
+            final int _tmpId;
+            _tmpId = _cursor.getInt(_cursorIndexOfId);
+            final long _tmpInningsId;
+            _tmpInningsId = _cursor.getLong(_cursorIndexOfInningsId);
+            final long _tmpTimestamp;
+            _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
+            final String _tmpDescription;
+            _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            final Float _tmpBatSpeed;
+            if (_cursor.isNull(_cursorIndexOfBatSpeed)) {
+              _tmpBatSpeed = null;
+            } else {
+              _tmpBatSpeed = _cursor.getFloat(_cursorIndexOfBatSpeed);
+            }
+            final Float _tmpImpactForce;
+            if (_cursor.isNull(_cursorIndexOfImpactForce)) {
+              _tmpImpactForce = null;
+            } else {
+              _tmpImpactForce = _cursor.getFloat(_cursorIndexOfImpactForce);
+            }
+            final Float _tmpDistanceRun;
+            if (_cursor.isNull(_cursorIndexOfDistanceRun)) {
+              _tmpDistanceRun = null;
+            } else {
+              _tmpDistanceRun = _cursor.getFloat(_cursorIndexOfDistanceRun);
+            }
+            _item = new InningsEvent(_tmpId,_tmpInningsId,_tmpTimestamp,_tmpDescription,_tmpBatSpeed,_tmpImpactForce,_tmpDistanceRun);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Object getLatestInningsId(final Continuation<? super Long> $completion) {
     final String _sql = "SELECT MAX(inningsId) FROM innings_events";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
