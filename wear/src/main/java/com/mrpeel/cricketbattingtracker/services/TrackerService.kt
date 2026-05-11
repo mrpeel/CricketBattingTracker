@@ -32,6 +32,7 @@ class TrackerService : Service(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private var accelSensor: Sensor? = null
     private var gyroSensor: Sensor? = null
+    private var gravitySensor: Sensor? = null
     
     private var wakeLock: PowerManager.WakeLock? = null
     private val swingDetector = SwingDetector()
@@ -57,14 +58,15 @@ class TrackerService : Service(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
         
         // Setup wake lock to keep recording while screen is off
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::BattingWakeLock")
         
         swingDetector.onShotDetected = { shot ->
-            Log.d(TAG, "Shot detected! Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
-            sessionTimeline.add("Shot: Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}")
+            Log.d(TAG, "Shot detected! ${shot.shotType}, Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
+            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}")
             SessionManager.addShot(shot)
         }
     }
@@ -102,6 +104,7 @@ class TrackerService : Service(), SensorEventListener {
         // SENSOR_DELAY_GAME = 50Hz, explicit 0 latency out of caution against Wear OS suspending listeners
         sensorManager.registerListener(this, accelSensor, SensorManager.SENSOR_DELAY_GAME, 0)
         sensorManager.registerListener(this, gyroSensor, SensorManager.SENSOR_DELAY_GAME, 0)
+        sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_GAME, 0)
         
         Log.d(TAG, "Service Started, tracking sensors")
         return START_STICKY
@@ -193,6 +196,7 @@ class TrackerService : Service(), SensorEventListener {
         when (type) {
             Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(vals, ts)
             Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(vals, ts)
+            Sensor.TYPE_GRAVITY -> swingDetector.processGravity(vals, ts)
         }
 
         if (enableRawLogging) {

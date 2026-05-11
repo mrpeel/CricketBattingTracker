@@ -1,73 +1,62 @@
-# Local Testing Guide for Cricket Batting Tracker on macOS
+# Local Testing Guide for Cricket Batting Tracker (Professional Edition)
 
-This guide explains how to build, deploy, and test the `app` (Phone) and `wear` (Watch) modules of the Cricket Batting Tracker utilizing a Mac.
+This guide explains how to perform a **full, visible end-to-end (E2E) simulation** of the cricket batting tracker using Phone and Wear OS emulators.
 
 ## Prerequisites
 
 - **macOS** with **Android Studio** installed.
-- Android platform-tools (`adb`) installed and added to your PATH (default location: `~/Library/Android/sdk/platform-tools`).
-- USB cable or Wi-Fi connected for physical device debugging.
+- **AVDs Configured**: `PhoneAVD` (API 33+) and `WearAVD` (Wear OS 3+).
+- **Java 17**: Ensure `JAVA_HOME` points to a JDK 17.
+- **ADB**: Platform-tools added to your PATH.
 
-## 1. Device Setup
+---
 
-You can use either Android Studio Emulators (AVDs) or physical devices.
+## 🚀 The Visible E2E Simulation (Recommended)
 
-### Using Emulators
-Launch Android Studio and use the **Device Manager** to start:
-- An Android Phone Emulator (for the `:app` module).
-- A Wear OS Emulator (for the `:wear` module).
+This is the most comprehensive way to verify the system. You will see the watch UI update in real-time as shots are "played" and then see the data sync to the phone.
 
-### Using Physical Devices
-1. **Enable Developer Options**: Go to Settings -> About Phone/Watch -> repeatedly tap "Build Number" until Developer Options are enabled.
-2. **Enable USB Debugging** on your phone (or Wireless Debugging for the watch).
-3. Connect devices to your Mac. If using the watch through wireless debugging, connect using:
-   ```bash
-   adb connect <watch-ip-address>:<port>
-   ```
-
-Verify your devices are connected:
+### 1. Start the Emulators
+Launch both required emulators and wait for them to fully boot:
 ```bash
-adb devices
+./start_emulators.sh
 ```
 
-## 2. Building the Applications
+### 2. Run the E2E Script
+This script builds both apps, deploys them, launches the UIs, and triggers the shot simulation:
+```bash
+./run_visible_e2e.sh
+```
 
-The project uses Gradle for builds. From the terminal in the root directory:
+### 3. What to Observe
+1.  **Watch UI**: As the script runs, watch the **Wear OS emulator**. You will see the "Glanceable Ring" update for every shot detected (Cover Drive, Pull, Sweep).
+2.  **Real-time Metrics**: Note the Bat Speed and Sweet Spot ratings appearing instantly.
+3.  **Data Sync**: After the simulation, the watch session will end, and the **Phone emulator** will automatically refresh to show the new session timeline.
+4.  **Phone Verification**: Verify the **Innings ID**, **Shot Types**, and **Biomechanics** (Angles) on the phone dashboard.
 
+---
+
+## 🛠️ Individual Tooling
+
+### Building the Apps
 ```bash
 ./gradlew assembleDebug
 ```
 
-This will generate the required APKs under the `/build/outputs/apk/` directory of their respective modules.
-
-## 3. Deploying using ADB
-
-You can bypass Android Studio's UI to deploy directly from the command line once your devices or emulators are connected.
-
-**Deploy the Phone App:**
+### Manual Shot Injection
+If you want to test specific shots manually while watching the UI:
 ```bash
-adb -s <phone-device-id> install app/build/outputs/apk/debug/app-debug.apk
+# Ensure the Wear app is running and 'Tracking' is active
+EMULATOR_PORT=5556 ./simulate_shots.sh
 ```
 
-**Deploy the Watch App:**
+### Monitoring Logs
+For deep technical verification of the kinematics engine:
 ```bash
-adb -s <watch-device-id> install wear/build/outputs/apk/debug/wear-debug.apk
+adb -s emulator-5556 logcat | grep "SwingDetector"
 ```
 
-*(Note: If you only have one device attached, you can drop the `-s <device-id>` flag).*
-
-## 4. Running Tests
-
-### Automated Tests
-To run unit tests locally on your Mac's JVM without needing a device/emulator:
+## 🧪 Unit Testing
+Validate the core logic against the biomechanics ground truth:
 ```bash
-./gradlew test
+./gradlew :wear:testDebugUnitTest
 ```
-
-To run instrumented integration and UI tests on your connected physical devices or emulators:
-```bash
-./gradlew connectedAndroidTest
-```
-
-### Manual Verification
-After the applications have been successfully installed, locate them in the app drawer of your emulator or physical device. Launch both the watch and phone apps to verify synchronization, UI responsiveness, and correct rendering.

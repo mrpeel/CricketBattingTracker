@@ -8,7 +8,13 @@ data class ShotData(
     val speedKmh: Float,
     val isHit: Boolean,
     val peakAccel: Float,
-    val sweetSpot: String // "Excellent", "Good", "Poor", or "N/A"
+    val sweetSpot: String, // "Excellent", "Good", "Poor", or "N/A"
+    val efficiency: Float,
+    val impactTimeMs: Long,
+    val backliftAngle: Float,
+    val followThroughAngle: Float,
+    val shotType: String,
+    val wristRollDeg: Float = 0f
 )
 
 object SessionManager {
@@ -39,6 +45,21 @@ object SessionManager {
     private val _lastShotRating = MutableStateFlow("N/A")
     val lastShotRating: StateFlow<String> = _lastShotRating.asStateFlow()
 
+    private val _lastShotEfficiency = MutableStateFlow(0f)
+    val lastShotEfficiency: StateFlow<Float> = _lastShotEfficiency.asStateFlow()
+
+    private val _lastShotType = MutableStateFlow("UNKNOWN")
+    val lastShotType: StateFlow<String> = _lastShotType.asStateFlow()
+
+    private val _lastImpactTimeMs = MutableStateFlow(0L)
+    val lastImpactTimeMs: StateFlow<Long> = _lastImpactTimeMs.asStateFlow()
+
+    private val _lastFollowThroughAngle = MutableStateFlow(0f)
+    val lastFollowThroughAngle: StateFlow<Float> = _lastFollowThroughAngle.asStateFlow()
+
+    private val _lastWristRollDeg = MutableStateFlow(0f)
+    val lastWristRollDeg: StateFlow<Float> = _lastWristRollDeg.asStateFlow()
+
     private val allSpeeds = mutableListOf<Float>()
 
     fun setTracking(active: Boolean) {
@@ -66,6 +87,11 @@ object SessionManager {
         
         _lastShotSpeed.value = shot.speedKmh
         _lastShotRating.value = if (shot.isHit) shot.sweetSpot else "Miss"
+        _lastShotEfficiency.value = shot.efficiency
+        _lastShotType.value = shot.shotType
+        _lastImpactTimeMs.value = shot.impactTimeMs
+        _lastFollowThroughAngle.value = shot.followThroughAngle
+        _lastWristRollDeg.value = shot.wristRollDeg
     }
 
     fun resetSession() {
@@ -77,6 +103,11 @@ object SessionManager {
         _poorShots.value = 0
         _lastShotSpeed.value = 0f
         _lastShotRating.value = "N/A"
+        _lastShotEfficiency.value = 0f
+        _lastShotType.value = "UNKNOWN"
+        _lastImpactTimeMs.value = 0L
+        _lastFollowThroughAngle.value = 0f
+        _lastWristRollDeg.value = 0f
         allSpeeds.clear()
         _isTracking.value = false
     }

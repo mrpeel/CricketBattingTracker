@@ -16,13 +16,14 @@ import kotlinx.coroutines.launch
 class InningsViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = AppDatabase.getDatabase(application).inningsEventDao()
     
-    // Dynamically retrieve the latest innings ID, then pipe its flow to the UI!
-    val currentTimeline: StateFlow<List<InningsEvent>> = flow {
-        val latestId = dao.getLatestInningsId() ?: 0L
-        emitAll(dao.getTimelineForInnings(latestId))
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val currentTimeline: StateFlow<List<InningsEvent>> = dao.getLatestInningsIdFlow()
+        .flatMapLatest { latestId ->
+            dao.getTimelineForInnings(latestId ?: 0L)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 }

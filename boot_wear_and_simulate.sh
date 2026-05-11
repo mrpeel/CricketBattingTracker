@@ -20,9 +20,19 @@ echo "Starting Wear Emulator UI..."
 nohup emulator -avd WearAVD -no-audio -no-snapshot-load -delay-adb -port 5556 > /dev/null 2>&1 &
 
 echo "Waiting for emulator to boot up (this will take 1-3 minutes)..."
-adb wait-for-device
+# Wait specifically for the 5556 instance
+until adb devices | grep -q "emulator-5556"; do
+    sleep 2
+done
+
+adb -s emulator-5556 wait-for-device
 while [ "$(adb -s emulator-5556 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != "1" ]; do
-    sleep 3
+    sleep 5
+done
+
+# Wait for the system UI/Launcher to be ready
+while [ "$(adb -s emulator-5556 shell getprop dev.bootcomplete 2>/dev/null | tr -d '\r')" != "1" ]; do
+    sleep 2
 done
 
 echo "Emulator fully booted! Installing app..."
@@ -31,8 +41,9 @@ adb -s emulator-5556 install -r wear/build/outputs/apk/debug/wear-debug.apk
 echo "Launching application..."
 adb -s emulator-5556 shell monkey -p com.mrpeel.cricketbattingtracker -c android.intent.category.LAUNCHER 1
 
-# Give the app a couple of seconds to render and start its tracking foreground service
-sleep 5
+# Give the app time to render and start its tracking foreground service
+echo "Waiting for TrackerService to initialize..."
+sleep 15
 
 echo "Triggering the hardware kinematic simulation sequence!"
-./simulate_shots.sh
+EMULATOR_PORT=5556 ./simulate_shots.sh

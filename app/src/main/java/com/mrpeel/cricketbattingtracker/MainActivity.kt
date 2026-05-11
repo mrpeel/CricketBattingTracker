@@ -35,10 +35,10 @@ class MainActivity : ComponentActivity() {
             
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF58FF63),      // Neon green from SVG
-                    secondary = Color(0xFFBCD2FE),   // Ice blue from SVG
-                    background = Color(0xFF000C1B),  // Deep navy from SVG gradient end
-                    surface = Color(0xFF001B3D),     // Navy surface from SVG gradient start
+                    primary = Color(0xFF58FF63),      // Neon green
+                    secondary = Color(0xFFBCD2FE),   // Ice blue
+                    background = Color(0xFF000C1B),  // Deep navy
+                    surface = Color(0xFF001B3D),     // Navy surface
                     onBackground = Color.White,
                     onSurface = Color.White,
                     onPrimary = Color(0xFF000C1B)
@@ -52,11 +52,22 @@ class MainActivity : ComponentActivity() {
                         TopBar()
                         if (timeline.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("Awaiting Session Sync...", color = Color.Gray)
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text("Waiting for Watch Sync...", color = Color.Gray, fontSize = 14.sp)
+                                }
                             }
                         } else {
                             DashboardSummary(timeline)
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "SESSION TIMELINE",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                                letterSpacing = 2.sp
+                            )
                             TimelineList(timeline)
                         }
                     }
@@ -70,52 +81,81 @@ class MainActivity : ComponentActivity() {
 fun TopBar() {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth().height(64.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .padding(bottom = 1.dp)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-            Text(
-                "Pitch Analytix Pro",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp),
-                color = Color(0xFF58FF63)  // Neon green header accent
-            )
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    "PITCH ANALYTIX",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    "PRO PERFORMANCE TRACKER",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("NK", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
 
 @Composable
 fun DashboardSummary(events: List<InningsEvent>) {
-    val totalDistance = events.mapNotNull { it.distanceRun }.sum()
     val maxBatSpeed = events.mapNotNull { it.batSpeed }.maxOrNull() ?: 0f
+    val avgEfficiency = events.mapNotNull { it.efficiency }.average().let { if (it.isNaN()) 0.0 else it }
+    val shotCount = events.count { it.description.contains("Shot") || it.shotType != null }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SummaryCard("Distance", "\${totalDistance.toInt()}m")
-        SummaryCard("Max Speed", "\${maxBatSpeed.toInt()} km/h")
-        SummaryCard("Actions", "\${events.size}")
+        SummaryCard("MAX SPEED", "${maxBatSpeed.toInt()}", "KM/H", Modifier.weight(1f))
+        SummaryCard("AVG EFF", "${avgEfficiency.toInt()}", "%", Modifier.weight(1f))
+        SummaryCard("SHOTS", "$shotCount", "COUNT", Modifier.weight(1f))
     }
 }
 
 @Composable
-fun SummaryCard(title: String, value: String) {
+fun SummaryCard(title: String, value: String, unit: String, modifier: Modifier = Modifier) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.size(100.dp),
-        shape = RoundedCornerShape(12.dp)
+        modifier = modifier.height(110.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(title, fontSize = 12.sp, color = Color.Gray)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray, letterSpacing = 1.sp)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(value, fontSize = 32.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(unit, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(bottom = 6.dp))
+            }
         }
     }
 }
@@ -126,39 +166,96 @@ fun TimelineList(events: List<InningsEvent>) {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 16.dp)
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(events) { event ->
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                // Timeline line & dot
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-                    Box(modifier = Modifier.width(2.dp).height(80.dp).background(Color.Gray.copy(alpha=0.3f)))
+        items(events.reversed()) { event ->
+            TimelineItem(event, formatter)
+        }
+    }
+}
+
+@Composable
+fun TimelineItem(event: InningsEvent, formatter: SimpleDateFormat) {
+    val isHit = !event.description.contains("Miss")
+    val accentColor = if (isHit) MaterialTheme.colorScheme.primary else Color(0xFFFF5252)
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.2f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(40.dp)
+                    .clip(CircleShape)
+                    .background(accentColor)
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        event.shotType?.uppercase() ?: "ACTION",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        color = Color.White,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        formatter.format(Date(event.timestamp)),
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                // Card Content
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(event.description, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text(formatter.format(Date(event.timestamp)), fontSize = 12.sp, color = Color.Gray)
+                
+                Text(
+                    event.description,
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+
+                if (event.batSpeed != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // First row: Speed, Efficiency, Impact Time
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        MetricSmall("SPEED", "${event.batSpeed.toInt()} km/h")
+                        if (event.efficiency != null) {
+                            MetricSmall("EFF", "${event.efficiency.toInt()}%")
                         }
-                        
-                        if (event.batSpeed != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Speed: \${event.batSpeed} | Impact: \${event.impactForce}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                        if (event.impactTimeMs != null) {
+                            MetricSmall("REACT", "${event.impactTimeMs} ms")
                         }
-                        if (event.distanceRun != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Distance tracked: \${event.distanceRun}m", fontSize = 12.sp, color = Color(0xFF2196F3))
+                    }
+                    // Second row: Wrist Roll, Follow-Through Angle
+                    if (event.wristRollDeg != null || event.followThroughAngle != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (event.wristRollDeg != null) {
+                                MetricSmall("WRIST", "${String.format("%.0f", event.wristRollDeg)}°")
+                            }
+                            if (event.followThroughAngle != null) {
+                                MetricSmall("FINISH", "${String.format("%.0f", event.followThroughAngle)}°")
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun MetricSmall(label: String, value: String) {
+    Column {
+        Text(label, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFBCD2FE))
     }
 }

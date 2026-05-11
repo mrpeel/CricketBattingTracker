@@ -65,21 +65,33 @@ class DataSyncListenerService : WearableListenerService() {
             eventsList.forEachIndexed { index, eventString ->
                 var speed: Float? = null
                 var impact: Float? = null
+                var impactTimeMs: Long? = null
+                var shotType: String? = null
+                var efficiency: Float? = null
+                var blAngle: Float? = null
+                var ftAngle: Float? = null
+                var wristRollDeg: Float? = null
                 var desc = eventString
 
                 if (eventString.startsWith("Shot:")) {
                     try {
-                        val regex = Regex("Spd=([0-9.]+), Hit=(true|false), Acc=([0-9.]+), SS=([A-Za-z/]+)")
+                        val regex = Regex("Type=([^,]+), Spd=([0-9.]+), Hit=(true|false), Acc=([0-9.]+), SS=([A-Za-z/]+), Eff=([0-9.]+), BL=([0-9.-]+), FT=([0-9.-]+)(?:, ItMs=([0-9]+))?(?:, Wr=([0-9.-]+))?")
                         val match = regex.find(eventString)
                         if (match != null) {
-                            speed = match.groupValues[1].toFloat()
-                            val isHit = match.groupValues[2].toBoolean()
-                            impact = match.groupValues[3].toFloat()
-                            val sweetSpot = match.groupValues[4]
-                            desc = if (isHit) "Shot Detected (\$sweetSpot)" else "Play and Miss"
+                            shotType = match.groupValues[1]
+                            speed = match.groupValues[2].toFloat()
+                            val isHit = match.groupValues[3].toBoolean()
+                            impact = match.groupValues[4].toFloat()
+                            val sweetSpot = match.groupValues[5]
+                            efficiency = match.groupValues[6].toFloat()
+                            blAngle = match.groupValues[7].toFloat()
+                            ftAngle = match.groupValues[8].toFloat()
+                            impactTimeMs = match.groupValues[9].toLongOrNull()
+                            wristRollDeg = match.groupValues[10].toFloatOrNull()
+                            desc = if (isHit) "$shotType ($sweetSpot)" else "Play and Miss"
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Parse error", e)
+                        Log.e(TAG, "Parse error: $eventString", e)
                     }
                 }
                 
@@ -88,15 +100,23 @@ class DataSyncListenerService : WearableListenerService() {
                     timestamp = timestamp + index,
                     description = desc,
                     batSpeed = speed,
-                    impactForce = impact
+                    impactForce = impact,
+                    impactTimeMs = impactTimeMs,
+                    shotType = shotType,
+                    efficiency = efficiency,
+                    backliftAngle = blAngle,
+                    followThroughAngle = ftAngle,
+                    wristRollDeg = wristRollDeg
                 )
                 dao.insertEvent(dbEvent)
             }
 
             // Pass the downloaded batch asynchronously up to Google Firestore
-            // val mockUserId = "neilkloot_production"
-            // val eventsSnapshot = dao.getTimelineForInningsListSync(newInningsId) 
-            // FirebaseCloudManager().syncToCloud(mockUserId, timestamp, eventsSnapshot)
+            // Auto-launch the UI to show the new sync results
+            val launchIntent = Intent(applicationContext, com.mrpeel.cricketbattingtracker.MainActivity::class.java)
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            applicationContext.startActivity(launchIntent)
         }
     }
 }

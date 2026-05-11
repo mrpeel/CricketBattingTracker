@@ -14,8 +14,14 @@ data class InningsEvent(
     val timestamp: Long,
     val description: String,
     val batSpeed: Float? = null,
-    val impactForce: Float? = null,
-    val distanceRun: Float? = null
+    val impactForce: Float? = null,   // raw peak accel in g (not displayed directly)
+    val impactTimeMs: Long? = null,    // reaction time: backlift→contact in ms
+    val distanceRun: Float? = null,
+    val shotType: String? = null,
+    val efficiency: Float? = null,
+    val backliftAngle: Float? = null,
+    val followThroughAngle: Float? = null,
+    val wristRollDeg: Float? = null    // wrist rotation during follow-through
 )
 
 @Dao
@@ -31,4 +37,7 @@ interface InningsEventDao {
     
     @Query("SELECT MAX(inningsId) FROM innings_events")
     suspend fun getLatestInningsId(): Long?
+
+    @Query("SELECT MAX(inningsId) FROM innings_events")
+    fun getLatestInningsIdFlow(): Flow<Long?>
 }

@@ -26,7 +26,7 @@ fun StartSessionScreen(
     ScalingLazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(TrueBlack),
+            .background(Color(0xFF000C1B)), // Deep navy from brand
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -34,36 +34,35 @@ fun StartSessionScreen(
             // Header: Battery & Status
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(top = 20.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.BatteryFull,
                     contentDescription = "Battery",
-                    tint = LightBlueSecondary,
-                    modifier = Modifier.size(16.dp)
+                    tint = Color(0xFFBCD2FE),
+                    modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "84%",
-                    color = LightBlueSecondary,
+                    text = "READY",
+                    color = Color(0xFF58FF63),
                     style = MaterialTheme.typography.body2,
-                    fontSize = 12.sp
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                // Mock GPS indicator
-                Box(modifier = Modifier.size(6.dp).background(NeonGreen, RoundedCornerShape(3.dp)))
             }
         }
             
-        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item { Spacer(modifier = Modifier.height(8.dp)) }
         
         item {
             Text(
-                text = "THE PAVILION",
+                text = "PITCH ANALYTIX",
                 color = Color.White,
                 style = MaterialTheme.typography.title2,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black,
                 letterSpacing = 2.sp
             )
         }
@@ -71,36 +70,38 @@ fun StartSessionScreen(
         item { Spacer(modifier = Modifier.height(16.dp)) }
         
         item {
-            ToggleChip(
-                checked = isDebugChecked,
-                onCheckedChange = { isDebugChecked = it },
-                label = { Text("Save Raw DBG Logs", color = Color.White, fontSize = 11.sp) },
-                toggleControl = {
+            Chip(
+                onClick = { isDebugChecked = !isDebugChecked },
+                label = { Text("DIAGNOSTICS", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold) },
+                icon = {
                     Icon(
                         imageVector = ToggleChipDefaults.switchIcon(checked = isDebugChecked),
-                        contentDescription = if (isDebugChecked) "On" else "Off",
-                        tint = NeonGreen
+                        contentDescription = null,
+                        tint = if (isDebugChecked) Color(0xFF58FF63) else Color.Gray,
+                        modifier = Modifier.size(16.dp)
                     )
                 },
-                modifier = Modifier.fillMaxWidth(0.9f).height(40.dp)
+                colors = ChipDefaults.chipColors(
+                    backgroundColor = Color.White.copy(alpha = 0.05f)
+                ),
+                modifier = Modifier.fillMaxWidth(0.85f).height(42.dp)
             )
         }
             
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(12.dp)) }
         
         item {
             // Primary Action
             Button(
                 onClick = { onStartClick(isDebugChecked) },
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color.Transparent,
-                    contentColor = NeonGreen
+                    backgroundColor = Color(0xFF58FF63),
+                    contentColor = Color(0xFF000C1B)
                 ),
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
-                    .height(64.dp)
-                    .border(2.dp, NeonGreen, RoundedCornerShape(24.dp)),
-                shape = RoundedCornerShape(24.dp)
+                    .height(64.dp),
+                shape = RoundedCornerShape(32.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -111,27 +112,17 @@ fun StartSessionScreen(
                         contentDescription = "Start",
                         modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "START SESSION",
+                        text = "GO PRO",
                         style = MaterialTheme.typography.button,
-                        fontWeight = FontWeight.ExtraBold
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp
                     )
                 }
             }
         }
             
-        item { Spacer(modifier = Modifier.height(24.dp)) }
-        
-        item {
-            // Footer
-            Text(
-                text = "PITCHANALYTIX PRO",
-                color = LightBlueSecondary,
-                style = MaterialTheme.typography.body2,
-                fontSize = 10.sp,
-                letterSpacing = 1.sp
-            )
-        }
+        item { Spacer(modifier = Modifier.height(20.dp)) }
     }
 }

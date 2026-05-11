@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
@@ -19,6 +20,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Keep the screen on during the tracking session so we don't drop to ambient watch face
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            window.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
+
         setContent {
             PavilionTheme {
                 val navController = rememberSwipeDismissableNavController()
@@ -34,10 +48,28 @@ class MainActivity : ComponentActivity() {
                 val poorShots = SessionManager.poorShots.collectAsState()
                 val lastShotSpeed = SessionManager.lastShotSpeed.collectAsState()
                 val lastShotRating = SessionManager.lastShotRating.collectAsState()
+                val lastShotEfficiency = SessionManager.lastShotEfficiency.collectAsState()
+                val lastShotType = SessionManager.lastShotType.collectAsState()
+                val lastImpactTimeMs = SessionManager.lastImpactTimeMs.collectAsState()
+                val lastFollowThroughAngle = SessionManager.lastFollowThroughAngle.collectAsState()
+                val lastWristRollDeg = SessionManager.lastWristRollDeg.collectAsState()
+
+                // Automatically navigate based on tracking state
+                LaunchedEffect(isTracking.value) {
+                    if (isTracking.value) {
+                        navController.navigate("summary") {
+                            popUpTo("start") { inclusive = true }
+                        }
+                    } else if (navController.currentDestination?.route == "summary") {
+                        navController.navigate("start") {
+                            popUpTo("summary") { inclusive = true }
+                        }
+                    }
+                }
 
                 SwipeDismissableNavHost(
                     navController = navController,
-                    startDestination = if (isTracking.value) "summary" else "start"
+                    startDestination = "start"
                 ) {
                     composable("start") {
                         StartSessionScreen(
@@ -58,6 +90,11 @@ class MainActivity : ComponentActivity() {
                             poor = poorShots.value,
                             lastSpeed = lastShotSpeed.value,
                             lastRating = lastShotRating.value,
+                            lastEfficiency = lastShotEfficiency.value,
+                            lastType = lastShotType.value,
+                            lastImpactTimeMs = lastImpactTimeMs.value,
+                            lastFollowThroughAngle = lastFollowThroughAngle.value,
+                            lastWristRollDeg = lastWristRollDeg.value,
                             onSyncClick = {
                                 stopTrackerService()
                                 SessionManager.resetSession()

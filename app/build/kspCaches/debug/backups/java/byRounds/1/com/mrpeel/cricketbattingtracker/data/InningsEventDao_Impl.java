@@ -41,7 +41,7 @@ public final class InningsEventDao_Impl implements InningsEventDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR ABORT INTO `innings_events` (`id`,`inningsId`,`timestamp`,`description`,`batSpeed`,`impactForce`,`distanceRun`) VALUES (nullif(?, 0),?,?,?,?,?,?)";
+        return "INSERT OR ABORT INTO `innings_events` (`id`,`inningsId`,`timestamp`,`description`,`batSpeed`,`impactForce`,`impactTimeMs`,`distanceRun`,`shotType`,`efficiency`,`backliftAngle`,`followThroughAngle`,`wristRollDeg`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -61,10 +61,40 @@ public final class InningsEventDao_Impl implements InningsEventDao {
         } else {
           statement.bindDouble(6, entity.getImpactForce());
         }
-        if (entity.getDistanceRun() == null) {
+        if (entity.getImpactTimeMs() == null) {
           statement.bindNull(7);
         } else {
-          statement.bindDouble(7, entity.getDistanceRun());
+          statement.bindLong(7, entity.getImpactTimeMs());
+        }
+        if (entity.getDistanceRun() == null) {
+          statement.bindNull(8);
+        } else {
+          statement.bindDouble(8, entity.getDistanceRun());
+        }
+        if (entity.getShotType() == null) {
+          statement.bindNull(9);
+        } else {
+          statement.bindString(9, entity.getShotType());
+        }
+        if (entity.getEfficiency() == null) {
+          statement.bindNull(10);
+        } else {
+          statement.bindDouble(10, entity.getEfficiency());
+        }
+        if (entity.getBackliftAngle() == null) {
+          statement.bindNull(11);
+        } else {
+          statement.bindDouble(11, entity.getBackliftAngle());
+        }
+        if (entity.getFollowThroughAngle() == null) {
+          statement.bindNull(12);
+        } else {
+          statement.bindDouble(12, entity.getFollowThroughAngle());
+        }
+        if (entity.getWristRollDeg() == null) {
+          statement.bindNull(13);
+        } else {
+          statement.bindDouble(13, entity.getWristRollDeg());
         }
       }
     };
@@ -107,7 +137,13 @@ public final class InningsEventDao_Impl implements InningsEventDao {
           final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
           final int _cursorIndexOfBatSpeed = CursorUtil.getColumnIndexOrThrow(_cursor, "batSpeed");
           final int _cursorIndexOfImpactForce = CursorUtil.getColumnIndexOrThrow(_cursor, "impactForce");
+          final int _cursorIndexOfImpactTimeMs = CursorUtil.getColumnIndexOrThrow(_cursor, "impactTimeMs");
           final int _cursorIndexOfDistanceRun = CursorUtil.getColumnIndexOrThrow(_cursor, "distanceRun");
+          final int _cursorIndexOfShotType = CursorUtil.getColumnIndexOrThrow(_cursor, "shotType");
+          final int _cursorIndexOfEfficiency = CursorUtil.getColumnIndexOrThrow(_cursor, "efficiency");
+          final int _cursorIndexOfBackliftAngle = CursorUtil.getColumnIndexOrThrow(_cursor, "backliftAngle");
+          final int _cursorIndexOfFollowThroughAngle = CursorUtil.getColumnIndexOrThrow(_cursor, "followThroughAngle");
+          final int _cursorIndexOfWristRollDeg = CursorUtil.getColumnIndexOrThrow(_cursor, "wristRollDeg");
           final List<InningsEvent> _result = new ArrayList<InningsEvent>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final InningsEvent _item;
@@ -131,13 +167,49 @@ public final class InningsEventDao_Impl implements InningsEventDao {
             } else {
               _tmpImpactForce = _cursor.getFloat(_cursorIndexOfImpactForce);
             }
+            final Long _tmpImpactTimeMs;
+            if (_cursor.isNull(_cursorIndexOfImpactTimeMs)) {
+              _tmpImpactTimeMs = null;
+            } else {
+              _tmpImpactTimeMs = _cursor.getLong(_cursorIndexOfImpactTimeMs);
+            }
             final Float _tmpDistanceRun;
             if (_cursor.isNull(_cursorIndexOfDistanceRun)) {
               _tmpDistanceRun = null;
             } else {
               _tmpDistanceRun = _cursor.getFloat(_cursorIndexOfDistanceRun);
             }
-            _item = new InningsEvent(_tmpId,_tmpInningsId,_tmpTimestamp,_tmpDescription,_tmpBatSpeed,_tmpImpactForce,_tmpDistanceRun);
+            final String _tmpShotType;
+            if (_cursor.isNull(_cursorIndexOfShotType)) {
+              _tmpShotType = null;
+            } else {
+              _tmpShotType = _cursor.getString(_cursorIndexOfShotType);
+            }
+            final Float _tmpEfficiency;
+            if (_cursor.isNull(_cursorIndexOfEfficiency)) {
+              _tmpEfficiency = null;
+            } else {
+              _tmpEfficiency = _cursor.getFloat(_cursorIndexOfEfficiency);
+            }
+            final Float _tmpBackliftAngle;
+            if (_cursor.isNull(_cursorIndexOfBackliftAngle)) {
+              _tmpBackliftAngle = null;
+            } else {
+              _tmpBackliftAngle = _cursor.getFloat(_cursorIndexOfBackliftAngle);
+            }
+            final Float _tmpFollowThroughAngle;
+            if (_cursor.isNull(_cursorIndexOfFollowThroughAngle)) {
+              _tmpFollowThroughAngle = null;
+            } else {
+              _tmpFollowThroughAngle = _cursor.getFloat(_cursorIndexOfFollowThroughAngle);
+            }
+            final Float _tmpWristRollDeg;
+            if (_cursor.isNull(_cursorIndexOfWristRollDeg)) {
+              _tmpWristRollDeg = null;
+            } else {
+              _tmpWristRollDeg = _cursor.getFloat(_cursorIndexOfWristRollDeg);
+            }
+            _item = new InningsEvent(_tmpId,_tmpInningsId,_tmpTimestamp,_tmpDescription,_tmpBatSpeed,_tmpImpactForce,_tmpImpactTimeMs,_tmpDistanceRun,_tmpShotType,_tmpEfficiency,_tmpBackliftAngle,_tmpFollowThroughAngle,_tmpWristRollDeg);
             _result.add(_item);
           }
           return _result;
@@ -173,7 +245,13 @@ public final class InningsEventDao_Impl implements InningsEventDao {
           final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
           final int _cursorIndexOfBatSpeed = CursorUtil.getColumnIndexOrThrow(_cursor, "batSpeed");
           final int _cursorIndexOfImpactForce = CursorUtil.getColumnIndexOrThrow(_cursor, "impactForce");
+          final int _cursorIndexOfImpactTimeMs = CursorUtil.getColumnIndexOrThrow(_cursor, "impactTimeMs");
           final int _cursorIndexOfDistanceRun = CursorUtil.getColumnIndexOrThrow(_cursor, "distanceRun");
+          final int _cursorIndexOfShotType = CursorUtil.getColumnIndexOrThrow(_cursor, "shotType");
+          final int _cursorIndexOfEfficiency = CursorUtil.getColumnIndexOrThrow(_cursor, "efficiency");
+          final int _cursorIndexOfBackliftAngle = CursorUtil.getColumnIndexOrThrow(_cursor, "backliftAngle");
+          final int _cursorIndexOfFollowThroughAngle = CursorUtil.getColumnIndexOrThrow(_cursor, "followThroughAngle");
+          final int _cursorIndexOfWristRollDeg = CursorUtil.getColumnIndexOrThrow(_cursor, "wristRollDeg");
           final List<InningsEvent> _result = new ArrayList<InningsEvent>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final InningsEvent _item;
@@ -197,13 +275,49 @@ public final class InningsEventDao_Impl implements InningsEventDao {
             } else {
               _tmpImpactForce = _cursor.getFloat(_cursorIndexOfImpactForce);
             }
+            final Long _tmpImpactTimeMs;
+            if (_cursor.isNull(_cursorIndexOfImpactTimeMs)) {
+              _tmpImpactTimeMs = null;
+            } else {
+              _tmpImpactTimeMs = _cursor.getLong(_cursorIndexOfImpactTimeMs);
+            }
             final Float _tmpDistanceRun;
             if (_cursor.isNull(_cursorIndexOfDistanceRun)) {
               _tmpDistanceRun = null;
             } else {
               _tmpDistanceRun = _cursor.getFloat(_cursorIndexOfDistanceRun);
             }
-            _item = new InningsEvent(_tmpId,_tmpInningsId,_tmpTimestamp,_tmpDescription,_tmpBatSpeed,_tmpImpactForce,_tmpDistanceRun);
+            final String _tmpShotType;
+            if (_cursor.isNull(_cursorIndexOfShotType)) {
+              _tmpShotType = null;
+            } else {
+              _tmpShotType = _cursor.getString(_cursorIndexOfShotType);
+            }
+            final Float _tmpEfficiency;
+            if (_cursor.isNull(_cursorIndexOfEfficiency)) {
+              _tmpEfficiency = null;
+            } else {
+              _tmpEfficiency = _cursor.getFloat(_cursorIndexOfEfficiency);
+            }
+            final Float _tmpBackliftAngle;
+            if (_cursor.isNull(_cursorIndexOfBackliftAngle)) {
+              _tmpBackliftAngle = null;
+            } else {
+              _tmpBackliftAngle = _cursor.getFloat(_cursorIndexOfBackliftAngle);
+            }
+            final Float _tmpFollowThroughAngle;
+            if (_cursor.isNull(_cursorIndexOfFollowThroughAngle)) {
+              _tmpFollowThroughAngle = null;
+            } else {
+              _tmpFollowThroughAngle = _cursor.getFloat(_cursorIndexOfFollowThroughAngle);
+            }
+            final Float _tmpWristRollDeg;
+            if (_cursor.isNull(_cursorIndexOfWristRollDeg)) {
+              _tmpWristRollDeg = null;
+            } else {
+              _tmpWristRollDeg = _cursor.getFloat(_cursorIndexOfWristRollDeg);
+            }
+            _item = new InningsEvent(_tmpId,_tmpInningsId,_tmpTimestamp,_tmpDescription,_tmpBatSpeed,_tmpImpactForce,_tmpImpactTimeMs,_tmpDistanceRun,_tmpShotType,_tmpEfficiency,_tmpBackliftAngle,_tmpFollowThroughAngle,_tmpWristRollDeg);
             _result.add(_item);
           }
           return _result;
@@ -245,6 +359,41 @@ public final class InningsEventDao_Impl implements InningsEventDao {
         }
       }
     }, $completion);
+  }
+
+  @Override
+  public Flow<Long> getLatestInningsIdFlow() {
+    final String _sql = "SELECT MAX(inningsId) FROM innings_events";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"innings_events"}, new Callable<Long>() {
+      @Override
+      @Nullable
+      public Long call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final Long _result;
+          if (_cursor.moveToFirst()) {
+            final Long _tmp;
+            if (_cursor.isNull(0)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getLong(0);
+            }
+            _result = _tmp;
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
   }
 
   @NonNull

@@ -1,66 +1,98 @@
 #!/bin/bash
 # simulate_shots.sh
-# Connects to the active Wear OS emulator and injects realistic sensor telemetry
-# traversing the new 6-state ring-buffered kinetics model.
+# Injects realistic sensor telemetry for the professional kinematics engine.
 
-EMULATOR_PORT="5554"
+EMULATOR_PORT=${EMULATOR_PORT:-5554}
+TARGET="emulator-$EMULATOR_PORT"
 
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
 
-function inject_shot {
-    local name=$1
-    local peak_gyro=$2
-    local peak_accel=$3
+function inject_shot() {
+    local type=$1
+    local gyro=$2
+    local accel=$3
+    local grav_y=$4
+    local roll=$5
     
-    echo "🏏 Sequence: $name"
+    # 0. Settle gravity sensor (low pass filter needs time)
+    adb -s $TARGET emu sensor set gyroscope 0:0:0
+    adb -s $TARGET emu sensor set acceleration 0:$grav_y:9.8
+    sleep 1.0
+
+    # 1. Backlift
+    adb -s $TARGET emu sensor set gyroscope 0.5:0:0
+    adb -s $TARGET emu sensor set acceleration 0:$grav_y:9.8
+    sleep 0.5
     
-    # 1. IDLE_RECOVERY & STANCE_LOCKED
-    # Wait > 0.5s with zero/low gyro so the trailing StdDev falls < 0.9 rad/s
-    adb -s emulator-$EMULATOR_PORT emu sensor set gyroscope 0.0:0.0:0.0
-    adb -s emulator-$EMULATOR_PORT emu sensor set acceleration 0.0:0.0:9.8
-    sleep 1.5
-    
-    # 2. SWING_SEARCH & MEASURING_ARC
-    # Break standard dev with a big swing spike > 5.0 rad/s
-    adb -s emulator-$EMULATOR_PORT emu sensor set gyroscope ${peak_gyro}:0.0:0.0
+    # 2. Downswing start
+    adb -s $TARGET emu sensor set gyroscope 2.0:0:0
+    adb -s $TARGET emu sensor set acceleration 10.0:$grav_y:9.8
     sleep 0.2
     
-    # 3. CONTACT_WAIT (The -0.45s to +0.75s narrow window relative to peak gyro)
-    # Injecting the shock while inside the window!
-    adb -s emulator-$EMULATOR_PORT emu sensor set acceleration ${peak_accel}:0.0:0.0
-    sleep 0.1
+    # 3. Peak Swing & Impact
+    adb -s $TARGET emu sensor set gyroscope $gyro:$roll:0
+    adb -s $TARGET emu sensor set acceleration $accel:$grav_y:9.8
+    sleep 0.3
     
-    # 4. Follow through and drop acceleration
-    adb -s emulator-$EMULATOR_PORT emu sensor set acceleration 0.0:0.0:9.8
-    sleep 0.8
+    # 4. Follow through
+    adb -s $TARGET emu sensor set gyroscope 3.0:0:0
+    adb -s $TARGET emu sensor set acceleration 0:$grav_y:9.8
+    sleep 0.5
     
-    # Wait out the 1.0s ARC timeout + 0.75s POST window to allow EVALUATION phase
-    # Then transition back to IDLE_RECOVERY
-    sleep 1.0
+    # Reset
+    adb -s $TARGET emu sensor set gyroscope 0:0:0
+    sleep 2.0
 }
 
-echo "Initiating Wear OS Kinetics Verification Sequence..."
+# Clear logs first
+adb -s $TARGET logcat -c
 
-# Bat Speed = Gyro * 0.8 * 3.6
-# Ratio = Accel / BatSpeed
+echo "🚀 Starting professional kinematic simulation..."
 
-# 10.0 rad/s = 28.8 km/h. Accel 20.0. Ratio = 0.69 (< 2.5 Excellent)
-inject_shot "Excellent Strike" 10.0 20.0
+# ─── Helper: settle gravity to target position ───
+# Injects a static accel reading for <seconds> so the low-pass gravity
+# filter has time to converge before the actual shot motion starts.
+settle_gravity() {
+    local grav_y=$1
+    local secs=${2:-1.5}
+    adb -s $TARGET emu sensor set gyroscope 0:0:0
+    adb -s $TARGET emu sensor set acceleration 0:$grav_y:9.8
+    sleep $secs
+}
 
-# 10.0 rad/s = 28.8 km/h. Accel 80.0. Ratio = 2.77 (< 3.0 Good)
-inject_shot "Good Strike" 10.0 80.0
+# 1. COVER DRIVE: impactGyro > 14 → clear classification
+# Vertical stance: grav_y≈9.8 → Angle≈0°
+settle_gravity 9.0 2.0
+inject_shot "COVER DRIVE" 18.0 45.0 9.0 0.1
+sleep 3
 
-# 6.0 rad/s = 17.28 km/h. Accel 60.0. Ratio = 3.47 (> 3.0 Poor)
-inject_shot "Poor Strike (Toe/Handle)" 6.0 60.0
+# 2. PULL SHOT: wristRoll > 60° → roll=6 rad/s → 6*0.6*57.3=206°
+# Nearly vertical: grav_y≈9.0
+settle_gravity 9.0 2.0
+inject_shot "PULL SHOT" 12.0 40.0 9.0 6.0
+sleep 3
 
-# 8.0 rad/s = 23.0 km/h. Accel 9.8 (Just gravity). Ratio = N/A (Hit = false)
-inject_shot "Play and Miss" 8.0 9.8
+# 3. SWEEP: impactAngle > 75° → grav_y≈2 → acos(2/9.8)≈78°
+# Must settle gravity to horizontal position first
+settle_gravity 2.0 3.0
+inject_shot "SWEEP" 10.0 35.0 2.0 0.1
+sleep 3
 
-# Cut Shot: 6.5 rad/s = 18.7 km/h. Accel 65.0. Ratio = 3.47 (> 3.0 Poor)
-inject_shot "Cut Shot (Miss-timed)" 6.5 65.0
+# 4. ON-SIDE FLICK: wristRoll 20-60°, maxGyro < 14
+# roll=1.2 rad/s → 1.2*0.6*57.3 = 41° wrist roll (avg will stay above 20° threshold)
+settle_gravity 9.0 2.0
+inject_shot "ON-SIDE FLICK" 11.0 30.0 9.0 1.2
+sleep 3
 
-# Cut Shot: 7.2 rad/s = 20.7 km/h. Accel 45.0. Ratio = 2.17 (< 2.5 Excellent)
-inject_shot "Cut Shot (Clean Hit)" 7.2 45.0
+# 5. DEFENCE: maxGyro < 8 (LOW gyro)
+settle_gravity 9.0 1.5
+inject_shot "DEFENCE" 5.0 15.0 9.0 0.1
+sleep 3
 
-echo "✅ Multi-Shot Session Simulation complete!"
+# 6. PUSH: straight bat, minimal wrist — roll=0.05 rad/s → ~1.7° wristRoll (below 20°)
+settle_gravity 9.0 2.0
+inject_shot "PUSH" 10.0 20.0 9.0 0.05
+sleep 3
+
+echo "✅ Simulation complete. Results should be in logcat."

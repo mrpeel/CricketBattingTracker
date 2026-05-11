@@ -3,6 +3,7 @@ package com.mrpeel.cricketbattingtracker.ml
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.mrpeel.cricketbattingtracker.services.ShotData
 
 class SwingDetectorTest {
 
@@ -13,65 +14,86 @@ class SwingDetectorTest {
         detector = SwingDetector()
     }
 
-    @Test
-    fun testValidCricketShotDetected() {
-        var shotDetected = false
-        var maxBatSpeed = 0f
-        var impactForce = 0f
-
-        detector.onShotDetected = { speed, force ->
-            shotDetected = true
-            maxBatSpeed = speed
-            impactForce = force
+    private fun simulateShot(
+        preGyro: Float, 
+        impactGyro: Float, 
+        postGyro: Float, 
+        shock: Float, 
+        gravY: Float = 9.8f,
+        postGyroY: Float = 0f
+    ): ShotData? {
+        var detectedShot: ShotData? = null
+        detector.onShotDetected = { shot ->
+            detectedShot = shot
         }
 
-        // 1. Simulate idle state
-        var time = 0L
-        detector.processGyro(floatArrayOf(0f, 0f, 0f), time)
-        detector.processAccel(floatArrayOf(0f, 0f, 9.8f), time)
+        var time = 1_000_000_000L // Start at 1s
+        
+        // Fill pre-window (0.6s)
+        for (i in 0 until 30) {
+            detector.processGyro(floatArrayOf(preGyro, 0f, 0f), time)
+            detector.processGravity(floatArrayOf(0f, gravY, 0f), time)
+            detector.processAccel(floatArrayOf(0f, 0f, 9.8f), time)
+            time += 20_000_000L // 20ms = 50Hz
+        }
 
-        // 2. Simulate high rotational velocity (a swing)
-        // Magnitude will be sqrt(5*5 + 5*5 + 0) = ~7.07 rad/s (Above 5.0 threshold)
-        time += 100_000_000L // 100ms
-        detector.processGyro(floatArrayOf(5f, 5f, 0f), time)
+        // Impact
+        val impactTime = time
+        detector.processGyro(floatArrayOf(impactGyro, 0f, 0f), impactTime)
+        detector.processAccel(floatArrayOf(shock, 0f, 0f), impactTime)
+        detector.processGravity(floatArrayOf(0f, gravY, 0f), impactTime)
 
-        // 3. Simulate high accelerometer spike (impact)
-        // Magnitude will be sqrt(25*25 + 25*25 + 0) = ~35 m/s^2 (Above 30 threshold, and above 10 hit threshold)
-        time += 100_000_000L // 100ms
-        detector.processAccel(floatArrayOf(25f, 25f, 0f), time)
+        // Fill post-window (0.6s)
+        for (i in 0 until 30) {
+            time += 20_000_000L
+            detector.processGyro(floatArrayOf(postGyro, postGyroY, 0f), time)
+            detector.processGravity(floatArrayOf(0f, gravY, 0f), time)
+            detector.processAccel(floatArrayOf(0f, 0f, 9.8f), time)
+        }
 
-        // 4. Simulate the end of the swing > 1 second later
-        time += 1_100_000_000L // 1.1s later
-        detector.processGyro(floatArrayOf(0f, 0f, 0f), time)
-
-        // Verify
-        assertTrue("A valid cricket shot should have been detected", shotDetected)
-        assertTrue("Bat speed should be > 7.0 rad/s", maxBatSpeed > 7.0f)
-        assertTrue("Impact force should be > 35.0 m/s^2", impactForce > 35.0f)
+        return detectedShot
     }
 
     @Test
-    fun testFalsePositiveDefensiveBlock() {
-        var shotDetected = false
+    fun testCoverDrive() {
+        // High impact gyro, low snap ratio, vertical bat (gravY ~ 9.8)
+        val shot = simulateShot(preGyro = 10f, impactGyro = 20f, postGyro = 15f, shock = 50f, gravY = 9.0f)
+        assertNotNull(shot)
+        assertEquals("COVER DRIVE", shot?.shotType)
+        assertTrue("Efficiency should be high for a drive", (shot?.efficiency ?: 0f) > 80f)
+    }
 
-        detector.onShotDetected = { _, _ ->
-            shotDetected = true
-        }
+    @Test
+    fun testOnSideFlick() {
+        // High post-gyro relative to pre-gyro (snap ratio)
+        val shot = simulateShot(preGyro = 5f, impactGyro = 10f, postGyro = 25f, shock = 30f)
+        assertNotNull(shot)
+        assertEquals("ON-SIDE FLICK", shot?.shotType)
+        assertTrue("Speed should be corrected downward for flick", (shot?.speedKmh ?: 100f) < 40f)
+    }
 
-        var time = 0L
-        
-        // 1. Simulate very slow rotational velocity (a defensive push/leave)
-        // Magnitude = 2.0 rad/s (Below 5.0 threshold)
-        detector.processGyro(floatArrayOf(2f, 0f, 0f), time)
+    @Test
+    fun testPullShot() {
+        // High wrist roll (Gyro Y)
+        val shot = simulateShot(preGyro = 10f, impactGyro = 20f, postGyro = 20f, shock = 60f, postGyroY = 10f) // 10 rad/s roll
+        assertNotNull(shot)
+        assertEquals("PULL SHOT", shot?.shotType)
+    }
 
-        // 2. Simulate impact spike
-        time += 100_000_000L
-        detector.processAccel(floatArrayOf(20f, 20f, 0f), time)
+    @Test
+    fun testForwardDefence() {
+        // Low gyro magnitude overall
+        val shot = simulateShot(preGyro = 2f, impactGyro = 3f, postGyro = 2f, shock = 10f)
+        assertNotNull(shot)
+        assertEquals("DEFENCE", shot?.shotType)
+    }
 
-        // 3. End of the non-swing
-        time += 1_100_000_000L
-        detector.processGyro(floatArrayOf(0f, 0f, 0f), time)
-
-        assertFalse("A slow block should NOT be detected as a swing", shotDetected)
+    @Test
+    fun testSweepShot() {
+        // Horizontal bat (gravY is low, gravX or Z is high)
+        // In our simple calc_angle, angle = acos(y/mag). If y=0, angle=90.
+        val shot = simulateShot(preGyro = 10f, impactGyro = 15f, postGyro = 15f, shock = 40f, gravY = 0f)
+        assertNotNull(shot)
+        assertEquals("SWEEP", shot?.shotType)
     }
 }

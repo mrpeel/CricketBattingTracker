@@ -1,0 +1,1424 @@
+--------- beginning of main
+05-12 05:56:04.401   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84948523, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:04.415   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84948536, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:05.100   469   469 D SignalDetector: Signal strength: 4 84949220 84949222 b=100
+05-12 05:56:05.106   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:56:05.106   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:56:05.106   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:56:05.107   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:56:05.108   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:56:05.167   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 2(1048576 size) total buffers - 0(0 size) used buffers - 122/124 (recycle/alloc) - 2/124 (fetch/transfer)
+05-12 05:56:05.167   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:56:05.234   469  2238 D HealthService: onDataUpdate
+05-12 05:56:05.238  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:05.239  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:05.280  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:05.282  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:05.288   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:05.640   469  2238 D WifiNl80211Manager: Scan result ready event
+05-12 05:56:05.640   469  2238 D WifiNative: Scan result ready event
+05-12 05:56:05.776  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:05.776  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:05.776  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:06.235   469  2238 D HealthService: onDataUpdate
+05-12 05:56:06.239  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:06.239  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:06.273  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:06.273  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:06.273  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:06.273  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:06.273  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:06.453   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84950574, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:06.473   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84950595, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:07.236   469  2238 D HealthService: onDataUpdate
+05-12 05:56:07.241  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:07.242  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:07.277  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:07.279  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:07.284   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:07.513   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84951634, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:07.521   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84951643, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:07.774  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:07.775  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:07.775  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:08.046   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84952168, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:08.060   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84952182, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:08.238   469  2238 D HealthService: onDataUpdate
+05-12 05:56:08.243  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:08.244  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:08.273  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:08.273  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:08.273  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:08.274  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:08.274  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:08.283   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84952404, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:08.305   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84952427, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:08.313 15287 15287 D SwingDetector: Potential Impact detected at 84952434502980. Waiting for window to fill...
+05-12 05:56:08.632   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84952754, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:08.657   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84952778, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:08.915 15287 15287 D SwingDetector: Window full. Evaluating shot from 84952434502980
+05-12 05:56:08.915 15287 15287 D SwingDetector: DEBUG: Eval window. Gyro: 120, Accel: 61
+05-12 05:56:08.916 15287 15287 D SwingDetector: EVAL: Type=COVER DRIVE, MaxG=18.000278, Snap=9.230846, Roll=1.8336, Angle=47.44016
+05-12 05:56:08.916 15287 15287 D SwingDetector: SHOT: COVER DRIVE, Speed: 59.61692, Efficiency: 100.0, SS: Excellent
+05-12 05:56:08.917 15287 15287 D TrackerService: Shot detected! COVER DRIVE, Speed: 59.61692, Hit: true, SS: Excellent
+05-12 05:56:08.984 15287 15328 D EGL_emulation: app_time_stats: avg=3257.71ms min=3.94ms max=9747.10ms count=3
+05-12 05:56:09.180   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84953301, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:09.240   469  2238 D HealthService: onDataUpdate
+05-12 05:56:09.244  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:09.244  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:09.282  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:09.285  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:09.289   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:09.776  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:09.776  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:09.776  3907  4105 I Wear_Transport: Performing handshake with peer
+--------- beginning of system
+05-12 05:56:09.818   469  2238 W ProcessStats: Tracking association SourceState{2bbbf0b system/1000 BTopFgs #10063} whose proc state 2 is better than process ProcessState{661a9de com.google.android.wearable.sysui/10040 pkg=com.google.android.wearable.sysui} proc state 3 (20 skipped)
+05-12 05:56:10.241   469  2238 D HealthService: onDataUpdate
+05-12 05:56:10.247  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:10.247  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:10.275  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:10.275  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:10.275  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:10.275  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:10.275  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:11.244   469  2238 D HealthService: onDataUpdate
+05-12 05:56:11.250  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:11.251  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:11.277  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:11.280  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:11.287   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:11.779  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:11.779  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:11.779  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:12.246   469  2238 D HealthService: onDataUpdate
+05-12 05:56:12.249  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:12.250  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:12.277  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:12.277  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:12.277  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:12.277  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:12.277  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:13.247   469  2238 D HealthService: onDataUpdate
+05-12 05:56:13.250  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:13.251  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:13.279  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:13.282  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:13.286   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:13.779  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:13.779  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:13.779  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:13.800  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:56:14.001   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 0(0 size) used buffers - 123/126 (recycle/alloc) - 3/126 (fetch/transfer)
+05-12 05:56:14.001   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:56:14.235   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84958356, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:14.243   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84958364, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:14.248   469  2238 D HealthService: onDataUpdate
+05-12 05:56:14.251  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:14.251  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:14.277  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:14.277  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:14.277  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:14.277  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:14.277  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:15.103   469   469 D SignalDetector: Signal strength: 4 84959223 84959225 b=100
+05-12 05:56:15.110   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:56:15.110   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:56:15.110   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:56:15.110   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:56:15.111   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:56:15.249   469  2238 D HealthService: onDataUpdate
+05-12 05:56:15.254  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:15.255  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:15.281  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:15.284  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:15.290   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:15.780  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:15.780  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:15.780  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:16.251   469  2238 D HealthService: onDataUpdate
+05-12 05:56:16.255  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:16.255  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:16.279  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:16.279  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:16.279  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:16.279  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:16.279  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:16.284   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84960406, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:16.305   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84960427, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:17.252   469  2238 D HealthService: onDataUpdate
+05-12 05:56:17.258  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:17.259  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:17.282  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:17.284  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:17.289   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:17.348   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84961470, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:17.358   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84961479, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:17.780  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:17.780  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:17.780  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:17.904   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84962026, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:17.914   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84962036, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:18.153   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84962274, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:18.174 15287 15287 D SwingDetector: Potential Impact detected at 84962294502980. Waiting for window to fill...
+05-12 05:56:18.175   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84962296, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:18.255   469  2238 D HealthService: onDataUpdate
+05-12 05:56:18.260  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:18.260  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:18.279  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:18.279  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:18.279  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:18.279  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:18.279  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:18.511   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84962632, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:18.532   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84962654, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:18.774 15287 15287 D SwingDetector: Window full. Evaluating shot from 84962294502980
+05-12 05:56:18.774 15287 15287 D SwingDetector: DEBUG: Eval window. Gyro: 120, Accel: 61
+05-12 05:56:18.775 15287 15287 D SwingDetector: EVAL: Type=PULL SHOT, MaxG=13.416409, Snap=8.624882, Roll=116.89201, Angle=47.44016
+05-12 05:56:18.776 15287 15287 D SwingDetector: SHOT: PULL SHOT, Speed: 48.29907, Efficiency: 100.0, SS: Excellent
+05-12 05:56:18.776 15287 15287 D TrackerService: Shot detected! PULL SHOT, Speed: 48.29907, Hit: true, SS: Excellent
+05-12 05:56:18.858 15287 15328 D EGL_emulation: app_time_stats: avg=4930.90ms min=0.86ms max=9860.93ms count=2
+05-12 05:56:19.065   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84963186, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:19.256   469  2238 D HealthService: onDataUpdate
+05-12 05:56:19.260  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:19.261  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:19.282  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:19.284  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:19.290   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:19.780  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:19.781  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:19.781  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:20.258   469  2238 D HealthService: onDataUpdate
+05-12 05:56:20.263  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:20.263  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:20.279  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:20.279  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:20.279  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:20.279  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:20.279  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:20.957 13908 13908 I Finsky  : [2] SCH: job service start with id 9404.
+05-12 05:56:20.973 13908 14990 I Finsky  : [125] SCH: Satisfied jobs for 9404 are: 12-1
+05-12 05:56:20.974 13908 15453 I Finsky  : [130] SCH: Job 12-1 starting
+05-12 05:56:20.975 13908 13908 I Finsky  : [2] WM::SCH: Logging work start for 12-1
+05-12 05:56:20.975 13908 13908 I Finsky  : [2] [ContentSync] job started
+05-12 05:56:20.993 13908 15454 I Finsky  : [131] App states replicator found 3 unowned apps
+05-12 05:56:20.994 13908 14004 I Finsky  : [50] Completed 0 account content syncs with 0 successful.
+05-12 05:56:20.994 13908 13908 I Finsky  : [2] [ContentSync] Installation state replication succeeded.
+05-12 05:56:20.994 13908 13908 I Finsky  : [2] SCH: jobFinished: 12-1. TimeElapsed: 19ms.
+05-12 05:56:20.994 13908 13908 I Finsky  : [2] WM::SCH: Logging work end for 12-1
+05-12 05:56:21.002 13908 14004 I Finsky  : [50] SCH: Scheduling phonesky job Id: 1-1337, CT: 1778496798252, Constraints: [{ L: 43119847, D: 86319847, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+05-12 05:56:21.003 13908 14007 I Finsky  : [53] SCH: Scheduling 1 system job(s)
+05-12 05:56:21.003 13908 14007 I Finsky  : [53] SCH: Scheduling system job Id: 9407, L: 10537096, D: 53737096, C: false, I: false, N: 1
+05-12 05:56:21.007 13908 15453 I Finsky  : [130] SCH: job service finished with id 9404.
+05-12 05:56:21.259   469   797 D HealthService: onDataUpdate
+05-12 05:56:21.264  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:21.265  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:21.282  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:21.285  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:21.289   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:21.735  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:56:21.780  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:21.780  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:21.780  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:22.261   469   797 D HealthService: onDataUpdate
+05-12 05:56:22.266  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:22.267  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:22.279  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:22.279  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:22.279  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:22.279  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:22.279  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:23.262   469   797 D HealthService: onDataUpdate
+05-12 05:56:23.268  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:23.268  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:23.282  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:23.284  3907  4105 D TrafficStats: tagSocket(97) with statsTag=0x707, statsUid=-1
+05-12 05:56:23.287   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:23.779  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:23.780  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:23.780  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:23.883   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 0(0 size) used buffers - 124/128 (recycle/alloc) - 4/128 (fetch/transfer)
+05-12 05:56:23.883   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:56:24.108   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84968229, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:24.131   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84968252, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:24.264   469   989 D HealthService: onDataUpdate
+05-12 05:56:24.269  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:24.269  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:24.280  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:24.280  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:24.280  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:24.280  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:24.280  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:24.812   469   543 W ProcessStats: Tracking association SourceState{2bbbf0b system/1000 BTopFgs #10072} whose proc state 2 is better than process ProcessState{661a9de com.google.android.wearable.sysui/10040 pkg=com.google.android.wearable.sysui} proc state 3 (3 skipped)
+05-12 05:56:25.108   469   469 D SignalDetector: Signal strength: 4 84969227 84969229 b=100
+05-12 05:56:25.115   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:56:25.116   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:56:25.116   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:56:25.116   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:56:25.116   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:56:25.267   469   989 D HealthService: onDataUpdate
+05-12 05:56:25.272  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:25.272  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:25.282  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:25.285  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:25.291   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:25.780  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:25.780  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:25.780  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:26.268   469   989 D HealthService: onDataUpdate
+05-12 05:56:26.272  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:26.273  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:26.280  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:26.280  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:26.280  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:26.280  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:26.280  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:26.562   294   294 E android.hardware.power.stats@1.0-service-mock: Failed to getEnergyData
+05-12 05:56:27.155   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84971276, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:27.176   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84971297, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:27.269   469   989 D HealthService: onDataUpdate
+05-12 05:56:27.273  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:27.273  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:27.284  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:27.287  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:27.292   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:27.781  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:27.781  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:27.781  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:28.215   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84972336, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:28.225   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84972347, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:28.270   469   989 D HealthService: onDataUpdate
+05-12 05:56:28.273  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:28.273  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:28.280  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:28.280  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:28.280  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:28.280  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:28.280  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:28.763   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84972884, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:28.784   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84972905, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:28.985   469   487 W ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
+05-12 05:56:28.989   469   489 I ActivityTaskManager: Config changes=20000000 {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.490 fontWeightAdjustment=0}
+05-12 05:56:28.991   469   489 W ActivityTaskManager: Current config: {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.490 fontWeightAdjustment=0} unchanged for IME proc com.google.android.inputmethod.latin
+05-12 05:56:28.992   469   489 I WindowManager: Override config changes=20000000 {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.490 fontWeightAdjustment=0} for displayId=0
+05-12 05:56:29.001   469   489 V ActivityTaskManager: Sending to IME proc com.google.android.inputmethod.latin new config {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.490 fontWeightAdjustment=0}
+05-12 05:56:29.001   469   489 W ActivityTaskManager: Unable to send config for IME proc com.google.android.inputmethod.latin: no app thread
+05-12 05:56:29.004  4129  4129 D WindowTokenClient: Configuration not dispatch to IME because configuration has no  public difference with updated config.  Current config={1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.22 fontWeightAdjustment=0}, reported config={1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.461 fontWeightAdjustment=0}, updated config={1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.490 fontWeightAdjustment=0}
+05-12 05:56:29.005   357 14950 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 1(524288 size) used buffers - 124/129 (recycle/alloc) - 4/128 (fetch/transfer)
+05-12 05:56:29.008   469   489 I InputManager-JNI: Viewport [0] to add: local:4619827259835644672, isActive: true
+05-12 05:56:29.008   469   560 I InputReader: Reconfiguring input devices, changes=DISPLAY_INFO | 
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_9' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_5' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_7' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_2' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_3' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_10' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_6' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_8' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_4' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.008   469   560 I InputReader: Touch device 'virtio_input_multi_touch_11' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:29.015   469   469 D ModeManager: onDisplayChanged
+05-12 05:56:29.015   740  1014 D EGL_emulation: app_time_stats: avg=1239.48ms min=1.40ms max=31451.25ms count=26
+05-12 05:56:29.015 14940 14940 D ScreenRecord: orientation changed, now ROTATION_90
+05-12 05:56:29.019   469   989 I WindowManager: finishDrawing of orientation change: Window{6976bc1 u0 com.mrpeel.cricketbattingtracker/com.mrpeel.cricketbattingtracker.MainActivity} 11ms
+05-12 05:56:29.024   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84973146, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:29.029   469   490 I WindowManager: Screen frozen for +73ms due to Window{6976bc1 u0 com.mrpeel.cricketbattingtracker/com.mrpeel.cricketbattingtracker.MainActivity}
+05-12 05:56:29.033   469   490 W ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
+05-12 05:56:29.035   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84973156, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:29.053 15287 15287 D SwingDetector: Potential Impact detected at 84973174502980. Waiting for window to fill...
+05-12 05:56:29.077   285   403 I RanchuHwc: validateDisplay: layer 323 CompositionType 1, fallback to client
+05-12 05:56:29.094   285   403 I RanchuHwc: validateDisplay: layer 323 CompositionType 1, fallback to client
+05-12 05:56:29.111   285   403 I RanchuHwc: validateDisplay: layer 323 CompositionType 1, fallback to client
+05-12 05:56:29.128   285   403 I RanchuHwc: validateDisplay: layer 323 CompositionType 1, fallback to client
+05-12 05:56:29.144   285   403 I RanchuHwc: validateDisplay: layer 323 CompositionType 1, fallback to client
+05-12 05:56:29.161   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.161   285   403 I RanchuHwc: validateDisplay: layer 323 CompositionType 1, fallback to client
+05-12 05:56:29.165  4129  4129 I WearInputMethodService: WearInputMethodService.onFinishInput():2324 
+05-12 05:56:29.165  4129  4129 I WearInputMethodService: WearInputMethodService.onStartInput():1828 
+05-12 05:56:29.165  4129  4129 I WearInputMethodService: WearInputMethodService.onStartInput():1840 onStartInput(), Dummy InputConnection bound
+05-12 05:56:29.178   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.194   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.211   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.227   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.245   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.261   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.271   469   484 D HealthService: onDataUpdate
+05-12 05:56:29.273  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:29.273  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:29.278   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.281  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:29.283  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:29.285   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:29.295   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.311   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.327   285   403 I RanchuHwc: validateDisplay: layer 326 CompositionType 1, fallback to client
+05-12 05:56:29.362   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84973483, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:29.384   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84973505, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:29.655 15287 15287 D SwingDetector: Window full. Evaluating shot from 84973174502980
+05-12 05:56:29.655 15287 15287 D SwingDetector: DEBUG: Eval window. Gyro: 120, Accel: 61
+05-12 05:56:29.656 15287 15287 D SwingDetector: EVAL: Type=SWEEP, MaxG=10.0005, Snap=6.154059, Roll=1.7763001, Angle=78.47117
+05-12 05:56:29.656 15287 15287 D SwingDetector: SHOT: SWEEP, Speed: 27.361364, Efficiency: 100.0, SS: Excellent
+05-12 05:56:29.656 15287 15287 D TrackerService: Shot detected! SWEEP, Speed: 27.361364, Hit: true, SS: Excellent
+05-12 05:56:29.715 15287 15328 D EGL_emulation: app_time_stats: avg=5424.86ms min=1.82ms max=10847.91ms count=2
+05-12 05:56:29.782  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:29.782  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:29.782  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:29.922   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84974044, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:29.926  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:56:30.272   469   989 D HealthService: onDataUpdate
+05-12 05:56:30.278  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:30.279  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:30.283  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:30.283  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:30.283  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:30.283  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:30.283  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:30.989   469   489 I AsyncRotation: Async rotation timeout: {}
+05-12 05:56:31.086   469   489 I system_server: Explicit concurrent copying GC freed 39860(2888KB) AllocSpace objects, 2(40KB) LOS objects, 49% free, 16MB/32MB, paused 84us,39us total 50.907ms
+05-12 05:56:31.275   469   989 D HealthService: onDataUpdate
+05-12 05:56:31.279  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:31.281  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:31.285  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:31.288  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:31.292   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:31.785  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:31.785  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:31.785  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:32.276   469   989 D HealthService: onDataUpdate
+05-12 05:56:32.281  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:32.282  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:32.285  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:32.285  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:32.285  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:32.285  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:32.285  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:33.277   469   989 D HealthService: onDataUpdate
+05-12 05:56:33.281  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:33.282  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:33.287  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:33.291  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:33.295   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:33.785  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:33.785  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:33.785  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:34.013   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 0(0 size) used buffers - 147/152 (recycle/alloc) - 5/152 (fetch/transfer)
+05-12 05:56:34.014   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:56:34.279   469   989 D HealthService: onDataUpdate
+05-12 05:56:34.285  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:34.285  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:34.285  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:34.285  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:34.285  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:34.287  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:34.289  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:34.969   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84979091, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:34.991   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84979113, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:35.102   469   487 W ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
+05-12 05:56:35.107   469   489 I ActivityTaskManager: Config changes=20000000 {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.519 fontWeightAdjustment=0}
+05-12 05:56:35.109   469   489 W ActivityTaskManager: Current config: {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.519 fontWeightAdjustment=0} unchanged for IME proc com.google.android.inputmethod.latin
+05-12 05:56:35.109   469   469 D SignalDetector: Signal strength: 4 84979229 84979231 b=100
+05-12 05:56:35.111   469   489 I WindowManager: Override config changes=20000000 {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.519 fontWeightAdjustment=0} for displayId=0
+05-12 05:56:35.111   469   489 V ActivityTaskManager: Sending to IME proc com.google.android.inputmethod.latin new config {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.519 fontWeightAdjustment=0}
+05-12 05:56:35.112   469   489 W ActivityTaskManager: Current config: {1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.519 fontWeightAdjustment=0} unchanged for IME proc com.google.android.inputmethod.latin
+05-12 05:56:35.113   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:56:35.113   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:56:35.113   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:56:35.113   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:56:35.114   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:56:35.114   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:56:35.119  4129  4129 D WindowTokenClient: Configuration not dispatch to IME because configuration has no  public difference with updated config.  Current config={1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.10 fontWeightAdjustment=0}, reported config={1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.490 fontWeightAdjustment=0}, updated config={1.0 310mcc260mnc [en_US] ldltr sw192dp w192dp h192dp 320dpi smll port watch finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 384, 384) mAppBounds=Rect(0, 0 - 384, 384) mMaxBounds=Rect(0, 0 - 384, 384) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.519 fontWeightAdjustment=0}
+05-12 05:56:35.121   469   489 I InputManager-JNI: Viewport [0] to add: local:4619827259835644672, isActive: true
+05-12 05:56:35.121   469   560 I InputReader: Reconfiguring input devices, changes=DISPLAY_INFO | 
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_9' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_5' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_7' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_2' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_3' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_10' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_6' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_8' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_4' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.121   469   560 I InputReader: Touch device 'virtio_input_multi_touch_11' could not query the properties of its associated display.  The device will be inoperable until the display size becomes available.
+05-12 05:56:35.123   469   469 D ModeManager: onDisplayChanged
+05-12 05:56:35.124   740  1014 D EGL_emulation: app_time_stats: avg=3046.39ms min=0.78ms max=6092.00ms count=2
+05-12 05:56:35.133   469  2883 I WindowManager: finishDrawing of orientation change: Window{6976bc1 u0 com.mrpeel.cricketbattingtracker/com.mrpeel.cricketbattingtracker.MainActivity} 13ms
+05-12 05:56:35.135 14940 14940 D ScreenRecord: orientation changed, now ROTATION_0
+05-12 05:56:35.147   469   490 I WindowManager: Screen frozen for +71ms due to Window{6976bc1 u0 com.mrpeel.cricketbattingtracker/com.mrpeel.cricketbattingtracker.MainActivity}
+05-12 05:56:35.151   469   490 W ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
+05-12 05:56:35.195   285   403 I RanchuHwc: validateDisplay: layer 327 CompositionType 1, fallback to client
+05-12 05:56:35.212   285   403 I RanchuHwc: validateDisplay: layer 327 CompositionType 1, fallback to client
+05-12 05:56:35.228   285   403 I RanchuHwc: validateDisplay: layer 327 CompositionType 1, fallback to client
+05-12 05:56:35.244   285   403 I RanchuHwc: validateDisplay: layer 327 CompositionType 1, fallback to client
+05-12 05:56:35.262   285   403 I RanchuHwc: validateDisplay: layer 327 CompositionType 1, fallback to client
+05-12 05:56:35.277   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.277   285   403 I RanchuHwc: validateDisplay: layer 327 CompositionType 1, fallback to client
+05-12 05:56:35.280  4129  4129 I WearInputMethodService: WearInputMethodService.onFinishInput():2324 
+05-12 05:56:35.280  4129  4129 I WearInputMethodService: WearInputMethodService.onStartInput():1828 
+05-12 05:56:35.280  4129  4129 I WearInputMethodService: WearInputMethodService.onStartInput():1840 onStartInput(), Dummy InputConnection bound
+05-12 05:56:35.280   469  2883 D HealthService: onDataUpdate
+05-12 05:56:35.282  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:35.282  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:35.288  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:35.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:35.291   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:35.294   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.311   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.327   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.344   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.362   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.377   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.394   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.411   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.428   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.445   285   403 I RanchuHwc: validateDisplay: layer 330 CompositionType 1, fallback to client
+05-12 05:56:35.786  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:35.786  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:35.786  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:36.283   469  2883 D HealthService: onDataUpdate
+05-12 05:56:36.285  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:36.285  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:36.285  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:36.286  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:36.286  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:36.291  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:36.291  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:37.021   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84981142, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:37.044   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84981166, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:37.105   469   489 I AsyncRotation: Async rotation timeout: {}
+05-12 05:56:37.208   469   489 I system_server: Explicit concurrent copying GC freed 13998(883KB) AllocSpace objects, 0(0B) LOS objects, 50% free, 16MB/32MB, paused 98us,40us total 53.303ms
+05-12 05:56:37.284   469  2883 D HealthService: onDataUpdate
+05-12 05:56:37.287  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:37.287  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:37.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:37.291  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:37.295   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:37.788  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:37.788  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:37.788  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:37.863  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:56:38.075   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84982195, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:38.098   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84982220, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:38.285  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:38.285  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:38.285  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:38.285  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:38.285  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:38.285   469  2883 D HealthService: onDataUpdate
+05-12 05:56:38.293  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:38.294  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:38.639   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84982760, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:38.648   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84982770, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:38.879   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84983001, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:38.905   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84983026, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:38.914 15287 15287 D SwingDetector: Potential Impact detected at 84983034502980. Waiting for window to fill...
+05-12 05:56:39.239   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84983360, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:39.249   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84983370, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:39.287  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:39.290  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:39.291   469  2883 D HealthService: onDataUpdate
+05-12 05:56:39.297  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:39.297   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:39.297  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:39.515 15287 15287 D SwingDetector: Window full. Evaluating shot from 84983034502980
+05-12 05:56:39.516 15287 15287 D SwingDetector: DEBUG: Eval window. Gyro: 120, Accel: 61
+05-12 05:56:39.516 15287 15287 D SwingDetector: EVAL: Type=ON-SIDE FLICK, MaxG=11.065262, Snap=6.7957454, Roll=22.690802, Angle=47.44016
+05-12 05:56:39.516 15287 15287 D SwingDetector: SHOT: ON-SIDE FLICK, Speed: 33.461353, Efficiency: 100.0, SS: Excellent
+05-12 05:56:39.516 15287 15287 D TrackerService: Shot detected! ON-SIDE FLICK, Speed: 33.461353, Hit: true, SS: Excellent
+05-12 05:56:39.591 15287 15328 D EGL_emulation: app_time_stats: avg=4930.18ms min=1.32ms max=9859.03ms count=2
+05-12 05:56:39.600   357 14950 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 1(524288 size) used buffers - 169/175 (recycle/alloc) - 6/174 (fetch/transfer)
+05-12 05:56:39.782   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84983903, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:39.787  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:39.787  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:39.787  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:40.284  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:40.284  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:40.284  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:40.284  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:40.284  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:40.292   469   484 D HealthService: onDataUpdate
+05-12 05:56:40.299  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:40.300  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:41.287  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:41.290  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:41.294   469   484 D HealthService: onDataUpdate
+05-12 05:56:41.297   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:41.299  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:41.299  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:41.784  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:41.784  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:41.784  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:42.283  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:42.283  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:42.283  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:42.283  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:42.283  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:42.296   469  2883 D HealthService: onDataUpdate
+05-12 05:56:42.301  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:42.301  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:43.286  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:43.290  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:43.297   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:43.299   469  2883 D HealthService: onDataUpdate
+05-12 05:56:43.302  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:43.303  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:43.785  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:43.785  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:43.785  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:44.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:44.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:44.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:44.286  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:44.286  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:44.301   469  2883 D HealthService: onDataUpdate
+05-12 05:56:44.306  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:44.306  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:44.814   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84988935, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:44.823   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84988945, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:45.113   469   469 D SignalDetector: Signal strength: 4 84989233 84989234 b=100
+05-12 05:56:45.116   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:56:45.116   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:56:45.116   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:56:45.116   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:56:45.116   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:56:45.134   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 0(0 size) used buffers - 170/176 (recycle/alloc) - 6/176 (fetch/transfer)
+05-12 05:56:45.134   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:56:45.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:45.295  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:45.299   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:45.303   469  2883 D HealthService: onDataUpdate
+05-12 05:56:45.307  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:45.308  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:45.788  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:45.788  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:45.788  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:45.800  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:56:46.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:46.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:46.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:46.286  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:46.287  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:46.306   469  2883 D HealthService: onDataUpdate
+05-12 05:56:46.311  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:46.312  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:46.376   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84990497, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:46.386   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84990507, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:47.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:47.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:47.300   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:47.307   469  2883 D HealthService: onDataUpdate
+05-12 05:56:47.311  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:47.311  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:47.425   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84991546, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:47.448   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84991569, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:47.788  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:47.788  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:47.788  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:47.987   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84992107, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:47.996   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84992117, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:48.238   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84992359, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:48.260   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84992382, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:48.274 15287 15287 D SwingDetector: Potential Impact detected at 84992394502980. Waiting for window to fill...
+05-12 05:56:48.287  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:48.287  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:48.287  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:48.287  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:48.287  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:48.308   469  2883 D HealthService: onDataUpdate
+05-12 05:56:48.313  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:48.314  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:48.590   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84992711, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:48.613   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84992734, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:48.874 15287 15287 D SwingDetector: Window full. Evaluating shot from 84992394502980
+05-12 05:56:48.875 15287 15287 D SwingDetector: DEBUG: Eval window. Gyro: 120, Accel: 61
+05-12 05:56:48.875 15287 15287 D SwingDetector: EVAL: Type=DEFENCE, MaxG=5.001, Snap=3.6369588, Roll=1.8336, Angle=47.44016
+05-12 05:56:48.876 15287 15287 D SwingDetector: SHOT: DEFENCE, Speed: 12.242448, Efficiency: 100.0, SS: Excellent
+05-12 05:56:48.876 15287 15287 D TrackerService: Shot detected! DEFENCE, Speed: 12.242448, Hit: true, SS: Excellent
+05-12 05:56:48.970 15287 15328 D EGL_emulation: app_time_stats: avg=4686.25ms min=1.36ms max=9371.14ms count=2
+05-12 05:56:49.142   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84993263, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:49.288  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:49.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:49.298   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:49.309   469  2883 D HealthService: onDataUpdate
+05-12 05:56:49.316  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:49.317  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:49.787  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:49.787  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:49.787  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:50.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:50.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:50.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:50.287  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:50.287  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:50.313   469  2883 D HealthService: onDataUpdate
+05-12 05:56:50.318  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:50.318  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:51.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:51.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:51.298   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:51.315   469  2883 D HealthService: onDataUpdate
+05-12 05:56:51.318  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:51.319  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:51.787  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:51.787  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:51.787  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:52.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:52.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:52.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:52.286  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:52.286  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:52.316   469  2883 D HealthService: onDataUpdate
+05-12 05:56:52.321  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:52.321  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:53.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:53.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:53.299   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:53.317   469  2883 D HealthService: onDataUpdate
+05-12 05:56:53.321  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:53.322  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:53.735  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:56:53.788  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:53.788  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:53.788  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:53.985   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 0(0 size) used buffers - 171/178 (recycle/alloc) - 7/178 (fetch/transfer)
+05-12 05:56:53.985   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:56:54.187   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84998308, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:54.212   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 84998333, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:54.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:54.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:54.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:54.286  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:54.286  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:54.319   469  2883 D HealthService: onDataUpdate
+05-12 05:56:54.323  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:54.324  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:55.118   469   469 D SignalDetector: Signal strength: 4 84999238 84999239 b=100
+05-12 05:56:55.122   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:56:55.122   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:56:55.122   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:56:55.122   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:56:55.123   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:56:55.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:55.291  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:55.299   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:55.320   469   484 D HealthService: onDataUpdate
+05-12 05:56:55.325  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:55.325  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:55.788  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:55.788  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:55.788  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:56.249   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85000370, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:56.270   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85000391, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:56.287  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:56.287  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:56.287  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:56.287  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:56.287  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:56.321   469   484 D HealthService: onDataUpdate
+05-12 05:56:56.325  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:56.325  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:57.288  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:57.293  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:57.298   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:57.302   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85001423, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:57.322   469   484 D HealthService: onDataUpdate
+05-12 05:56:57.323   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85001445, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:57.326  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:57.327  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:57.787  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:57.787  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:57.787  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:56:57.851   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85001972, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:57.875   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85001997, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:58.107   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85002228, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:58.129   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85002250, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:58.134 15287 15287 D SwingDetector: Potential Impact detected at 85002254502980. Waiting for window to fill...
+05-12 05:56:58.287  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:56:58.287  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:56:58.287  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:56:58.287  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:56:58.287  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:56:58.325   469  2883 D HealthService: onDataUpdate
+05-12 05:56:58.330  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:58.332  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:58.470   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85002591, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:58.480   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85002602, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:58.735 15287 15287 D SwingDetector: Window full. Evaluating shot from 85002254502980
+05-12 05:56:58.735 15287 15287 D SwingDetector: DEBUG: Eval window. Gyro: 120, Accel: 61
+05-12 05:56:58.736 15287 15287 D SwingDetector: EVAL: Type=PUSH, MaxG=10.000125, Snap=6.250054, Roll=0.97410005, Angle=47.44016
+05-12 05:56:58.736 15287 15287 D SwingDetector: SHOT: PUSH, Speed: 25.920322, Efficiency: 100.0, SS: Excellent
+05-12 05:56:58.736 15287 15287 D TrackerService: Shot detected! PUSH, Speed: 25.920322, Hit: true, SS: Excellent
+05-12 05:56:58.799 15287 15328 D EGL_emulation: app_time_stats: avg=4909.67ms min=1.22ms max=9818.12ms count=2
+05-12 05:56:59.022   805   805 D WristGestureCtrl: Gesture:GESTURE UNGAZE, timestamp(ms): 85003143, confidence: 0.0, latency(ms): 0, duration(ms): 0
+05-12 05:56:59.288  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:59.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:56:59.299   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:56:59.329   469  2883 D HealthService: onDataUpdate
+05-12 05:56:59.335  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:56:59.335  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:56:59.787  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:56:59.788  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:56:59.788  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:00.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:00.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:00.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:00.286  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:00.286  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:00.296   469   497 W ProcessStats: Tracking association SourceState{2bbbf0b system/1000 BTopFgs #10074} whose proc state 2 is better than process ProcessState{661a9de com.google.android.wearable.sysui/10040 pkg=com.google.android.wearable.sysui} proc state 3 (1 skipped)
+05-12 05:57:00.331   469  2883 D HealthService: onDataUpdate
+05-12 05:57:00.335  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:57:00.336  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:57:01.288  3907  4105 D TrafficStats: tagSocket(105) with statsTag=0x707, statsUid=-1
+05-12 05:57:01.291  3907  4105 D TrafficStats: tagSocket(105) with statsTag=0x707, statsUid=-1
+05-12 05:57:01.297   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:01.334   469  2883 D HealthService: onDataUpdate
+05-12 05:57:01.338  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:57:01.339  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:57:01.673  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:57:01.788  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:01.788  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:01.788  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:02.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:02.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:02.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:02.287  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:02.287  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:02.335   469  2883 D HealthService: onDataUpdate
+05-12 05:57:02.339  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:57:02.340  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:57:03.028   469   484 W AppOps  : Noting op not finished: uid 10068 pkg com.google.android.gms code 79 startTime of in progress event=1778529357731
+05-12 05:57:03.033   469   484 W AppOps  : Noting op not finished: uid 10068 pkg com.google.android.gms code 79 startTime of in progress event=1778529357731
+05-12 05:57:03.037   469  2429 W AppOps  : Noting op not finished: uid 10068 pkg com.google.android.gms code 79 startTime of in progress event=1778529357731
+05-12 05:57:03.288  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:03.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:03.300   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:03.342   469   484 D HealthService: onDataUpdate
+05-12 05:57:03.346  1536  2518 W WHS_AggregateMetricsManager: Unexpected Offloaded Aggregate received: DataType(name=HeartRate, timeType=SAMPLE, format=1)
+05-12 05:57:03.347  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:57:03.788  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:03.789  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:03.789  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:03.822   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 0(0 size) used buffers - 172/180 (recycle/alloc) - 8/180 (fetch/transfer)
+05-12 05:57:03.823   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:57:04.095 15287 15287 D TrackerService: Service Destroyed
+05-12 05:57:04.099 15287 15424 D HealthServicesManager: Samsung Health Exercise Tracking Ended & Synchronized.
+05-12 05:57:04.104  1536  1631 W WHS_ExerciseManager: Tried to stop a non-existent preparing existent.
+05-12 05:57:04.105  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:57:04.105   469   484 D HealthService: pauseTracking: [4098, 4107]
+05-12 05:57:04.106   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: pauseTracking()
+05-12 05:57:04.106   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: Pausing data type 0x1002
+05-12 05:57:04.106   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1002 pause tracking
+05-12 05:57:04.106   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: Pausing data type 0x100b
+05-12 05:57:04.106   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x100b pause tracking
+05-12 05:57:04.106   469  2429 D HealthService: flush: [4098, 4107, 20482]
+05-12 05:57:04.106   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: flush()
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa007 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa006 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa001 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa002 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa000 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa003 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x6 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa004 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x5002 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x20001 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1002 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1000 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x7 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1005 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x10001 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x5000 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x3 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x30001 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1001 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x5010 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0xa005 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x2 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x100b skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x5003 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1006 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x500c skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x5001 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x1007 skipping onDataUpdate() call because no data was sampled.
+05-12 05:57:04.106   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: onFlushCompleted()
+05-12 05:57:04.107   469  2883 D HealthService: onFlushCompleted
+05-12 05:57:04.107   306   340 I vendor.google_clockwork.healthservices@1-service.synthetic: There are no flush requests, waiting...
+05-12 05:57:04.109   469   484 D HealthService: stopTracking: [4098, 4107, 20482]
+05-12 05:57:04.109   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: stopTracking()
+05-12 05:57:04.109   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: Stopping: 0x5002 from tracked data types
+05-12 05:57:04.109   306   338 I vendor.google_clockwork.healthservices@1-service.synthetic: 0x5002 stop tracking
+05-12 05:57:04.110  1536  2518 W WHS_ExerciseManager: No active listeners for package com.mrpeel.cricketbattingtracker
+05-12 05:57:04.129 15287 15626 D DataSyncManager: Data sent to phone layer: ${result.uri}
+05-12 05:57:04.140 15287 15328 D EGL_emulation: app_time_stats: avg=2662.48ms min=1.44ms max=5323.53ms count=2
+05-12 05:57:04.286  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:04.286  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:04.286  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:04.286  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:04.286  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:04.342   306   339 I vendor.google_clockwork.healthservices@1-service.synthetic: There are no tracked data types, waiting...
+05-12 05:57:05.117   469   469 D SignalDetector: Signal strength: 4 85009238 85009239 b=100
+05-12 05:57:05.122   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:57:05.122   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:57:05.122   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:57:05.122   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:57:05.122   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:57:05.289  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:05.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:05.300   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:05.789  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:05.789  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:05.789  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:06.288  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:06.288  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:06.288  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:06.288  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:06.288  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:07.291  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:07.294  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:07.301   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:07.789  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:07.789  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:07.789  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:08.288  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:08.288  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:08.288  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:08.288  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:08.288  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:09.290  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:09.290  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:09.292   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:09.791  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:09.791  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:09.791  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:09.831   357   689 D BufferPoolAccessor2.0: bufferpool2 0xb40000760a956378 : 1(524288 size) total buffers - 0(0 size) used buffers - 174/183 (recycle/alloc) - 9/183 (fetch/transfer)
+05-12 05:57:09.831   357   689 D BufferPoolAccessor2.0: evictor expired: 1, evicted: 1
+05-12 05:57:09.864  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:57:10.289  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:10.289  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:10.289  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:10.292  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:10.292  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:11.297  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:11.299  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:11.301   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:11.791  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:11.791  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:11.791  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:12.290  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:12.290  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:12.290  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:12.290  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:12.290  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:13.292  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:13.295  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:13.301   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:13.522 14940 14959 I MPEG4Writer: setStartTimestampUs: 84937342517
+05-12 05:57:13.525 14940 14958 V MediaWriter: Track event err/info msg:101, trackId:1, type:1000,val:-1011
+05-12 05:57:13.525 14940 14940 D MPEG4Writer: reset()
+05-12 05:57:13.525 14940 14940 D MPEG4Writer: Video track stopping. Stop source
+05-12 05:57:13.525 14940 14940 D MPEG4Writer: Video track source stopping
+05-12 05:57:13.525 14940 14940 D MPEG4Writer: Video track source stopped
+05-12 05:57:13.525 14940 14958 I MPEG4Writer: Received total/0-length (183/0) buffers and encoded 183 frames. - Video
+05-12 05:57:13.525 14940 14940 D MPEG4Writer: Video track stopped. Status:0. Stop source
+05-12 05:57:13.526 14940 14959 V MediaWriter: Track event err/info msg:101, trackId:2, type:1000,val:-1011
+05-12 05:57:13.526 14940 14959 W MPEG4Writer: 0-duration samples found: 1
+05-12 05:57:13.526 14940 14959 I MPEG4Writer: Received total/0-length (1/0) buffers and encoded 1 frames. - Metadata
+05-12 05:57:13.526 14940 14940 D MPEG4Writer: Metadata track stopping. Stop source
+05-12 05:57:13.526 14940 14940 D MPEG4Writer: Metadata track source stopping
+05-12 05:57:13.526 14940 14940 D MPEG4Writer: Metadata track source stopped
+05-12 05:57:13.526 14940 14940 D MPEG4Writer: Metadata track stopped. Status:0. Stop source
+05-12 05:57:13.526 14940 14940 D MPEG4Writer: Duration from tracks range is [0, 70977081] us
+05-12 05:57:13.527 14940 14956 D MPEG4Writer: 1 chunks are written in the last batch
+05-12 05:57:13.527 14940 14940 D MPEG4Writer: WriterThread stopped. Status:0
+05-12 05:57:13.527 14940 14940 I MPEG4Writer: Adjust the moov start time from 84937342517 us -> 84937342517 us
+05-12 05:57:13.527 14940 14940 I MPEG4Writer: The mp4 file will not be streamable.
+05-12 05:57:13.527 14940 14940 I MPEG4Writer: MOOV atom was written to the file
+05-12 05:57:13.527 14940 14940 D MPEG4Writer: release()
+05-12 05:57:13.527 14940 14940 D MPEG4Writer: ftruncate mPreAllocateFileEndOffset:1506532 mOffset:1505491 mMdatEndOffset:1501972 diff:1041
+05-12 05:57:13.535 14940 14940 D MPEG4Writer: final fsync() takes 7 ms, file size 1505491
+05-12 05:57:13.536 14940 14940 D MPEG4Writer: MP4WtrCtrlHlpLooper stopped
+05-12 05:57:13.536 14940 14940 D MPEG4Writer: Top 5 write durations(microseconds): #1:246 #2:259 #3:312 #4:377 #5:384
+05-12 05:57:13.538 14940 14945 I hw-BpHwBinder: onLastStrongRef automatically unlinking death recipients
+05-12 05:57:13.539   357   737 I hw-BpHwBinder: onLastStrongRef automatically unlinking death recipients
+05-12 05:57:13.539   357   737 I hw-BpHwBinder: onLastStrongRef automatically unlinking death recipients
+05-12 05:57:13.539   357   737 V C2Store : in ~ComponentModule
+05-12 05:57:13.539   357   737 V C2Store : unloading dll
+05-12 05:57:13.540 14940 14940 D MediaCodec: flushMediametrics
+05-12 05:57:13.551 14940 14943 I BpBinder: onLastStrongRef automatically unlinking death recipients: <uncached descriptor>
+05-12 05:57:13.569 14940 14940 D ScreenRecord: success
+05-12 05:57:13.573 14940 14940 I BpBinder: onLastStrongRef automatically unlinking death recipients: <uncached descriptor>
+05-12 05:57:13.574  1177  1683 I MediaProvider: Begin Intent { act=android.intent.action.MEDIA_SCANNER_SCAN_FILE dat=file:///... flg=0x1400010 cmp=com.android.providers.media.module/com.android.providers.media.MediaService }
+05-12 05:57:13.576 14940 14940 I BpBinder: onLastStrongRef automatically unlinking death recipients: <uncached descriptor>
+05-12 05:57:13.577   357   738 D BufferPoolAccessor2.0: Destruction - bufferpool2 0xb40000760a956378 cached: 0/0M, 0/0% in use; allocs: 183, 95% recycled; transfers: 183, 95% unfetched
+05-12 05:57:13.615  1177  1683 V MediaProvider: Inserted id:1000000018 less than next row id backup:1000001000.
+05-12 05:57:13.619  1177  1683 I MediaProvider: End Intent { act=android.intent.action.MEDIA_SCANNER_SCAN_FILE dat=file:///... flg=0x1400010 cmp=com.android.providers.media.module/com.android.providers.media.MediaService }
+05-12 05:57:13.619  1177  1214 W FuseDaemon: Reducing the number of considered missed Gc histogram windows from 3142 to 100
+05-12 05:57:13.789  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:13.789  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:13.789  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:14.132   469  2429 W ProcessStats: Tracking association SourceState{2bbbf0b system/1000 BTopFgs #10093} whose proc state 2 is better than process ProcessState{661a9de com.google.android.wearable.sysui/10040 pkg=com.google.android.wearable.sysui} proc state 3 (10 skipped)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:14.290  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:14.290  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:14.290  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:14.290  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:15.122   469   469 D SignalDetector: Signal strength: 4 85019241 85019243 b=100
+05-12 05:57:15.129   663   663 D SysUI   : [WatchFaceOverlayModule]hasVoiceInService=true, hasDataInService=true, hasCellHw=true, simStateReady=true, isLteConnected=true, mobileDataEnabled=true
+05-12 05:57:15.129   663   663 D SysUI   : [WFOverlayController]Setting LTE connected: true, hasCellHw: true, mobileDataSettingEnabled: true
+05-12 05:57:15.129   663   663 D SysUI   : [WFOverlayController]Updating icons.
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 0, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 13, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 14, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 1, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 2, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 12, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 3, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [WFOverlayController]Setting untethered safety: false as state is: 
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 15, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 4, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 5, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 6, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 7, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 8, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 9, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 10, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [StatusIndicatorsControl]update status indicator: statusIndicatorType 11, isEnabled false
+05-12 05:57:15.129   663   663 D SysUI   : [WatchFaceOverlayUi]Unset status indicator icon
+05-12 05:57:15.130   663   663 D SysUI   : [LithiumStatusIconTrayUi]Updated carrier name to: T-Mobile
+05-12 05:57:15.295  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:15.299  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:15.304   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:15.794  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:15.794  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:15.794  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:16.293  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:16.293  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:16.293  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:16.293  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:16.293  3907  4105 D Wear_Transport: Network processing loop is finished
+05-12 05:57:17.296  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:17.300  3907  4105 D TrafficStats: tagSocket(69) with statsTag=0x707, statsUid=-1
+05-12 05:57:17.305   326   326 E adbd    : failed to connect to socket 'tcp:5601': Connection refused
+05-12 05:57:17.795  3907  4105 I Wear_Transport: handleConnection, config: ConnectionConfiguration[ Name=network, Address=null, Type=Network, Role=1, Enabled=true, IsConnected=false, PeerNodeId=null, BtlePriority=true, NodeId=null, PackageName=null, ConnectionRetryStrategy=0, allowedConfigPackages=[], Migrating=false, DataItemSyncEnabled=true, NodeConnectionRestrictions=null, removeConnectionWhenBondRemovedByUser=true, maxSupportedRemoteAndroidSdkVersion=0, runtimeType=0, peerSupportsBle=false, skipConnectingIfDeviceNotBonded=false]
+05-12 05:57:17.795  3907  4105 I Wear_Transport: Connection continuing after step: auth/encryption
+05-12 05:57:17.795  3907  4105 I Wear_Transport: Performing handshake with peer
+05-12 05:57:17.799  2545  2545 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+05-12 05:57:18.293  3907  4105 W Wear_Transport: error while connecting to peer: no connect received before IOException
+05-12 05:57:18.293  3907  4105 W Wear_Transport: java.io.IOException: connection closed
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvgn.m(:com.google.android.gms@261631083@26.16.31 (240400-900800821):18)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvgn.j(:com.google.android.gms@261631083@26.16.31 (240400-900800821):14)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvgn.k(:com.google.android.gms@261631083@26.16.31 (240400-900800821):7)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvgi.g(:com.google.android.gms@261631083@26.16.31 (240400-900800821):429)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvgi.u(:com.google.android.gms@261631083@26.16.31 (240400-900800821):1091)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvgi.o(:com.google.android.gms@261631083@26.16.31 (240400-900800821):20)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvyf.a(:com.google.android.gms@261631083@26.16.31 (240400-900800821):23)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvyf.f(:com.google.android.gms@261631083@26.16.31 (240400-900800821):147)
+05-12 05:57:18.293  3907  4105 W Wear_Transport: 	at cvyf.run(:com.google.android.gms@261631083@26.16.31 (240400-900800821):142)
+05-12 05:57:18.293  3907  4105 D Wear_Transport: Cleaning up...
+05-12 05:57:18.293  3907  4105 D Wear_Transport: Network processing loop is finished
