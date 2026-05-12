@@ -57,156 +57,123 @@ fun SessionSummaryScreen(
     // ---- PAGE 1: Last shot glanceable view ----
     // Layout is a single Box that fills the circle.
     // Designed to show everything without scrolling.
-    ScalingLazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(navyDark),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-        contentPadding = PaddingValues(
-            // Inset top/bottom enough to keep content in the circular safe area
-            top = 20.dp,
-            bottom = 20.dp,
-            start = 8.dp,
-            end = 8.dp
-        )
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
     ) {
+        // ── 1. Top Section: Shot Type ──────────────────────────────────
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(ratingColor.copy(alpha = 0.2f))
+                .padding(horizontal = 10.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = lastType.uppercase(),
+                color = ratingColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+        }
 
-        // ── Row 1: Shot type badge ─────────────────────────────────────
-        item {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(ratingColor.copy(alpha = 0.18f))
-                    .padding(horizontal = 10.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = lastType.uppercase(),
-                    color = ratingColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.8.sp
+        // ── 2. Center Section: The Core Ring ───────────────────────────
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(92.dp)) {
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val strokeWidth = 6.dp.toPx()
+                drawArc(
+                    color = Color.White.copy(alpha = 0.1f),
+                    startAngle = 135f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+                val progress = (lastEfficiency / 100f).coerceIn(0.01f, 1f)
+                drawArc(
+                    brush = Brush.sweepGradient(
+                        0.35f to ratingColor.copy(alpha = 0.4f),
+                        0.75f to ratingColor
+                    ),
+                    startAngle = 135f,
+                    sweepAngle = 270f * progress,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
             }
-        }
 
-        // ── Row 2: Speed ring with rating label inside ─────────────────
-        item {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(84.dp)) {
-                Canvas(modifier = Modifier.matchParentSize()) {
-                    val strokeWidth = 7.dp.toPx()
-
-                    // Track background
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.06f),
-                        startAngle = 130f,
-                        sweepAngle = 280f,
-                        useCenter = false,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                    )
-                    // Efficiency progress arc colored by rating
-                    val progress = (lastEfficiency / 100f).coerceIn(0.01f, 1f)
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            0f to ratingColor.copy(alpha = 0.3f),
-                            progress to ratingColor
-                        ),
-                        startAngle = 130f,
-                        sweepAngle = 280f * progress,
-                        useCenter = false,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = String.format("%.0f", lastSpeed),
-                        color = Color.White,
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Black,
-                        lineHeight = 30.sp
-                    )
-                    Text(
-                        text = "KM/H",
-                        color = ratingColor,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
-                    )
-                }
-            }
-        }
-
-        // ── Row 3: Rating + Efficiency inline ──────────────────────────
-        item {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(0.9f)
-            ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = String.format("%.0f", lastSpeed),
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black
+                )
                 Text(
                     text = lastRating.uppercase(),
                     color = ratingColor,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.5.sp
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    text = "  ·  ${String.format("%.0f", lastEfficiency)}% EFF",
-                    color = iceBlue.copy(alpha = 0.7f),
+                    text = "#$shotCount",
+                    color = Color.White.copy(alpha = 0.5f),
                     fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // ── Row 4: 4 metrics in a single horizontal row ────────────────
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(0.92f),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                MiniStat("REACT", "${lastImpactTimeMs}ms", iceBlue)
-                MiniStat("WRIST", "${String.format("%.0f", lastWristRollDeg)}°", iceBlue)
-                MiniStat("FINISH", "${String.format("%.0f", lastFollowThroughAngle)}°", iceBlue)
-            }
+        // ── 3. Side Quadrants: React & Efficiency ──────────────────────
+        // Left: REACT (Time to Impact)
+        Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 6.dp)) {
+            MiniStat("REACT", "${lastImpactTimeMs}ms", iceBlue)
+        }
+        // Right: EFF (Efficiency)
+        Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp)) {
+            MiniStat("EFF", "${String.format("%.0f", lastEfficiency)}%", neonGreen)
         }
 
-        // ── Row 5: Session summary ──────────────────────────────────────
-        item {
+        // ── 4. Lower Quadrants: Wrist & Finish ─────────────────────────
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 44.dp)
+                .fillMaxWidth(0.9f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            MiniStat("WRIST", "${String.format("%.0f", lastWristRollDeg)}°", iceBlue)
+            MiniStat("FINISH", "${String.format("%.0f", lastFollowThroughAngle)}°", iceBlue)
+        }
+
+        // ── 5. Footer: Session Aggregates + Sync ──────────────────────
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(navySurface.copy(alpha = 0.7f))
-                    .padding(vertical = 5.dp, horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(navySurface.copy(alpha = 0.4f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SummaryStat("AVG", "${String.format("%.0f", avgSpeed)}", iceBlue)
-                SummaryStat("MAX", "${String.format("%.0f", maxSpeed)}", neonGreen)
-                SummaryStat("SHOTS", "$shotCount", Color.White)
-                SummaryStat("⭐", "$excellent", neonGreen)
+                Text("AVG: ${String.format("%.0f", avgSpeed)}", color = iceBlue, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                Text("MAX: ${String.format("%.0f", maxSpeed)}", color = neonGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold)
             }
-        }
-
-        // ── Row 6: End session button ───────────────────────────────────
-        item {
+            
+            Spacer(modifier = Modifier.height(2.dp))
+            
             Button(
                 onClick = onSyncClick,
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = neonGreen,
-                    contentColor = navyDark
-                ),
-                modifier = Modifier
-                    .fillMaxWidth(0.75f)
-                    .height(34.dp),
-                shape = RoundedCornerShape(17.dp)
+                colors = ButtonDefaults.buttonColors(backgroundColor = neonGreen, contentColor = Color.Black),
+                modifier = Modifier.height(20.dp).width(60.dp),
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(13.dp))
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text("SYNC", fontSize = 11.sp, fontWeight = FontWeight.Black)
-                }
+                Text("SYNC", fontSize = 8.sp, fontWeight = FontWeight.Black)
             }
         }
     }
@@ -218,24 +185,22 @@ fun MiniStat(label: String, value: String, color: Color) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(Color(0xFF001B3D))
-            .padding(horizontal = 5.dp, vertical = 4.dp)
+            .padding(horizontal = 6.dp, vertical = 3.dp)
     ) {
         Text(
             text = label,
             color = color.copy(alpha = 0.6f),
             fontSize = 7.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 0.3.sp,
-            textAlign = TextAlign.Center
+            letterSpacing = 0.2.sp
         )
         Text(
             text = value,
             color = Color.White,
             fontSize = 11.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center
+            fontWeight = FontWeight.Black
         )
     }
 }
@@ -244,8 +209,8 @@ fun MiniStat(label: String, value: String, color: Color) {
 fun SummaryStat(label: String, value: String, color: Color) {
     val iceBlue = Color(0xFFBCD2FE)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = iceBlue.copy(alpha = 0.5f), fontSize = 7.sp, fontWeight = FontWeight.Bold)
-        Text(value, color = color, fontSize = 13.sp, fontWeight = FontWeight.Black)
+        Text(label, color = iceBlue.copy(alpha = 0.5f), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = color, fontSize = 14.sp, fontWeight = FontWeight.Black)
     }
 }
 
