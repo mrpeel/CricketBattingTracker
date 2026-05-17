@@ -1,17 +1,15 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-38:12
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-38:12
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-38:12
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-38:12
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-61:12
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-61:12
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-61:12
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:2:1-61:12
+MERGED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:17:1-35:12
 MERGED from [com.google.android.gms:play-services-wearable:18.1.0] /Users/neilkloot/.gradle/caches/transforms-3/8cb283858beb2e85c76965627193449b/transformed/play-services-wearable-18.1.0/AndroidManifest.xml:17:1-24:12
 MERGED from [com.google.android.gms:play-services-base:18.0.1] /Users/neilkloot/.gradle/caches/transforms-3/8858873de8c57c567f877a68cde4a054/transformed/play-services-base-18.0.1/AndroidManifest.xml:16:1-24:12
 MERGED from [com.google.android.gms:play-services-tasks:18.0.1] /Users/neilkloot/.gradle/caches/transforms-3/39e5a9b4d0a4453f59c8ba53e73e6d00/transformed/play-services-tasks-18.0.1/AndroidManifest.xml:2:1-6:12
 MERGED from [com.google.android.gms:play-services-basement:18.0.0] /Users/neilkloot/.gradle/caches/transforms-3/11ad5d5d11d4dbef3025fa5ccc3765b3/transformed/play-services-basement-18.0.0/AndroidManifest.xml:16:1-26:12
-MERGED from [androidx.activity:activity:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/0ba4b6899f310e47cfb910cdbb8875f7/transformed/activity-1.8.2/AndroidManifest.xml:17:1-22:12
-MERGED from [androidx.activity:activity-ktx:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/a98577770a02debdef5cf000b484f1e2/transformed/activity-ktx-1.8.2/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material3:material3-android:1.2.0] /Users/neilkloot/.gradle/caches/transforms-3/55af52bba78d4b2c63f01d075879c7c5/transformed/material3-release/AndroidManifest.xml:17:1-22:12
-MERGED from [androidx.activity:activity-compose:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/713844660814df0bff4bc20dade6b3dd/transformed/activity-compose-1.8.2/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.animation:animation-core-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/f87a3a00d153f142b0746c059c35b790/transformed/animation-core-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material:material-icons-core-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/272ed51e7869ac78738f07853de57643/transformed/material-icons-core-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material:material-ripple-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/5ed2bf2b51514e1a24cd502a36fbe24d/transformed/material-ripple-release/AndroidManifest.xml:2:1-7:12
@@ -25,6 +23,9 @@ MERGED from [androidx.compose.ui:ui-text-android:1.6.1] /Users/neilkloot/.gradle
 MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/8910a1acbcab01c641b9d6bf08c3787a/transformed/ui-tooling-preview-release/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.compose.ui:ui-graphics-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/df1382be55a5451709f2e26f4a3e79bc/transformed/ui-graphics-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.ui:ui-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/86ba4baf082ad18f9c17265859a883fb/transformed/ui-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.activity:activity-ktx:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/a98577770a02debdef5cf000b484f1e2/transformed/activity-ktx-1.8.2/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.activity:activity-compose:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/713844660814df0bff4bc20dade6b3dd/transformed/activity-compose-1.8.2/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.activity:activity:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/0ba4b6899f310e47cfb910cdbb8875f7/transformed/activity-1.8.2/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.fragment:fragment:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/6df3fc8593655a63d5656e8fb1797e26/transformed/fragment-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.autofill:autofill:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/fe391deff6d338288553493567d822cc/transformed/autofill-1.0.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.legacy:legacy-support-core-ui:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/e4aa0d59f7fed41805ad8f2c9e34e6d9/transformed/legacy-support-core-ui-1.0.0/AndroidManifest.xml:17:1-22:12
@@ -39,18 +40,18 @@ MERGED from [androidx.swiperefreshlayout:swiperefreshlayout:1.0.0] /Users/neilkl
 MERGED from [androidx.asynclayoutinflater:asynclayoutinflater:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/762082efc4973649671d323bca040718/transformed/asynclayoutinflater-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/neilkloot/.gradle/caches/transforms-3/e7870761771dda92e822c16f2f736dc5/transformed/emoji2-1.3.0/AndroidManifest.xml:17:1-35:12
 MERGED from [androidx.core:core:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/a8de4cef88aafb2f551f83f144db0e98/transformed/core-1.12.0/AndroidManifest.xml:17:1-30:12
-MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/a9c09aeaf17b609bfbfefbc0789d3a58/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:17:1-23:12
 MERGED from [androidx.lifecycle:lifecycle-process:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/9a44719d5f1056f5edf67224a940df79/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:17:1-35:12
 MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/eec89a159f53879163e83862b3a3c545/transformed/lifecycle-livedata-core-ktx-2.7.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.lifecycle:lifecycle-livedata:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/b0ad4bf6cc1682e96025e1442dcc391f/transformed/lifecycle-livedata-2.7.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/07e772291c2bcfe1cdfef906312d4ceb/transformed/lifecycle-livedata-core-2.7.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/81330b5cadd38c15a48a13282710abba/transformed/lifecycle-viewmodel-ktx-2.7.0/AndroidManifest.xml:2:1-7:12
-MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/0ede61da799eee27b236c28caf2bed41/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:17:1-22:12
-MERGED from [androidx.lifecycle:lifecycle-runtime-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/6485c8e3059ab9d23165f6f8bb031ca9/transformed/lifecycle-runtime-ktx-2.7.0/AndroidManifest.xml:17:1-22:12
-MERGED from [androidx.lifecycle:lifecycle-runtime:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/4d70d338d8d862f4586c46daae92140b/transformed/lifecycle-runtime-2.7.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /Users/neilkloot/.gradle/caches/transforms-3/89e7ae8c63539f40c900bb08d47f0799/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.savedstate:savedstate:1.2.1] /Users/neilkloot/.gradle/caches/transforms-3/1313d8cd3b6dab13a156de8987835d62/transformed/savedstate-1.2.1/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/4d70d338d8d862f4586c46daae92140b/transformed/lifecycle-runtime-2.7.0/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/6485c8e3059ab9d23165f6f8bb031ca9/transformed/lifecycle-runtime-ktx-2.7.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/0ede61da799eee27b236c28caf2bed41/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/28ab3a07e40f214aee5b206ffef0a072/transformed/lifecycle-viewmodel-savedstate-2.7.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/a9c09aeaf17b609bfbfefbc0789d3a58/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:17:1-23:12
 MERGED from [androidx.core:core-ktx:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/b4b056b9ea2b28047d927001431a3b43/transformed/core-ktx-1.12.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.room:room-runtime:2.6.1] /Users/neilkloot/.gradle/caches/transforms-3/961f662215688d51d00dda8a1af4edc9/transformed/room-runtime-2.6.1/AndroidManifest.xml:17:1-31:12
 MERGED from [androidx.room:room-ktx:2.6.1] /Users/neilkloot/.gradle/caches/transforms-3/a00bb83b4a32ff750d512639613a04ff/transformed/room-ktx-2.6.1/AndroidManifest.xml:17:1-22:12
@@ -93,9 +94,35 @@ uses-permission#android.permission.INTERNET
 ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:7:5-67
 	android:name
 		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:7:22-64
+uses-permission#android.permission.ACCESS_FINE_LOCATION
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:8:5-79
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:8:22-76
+uses-permission#android.permission.ACCESS_COARSE_LOCATION
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:9:5-81
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:9:22-78
+uses-permission#android.permission.health.WRITE_EXERCISE
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:10:5-80
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:10:22-77
+uses-permission#android.permission.health.WRITE_HEART_RATE
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:11:5-82
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:11:22-79
+uses-permission#android.permission.health.WRITE_TOTAL_CALORIES_BURNED
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:12:5-93
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:12:22-90
+uses-permission#android.permission.health.WRITE_ACTIVE_CALORIES_BURNED
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:13:5-94
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:13:22-91
 application
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:9:5-36:19
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:9:5-36:19
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:15:5-59:19
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:15:5-59:19
+MERGED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:23:5-33:19
 MERGED from [com.google.android.gms:play-services-wearable:18.1.0] /Users/neilkloot/.gradle/caches/transforms-3/8cb283858beb2e85c76965627193449b/transformed/play-services-wearable-18.1.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.gms:play-services-wearable:18.1.0] /Users/neilkloot/.gradle/caches/transforms-3/8cb283858beb2e85c76965627193449b/transformed/play-services-wearable-18.1.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.gms:play-services-base:18.0.1] /Users/neilkloot/.gradle/caches/transforms-3/8858873de8c57c567f877a68cde4a054/transformed/play-services-base-18.0.1/AndroidManifest.xml:19:5-23:19
@@ -123,61 +150,93 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/neilkloot/.gradle/ca
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/a8de4cef88aafb2f551f83f144db0e98/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:12:9-35
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:20:9-35
 	android:label
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:11:9-41
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:19:9-41
+	android:roundIcon
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:18:9-54
+	android:icon
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:17:9-43
 	android:allowBackup
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:10:9-35
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:16:9-35
 	android:theme
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:13:9-59
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:21:9-59
 meta-data#com.google.android.wearable.standalone
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:15:9-17:37
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:23:9-25:37
 	android:value
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:17:13-34
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:25:13-34
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:16:13-66
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:24:13-66
 activity#com.mrpeel.cricketbattingtracker.MainActivity
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:19:9-27:20
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:27:9-38:20
 	android:exported
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:21:13-36
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:29:13-36
 	android:theme
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:22:13-63
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:30:13-63
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:20:13-41
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:28:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:23:13-26:29
-action#android.intent.action.MAIN
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:24:17-69
-	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:24:25-66
-category#android.intent.category.LAUNCHER
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:25:17-77
-	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:25:27-74
-service#com.mrpeel.cricketbattingtracker.services.DataSyncListenerService
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:29:9-35:19
-	android:exported
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:30:18-41
-	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:29:18-66
-intent-filter#action:name:com.google.android.gms.wearable.DATA_CHANGED+data:host:*+data:pathPrefix:/cricket_timeline+data:scheme:wear
 ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:31:13-34:29
-action#com.google.android.gms.wearable.DATA_CHANGED
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:32:17-87
+action#android.intent.action.MAIN
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:32:17-69
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:32:25-84
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:32:25-66
+category#android.intent.category.LAUNCHER
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:33:17-77
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:33:27-74
+intent-filter#action:name:androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:35:13-37:29
+action#androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:36:17-92
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:36:25-89
+activity-alias#com.mrpeel.cricketbattingtracker.ViewPermissionUsageActivity
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:41:9-50:26
+	android:exported
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:43:13-36
+	android:targetActivity
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:44:13-51
+	android:permission
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:45:13-80
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:42:13-56
+intent-filter#action:name:android.intent.action.VIEW_PERMISSION_USAGE+category:name:android.intent.category.HEALTH_PERMISSIONS
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:46:13-49:29
+action#android.intent.action.VIEW_PERMISSION_USAGE
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:47:17-86
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:47:25-83
+category#android.intent.category.HEALTH_PERMISSIONS
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:48:17-87
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:48:27-84
+service#com.mrpeel.cricketbattingtracker.services.DataSyncListenerService
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:52:9-58:19
+	android:exported
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:53:18-41
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:52:18-66
+intent-filter#action:name:com.google.android.gms.wearable.DATA_CHANGED+data:host:*+data:pathPrefix:/cricket_timeline+data:scheme:wear
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:54:13-57:29
+action#com.google.android.gms.wearable.DATA_CHANGED
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:55:17-87
+	android:name
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:55:25-84
 data
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:33:17-103
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:56:17-103
 	android:host
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:33:45-61
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:56:45-61
 	android:scheme
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:33:23-44
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:56:23-44
 	android:pathPrefix
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:33:62-100
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml:56:62-100
 uses-sdk
 INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml
 INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml
+MERGED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:21:5-44
+MERGED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:21:5-44
 MERGED from [com.google.android.gms:play-services-wearable:18.1.0] /Users/neilkloot/.gradle/caches/transforms-3/8cb283858beb2e85c76965627193449b/transformed/play-services-wearable-18.1.0/AndroidManifest.xml:20:5-44
 MERGED from [com.google.android.gms:play-services-wearable:18.1.0] /Users/neilkloot/.gradle/caches/transforms-3/8cb283858beb2e85c76965627193449b/transformed/play-services-wearable-18.1.0/AndroidManifest.xml:20:5-44
 MERGED from [com.google.android.gms:play-services-base:18.0.1] /Users/neilkloot/.gradle/caches/transforms-3/8858873de8c57c567f877a68cde4a054/transformed/play-services-base-18.0.1/AndroidManifest.xml:18:5-43
@@ -186,14 +245,8 @@ MERGED from [com.google.android.gms:play-services-tasks:18.0.1] /Users/neilkloot
 MERGED from [com.google.android.gms:play-services-tasks:18.0.1] /Users/neilkloot/.gradle/caches/transforms-3/39e5a9b4d0a4453f59c8ba53e73e6d00/transformed/play-services-tasks-18.0.1/AndroidManifest.xml:4:5-43
 MERGED from [com.google.android.gms:play-services-basement:18.0.0] /Users/neilkloot/.gradle/caches/transforms-3/11ad5d5d11d4dbef3025fa5ccc3765b3/transformed/play-services-basement-18.0.0/AndroidManifest.xml:18:5-43
 MERGED from [com.google.android.gms:play-services-basement:18.0.0] /Users/neilkloot/.gradle/caches/transforms-3/11ad5d5d11d4dbef3025fa5ccc3765b3/transformed/play-services-basement-18.0.0/AndroidManifest.xml:18:5-43
-MERGED from [androidx.activity:activity:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/0ba4b6899f310e47cfb910cdbb8875f7/transformed/activity-1.8.2/AndroidManifest.xml:20:5-44
-MERGED from [androidx.activity:activity:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/0ba4b6899f310e47cfb910cdbb8875f7/transformed/activity-1.8.2/AndroidManifest.xml:20:5-44
-MERGED from [androidx.activity:activity-ktx:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/a98577770a02debdef5cf000b484f1e2/transformed/activity-ktx-1.8.2/AndroidManifest.xml:5:5-44
-MERGED from [androidx.activity:activity-ktx:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/a98577770a02debdef5cf000b484f1e2/transformed/activity-ktx-1.8.2/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.material3:material3-android:1.2.0] /Users/neilkloot/.gradle/caches/transforms-3/55af52bba78d4b2c63f01d075879c7c5/transformed/material3-release/AndroidManifest.xml:20:5-44
 MERGED from [androidx.compose.material3:material3-android:1.2.0] /Users/neilkloot/.gradle/caches/transforms-3/55af52bba78d4b2c63f01d075879c7c5/transformed/material3-release/AndroidManifest.xml:20:5-44
-MERGED from [androidx.activity:activity-compose:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/713844660814df0bff4bc20dade6b3dd/transformed/activity-compose-1.8.2/AndroidManifest.xml:5:5-44
-MERGED from [androidx.activity:activity-compose:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/713844660814df0bff4bc20dade6b3dd/transformed/activity-compose-1.8.2/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.animation:animation-core-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/f87a3a00d153f142b0746c059c35b790/transformed/animation-core-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.animation:animation-core-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/f87a3a00d153f142b0746c059c35b790/transformed/animation-core-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.material:material-icons-core-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/272ed51e7869ac78738f07853de57643/transformed/material-icons-core-release/AndroidManifest.xml:5:5-44
@@ -220,6 +273,12 @@ MERGED from [androidx.compose.ui:ui-graphics-android:1.6.1] /Users/neilkloot/.gr
 MERGED from [androidx.compose.ui:ui-graphics-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/df1382be55a5451709f2e26f4a3e79bc/transformed/ui-graphics-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.ui:ui-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/86ba4baf082ad18f9c17265859a883fb/transformed/ui-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.ui:ui-android:1.6.1] /Users/neilkloot/.gradle/caches/transforms-3/86ba4baf082ad18f9c17265859a883fb/transformed/ui-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-ktx:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/a98577770a02debdef5cf000b484f1e2/transformed/activity-ktx-1.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-ktx:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/a98577770a02debdef5cf000b484f1e2/transformed/activity-ktx-1.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-compose:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/713844660814df0bff4bc20dade6b3dd/transformed/activity-compose-1.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-compose:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/713844660814df0bff4bc20dade6b3dd/transformed/activity-compose-1.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/0ba4b6899f310e47cfb910cdbb8875f7/transformed/activity-1.8.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.activity:activity:1.8.2] /Users/neilkloot/.gradle/caches/transforms-3/0ba4b6899f310e47cfb910cdbb8875f7/transformed/activity-1.8.2/AndroidManifest.xml:20:5-44
 MERGED from [androidx.fragment:fragment:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/6df3fc8593655a63d5656e8fb1797e26/transformed/fragment-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.fragment:fragment:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/6df3fc8593655a63d5656e8fb1797e26/transformed/fragment-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.autofill:autofill:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/fe391deff6d338288553493567d822cc/transformed/autofill-1.0.0/AndroidManifest.xml:20:5-22:41
@@ -248,8 +307,6 @@ MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/neilkloot/.gradle/caches/trans
 MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/neilkloot/.gradle/caches/transforms-3/e7870761771dda92e822c16f2f736dc5/transformed/emoji2-1.3.0/AndroidManifest.xml:21:5-44
 MERGED from [androidx.core:core:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/a8de4cef88aafb2f551f83f144db0e98/transformed/core-1.12.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.core:core:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/a8de4cef88aafb2f551f83f144db0e98/transformed/core-1.12.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/a9c09aeaf17b609bfbfefbc0789d3a58/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:20:5-21:38
-MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/a9c09aeaf17b609bfbfefbc0789d3a58/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:20:5-21:38
 MERGED from [androidx.lifecycle:lifecycle-process:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/9a44719d5f1056f5edf67224a940df79/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:21:5-44
 MERGED from [androidx.lifecycle:lifecycle-process:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/9a44719d5f1056f5edf67224a940df79/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:21:5-44
 MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/eec89a159f53879163e83862b3a3c545/transformed/lifecycle-livedata-core-ktx-2.7.0/AndroidManifest.xml:5:5-44
@@ -260,18 +317,20 @@ MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.7.0] /Users/neilkloot/
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/07e772291c2bcfe1cdfef906312d4ceb/transformed/lifecycle-livedata-core-2.7.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/81330b5cadd38c15a48a13282710abba/transformed/lifecycle-viewmodel-ktx-2.7.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/81330b5cadd38c15a48a13282710abba/transformed/lifecycle-viewmodel-ktx-2.7.0/AndroidManifest.xml:5:5-44
-MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/0ede61da799eee27b236c28caf2bed41/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/0ede61da799eee27b236c28caf2bed41/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.lifecycle:lifecycle-runtime-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/6485c8e3059ab9d23165f6f8bb031ca9/transformed/lifecycle-runtime-ktx-2.7.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.lifecycle:lifecycle-runtime-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/6485c8e3059ab9d23165f6f8bb031ca9/transformed/lifecycle-runtime-ktx-2.7.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.lifecycle:lifecycle-runtime:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/4d70d338d8d862f4586c46daae92140b/transformed/lifecycle-runtime-2.7.0/AndroidManifest.xml:5:5-44
-MERGED from [androidx.lifecycle:lifecycle-runtime:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/4d70d338d8d862f4586c46daae92140b/transformed/lifecycle-runtime-2.7.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /Users/neilkloot/.gradle/caches/transforms-3/89e7ae8c63539f40c900bb08d47f0799/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
 MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /Users/neilkloot/.gradle/caches/transforms-3/89e7ae8c63539f40c900bb08d47f0799/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
 MERGED from [androidx.savedstate:savedstate:1.2.1] /Users/neilkloot/.gradle/caches/transforms-3/1313d8cd3b6dab13a156de8987835d62/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
 MERGED from [androidx.savedstate:savedstate:1.2.1] /Users/neilkloot/.gradle/caches/transforms-3/1313d8cd3b6dab13a156de8987835d62/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/4d70d338d8d862f4586c46daae92140b/transformed/lifecycle-runtime-2.7.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/4d70d338d8d862f4586c46daae92140b/transformed/lifecycle-runtime-2.7.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/6485c8e3059ab9d23165f6f8bb031ca9/transformed/lifecycle-runtime-ktx-2.7.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/6485c8e3059ab9d23165f6f8bb031ca9/transformed/lifecycle-runtime-ktx-2.7.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/0ede61da799eee27b236c28caf2bed41/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/0ede61da799eee27b236c28caf2bed41/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/28ab3a07e40f214aee5b206ffef0a072/transformed/lifecycle-viewmodel-savedstate-2.7.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0] /Users/neilkloot/.gradle/caches/transforms-3/28ab3a07e40f214aee5b206ffef0a072/transformed/lifecycle-viewmodel-savedstate-2.7.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/a9c09aeaf17b609bfbfefbc0789d3a58/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:20:5-21:38
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/a9c09aeaf17b609bfbfefbc0789d3a58/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:20:5-21:38
 MERGED from [androidx.core:core-ktx:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/b4b056b9ea2b28047d927001431a3b43/transformed/core-ktx-1.12.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.core:core-ktx:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/b4b056b9ea2b28047d927001431a3b43/transformed/core-ktx-1.12.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.room:room-runtime:2.6.1] /Users/neilkloot/.gradle/caches/transforms-3/961f662215688d51d00dda8a1af4edc9/transformed/room-runtime-2.6.1/AndroidManifest.xml:21:5-44
@@ -312,6 +371,22 @@ MERGED from [androidx.print:print:1.0.0] /Users/neilkloot/.gradle/caches/transfo
 		INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml
 	android:minSdkVersion
 		INJECTED from /Users/neilkloot/Code/CricketBattingTracker/app/src/main/AndroidManifest.xml
+service#androidx.health.platform.client.impl.sdkservice.HealthDataSdkService
+ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:24:9-32:19
+	android:enabled
+		ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:26:13-35
+	android:exported
+		ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:27:13-36
+	tools:ignore
+		ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:28:13-43
+	android:name
+		ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:25:13-96
+intent-filter#action:name:androidx.health.platform.client.ACTION_BIND_SDK_SERVICE
+ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:29:13-31:29
+action#androidx.health.platform.client.ACTION_BIND_SDK_SERVICE
+ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:30:17-98
+	android:name
+		ADDED from [androidx.health.connect:connect-client:1.1.0-alpha07] /Users/neilkloot/.gradle/caches/transforms-3/3a46378ef5f0e823851e02e07a3d8ac2/transformed/connect-client-1.1.0-alpha07/AndroidManifest.xml:30:25-95
 activity#com.google.android.gms.common.api.GoogleApiActivity
 ADDED from [com.google.android.gms:play-services-base:18.0.1] /Users/neilkloot/.gradle/caches/transforms-3/8858873de8c57c567f877a68cde4a054/transformed/play-services-base-18.0.1/AndroidManifest.xml:20:9-22:45
 	android:exported

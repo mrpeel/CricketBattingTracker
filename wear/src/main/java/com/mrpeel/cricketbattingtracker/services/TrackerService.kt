@@ -33,6 +33,7 @@ class TrackerService : Service(), SensorEventListener {
     private var accelSensor: Sensor? = null
     private var gyroSensor: Sensor? = null
     private var gravitySensor: Sensor? = null
+    private var rotationSensor: Sensor? = null
     
     private var wakeLock: PowerManager.WakeLock? = null
     private val swingDetector = SwingDetector()
@@ -46,6 +47,8 @@ class TrackerService : Service(), SensorEventListener {
     private var enableRawLogging = false
     private var accWriter: BufferedWriter? = null
     private var gyroWriter: BufferedWriter? = null
+    private var gravityWriter: BufferedWriter? = null
+    private var rotationWriter: BufferedWriter? = null
     private var sessionStartNanos: Long = 0L
 
     override fun onCreate() {
@@ -54,19 +57,26 @@ class TrackerService : Service(), SensorEventListener {
         
         dataSyncManager = DataSyncManager(this)
         healthServicesManager = HealthServicesManager(this)
+        healthServicesManager.onHeartRateUpdate = { bpm ->
+            val hrTime = System.currentTimeMillis()
+            Log.d(TAG, "Recording real HR sample to timeline: $bpm BPM")
+            sessionTimeline.add("HR: BPM=$bpm, Ts=$hrTime")
+        }
         healthServicesManager.startTracking()
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
         gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         
         // Setup wake lock to keep recording while screen is off
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::BattingWakeLock")
         
         swingDetector.onShotDetected = { shot ->
+            val shotTime = System.currentTimeMillis()
             Log.d(TAG, "Shot detected! ${shot.shotType}, Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
-            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}")
+            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$shotTime")
             SessionManager.addShot(shot)
         }
     }
@@ -91,6 +101,12 @@ class TrackerService : Service(), SensorEventListener {
                 gyroWriter = File(sessionDir, "WatchGyroscope.csv").bufferedWriter()
                 gyroWriter?.write("seconds_elapsed,x,y,z\n")
                 
+                gravityWriter = File(sessionDir, "WatchGravity.csv").bufferedWriter()
+                gravityWriter?.write("seconds_elapsed,x,y,z\n")
+                
+                rotationWriter = File(sessionDir, "WatchOrientation.csv").bufferedWriter()
+                rotationWriter?.write("seconds_elapsed,qx,qy,qz,qw\n")
+                
                 Log.d(TAG, "Raw Logging ENABLED to \${sessionDir.absolutePath}")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to prep log writers: \${e.message}")
@@ -105,6 +121,7 @@ class TrackerService : Service(), SensorEventListener {
         sensorManager.registerListener(this, accelSensor, SensorManager.SENSOR_DELAY_GAME, 0)
         sensorManager.registerListener(this, gyroSensor, SensorManager.SENSOR_DELAY_GAME, 0)
         sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_GAME, 0)
+        sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_GAME, 0)
         
         Log.d(TAG, "Service Started, tracking sensors")
         return START_STICKY
@@ -174,6 +191,8 @@ class TrackerService : Service(), SensorEventListener {
             try {
                 accWriter?.close()
                 gyroWriter?.close()
+                gravityWriter?.close()
+                rotationWriter?.close()
             } catch (e: Exception) {}
         }
         
@@ -202,11 +221,17 @@ class TrackerService : Service(), SensorEventListener {
         if (enableRawLogging) {
             if (sessionStartNanos == 0L) sessionStartNanos = ts
             val elapsedSecs = (ts - sessionStartNanos) / 1_000_000_000.0
-            val line = String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2])
             
             try {
-                if (type == Sensor.TYPE_ACCELEROMETER) accWriter?.write(line)
-                else if (type == Sensor.TYPE_GYROSCOPE) gyroWriter?.write(line)
+                if (type == Sensor.TYPE_ACCELEROMETER) {
+                    accWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2]))
+                } else if (type == Sensor.TYPE_GYROSCOPE) {
+                    gyroWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2]))
+                } else if (type == Sensor.TYPE_GRAVITY) {
+                    gravityWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2]))
+                } else if (type == Sensor.TYPE_ROTATION_VECTOR) {
+                    rotationWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2], vals[3]))
+                }
             } catch (e: Exception) {}
         }
     }

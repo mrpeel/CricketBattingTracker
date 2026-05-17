@@ -54,4 +54,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Health Connect
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
 }

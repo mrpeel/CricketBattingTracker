@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.mrpeel.cricketbattingtracker.app-mergeReleaseResources-47:/values-zh-rTW/values-zh-rTW.xml",
+            "outputFile": "com.mrpeel.cricketbattingtracker.app-mergeReleaseResources-48:/values-zh-rTW/values-zh-rTW.xml",
             "map": [
                 {
                     "source": "/Users/neilkloot/.gradle/caches/transforms-3/86ba4baf082ad18f9c17265859a883fb/transformed/ui-release/res/values-zh-rTW/values-zh-rTW.xml",

@@ -1,5 +1,0 @@
-:EVAL: Type=PUSH, MaxG=20.0, Snap=0.0, Roll=0.0, Angle=0.0
-:EVAL: Type=PUSH, MaxG=15.0, Snap=0.0, Roll=0.0, Angle=0.0
-<EVAL: Type=DEFENCE, MaxG=3.0, Snap=0.0, Roll=0.0, Angle=0.0
-:EVAL: Type=PUSH, MaxG=20.0, Snap=0.0, Roll=0.0, Angle=0.0
-:EVAL: Type=PUSH, MaxG=10.0, Snap=0.0, Roll=0.0, Angle=0.0

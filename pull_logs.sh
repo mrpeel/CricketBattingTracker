@@ -14,11 +14,11 @@ fi
 
 if [ "$1" == "emu" ]; then
     echo "Connecting to emulator..."
-    ADB_CMD="adb -s emulator-5554"
+    ADB_CMD="adb -s emulator-5556"
 else
-    echo "Connecting to $TARGET..."
-    adb connect $TARGET:5555
-    ADB_CMD="adb -s $TARGET:5555"
+    echo "Using device $TARGET..."
+    # Assumes you have already run adb connect IP:PORT
+    ADB_CMD="adb -s $TARGET"
 fi
 
 echo "Pulling Session Logs..."

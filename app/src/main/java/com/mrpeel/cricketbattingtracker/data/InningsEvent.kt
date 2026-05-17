@@ -21,7 +21,16 @@ data class InningsEvent(
     val efficiency: Float? = null,
     val backliftAngle: Float? = null,
     val followThroughAngle: Float? = null,
-    val wristRollDeg: Float? = null    // wrist rotation during follow-through
+    val wristRollDeg: Float? = null,    // wrist rotation during follow-through
+    val location: String? = null        // reverse-geocoded street/suburb combo
+)
+
+@Entity(tableName = "heart_rate_events")
+data class HeartRateEvent(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val inningsId: Long,
+    val timestamp: Long,
+    val beatsPerMinute: Long
 )
 
 @Dao
@@ -32,12 +41,24 @@ interface InningsEventDao {
     @Query("SELECT * FROM innings_events WHERE inningsId = :inningsId ORDER BY timestamp ASC")
     suspend fun getTimelineForInningsListSync(inningsId: Long): List<InningsEvent>
 
+    @Query("SELECT * FROM innings_events ORDER BY timestamp DESC")
+    fun getAllEventsFlow(): Flow<List<InningsEvent>>
+
     @Insert
     suspend fun insertEvent(event: InningsEvent)
+
+    @Insert
+    suspend fun insertHeartRate(hrEvent: HeartRateEvent)
+
+    @Query("SELECT * FROM heart_rate_events WHERE inningsId = :inningsId ORDER BY timestamp ASC")
+    suspend fun getHeartRatesForInningsSync(inningsId: Long): List<HeartRateEvent>
     
     @Query("SELECT MAX(inningsId) FROM innings_events")
     suspend fun getLatestInningsId(): Long?
 
     @Query("SELECT MAX(inningsId) FROM innings_events")
     fun getLatestInningsIdFlow(): Flow<Long?>
+
+    @Query("SELECT DISTINCT inningsId FROM innings_events ORDER BY inningsId DESC")
+    suspend fun getAllUniqueInningsIds(): List<Long>
 }

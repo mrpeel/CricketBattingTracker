@@ -31,17 +31,19 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(3) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(5) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS `innings_events` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `inningsId` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `description` TEXT NOT NULL, `batSpeed` REAL, `impactForce` REAL, `impactTimeMs` INTEGER, `distanceRun` REAL, `shotType` TEXT, `efficiency` REAL, `backliftAngle` REAL, `followThroughAngle` REAL, `wristRollDeg` REAL)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `innings_events` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `inningsId` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `description` TEXT NOT NULL, `batSpeed` REAL, `impactForce` REAL, `impactTimeMs` INTEGER, `distanceRun` REAL, `shotType` TEXT, `efficiency` REAL, `backliftAngle` REAL, `followThroughAngle` REAL, `wristRollDeg` REAL, `location` TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `heart_rate_events` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `inningsId` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `beatsPerMinute` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '64b5bdf44437ef053ee215edc8a1538e')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2a3891490919fda582d8925c864d538b')");
       }
 
       @Override
       public void dropAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("DROP TABLE IF EXISTS `innings_events`");
+        db.execSQL("DROP TABLE IF EXISTS `heart_rate_events`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
           for (RoomDatabase.Callback _callback : _callbacks) {
@@ -85,7 +87,7 @@ public final class AppDatabase_Impl extends AppDatabase {
       @NonNull
       public RoomOpenHelper.ValidationResult onValidateSchema(
           @NonNull final SupportSQLiteDatabase db) {
-        final HashMap<String, TableInfo.Column> _columnsInningsEvents = new HashMap<String, TableInfo.Column>(13);
+        final HashMap<String, TableInfo.Column> _columnsInningsEvents = new HashMap<String, TableInfo.Column>(14);
         _columnsInningsEvents.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsInningsEvents.put("inningsId", new TableInfo.Column("inningsId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsInningsEvents.put("timestamp", new TableInfo.Column("timestamp", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -99,6 +101,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsInningsEvents.put("backliftAngle", new TableInfo.Column("backliftAngle", "REAL", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsInningsEvents.put("followThroughAngle", new TableInfo.Column("followThroughAngle", "REAL", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsInningsEvents.put("wristRollDeg", new TableInfo.Column("wristRollDeg", "REAL", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsInningsEvents.put("location", new TableInfo.Column("location", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysInningsEvents = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesInningsEvents = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoInningsEvents = new TableInfo("innings_events", _columnsInningsEvents, _foreignKeysInningsEvents, _indicesInningsEvents);
@@ -108,9 +111,23 @@ public final class AppDatabase_Impl extends AppDatabase {
                   + " Expected:\n" + _infoInningsEvents + "\n"
                   + " Found:\n" + _existingInningsEvents);
         }
+        final HashMap<String, TableInfo.Column> _columnsHeartRateEvents = new HashMap<String, TableInfo.Column>(4);
+        _columnsHeartRateEvents.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsHeartRateEvents.put("inningsId", new TableInfo.Column("inningsId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsHeartRateEvents.put("timestamp", new TableInfo.Column("timestamp", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsHeartRateEvents.put("beatsPerMinute", new TableInfo.Column("beatsPerMinute", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysHeartRateEvents = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesHeartRateEvents = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoHeartRateEvents = new TableInfo("heart_rate_events", _columnsHeartRateEvents, _foreignKeysHeartRateEvents, _indicesHeartRateEvents);
+        final TableInfo _existingHeartRateEvents = TableInfo.read(db, "heart_rate_events");
+        if (!_infoHeartRateEvents.equals(_existingHeartRateEvents)) {
+          return new RoomOpenHelper.ValidationResult(false, "heart_rate_events(com.mrpeel.cricketbattingtracker.data.HeartRateEvent).\n"
+                  + " Expected:\n" + _infoHeartRateEvents + "\n"
+                  + " Found:\n" + _existingHeartRateEvents);
+        }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "64b5bdf44437ef053ee215edc8a1538e", "1b949bd76154aa042e4e8e1c50d034e2");
+    }, "2a3891490919fda582d8925c864d538b", "aefa3de93f71e1b7da9e1c8803192fa0");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -121,7 +138,7 @@ public final class AppDatabase_Impl extends AppDatabase {
   protected InvalidationTracker createInvalidationTracker() {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "innings_events");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "innings_events","heart_rate_events");
   }
 
   @Override
@@ -131,6 +148,7 @@ public final class AppDatabase_Impl extends AppDatabase {
     try {
       super.beginTransaction();
       _db.execSQL("DELETE FROM `innings_events`");
+      _db.execSQL("DELETE FROM `heart_rate_events`");
       super.setTransactionSuccessful();
     } finally {
       super.endTransaction();

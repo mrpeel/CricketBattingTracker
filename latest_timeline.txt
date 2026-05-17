@@ -1,6 +1,12 @@
-Shot: Type=COVER DRIVE, Spd=59.61692, Hit=true, Acc=46.925903, SS=Excellent, Eff=100.0, BL=47.44016, FT=47.44016, ItMs=9, Wr=1.8909
-Shot: Type=PULL SHOT, Spd=48.29907, Hit=true, Acc=42.154957, SS=Excellent, Eff=100.0, BL=47.44016, FT=47.44016, ItMs=9, Wr=113.45401
-Shot: Type=SWEEP, Spd=27.361364, Hit=true, Acc=36.401104, SS=Excellent, Eff=100.0, BL=78.47117, FT=78.47117, ItMs=9, Wr=1.7763001
-Shot: Type=ON-SIDE FLICK, Spd=33.461353, Hit=true, Acc=32.81829, SS=Excellent, Eff=100.0, BL=47.44016, FT=47.44016, ItMs=9, Wr=21.3156
-Shot: Type=DEFENCE, Spd=12.242448, Hit=true, Acc=20.05094, SS=Excellent, Eff=100.0, BL=47.44016, FT=47.44016, ItMs=9, Wr=1.9482001
-Shot: Type=PUSH, Spd=25.920322, Hit=true, Acc=24.021664, SS=Excellent, Eff=100.0, BL=47.44016, FT=47.44016, ItMs=9, Wr=0.97410005
+Shot: Type=COVER DRIVE, Spd=59.6, Hit=true, Acc=46.9, SS=Excellent, Eff=100.0, BL=47.4, FT=47.4, ItMs=9, Wr=1.89, Ts=1715875200000
+HR: BPM=72, Ts=1715875205000
+Shot: Type=PULL SHOT, Spd=48.2, Hit=true, Acc=42.1, SS=Excellent, Eff=100.0, BL=47.4, FT=47.4, ItMs=9, Wr=113.4, Ts=1715875500000
+HR: BPM=110, Ts=1715875505000
+Shot: Type=SWEEP, Spd=27.3, Hit=true, Acc=36.4, SS=Excellent, Eff=100.0, BL=78.4, FT=78.4, ItMs=9, Wr=1.77, Ts=1715876000000
+HR: BPM=145, Ts=1715876005000
+Shot: Type=ON-SIDE FLICK, Spd=33.4, Hit=true, Acc=32.8, SS=Excellent, Eff=100.0, BL=47.4, FT=47.4, ItMs=9, Wr=21.3, Ts=1715876300000
+HR: BPM=130, Ts=1715876305000
+Shot: Type=DEFENCE, Spd=12.2, Hit=true, Acc=20.0, SS=Excellent, Eff=100.0, BL=47.4, FT=47.4, ItMs=9, Wr=1.94, Ts=1715876700000
+HR: BPM=105, Ts=1715876705000
+Shot: Type=PUSH, Spd=25.9, Hit=true, Acc=24.0, SS=Excellent, Eff=100.0, BL=47.4, FT=47.4, ItMs=9, Wr=0.97, Ts=1715877000000
+HR: BPM=90, Ts=1715877005000

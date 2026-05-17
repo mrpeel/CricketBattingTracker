@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.mrpeel.cricketbattingtracker.app-mergeDebugResources-47:/values-iw/values-iw.xml",
+            "outputFile": "com.mrpeel.cricketbattingtracker.app-mergeDebugResources-48:/values-iw/values-iw.xml",
             "map": [
                 {
                     "source": "/Users/neilkloot/.gradle/caches/transforms-3/8858873de8c57c567f877a68cde4a054/transformed/play-services-base-18.0.1/res/values-iw/values.xml",

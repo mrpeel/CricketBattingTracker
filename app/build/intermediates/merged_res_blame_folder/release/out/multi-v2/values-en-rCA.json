@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.mrpeel.cricketbattingtracker.app-mergeReleaseResources-47:/values-en-rCA/values-en-rCA.xml",
+            "outputFile": "com.mrpeel.cricketbattingtracker.app-mergeReleaseResources-48:/values-en-rCA/values-en-rCA.xml",
             "map": [
                 {
                     "source": "/Users/neilkloot/.gradle/caches/transforms-3/b3e44d9d9ed4bc6bdbf09a314ac53bed/transformed/foundation-release/res/values-en-rCA/values-en-rCA.xml",

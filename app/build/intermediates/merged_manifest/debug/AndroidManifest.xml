@@ -12,6 +12,12 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.WRITE_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" />
 
     <permission
         android:name="com.mrpeel.cricketbattingtracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
@@ -24,7 +30,9 @@
         android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:debuggable="true"
         android:extractNativeLibs="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.CricketBattingTracker" >
 
@@ -42,7 +50,21 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity> <!-- Android 14+ Health Connect compliance alias -->
+        <activity-alias
+            android:name="com.mrpeel.cricketbattingtracker.ViewPermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity="com.mrpeel.cricketbattingtracker.MainActivity" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name="com.mrpeel.cricketbattingtracker.services.DataSyncListenerService"
@@ -54,6 +76,14 @@
                     android:host="*"
                     android:pathPrefix="/cricket_timeline"
                     android:scheme="wear" />
+            </intent-filter>
+        </service>
+        <service
+            android:name="androidx.health.platform.client.impl.sdkservice.HealthDataSdkService"
+            android:enabled="true"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="androidx.health.platform.client.ACTION_BIND_SDK_SERVICE" />
             </intent-filter>
         </service>
 

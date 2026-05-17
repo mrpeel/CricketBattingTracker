@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-45:12
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-45:12
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-45:12
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-45:12
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-47:12
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-47:12
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-47:12
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:2:1-47:12
 MERGED from [androidx.wear:wear-ongoing:1.0.0] /Users/neilkloot/.gradle/caches/transforms-3/0004742f5684bbde3852a6790d9712fd/transformed/wear-ongoing-1.0.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.health:health-services-client:1.0.0-rc01] /Users/neilkloot/.gradle/caches/transforms-3/8c5a458a4bbcac15e60e60e39212d1bc/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:14:1-34:12
 MERGED from [com.google.android.gms:play-services-wearable:18.1.0] /Users/neilkloot/.gradle/caches/transforms-3/8cb283858beb2e85c76965627193449b/transformed/play-services-wearable-18.1.0/AndroidManifest.xml:17:1-24:12
@@ -119,8 +119,8 @@ ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidMani
 	android:name
 		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:12:22-82
 application
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:14:5-43:19
-INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:14:5-43:19
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:14:5-45:19
+INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:14:5-45:19
 MERGED from [androidx.health:health-services-client:1.0.0-rc01] /Users/neilkloot/.gradle/caches/transforms-3/8c5a458a4bbcac15e60e60e39212d1bc/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:23:5-32:19
 MERGED from [androidx.health:health-services-client:1.0.0-rc01] /Users/neilkloot/.gradle/caches/transforms-3/8c5a458a4bbcac15e60e60e39212d1bc/transformed/health-services-client-1.0.0-rc01/AndroidManifest.xml:23:5-32:19
 MERGED from [com.google.android.gms:play-services-wearable:18.1.0] /Users/neilkloot/.gradle/caches/transforms-3/8cb283858beb2e85c76965627193449b/transformed/play-services-wearable-18.1.0/AndroidManifest.xml:22:5-20
@@ -150,53 +150,57 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/neilkloot/.gradle/ca
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] /Users/neilkloot/.gradle/caches/transforms-3/a8de4cef88aafb2f551f83f144db0e98/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:17:9-35
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:19:9-35
 	android:label
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:16:9-41
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:18:9-41
+	android:roundIcon
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:17:9-54
+	android:icon
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:16:9-43
 	android:allowBackup
 		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:15:9-35
 	android:theme
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:18:9-59
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:20:9-59
 uses-library#com.google.android.wearable
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:20:9-22:39
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:22:9-24:39
 	android:required
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:22:13-36
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:24:13-36
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:21:13-55
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:23:13-55
 meta-data#com.google.android.wearable.standalone
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:24:9-26:36
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:26:9-28:36
 	android:value
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:26:13-33
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:28:13-33
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:25:13-66
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:27:13-66
 activity#com.mrpeel.cricketbattingtracker.MainActivity
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:28:9-37:20
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:30:9-39:20
 	android:exported
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:30:13-36
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:32:13-36
 	android:theme
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:32:13-63
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:34:13-63
 	android:taskAffinity
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:31:13-36
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:33:13-36
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:29:13-41
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:31:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:33:13-36:29
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:35:13-38:29
 action#android.intent.action.MAIN
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:34:17-69
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:36:17-69
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:34:25-66
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:36:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:35:17-77
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:37:17-77
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:35:27-74
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:37:27-74
 service#com.mrpeel.cricketbattingtracker.services.TrackerService
-ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:39:9-42:39
+ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:41:9-44:39
 	android:exported
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:42:13-36
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:44:13-36
 	android:foregroundServiceType
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:41:13-51
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:43:13-51
 	android:name
-		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:40:13-52
+		ADDED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml:42:13-52
 uses-sdk
 INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /Users/neilkloot/Code/CricketBattingTracker/wear/src/main/AndroidManifest.xml
