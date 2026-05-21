@@ -70,6 +70,11 @@ class TrackerService : Service(), SensorEventListener {
         gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
         rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         
+        if (accelSensor == null) Log.w(TAG, "Hardware Accelerometer is NOT available!")
+        if (gyroSensor == null) Log.w(TAG, "Hardware Gyroscope is NOT available!")
+        if (gravitySensor == null) Log.w(TAG, "Hardware Gravity Sensor is NOT available (SwingDetector will estimate gravity from Accelerometer)")
+        if (rotationSensor == null) Log.w(TAG, "Hardware Rotation Vector is NOT available!")
+        
         // Setup wake lock to keep recording while screen is off
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::BattingWakeLock")
@@ -103,16 +108,16 @@ class TrackerService : Service(), SensorEventListener {
                 sessionDir.mkdirs()
                 
                 accWriter = File(sessionDir, "WatchAccelerometer.csv").bufferedWriter()
-                accWriter?.write("seconds_elapsed,x,y,z\n")
+                accWriter?.write("time,seconds_elapsed,x,y,z\n")
                 
                 gyroWriter = File(sessionDir, "WatchGyroscope.csv").bufferedWriter()
-                gyroWriter?.write("seconds_elapsed,x,y,z\n")
+                gyroWriter?.write("time,seconds_elapsed,x,y,z\n")
                 
                 gravityWriter = File(sessionDir, "WatchGravity.csv").bufferedWriter()
-                gravityWriter?.write("seconds_elapsed,x,y,z\n")
+                gravityWriter?.write("time,seconds_elapsed,x,y,z\n")
                 
                 rotationWriter = File(sessionDir, "WatchOrientation.csv").bufferedWriter()
-                rotationWriter?.write("seconds_elapsed,qx,qy,qz,qw\n")
+                rotationWriter?.write("time,seconds_elapsed,qx,qy,qz,qw\n")
                 
                 Log.d(TAG, "Raw Logging ENABLED to \${sessionDir.absolutePath}")
             } catch (e: Exception) {
@@ -130,10 +135,10 @@ class TrackerService : Service(), SensorEventListener {
         wakeLock?.acquire(3 * 60 * 60 * 1000L) // maximum 3 hours
         
         // SENSOR_DELAY_GAME = 50Hz, explicit 0 latency out of caution against Wear OS suspending listeners
-        sensorManager.registerListener(this, accelSensor, SensorManager.SENSOR_DELAY_GAME, 0)
-        sensorManager.registerListener(this, gyroSensor, SensorManager.SENSOR_DELAY_GAME, 0)
-        sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_GAME, 0)
-        sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_GAME, 0)
+        accelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        gyroSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        gravitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
         
         Log.d(TAG, "Service Started, tracking sensors")
         return START_STICKY
@@ -251,13 +256,19 @@ class TrackerService : Service(), SensorEventListener {
             
             try {
                 if (type == Sensor.TYPE_ACCELEROMETER) {
-                    accWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2]))
+                    accWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
                 } else if (type == Sensor.TYPE_GYROSCOPE) {
-                    gyroWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2]))
+                    gyroWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
                 } else if (type == Sensor.TYPE_GRAVITY) {
-                    gravityWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2]))
+                    gravityWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
                 } else if (type == Sensor.TYPE_ROTATION_VECTOR) {
-                    rotationWriter?.write(String.format(java.util.Locale.US, "%.6f,%.6f,%.6f,%.6f,%.6f\n", elapsedSecs, vals[0], vals[1], vals[2], vals[3]))
+                    val qw = if (vals.size > 3) vals[3] else {
+                        val qx = vals[0]
+                        val qy = vals[1]
+                        val qz = vals[2]
+                        kotlin.math.sqrt(kotlin.math.max(0.0f, 1.0f - qx * qx - qy * qy - qz * qz))
+                    }
+                    rotationWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], qw))
                 }
             } catch (e: Exception) {}
         }
