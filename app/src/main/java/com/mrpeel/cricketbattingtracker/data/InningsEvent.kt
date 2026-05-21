@@ -61,4 +61,7 @@ interface InningsEventDao {
 
     @Query("SELECT DISTINCT inningsId FROM innings_events ORDER BY inningsId DESC")
     suspend fun getAllUniqueInningsIds(): List<Long>
+
+    @Query("SELECT location FROM innings_events WHERE location IS NOT NULL AND location != 'Net Practice' AND location != '' ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLastResolvedLocation(): String?
 }

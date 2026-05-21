@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
         val coarseGranted = permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
         if (fineGranted || coarseGranted) {
             android.util.Log.d("MainActivity", "Location permissions granted successfully!")
+            triggerForegroundLocationResolution()
         } else {
             android.util.Log.w("MainActivity", "Location permissions were denied.")
         }
@@ -78,6 +79,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        triggerForegroundLocationResolution()
         checkHealthConnectPermissions()
     }
 
@@ -147,6 +149,7 @@ class MainActivity : ComponentActivity() {
                     val realHeartRates = dbHeartRates.map { Pair(it.timestamp, it.beatsPerMinute) }
 
                     val success = hcManager.writeCricketWorkout(
+                        inningsId = id,
                         startTimeMillis = minTime,
                         endTimeMillis = endTime,
                         shotCount = shotEvents.size,
@@ -173,6 +176,90 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun triggerForegroundLocationResolution() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val locationManager = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+                val isGpsEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+                val isNetworkEnabled = locationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
+                
+                var bestLocation: android.location.Location? = null
+                
+                // Get last known location first
+                for (provider in locationManager.getProviders(true)) {
+                    val loc = locationManager.getLastKnownLocation(provider) ?: continue
+                    if (bestLocation == null || loc.accuracy < bestLocation!!.accuracy) {
+                        bestLocation = loc
+                    }
+                }
+                
+                // Resolve and cache immediately if we have a last known
+                bestLocation?.let { cacheLocation(it) }
+                
+                // Request a fresh update for high accuracy
+                withContext(Dispatchers.Main) {
+                    val listener = object : android.location.LocationListener {
+                        override fun onLocationChanged(location: android.location.Location) {
+                            locationManager.removeUpdates(this)
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                cacheLocation(location)
+                            }
+                        }
+                        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                        override fun onProviderEnabled(provider: String) {}
+                        override fun onProviderDisabled(provider: String) {}
+                    }
+                    try {
+                        if (isGpsEnabled) {
+                            locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 0L, 0f, listener)
+                        }
+                        if (isNetworkEnabled) {
+                            locationManager.requestLocationUpdates(android.location.LocationManager.NETWORK_PROVIDER, 0L, 0f, listener)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Failed requesting location updates: ${e.message}")
+                    }
+                    Unit
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error resolving location: ${e.message}")
+            }
+        }
+    }
+
+    private fun cacheLocation(loc: android.location.Location) {
+        try {
+            val geocoder = android.location.Geocoder(this, Locale.getDefault())
+            val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+            if (!addresses.isNullOrEmpty()) {
+                val address = addresses[0]
+                val streetNum = address.subThoroughfare ?: ""
+                val streetName = address.thoroughfare ?: ""
+                val street = if (streetNum.isNotEmpty() && streetName.isNotEmpty()) {
+                    "$streetNum $streetName"
+                } else {
+                    streetName
+                }
+                val suburb = address.locality ?: address.subLocality ?: address.adminArea ?: ""
+                val resolvedLocation = when {
+                    street.isNotEmpty() && suburb.isNotEmpty() -> "$street, $suburb"
+                    suburb.isNotEmpty() -> suburb
+                    else -> ""
+                }
+                if (resolvedLocation.isNotEmpty()) {
+                    val prefs = getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                    prefs.edit().putString("cached_resolved_location", resolvedLocation).apply()
+                    android.util.Log.d("MainActivity", "Foreground Geocoder resolved and cached location: $resolvedLocation")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Failed geocoding in foreground: ${e.message}")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -183,6 +270,7 @@ class MainActivity : ComponentActivity() {
             )
         )
         
+        triggerForegroundLocationResolution()
         checkHealthConnectPermissions()
 
         setContent {
@@ -449,8 +537,8 @@ fun DashboardSummary(events: List<InningsEvent>) {
     val mins = totalSecs / 60
     val secs = totalSecs % 60
     
-    val durationVal = if (mins > 0) "$mins" else "$secs"
-    val durationUnit = if (mins > 0) "MIN" else "SEC"
+    val durationVal = String.format(java.util.Locale.US, "%d:%02d", mins, secs)
+    val durationUnit = "MM:SS"
 
     Column(
         modifier = Modifier
@@ -599,13 +687,14 @@ fun HealthSyncBar(onSync: () -> Unit) {
 @Composable
 fun TimelineList(events: List<InningsEvent>) {
     val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val filteredEvents = events.filter { it.description != "Session Started" && it.description != "Session Ended" }
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(events.reversed()) { event ->
+        items(filteredEvents.reversed()) { event ->
             TimelineItem(event, formatter)
         }
     }

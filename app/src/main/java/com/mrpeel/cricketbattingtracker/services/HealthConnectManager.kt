@@ -33,7 +33,32 @@ class HealthConnectManager(private val context: Context) {
         }
     }
 
+    private fun getInterpolatedHeartRate(timeMillis: Long, realRates: List<Pair<Long, Long>>): Long {
+        if (realRates.isEmpty()) return 110L
+        if (realRates.size == 1) return realRates[0].second
+
+        if (timeMillis <= realRates.first().first) {
+            return realRates.first().second
+        }
+        if (timeMillis >= realRates.last().first) {
+            return realRates.last().second
+        }
+
+        for (i in 0 until realRates.size - 1) {
+            val s1 = realRates[i]
+            val s2 = realRates[i + 1]
+            if (timeMillis >= s1.first && timeMillis <= s2.first) {
+                val timeDiff = s2.first - s1.first
+                if (timeDiff == 0L) return s1.second
+                val progress = (timeMillis - s1.first).toDouble() / timeDiff.toDouble()
+                return (s1.second + (s2.second - s1.second) * progress).toLong().coerceIn(40, 220)
+            }
+        }
+        return 110L
+    }
+
     suspend fun writeCricketWorkout(
+        inningsId: Long,
         startTimeMillis: Long,
         endTimeMillis: Long,
         shotCount: Int,
@@ -62,38 +87,50 @@ class HealthConnectManager(private val context: Context) {
                     exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_CRICKET,
                     title = "Pitch Analytix: Cricket Batting",
                     notes = "Shots Tracked: $shotCount | Max Speed: ${maxSpeed.toInt()} km/h",
-                    metadata = Metadata(recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED)
+                    metadata = Metadata(
+                        clientRecordId = "pitch_analytix_exercise_session_$inningsId",
+                        recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED
+                    )
                 )
 
                 // 2. Generate or parse heart rate samples over the session duration
-                val samples = mutableListOf<HeartRateRecord.Sample>()
+                val validSamples = mutableListOf<HeartRateRecord.Sample>()
                 var baseHr = 110.0
                 val durationSeconds = (endTimeMillis - startTimeMillis) / 1000
-                val stepSeconds = if (durationSeconds < 10) 1 else 5
 
                 if (!realHeartRates.isNullOrEmpty()) {
-                    // Populate from physical smartwatch PPG samples
-                    for (pair in realHeartRates) {
-                        samples.add(
+                    val sortedRates = realHeartRates.sortedBy { it.first }
+                    val stepMs = 5000L
+                    var currentMs = startTimeMillis
+                    while (currentMs <= endTimeMillis) {
+                        val hr = getInterpolatedHeartRate(currentMs, sortedRates)
+                        validSamples.add(
                             HeartRateRecord.Sample(
-                                time = Instant.ofEpochMilli(pair.first),
-                                beatsPerMinute = pair.second
+                                time = Instant.ofEpochMilli(currentMs),
+                                beatsPerMinute = hr
+                            )
+                        )
+                        currentMs += stepMs
+                    }
+                    // Ensure a sample exists at the exact endTimeMillis
+                    if (validSamples.isEmpty() || validSamples.last().time.toEpochMilli() < endTimeMillis) {
+                        val hr = getInterpolatedHeartRate(endTimeMillis, sortedRates)
+                        validSamples.add(
+                            HeartRateRecord.Sample(
+                                time = Instant.ofEpochMilli(endTimeMillis),
+                                beatsPerMinute = hr
                             )
                         )
                     }
-                    // Sort samples by time chronologically (required by Health Connect SDK)
-                    samples.sortBy { it.time }
-                    if (samples.isNotEmpty()) {
-                        baseHr = samples.map { it.beatsPerMinute.toDouble() }.average()
-                    }
                 } else {
-                    // Fallback to fluctuating generated samples
+                    // Fallback to generating continuous samples every 5 seconds from start to end
                     var currentInstant = startInstant
                     val random = Random(startTimeMillis) // Seeded
+                    val stepSeconds = if (durationSeconds < 10) 1 else 5
                     while (!currentInstant.isAfter(endInstant)) {
                         val change = random.nextDouble(-4.0, 4.0)
                         baseHr = (baseHr + change).coerceIn(90.0, 138.0)
-                        samples.add(
+                        validSamples.add(
                             HeartRateRecord.Sample(
                                 time = currentInstant,
                                 beatsPerMinute = baseHr.toLong()
@@ -101,13 +138,21 @@ class HealthConnectManager(private val context: Context) {
                         )
                         currentInstant = currentInstant.plusSeconds(stepSeconds.toLong())
                     }
+                    if (validSamples.isEmpty() || validSamples.last().time.isBefore(endInstant)) {
+                        validSamples.add(
+                            HeartRateRecord.Sample(
+                                time = endInstant,
+                                beatsPerMinute = baseHr.toLong()
+                            )
+                        )
+                    }
                 }
 
-                // If session has fewer than 2 samples, ensure at least two heart rate samples to draw a graph
-                if (samples.size < 2) {
-                    samples.clear()
-                    samples.add(HeartRateRecord.Sample(time = startInstant, beatsPerMinute = 110L))
-                    samples.add(HeartRateRecord.Sample(time = endInstant, beatsPerMinute = 112L))
+                // Ensure strict chronological ordering and uniqueness
+                val finalSamples = validSamples.distinctBy { it.time }.sortedBy { it.time }
+
+                if (finalSamples.isNotEmpty()) {
+                    baseHr = finalSamples.map { it.beatsPerMinute.toDouble() }.average()
                 }
 
                 val heartRateRecord = HeartRateRecord(
@@ -115,8 +160,11 @@ class HealthConnectManager(private val context: Context) {
                     startZoneOffset = startOffset,
                     endTime = endInstant,
                     endZoneOffset = endOffset,
-                    samples = samples,
-                    metadata = Metadata(recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED)
+                    samples = finalSamples,
+                    metadata = Metadata(
+                        clientRecordId = "pitch_analytix_heart_rate_$inningsId",
+                        recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED
+                    )
                 )
 
                 // 3. Calculate Calories dynamically using the generally accepted Keytel heart rate calorie estimation formula
@@ -130,10 +178,11 @@ class HealthConnectManager(private val context: Context) {
                 // Female: EE (kJ/min) = -20.4022 + 0.4472 * HR - 0.1263 * Weight(kg) + 0.074 * Age
                 var totalCalories = 0.0
 
-                if (!realHeartRates.isNullOrEmpty() && samples.size >= 2) {
-                    for (i in 0 until samples.size) {
-                        val sample = samples[i]
-                        val hr = sample.beatsPerMinute.toDouble()
+                if (finalSamples.size >= 2) {
+                    for (i in 1 until finalSamples.size) {
+                        val prevSample = finalSamples[i - 1]
+                        val currentSample = finalSamples[i]
+                        val hr = (prevSample.beatsPerMinute.toDouble() + currentSample.beatsPerMinute.toDouble()) / 2.0
                         val eeKjPerMin = if (userGender.equals("Female", ignoreCase = true)) {
                              -20.4022 + (0.4472 * hr) - (0.1263 * userWeight) + (0.074 * userAge)
                         } else {
@@ -141,25 +190,8 @@ class HealthConnectManager(private val context: Context) {
                         }
                         val eeKcalPerMin = eeKjPerMin / 4.184
                         
-                        val deltaMillis = if (i == 0) {
-                            java.time.Duration.between(samples[0].time, samples[1].time).toMillis()
-                        } else {
-                            java.time.Duration.between(samples[i - 1].time, sample.time).toMillis()
-                        }
+                        val deltaMillis = java.time.Duration.between(prevSample.time, currentSample.time).toMillis()
                         val intervalMinutes = deltaMillis.toDouble() / (60.0 * 1000.0)
-                        val intervalCalories = (eeKcalPerMin * intervalMinutes).coerceAtLeast(0.0)
-                        totalCalories += intervalCalories
-                    }
-                } else {
-                    val intervalMinutes = stepSeconds.toDouble() / 60.0 // Dynamic step-based minutes
-                    for (sample in samples) {
-                        val hr = sample.beatsPerMinute.toDouble()
-                        val eeKjPerMin = if (userGender.equals("Female", ignoreCase = true)) {
-                             -20.4022 + (0.4472 * hr) - (0.1263 * userWeight) + (0.074 * userAge)
-                        } else {
-                             -55.0969 + (0.6309 * hr) + (0.1988 * userWeight) + (0.2017 * userAge)
-                        }
-                        val eeKcalPerMin = eeKjPerMin / 4.184
                         val intervalCalories = (eeKcalPerMin * intervalMinutes).coerceAtLeast(0.0)
                         totalCalories += intervalCalories
                     }
@@ -178,8 +210,11 @@ class HealthConnectManager(private val context: Context) {
                     startZoneOffset = startOffset,
                     endTime = endInstant,
                     endZoneOffset = endOffset,
-                    energy = Energy.calories(totalCalories),
-                    metadata = Metadata(recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED)
+                    energy = Energy.kilocalories(totalCalories),
+                    metadata = Metadata(
+                        clientRecordId = "pitch_analytix_active_calories_$inningsId",
+                        recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED
+                    )
                 )
 
                 // Calculate Basal Metabolic Rate (BMR) calories during the session using Mifflin-St Jeor
@@ -198,8 +233,11 @@ class HealthConnectManager(private val context: Context) {
                     startZoneOffset = startOffset,
                     endTime = endInstant,
                     endZoneOffset = endOffset,
-                    energy = Energy.calories(finalTotalCalories),
-                    metadata = Metadata(recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED)
+                    energy = Energy.kilocalories(finalTotalCalories),
+                    metadata = Metadata(
+                        clientRecordId = "pitch_analytix_total_calories_$inningsId",
+                        recordingMethod = Metadata.RECORDING_METHOD_ACTIVELY_RECORDED
+                    )
                 )
 
                 // Write all records to Health Connect in one atomic call

@@ -44,7 +44,8 @@ fi
 # 2. Build Release APKs (better performance for physics testing)
 echo ""
 echo "📦 Building Release APKs (this may take a minute)..."
-export JAVA_HOME="/Users/neilkloot/.gradle/jdks/jetbrains_s_r_o_-21-aarch64-os_x.2/jbrsdk_jcef-21.0.10-osx-aarch64-b1163.110/Contents/Home"
+export JAVA_HOME="$HOME/.jdk/jdk-17"
+export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew assembleDebug --no-daemon
 
 # 3. Deploy to Watch

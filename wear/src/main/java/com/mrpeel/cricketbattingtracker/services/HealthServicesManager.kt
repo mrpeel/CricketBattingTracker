@@ -2,71 +2,69 @@ package com.mrpeel.cricketbattingtracker.services
 
 import android.content.Context
 import android.util.Log
-import androidx.health.services.client.ExerciseUpdateCallback
 import androidx.health.services.client.HealthServices
-import androidx.health.services.client.data.ExerciseConfig
-import androidx.health.services.client.data.ExerciseType
-import androidx.health.services.client.data.DataType
-import androidx.health.services.client.data.ExerciseUpdate
+import androidx.health.services.client.MeasureCallback
 import androidx.health.services.client.data.Availability
-import androidx.health.services.client.data.ExerciseLapSummary
+import androidx.health.services.client.data.DataPointContainer
+import androidx.health.services.client.data.DataType
+import androidx.health.services.client.data.DeltaDataType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
+/**
+ * Reads heart rate from the watch PPG sensor using MeasureClient.
+ *
+ * WHY MeasureClient, not ExerciseClient:
+ *   ExerciseClient.startExerciseAsync() requires *exclusive* ownership of the exercise session.
+ *   Samsung Health on the watch often owns its own background exercise session at all times.
+ *   When that happens, our startExerciseAsync() fails silently — onExerciseUpdateReceived()
+ *   never fires, and we collect zero HR samples.
+ *
+ *   MeasureClient is non-exclusive: it subscribes to the PPG sensor as a passive listener
+ *   and delivers samples regardless of who owns the current exercise session. This means
+ *   our app co-exists with Samsung Health instead of fighting it for sensor ownership.
+ */
 class HealthServicesManager(private val context: Context) {
     private val TAG = "HealthServicesManager"
-    private val healthClient = HealthServices.getClient(context)
-    private val exerciseClient = healthClient.exerciseClient
+    private val measureClient = HealthServices.getClient(context).measureClient
     private val executor = Executors.newSingleThreadExecutor()
 
     var onHeartRateUpdate: ((Int) -> Unit)? = null
 
-    private val callback = object : ExerciseUpdateCallback {
-        override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
-            val hrData = update.latestMetrics.getData(DataType.HEART_RATE_BPM)
-            if (!hrData.isNullOrEmpty()) {
-                val latestBpm = hrData.last().value.toInt()
-                Log.d(TAG, "Real HR captured from PPG sensor: $latestBpm BPM")
-                onHeartRateUpdate?.invoke(latestBpm)
+    private val hrCallback = object : MeasureCallback {
+        override fun onAvailabilityChanged(
+            dataType: DeltaDataType<*, *>,
+            availability: Availability
+        ) {
+            Log.d(TAG, "HR sensor availability: $availability")
+        }
+
+        override fun onDataReceived(data: DataPointContainer) {
+            val hrSamples = data.getData(DataType.HEART_RATE_BPM)
+            if (hrSamples.isNotEmpty()) {
+                val bpm = hrSamples.last().value.toInt()
+                Log.d(TAG, "Real HR captured from PPG sensor (MeasureClient): $bpm BPM")
+                onHeartRateUpdate?.invoke(bpm)
             }
         }
-
-        override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {
-            Log.d(TAG, "Sensor availability changed: ${dataType.name} -> $availability")
-        }
-
-        override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) {}
-
-        override fun onRegistered() {}
-
-        override fun onRegistrationFailed(throwable: Throwable) {}
     }
 
     fun startTracking() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Determine if Cricket is natively supported (fallback to Workout)
-                val capabilities = exerciseClient.getCapabilitiesAsync().get()
-                val type = if (capabilities.supportedExerciseTypes.contains(ExerciseType.CRICKET)) {
-                    ExerciseType.CRICKET
-                } else {
-                    ExerciseType.WORKOUT
+                // Check device supports heart rate before registering
+                val capabilities = measureClient.getCapabilitiesAsync().get()
+                if (DataType.HEART_RATE_BPM !in capabilities.supportedDataTypesMeasure) {
+                    Log.w(TAG, "Device does not support HEART_RATE_BPM via MeasureClient")
+                    return@launch
                 }
 
-                // Register listener before starting exercise to avoid missing initial frames
-                // Signature is: setUpdateCallback(executor: Executor, callback: ExerciseUpdateCallback)
-                exerciseClient.setUpdateCallback(executor, callback)
-
-                val config = ExerciseConfig.builder(type)
-                    .setDataTypes(setOf(DataType.HEART_RATE_BPM, DataType.CALORIES_TOTAL))
-                    .build()
-                
-                exerciseClient.startExerciseAsync(config)
-                Log.d(TAG, "Samsung Health Exercise tracking Started: $type")
+                measureClient.registerMeasureCallback(DataType.HEART_RATE_BPM, executor, hrCallback)
+                Log.d(TAG, "MeasureClient HR callback registered — non-exclusive PPG sampling active")
             } catch (e: Exception) {
-                Log.e(TAG, "Health tracking initialization failed: ${e.message}")
+                Log.e(TAG, "Failed to register MeasureClient HR callback: ${e.message}", e)
             }
         }
     }
@@ -74,11 +72,10 @@ class HealthServicesManager(private val context: Context) {
     fun stopTracking() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                exerciseClient.endExerciseAsync()
-                exerciseClient.clearUpdateCallbackAsync(callback)
-                Log.d(TAG, "Samsung Health Exercise Tracking Ended & Synchronized.")
+                measureClient.unregisterMeasureCallbackAsync(DataType.HEART_RATE_BPM, hrCallback).get()
+                Log.d(TAG, "MeasureClient HR callback unregistered")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to end health session: ${e.message}")
+                Log.e(TAG, "Failed to unregister MeasureClient HR callback: ${e.message}", e)
             }
         }
     }

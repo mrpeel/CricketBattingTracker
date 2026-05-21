@@ -42,6 +42,7 @@ class TrackerService : Service(), SensorEventListener {
     
     // Store timeline data
     private val sessionTimeline = mutableListOf<String>()
+    private var shouldDiscard = false
 
     // Hybrid Raw Debug Logging
     private var enableRawLogging = false
@@ -83,6 +84,12 @@ class TrackerService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP_TRACKING") {
+            shouldDiscard = false
+            SessionManager.setTracking(false)
+            stopSelf()
+            return START_NOT_STICKY
+        } else if (intent?.action == "DISCARD_TRACKING") {
+            shouldDiscard = true
             SessionManager.setTracking(false)
             stopSelf()
             return START_NOT_STICKY
@@ -112,7 +119,12 @@ class TrackerService : Service(), SensorEventListener {
                 Log.e(TAG, "Failed to prep log writers: \${e.message}")
             }
         }
-        
+        if (sessionTimeline.isEmpty()) {
+            val startTime = System.currentTimeMillis()
+            sessionTimeline.add("SYSTEM_START: Ts=$startTime")
+            Log.d(TAG, "Recording system start event: $startTime")
+        }
+
         SessionManager.setTracking(true)
         startForegroundService()
         wakeLock?.acquire(3 * 60 * 60 * 1000L) // maximum 3 hours
@@ -181,7 +193,27 @@ class TrackerService : Service(), SensorEventListener {
         Log.d(TAG, "Service Destroyed")
         sensorManager.unregisterListener(this)
         healthServicesManager.stopTracking()
-        dataSyncManager.syncTimelineToPhone(sessionTimeline)
+        
+        if (!shouldDiscard) {
+            val endTime = System.currentTimeMillis()
+            sessionTimeline.add("SYSTEM_END: Ts=$endTime")
+            Log.d(TAG, "Recording system end event: $endTime")
+            dataSyncManager.syncTimelineToPhone(sessionTimeline)
+            // Expose timeline to ADB for headless integration testing
+            try {
+                val timelineFile = File(getExternalFilesDir(null), "latest_timeline.txt")
+                timelineFile.writeText(sessionTimeline.joinToString("\n"))
+            } catch (e: Exception) {}
+        } else {
+            Log.d(TAG, "Session discarded, skipping sync and timeline write.")
+            try {
+                val timelineFile = File(getExternalFilesDir(null), "latest_timeline.txt")
+                if (timelineFile.exists()) {
+                    timelineFile.delete()
+                }
+            } catch (e: Exception) {}
+        }
+
         wakeLock?.let {
             if (it.isHeld) {
                 it.release()
@@ -195,12 +227,6 @@ class TrackerService : Service(), SensorEventListener {
                 rotationWriter?.close()
             } catch (e: Exception) {}
         }
-        
-        // Expose timeline to ADB for headless integration testing
-        try {
-            val timelineFile = File(getExternalFilesDir(null), "latest_timeline.txt")
-            timelineFile.writeText(sessionTimeline.joinToString("\n"))
-        } catch (e: Exception) {}
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -2,6 +2,7 @@ package com.mrpeel.cricketbattingtracker.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,7 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
-import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun SessionSummaryScreen(
@@ -36,14 +37,16 @@ fun SessionSummaryScreen(
     lastImpactTimeMs: Long,
     lastFollowThroughAngle: Float,
     lastWristRollDeg: Float,
-    onSyncClick: () -> Unit
+    onBackPressed: () -> Unit
 ) {
-    val misses = shotCount - (excellent + good + poor)
-    
+    // Intercept physical bottom watch button press
+    BackHandler(enabled = true) {
+        onBackPressed()
+    }
+
     // Brand Colors
     val neonGreen = Color(0xFF58FF63)
     val iceBlue = Color(0xFFBCD2FE)
-    val navyDark = Color(0xFF000C1B)
     val navySurface = Color(0xFF001B3D)
 
     // Map Rating to Color
@@ -81,8 +84,13 @@ fun SessionSummaryScreen(
             )
         }
 
-        // ── 2. Center Section: The Core Ring ───────────────────────────
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(92.dp)) {
+        // ── 2. Center Section: The Core Ring (Enlarged) ─────────────────
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(102.dp)
+                .clickable { onBackPressed() }
+        ) {
             Canvas(modifier = Modifier.matchParentSize()) {
                 val strokeWidth = 6.dp.toPx()
                 drawArc(
@@ -109,19 +117,19 @@ fun SessionSummaryScreen(
                 Text(
                     text = String.format("%.0f", lastSpeed),
                     color = Color.White,
-                    fontSize = 32.sp,
+                    fontSize = 38.sp,
                     fontWeight = FontWeight.Black
                 )
                 Text(
                     text = lastRating.uppercase(),
                     color = ratingColor,
-                    fontSize = 8.sp,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
                     text = "#$shotCount",
                     color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -137,11 +145,11 @@ fun SessionSummaryScreen(
             MiniStat("EFF", "${String.format("%.0f", lastEfficiency)}%", neonGreen)
         }
 
-        // ── 4. Lower Quadrants: Wrist & Finish ─────────────────────────
+        // ── 4. Lower Quadrants: Wrist & Finish (Shifted up slightly for bottom arc) ──
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 44.dp)
+                .padding(bottom = 54.dp)
                 .fillMaxWidth(0.9f),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -149,31 +157,20 @@ fun SessionSummaryScreen(
             MiniStat("FINISH", "${String.format("%.0f", lastFollowThroughAngle)}°", iceBlue)
         }
 
-        // ── 5. Footer: Session Aggregates + Sync ──────────────────────
+        // ── 5. Footer: Session Aggregates (SYNC button removed, stats enlarged) ──
         Column(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(navySurface.copy(alpha = 0.4f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(navySurface.copy(alpha = 0.6f))
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("AVG: ${String.format("%.0f", avgSpeed)}", color = iceBlue, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                Text("MAX: ${String.format("%.0f", maxSpeed)}", color = neonGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-            }
-            
-            Spacer(modifier = Modifier.height(2.dp))
-            
-            Button(
-                onClick = onSyncClick,
-                colors = ButtonDefaults.buttonColors(backgroundColor = neonGreen, contentColor = Color.Black),
-                modifier = Modifier.height(20.dp).width(60.dp),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("SYNC", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                Text("AVG: ${String.format("%.0f", avgSpeed)}", color = iceBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                Text("MAX: ${String.format("%.0f", maxSpeed)}", color = neonGreen, fontSize = 10.sp, fontWeight = FontWeight.Black)
             }
         }
     }

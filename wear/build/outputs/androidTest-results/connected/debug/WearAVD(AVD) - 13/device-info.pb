@@ -1,2 +1,0 @@
-
-WearAVD33à†ž¾*	arm64-v8a2unknown:emulator-5556BWearAVDRsdk_gwear_arm64

@@ -144,7 +144,7 @@ class DataSyncListenerService : WearableListenerService() {
             if (isNetworkEnabled) {
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0L, 0f, listener, android.os.Looper.getMainLooper())
             }
-            mainHandler.postDelayed(timeoutRunnable, 5000)
+            mainHandler.postDelayed(timeoutRunnable, 12000)
         } catch (e: Exception) {
             Log.e(TAG, "Failed requesting location updates: ${e.message}")
             locationManager.removeUpdates(listener)
@@ -161,11 +161,24 @@ class DataSyncListenerService : WearableListenerService() {
     }
 
     private suspend fun getPhoneLocation(): String {
+        val db = AppDatabase.getDatabase(applicationContext)
+        
+        // Redundancy Layer 1: Try real-time GPS/Network location and Geocoder
         try {
             val loc = getCurrentLocationSuspend(applicationContext)
             if (loc != null) {
                 val geocoder = Geocoder(applicationContext, Locale.getDefault())
-                val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+                var addresses: List<android.location.Address>? = null
+                var attempt = 0
+                while (attempt < 3 && addresses == null) {
+                    try {
+                        addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+                    } catch (e: Exception) {
+                        attempt++
+                        if (attempt >= 3) throw e
+                        kotlinx.coroutines.delay(500)
+                    }
+                }
                 if (!addresses.isNullOrEmpty()) {
                     val address = addresses[0]
                     val streetNum = address.subThoroughfare ?: ""
@@ -176,16 +189,40 @@ class DataSyncListenerService : WearableListenerService() {
                         streetName
                     }
                     val suburb = address.locality ?: address.subLocality ?: address.adminArea ?: ""
-                    return when {
+                    val resolved = when {
                         street.isNotEmpty() && suburb.isNotEmpty() -> "$street, $suburb"
                         suburb.isNotEmpty() -> suburb
-                        else -> "Net Practice"
+                        else -> ""
+                    }
+                    if (resolved.isNotEmpty()) {
+                        return resolved
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to retrieve location: ${e.message}")
+            Log.e(TAG, "Failed to retrieve real-time location: ${e.message}")
         }
+
+        // Redundancy Layer 2: Read cached location from SharedPreferences (populated by MainActivity in the foreground)
+        try {
+            val prefs = getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+            val cachedLoc = prefs.getString("cached_resolved_location", null)
+            if (!cachedLoc.isNullOrBlank()) {
+                Log.d(TAG, "Found highly accurate cached foreground location: $cachedLoc")
+                return cachedLoc
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed reading cached location from preferences: ${e.message}")
+        }
+
+        // Redundancy Layer 3: Fallback to the last successfully resolved location from database
+        val lastDbLoc = db.inningsEventDao().getLastResolvedLocation()
+        if (!lastDbLoc.isNullOrBlank()) {
+            Log.d(TAG, "Fallback to last known database resolved location: $lastDbLoc")
+            return lastDbLoc
+        }
+
+        // Final Default Fallback
         return "Net Practice"
     }
 
@@ -202,6 +239,8 @@ class DataSyncListenerService : WearableListenerService() {
             var parsedStartTs = Long.MAX_VALUE
             var parsedEndTs = Long.MIN_VALUE
             val parsedHeartRates = mutableListOf<Pair<Long, Long>>()
+            var systemStartTs: Long? = null
+            var systemEndTs: Long? = null
 
             eventsList.forEachIndexed { index, eventString ->
                 if (eventString.startsWith("Shot:")) {
@@ -283,20 +322,59 @@ class DataSyncListenerService : WearableListenerService() {
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to parse HR event: $eventString", e)
                     }
+                } else if (eventString.startsWith("SYSTEM_START:")) {
+                    try {
+                        val regex = Regex("Ts=(\\d+)")
+                        val match = regex.find(eventString)
+                        if (match != null) {
+                            val ts = match.groupValues[1].toLong()
+                            systemStartTs = ts
+                            
+                            val startEvent = InningsEvent(
+                                inningsId = newInningsId,
+                                timestamp = ts,
+                                description = "Session Started",
+                                location = resolvedLocation
+                            )
+                            dao.insertEvent(startEvent)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to parse SYSTEM_START: $eventString", e)
+                    }
+                } else if (eventString.startsWith("SYSTEM_END:")) {
+                    try {
+                        val regex = Regex("Ts=(\\d+)")
+                        val match = regex.find(eventString)
+                        if (match != null) {
+                            val ts = match.groupValues[1].toLong()
+                            systemEndTs = ts
+                            
+                            val endEvent = InningsEvent(
+                                inningsId = newInningsId,
+                                timestamp = ts,
+                                description = "Session Ended",
+                                location = resolvedLocation
+                            )
+                            dao.insertEvent(endEvent)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to parse SYSTEM_END: $eventString", e)
+                    }
                 }
             }
 
             // Sync the completed session to Health Connect (Samsung Health)
             try {
-                val finalStartTime = if (parsedStartTs != Long.MAX_VALUE) parsedStartTs else timestamp
-                val finalEndTime = if (parsedEndTs != Long.MIN_VALUE && parsedEndTs > finalStartTime) {
+                val finalStartTime = systemStartTs ?: (if (parsedStartTs != Long.MAX_VALUE) parsedStartTs else timestamp)
+                val finalEndTime = systemEndTs ?: (if (parsedEndTs != Long.MIN_VALUE && parsedEndTs > finalStartTime) {
                     parsedEndTs
                 } else {
                     finalStartTime + (eventsList.size * 5000L)
-                }
+                })
 
                 val hcManager = HealthConnectManager(applicationContext)
                 val success = hcManager.writeCricketWorkout(
+                    inningsId = newInningsId,
                     startTimeMillis = finalStartTime,
                     endTimeMillis = finalEndTime,
                     shotCount = shotCount,

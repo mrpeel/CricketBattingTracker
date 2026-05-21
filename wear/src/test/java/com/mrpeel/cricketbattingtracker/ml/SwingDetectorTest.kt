@@ -27,13 +27,14 @@ class SwingDetectorTest {
             detectedShot = shot
         }
 
+        val gravZ = kotlin.math.sqrt((9.8f * 9.8f - gravY * gravY).coerceAtLeast(0f))
         var time = 1_000_000_000L // Start at 1s
         
         // Fill pre-window (0.6s)
         for (i in 0 until 30) {
             detector.processGyro(floatArrayOf(preGyro, 0f, 0f), time)
-            detector.processGravity(floatArrayOf(0f, gravY, 0f), time)
-            detector.processAccel(floatArrayOf(0f, 0f, 9.8f), time)
+            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
+            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
             time += 20_000_000L // 20ms = 50Hz
         }
 
@@ -41,14 +42,14 @@ class SwingDetectorTest {
         val impactTime = time
         detector.processGyro(floatArrayOf(impactGyro, 0f, 0f), impactTime)
         detector.processAccel(floatArrayOf(shock, 0f, 0f), impactTime)
-        detector.processGravity(floatArrayOf(0f, gravY, 0f), impactTime)
+        detector.processGravity(floatArrayOf(0f, gravY, gravZ), impactTime)
 
         // Fill post-window (0.6s)
         for (i in 0 until 30) {
             time += 20_000_000L
             detector.processGyro(floatArrayOf(postGyro, postGyroY, 0f), time)
-            detector.processGravity(floatArrayOf(0f, gravY, 0f), time)
-            detector.processAccel(floatArrayOf(0f, 0f, 9.8f), time)
+            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
+            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
         }
 
         return detectedShot
@@ -66,7 +67,7 @@ class SwingDetectorTest {
     @Test
     fun testOnSideFlick() {
         // High post-gyro relative to pre-gyro (snap ratio)
-        val shot = simulateShot(preGyro = 5f, impactGyro = 10f, postGyro = 25f, shock = 30f)
+        val shot = simulateShot(preGyro = 5f, impactGyro = 10f, postGyro = 25f, shock = 30f, postGyroY = 1.0f)
         assertNotNull(shot)
         assertEquals("ON-SIDE FLICK", shot?.shotType)
         assertTrue("Speed should be corrected downward for flick", (shot?.speedKmh ?: 100f) < 40f)
@@ -82,8 +83,8 @@ class SwingDetectorTest {
 
     @Test
     fun testForwardDefence() {
-        // Low gyro magnitude overall
-        val shot = simulateShot(preGyro = 2f, impactGyro = 3f, postGyro = 2f, shock = 10f)
+        // Low gyro magnitude overall, shock >= IMPACT_SHOCK_THRESHOLD (20f)
+        val shot = simulateShot(preGyro = 2f, impactGyro = 3f, postGyro = 2f, shock = 25f)
         assertNotNull(shot)
         assertEquals("DEFENCE", shot?.shotType)
     }
@@ -92,7 +93,8 @@ class SwingDetectorTest {
     fun testSweepShot() {
         // Horizontal bat (gravY is low, gravX or Z is high)
         // In our simple calc_angle, angle = acos(y/mag). If y=0, angle=90.
-        val shot = simulateShot(preGyro = 10f, impactGyro = 15f, postGyro = 15f, shock = 40f, gravY = 0f)
+        // We set impactGyro = 12f so it is <= 14f and does not trigger Cover Drive first.
+        val shot = simulateShot(preGyro = 10f, impactGyro = 12f, postGyro = 15f, shock = 40f, gravY = 0f)
         assertNotNull(shot)
         assertEquals("SWEEP", shot?.shotType)
     }

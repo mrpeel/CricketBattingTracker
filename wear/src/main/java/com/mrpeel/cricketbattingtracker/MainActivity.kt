@@ -13,12 +13,74 @@ import com.mrpeel.cricketbattingtracker.services.SessionManager
 import com.mrpeel.cricketbattingtracker.services.TrackerService
 import com.mrpeel.cricketbattingtracker.ui.screens.SessionSummaryScreen
 import com.mrpeel.cricketbattingtracker.ui.screens.StartSessionScreen
+import com.mrpeel.cricketbattingtracker.ui.screens.SessionActionsScreen
+import com.mrpeel.cricketbattingtracker.ui.screens.DiscardConfirmationScreen
 import com.mrpeel.cricketbattingtracker.ui.theme.PavilionTheme
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.Manifest
 
 class MainActivity : ComponentActivity() {
 
+    private val requestBackgroundPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            android.widget.Toast.makeText(this, "Background sensor access is recommended for tracking when screen is off.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val bodySensorsGranted = permissions[Manifest.permission.BODY_SENSORS] ?: false
+        val activityRecGranted = permissions[Manifest.permission.ACTIVITY_RECOGNITION] ?: false
+        val postNotificationsGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
+        } else {
+            true
+        }
+        
+        if (!bodySensorsGranted || !activityRecGranted || !postNotificationsGranted) {
+            android.widget.Toast.makeText(this, "Permissions are required for session tracking.", android.widget.Toast.LENGTH_LONG).show()
+        } else {
+            checkAndRequestBackgroundPermission()
+        }
+    }
+
+    private fun checkAndRequestPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.BODY_SENSORS,
+            Manifest.permission.ACTIVITY_RECOGNITION
+        )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        
+        val needsRequest = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        
+        if (needsRequest.isNotEmpty()) {
+            requestPermissionLauncher.launch(needsRequest.toTypedArray())
+        } else {
+            checkAndRequestBackgroundPermission()
+        }
+    }
+
+    private fun checkAndRequestBackgroundPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BODY_SENSORS_BACKGROUND) != PackageManager.PERMISSION_GRANTED) {
+                requestBackgroundPermissionLauncher.launch(Manifest.permission.BODY_SENSORS_BACKGROUND)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        checkAndRequestPermissions()
         
         // Keep the screen on during the tracking session so we don't drop to ambient watch face
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -57,12 +119,17 @@ class MainActivity : ComponentActivity() {
                 // Automatically navigate based on tracking state
                 LaunchedEffect(isTracking.value) {
                     if (isTracking.value) {
-                        navController.navigate("summary") {
-                            popUpTo("start") { inclusive = true }
+                        if (navController.currentDestination?.route == "start") {
+                            navController.navigate("summary") {
+                                popUpTo("start") { inclusive = true }
+                            }
                         }
-                    } else if (navController.currentDestination?.route == "summary") {
-                        navController.navigate("start") {
-                            popUpTo("summary") { inclusive = true }
+                    } else {
+                        val currentRoute = navController.currentDestination?.route
+                        if (currentRoute == "summary" || currentRoute == "actions" || currentRoute == "confirm_discard") {
+                            navController.navigate("start") {
+                                popUpTo("start") { inclusive = true }
+                            }
                         }
                     }
                 }
@@ -95,11 +162,39 @@ class MainActivity : ComponentActivity() {
                             lastImpactTimeMs = lastImpactTimeMs.value,
                             lastFollowThroughAngle = lastFollowThroughAngle.value,
                             lastWristRollDeg = lastWristRollDeg.value,
+                            onBackPressed = {
+                                navController.navigate("actions")
+                            }
+                        )
+                    }
+
+                    composable("actions") {
+                        SessionActionsScreen(
                             onSyncClick = {
                                 stopTrackerService()
                                 SessionManager.resetSession()
                                 navController.navigate("start") {
                                     popUpTo("start") { inclusive = true }
+                                }
+                            },
+                            onDiscardClick = {
+                                navController.navigate("confirm_discard")
+                            }
+                        )
+                    }
+
+                    composable("confirm_discard") {
+                        DiscardConfirmationScreen(
+                            onYesClick = {
+                                stopTrackerServiceWithoutSync()
+                                SessionManager.resetSession()
+                                navController.navigate("start") {
+                                    popUpTo("start") { inclusive = true }
+                                }
+                            },
+                            onNoClick = {
+                                navController.navigate("summary") {
+                                    popUpTo("summary") { inclusive = true }
                                 }
                             }
                         )
@@ -122,6 +217,12 @@ class MainActivity : ComponentActivity() {
     private fun stopTrackerService() {
         val intent = Intent(this, TrackerService::class.java)
         intent.action = "STOP_TRACKING"
+        startService(intent)
+    }
+
+    private fun stopTrackerServiceWithoutSync() {
+        val intent = Intent(this, TrackerService::class.java)
+        intent.action = "DISCARD_TRACKING"
         startService(intent)
     }
 }

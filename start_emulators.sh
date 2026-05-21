@@ -4,7 +4,7 @@
 
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
-export JAVA_HOME="/Users/neilkloot/.jdk/jdk-17"
+export JAVA_HOME="/Users/neilkloot/.gradle/jdks/jetbrains_s_r_o_-21-aarch64-os_x.2/jbrsdk_jcef-21.0.10-osx-aarch64-b1163.110/Contents/Home"
 
 # 1. Kill existing emulator processes to force a visible restart
 echo "🧹 Cleaning up existing emulator processes..."

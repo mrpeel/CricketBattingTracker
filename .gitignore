@@ -1,0 +1,19 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+
+# Build Outputs
+**/build/
+/build/
+
+# Local databases
+cricket_tracker_database*
+
+# Logs & temp files
+logs/
+latest_timeline.txt
+*.log
+
+# OS-specific
+.DS_Store
