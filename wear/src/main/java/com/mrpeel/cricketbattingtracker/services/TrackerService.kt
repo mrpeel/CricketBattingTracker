@@ -242,6 +242,7 @@ class TrackerService : Service(), SensorEventListener {
             Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(vals, ts)
             Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(vals, ts)
             Sensor.TYPE_GRAVITY -> swingDetector.processGravity(vals, ts)
+            Sensor.TYPE_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
         }
 
         if (enableRawLogging) {
