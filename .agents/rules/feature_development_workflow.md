@@ -9,7 +9,7 @@ This workflow provides a safe, step-by-step procedure to analyze, plan, implemen
     *   Trigger the `/grill-me` command to resolve any design ambiguities, logical gaps, or sensor calibration parameters with the architect.
 
 2.  **Context Alignment**
-    *   Read [.agents/ACTIVE_CONTEXT.md](file:///file:///Users/neilkloot/Code/CricketBattingTracker/.agents/ACTIVE_CONTEXT.md) and [.agents/ARCHITECTURE.md](file:///Users/neilkloot/Code/CricketBattingTracker/.agents/ARCHITECTURE.md) to ensure alignment with established coding patterns, kinematics configurations, and system boundaries.
+    *   Read [.agents/ACTIVE_CONTEXT.md](../ACTIVE_CONTEXT.md) and [.agents/ARCHITECTURE.md](../ARCHITECTURE.md) to ensure alignment with established coding patterns, kinematics configurations, and system boundaries.
 
 3.  **Planning (`PLAN`)**
     *   Write a brief Implementation Plan (using the `implementation_plan.md` artifact template).
@@ -31,10 +31,10 @@ This workflow provides a safe, step-by-step procedure to analyze, plan, implemen
         *   **Python**: Check syntax/formatting using static checking tooling if applicable.
 
 7.  **Status Sync**
-    *   Once changes are verified, update the status table inside [.agents/ACTIVE_CONTEXT.md](file:///Users/neilkloot/Code/CricketBattingTracker/.agents/ACTIVE_CONTEXT.md) to reflect the updated feature status (e.g., mark completed features).
+    *   Once changes are verified, update the status table inside [.agents/ACTIVE_CONTEXT.md](../ACTIVE_CONTEXT.md) to reflect the updated feature status (e.g., mark completed features).
 
 8.  **Knowledge Base Update**
-    *   If any unique bugs were resolved or critical design decisions made, document them as bullet points inside [.agents/LEARNINGS.md](file:///Users/neilkloot/Code/CricketBattingTracker/.agents/LEARNINGS.md).
+    *   If any unique bugs were resolved or critical design decisions made, document them as bullet points inside [.agents/LEARNINGS.md](../LEARNINGS.md).
 
 9.  **Staging & Commits (`COMMIT`)**
     *   Stage the completed files and generate semantic git commits (e.g., `feat: implement Option B audio recorder UI` or `fix: resolve Pull shot false positive threshold`).
