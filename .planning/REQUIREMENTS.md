@@ -47,3 +47,18 @@ This document defines the functional and non-functional requirements for the Pit
 *   All sensor CSV files must follow standard headers:
     *   Accel/Gyro/Gravity: `time,seconds_elapsed,x,y,z`
     *   Orientation: `time,seconds_elapsed,qx,qy,qz,qw`
+
+---
+
+## 🗓️ Current Feature Backlog
+
+### 1. Classification & Accuracy Improvements
+*   **Pull Shot Precision**: Improve Pull shot classification precision (current false positive rate is high, with 12 FPs in the baseline evaluation).
+*   **Cover Drive Recall**: Improve Cover Drive classification recall (current recall is 0.57, with 6 false negatives).
+*   **Low-Speed Calibration**: Resolve speed calculation errors and corrupt low-speed labels on slow/gentle strokes (e.g., Cover Drives/Flicks where true speed is under 20 km/h but detected speed is over 50 km/h).
+
+### 2. Sensor Telemetry & Data Collection
+*   **Active Watch Sensor Logging**: Capture and collect active watch sensor data for sessions that previously lacked telemetry and used stationary phone fallback (specifically "Short off side" and "Full length" sessions).
+
+### 3. Pipeline & Usability Transitions
+*   **Option B (Mobile Integration)**: Migrate the audio narration recording, transcription, and time-alignment out of the Python pipeline and integrate it directly into the Android Companion App UI.

@@ -4,6 +4,15 @@ This document maintains the active development state, completed milestones, and 
 
 ---
 
+## 📜 Operating Protocol
+
+*   **Stateless Operations**: I am the architect; you are the executor. You must read STATE.md and CONTEXT.md before performing any task.
+*   **State Gatekeeping**: Do not modify any core code unless the current phase in STATE.md matches the intended operation.
+*   **Memory Persistence**: After every session, update CONTEXT.md with a summary of the technical decisions made.
+*   **Verification**: Every code-change task must end with a self-verification check against REQUIREMENTS.md.
+
+---
+
 ## 🏁 Current Milestone: Data Collection & Synchronization Pipeline Complete
 
 We have completed the baseline Wear OS tracking service, local SQLite mobile companion dashboards, Samsung Health sync, physical watch deployments, and the automated script-based data collection pipeline.
