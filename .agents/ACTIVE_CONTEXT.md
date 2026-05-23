@@ -33,12 +33,12 @@ This file defines the system objectives, feature backlog catalog, active technic
 | F-004 | SQLite Persistence | Local Room database storage on the phone companion | Completed | Phone UI verification |
 | F-005 | Health Connect Sync | Push Innings and Heart Rate profiles under Cricket type | Completed | Health Connect client check |
 | F-006 | Narration Pipeline | Pull files, run 5-tap sync, transcribe via Gemini | Completed | Running pipeline script |
-| F-007 | Option B | Companion App Audio Recording & Local Transcription Integration | Backlog | E2E verification |
+| F-007 | Option B | Companion App Audio Recording & Local Transcription Integration | Completed | E2E verification |
 | B-001 | Pull Shot Precision | Reduce false positive rate on Pull shot classification | Backlog | `SwingDetectorGroundTruthTest` |
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
-| B-005 | Companion Recording | Migrate audio recorder & transcription to App UI | Backlog | E2E verification |
+| B-005 | Companion Recording | Migrate audio recorder & transcription to App UI | Completed | E2E verification |
 
 ---
 
