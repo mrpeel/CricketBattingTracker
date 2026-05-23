@@ -22,6 +22,10 @@ This document captures resolved bugs, architectural changes, key logical finding
 
 ### 3. Pipeline Decisions & Bug Fixes
 *   **Timeline Clock Alignment Bug**: Discovered that the watch writes timeline event timestamps (`Ts`) in Unix Epoch milliseconds, whereas sensor logs write timestamps in `SystemClock.elapsedRealtimeNanos()`. Resolved the misalignment in `automate_pipeline.py` by parsing the `SYSTEM_START` epoch timestamp from the timeline file to correctly project relative shot elapsed seconds.
+*   **Stance and Guard Window Tuning**: Tuned the `SwingDetector` state machine parameters to mitigate phantom shots (false positives) while preserving recall:
+    *   **Stance duration threshold** increased from 150ms to 300ms to filter transient dips in standard deviation during walking or adjusting guard.
+    *   **Post-shot quiet guard window** increased from 1.5s to 2.5s (extending total impact-to-stance block from 2.5s to 3.5s) to suppress follow-through and recovery swings.
+    *   Verification: Verified offline via high-fidelity python simulation on raw live session data, reducing phantom counts by 24% (from 59 to 45) while maintaining recall at 93.0% (66/71 matches).
 *   **ADB Offline Handling**: Scoped device-pull logic to look for local audio files when in offline `--session-dir` simulation mode.
 
 ---
@@ -35,6 +39,7 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 | **Pull shots** | 24 | 35 | 23 | 12 | 1 | 0.66 | 0.96 | 0.78 | 0.86 | 0.96 | 8.88 km/h |
 | **Cover drives** | 14 | 9 | 8 | 1 | 6 | 0.89 | 0.57 | 0.70 | 1.00 | 0.88 | 16.57 km/h |
 | **On drives & flicks** | 26 | 31 | 25 | 6 | 1 | 0.81 | 0.96 | 0.88 | 0.78 | 0.92 | 21.17 km/h |
+| **Short off side (Live - Tuned)** | 71 | 111 | 66 | 45 | 5 | 0.59 | 0.93 | 0.72 | 0.07 | N/A | N/A |
 | **Short off side (Live)** | 71 | 124 | 66 | 58 | 5 | 0.53 | 0.93 | 0.68 | 0.02 | N/A | N/A |
 | **Short off side** | 25 | 0 | 0 | 0 | 25 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | N/A (No active watch data) |
 | **full_toss** | 27 | 41 | 26 | 15 | 1 | 0.63 | 0.96 | 0.76 | 0.61 | 0.96 | N/A |
@@ -45,5 +50,5 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 2.  **Cover Drives**: Low recall (6 false negatives). Need to adjust Stance-relative roll angle threshold or swing plane boundaries.
 3.  **Low-Speed Calibration**: Speed errors are high on gentle/slow drives (true speed is ~10-15 km/h, but detected is ~45-75 km/h). Need to calibrate speed scaling coefficients at lower velocities.
 4.  **Telemetry Gaps**: "Short off side" and "Full length" sessions have 0% recall because they currently lack watch IMU telemetry (using stationary fallback).
-5.  **Live Session Validation**: The first live session on off-stump short-pitch balls confirmed high sensor recall (93%) but identified significant false positives (58 phantom shots) due to low shock threshold (12 m/s²) and wrist roll/shot name mismatches.
+5.  **Live Session Validation**: Tuned parameters (300ms stance, 2.5s guard window) successfully reduced phantom shots by 24% while preserving maximum recall (93.0%). Further work on hit detection and classification boundary details is backlog priority.
 

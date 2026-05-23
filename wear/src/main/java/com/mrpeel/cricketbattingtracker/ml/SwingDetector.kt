@@ -291,35 +291,35 @@ class SwingDetector {
     private fun runStateMachine(timestamp: Long) {
         when (detectorState) {
             DetectorState.SEARCHING_STANCE -> {
-                // Ignore new stance search if we are in the 1.5s guard window after the last shot
-                if (timestamp <= lastShotEndTime + 1_500_000_000L) {
-                    return
-                }
+            // Ignore new stance search if we are in the 2.5s guard window after the last shot
+            if (timestamp <= lastShotEndTime + 2_500_000_000L) {
+                return
+            }
 
-                // Compute rolling std over the last 500ms
-                val windowStart = timestamp - 500_000_000L
-                val std = gyroBuffer.calculateStdOfMag(windowStart, timestamp)
+            // Compute rolling std over the last 500ms
+            val windowStart = timestamp - 500_000_000L
+            val std = gyroBuffer.calculateStdOfMag(windowStart, timestamp)
 
-                // Require at least 10 samples to ensure stable std calculation
-                val samplesInWindow = gyroBuffer.getRange(windowStart, timestamp).size
-                if (samplesInWindow >= 10) {
-                    if (std < 0.9f) {
-                        if (!isInStance) {
-                            isInStance = true
-                            stanceStartTime = timestamp
+            // Require at least 10 samples to ensure stable std calculation
+            val samplesInWindow = gyroBuffer.getRange(windowStart, timestamp).size
+            if (samplesInWindow >= 10) {
+                if (std < 0.9f) {
+                    if (!isInStance) {
+                        isInStance = true
+                        stanceStartTime = timestamp
+                    }
+                } else {
+                    if (isInStance) {
+                        val duration = timestamp - stanceStartTime
+                        if (duration >= 300_000_000L) { // 300ms
+                            detectorState = DetectorState.SWING_SEARCH
+                            stanceExitTime = timestamp
+                            Log.d(TAG, "Stance exit detected at $stanceExitTime. Duration: ${duration / 1_000_000} ms. Searching swing...")
                         }
-                    } else {
-                        if (isInStance) {
-                            val duration = timestamp - stanceStartTime
-                            if (duration >= 150_000_000L) { // 150ms
-                                detectorState = DetectorState.SWING_SEARCH
-                                stanceExitTime = timestamp
-                                Log.d(TAG, "Stance exit detected at $stanceExitTime. Duration: ${duration / 1_000_000} ms. Searching swing...")
-                            }
-                            isInStance = false
-                        }
+                        isInStance = false
                     }
                 }
+            }
             }
             DetectorState.SWING_SEARCH -> {
                 // Timeout after 5.5s
