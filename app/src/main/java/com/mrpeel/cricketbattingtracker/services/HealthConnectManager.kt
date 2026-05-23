@@ -100,25 +100,11 @@ class HealthConnectManager(private val context: Context) {
 
                 if (!realHeartRates.isNullOrEmpty()) {
                     val sortedRates = realHeartRates.sortedBy { it.first }
-                    val stepMs = 5000L
-                    var currentMs = startTimeMillis
-                    while (currentMs <= endTimeMillis) {
-                        val hr = getInterpolatedHeartRate(currentMs, sortedRates)
+                    for (rate in sortedRates) {
                         validSamples.add(
                             HeartRateRecord.Sample(
-                                time = Instant.ofEpochMilli(currentMs),
-                                beatsPerMinute = hr
-                            )
-                        )
-                        currentMs += stepMs
-                    }
-                    // Ensure a sample exists at the exact endTimeMillis
-                    if (validSamples.isEmpty() || validSamples.last().time.toEpochMilli() < endTimeMillis) {
-                        val hr = getInterpolatedHeartRate(endTimeMillis, sortedRates)
-                        validSamples.add(
-                            HeartRateRecord.Sample(
-                                time = Instant.ofEpochMilli(endTimeMillis),
-                                beatsPerMinute = hr
+                                time = Instant.ofEpochMilli(rate.first),
+                                beatsPerMinute = rate.second
                             )
                         )
                     }

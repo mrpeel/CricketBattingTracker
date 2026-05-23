@@ -34,6 +34,7 @@ class TrackerService : Service(), SensorEventListener {
     private var gyroSensor: Sensor? = null
     private var gravitySensor: Sensor? = null
     private var rotationSensor: Sensor? = null
+    private var heartRateSensor: Sensor? = null
     
     private var wakeLock: PowerManager.WakeLock? = null
     private val swingDetector = SwingDetector()
@@ -57,20 +58,24 @@ class TrackerService : Service(), SensorEventListener {
         Log.d(TAG, "Service Created")
         
         dataSyncManager = DataSyncManager(this)
-        healthServicesManager = HealthServicesManager(this)
-        healthServicesManager.onHeartRateUpdate = { bpm ->
-            val hrTime = System.currentTimeMillis()
-            Log.d(TAG, "Recording real HR sample to timeline: $bpm BPM")
-            sessionTimeline.add("HR: BPM=$bpm, Ts=$hrTime")
-        }
-        healthServicesManager.startTracking()
+        // Disable HealthServicesManager MeasureClient in favor of standard Android heart rate sensor
+        // healthServicesManager = HealthServicesManager(this)
+        // healthServicesManager.onHeartRateUpdate = { bpm ->
+        //     val hrTime = System.currentTimeMillis()
+        //     Log.d(TAG, "Recording real HR sample to timeline: $bpm BPM")
+        //     sessionTimeline.add("HR: BPM=$bpm, Ts=$hrTime")
+        // }
+        // healthServicesManager.startTracking()
+        
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
         gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
         rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
         
         if (accelSensor == null) Log.w(TAG, "Hardware Accelerometer is NOT available!")
+        if (heartRateSensor == null) Log.w(TAG, "Hardware Heart Rate Sensor is NOT available!")
         if (gyroSensor == null) Log.w(TAG, "Hardware Gyroscope is NOT available!")
         if (gravitySensor == null) Log.w(TAG, "Hardware Gravity Sensor is NOT available (SwingDetector will estimate gravity from Accelerometer)")
         if (rotationSensor == null) Log.w(TAG, "Hardware Rotation Vector is NOT available!")
@@ -139,6 +144,7 @@ class TrackerService : Service(), SensorEventListener {
         gyroSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
         gravitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
         rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        heartRateSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0) }
         
         Log.d(TAG, "Service Started, tracking sensors")
         return START_STICKY
@@ -248,6 +254,14 @@ class TrackerService : Service(), SensorEventListener {
             Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(vals, ts)
             Sensor.TYPE_GRAVITY -> swingDetector.processGravity(vals, ts)
             Sensor.TYPE_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
+            Sensor.TYPE_HEART_RATE -> {
+                val bpm = vals[0].toInt()
+                if (bpm > 0) {
+                    val hrTime = System.currentTimeMillis()
+                    Log.d(TAG, "Recording standard HR sample to timeline: $bpm BPM")
+                    sessionTimeline.add("HR: BPM=$bpm, Ts=$hrTime")
+                }
+            }
         }
 
         if (enableRawLogging) {
