@@ -446,6 +446,45 @@ def main():
     if os.path.exists(timeline_path):
         compare_with_timeline(timeline_path, df_aligned, start_time_ms)
         
+def normalize_shot_class(shot_name):
+    if not shot_name:
+        return "Unknown"
+    s = shot_name.lower().strip()
+    
+    # Defence/Push - any variation on defence, any variation on push
+    if "defence" in s or "defense" in s or "push" in s:
+        return "Defence/Push"
+        
+    # Covers - any variation on covers/cover drive
+    if "cover" in s:
+        return "Covers"
+        
+    # V Drive - any variation on drive from mid on, straight, mid off
+    if "drive" in s or "punch" in s or "straight" in s or "mid off" in s or "mid on" in s or "mid-off" in s or "mid-on" in s:
+        return "V Drive"
+        
+    # Cut - any variation on cut shot/guide ball
+    if "cut" in s or "guide" in s:
+        return "Cut"
+        
+    # Pull shot - any variation on pull shot
+    if "pull" in s:
+        return "Pull shot"
+        
+    # Miss - any variation on miss
+    if "miss" in s:
+        return "Miss"
+        
+    # Flick - any variation on flick/ glance
+    if "flick" in s or "glance" in s:
+        return "Flick"
+        
+    # Sweep - any variation on sweep
+    if "sweep" in s:
+        return "Sweep"
+        
+    return "Unknown"
+
 def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
     timeline_shots = []
     timeline_start = None
@@ -493,20 +532,26 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
         df_timeline['diff'] = np.abs(df_timeline['rel_time_seconds'] - t_impact)
         closest = df_timeline.loc[df_timeline['diff'].idxmin()]
         
+        gt_norm = normalize_shot_class(row['shot_type'])
         if closest['diff'] <= 3.0:
+            watch_norm = normalize_shot_class(closest['shot_type'])
             matches.append({
                 'GT_Shot': row['shot_type'],
+                'GT_Class': gt_norm,
                 'GT_Time': f"{t_impact:.2f}s",
                 'Watch_Shot': closest['shot_type'],
+                'Watch_Class': watch_norm,
                 'Watch_Time': f"{closest['rel_time_seconds']:.2f}s",
                 'Diff': f"{closest['diff']:.2f}s",
-                'Status': "✅ MATCH" if row['shot_type'].lower().split() == closest['shot_type'].lower().split() else "❌ MISMATCH"
+                'Status': "✅ MATCH" if gt_norm == watch_norm else "❌ MISMATCH"
             })
         else:
             matches.append({
                 'GT_Shot': row['shot_type'],
+                'GT_Class': gt_norm,
                 'GT_Time': f"{t_impact:.2f}s",
                 'Watch_Shot': "None",
+                'Watch_Class': "None",
                 'Watch_Time': "-",
                 'Diff': "-",
                 'Status': "❓ UNDETECTED"
