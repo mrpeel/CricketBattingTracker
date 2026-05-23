@@ -20,17 +20,22 @@ This document captures resolved bugs, architectural changes, key logical finding
 *   **Partial Wake Lock**: Wear OS aggressively suspends background sensor listeners. We use a persistent Foreground Service with a `PARTIAL_WAKE_LOCK` to ensure continuous 50Hz sensor tracking when the watch face goes dark.
 *   **Gravity Fallback**: When hardware gravity sensor is missing, a Low-Pass Filter (LPF) estimates gravity vectors from raw accelerometer data (active only when accel magnitude is under 15 m/s²).
 
+### 3. Pipeline Decisions & Bug Fixes
+*   **Timeline Clock Alignment Bug**: Discovered that the watch writes timeline event timestamps (`Ts`) in Unix Epoch milliseconds, whereas sensor logs write timestamps in `SystemClock.elapsedRealtimeNanos()`. Resolved the misalignment in `automate_pipeline.py` by parsing the `SYSTEM_START` epoch timestamp from the timeline file to correctly project relative shot elapsed seconds.
+*   **ADB Offline Handling**: Scoped device-pull logic to look for local audio files when in offline `--session-dir` simulation mode.
+
 ---
 
 ## 📈 SwingDetector Performance Evaluation Scorecard
 
-Evaluated against ground truth datasets (from batting sessions) using [SwingDetectorGroundTruthTest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/test/java/com/mrpeel/cricketbattingtracker/ml/SwingDetectorGroundTruthTest.kt):
+Evaluated against ground truth datasets (from batting sessions) using [SwingDetectorGroundTruthTest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/test/java/com/mrpeel/cricketbattingtracker/ml/SwingDetectorGroundTruthTest.kt) and local pipeline runs:
 
 | Session | GT | Detected | TP | FP | FN | Precision | Recall | F1 | Class. Acc. | Hit/Miss Agr. | Speed MAE |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | **Pull shots** | 24 | 35 | 23 | 12 | 1 | 0.66 | 0.96 | 0.78 | 0.86 | 0.96 | 8.88 km/h |
 | **Cover drives** | 14 | 9 | 8 | 1 | 6 | 0.89 | 0.57 | 0.70 | 1.00 | 0.88 | 16.57 km/h |
 | **On drives & flicks** | 26 | 31 | 25 | 6 | 1 | 0.81 | 0.96 | 0.88 | 0.78 | 0.92 | 21.17 km/h |
+| **Short off side (Live)** | 71 | 124 | 66 | 58 | 5 | 0.53 | 0.93 | 0.68 | 0.02 | N/A | N/A |
 | **Short off side** | 25 | 0 | 0 | 0 | 25 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | N/A (No active watch data) |
 | **full_toss** | 27 | 41 | 26 | 15 | 1 | 0.63 | 0.96 | 0.76 | 0.61 | 0.96 | N/A |
 | **full_length** | 23 | 0 | 0 | 0 | 23 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | N/A (No active watch data) |
@@ -40,3 +45,5 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 2.  **Cover Drives**: Low recall (6 false negatives). Need to adjust Stance-relative roll angle threshold or swing plane boundaries.
 3.  **Low-Speed Calibration**: Speed errors are high on gentle/slow drives (true speed is ~10-15 km/h, but detected is ~45-75 km/h). Need to calibrate speed scaling coefficients at lower velocities.
 4.  **Telemetry Gaps**: "Short off side" and "Full length" sessions have 0% recall because they currently lack watch IMU telemetry (using stationary fallback).
+5.  **Live Session Validation**: The first live session on off-stump short-pitch balls confirmed high sensor recall (93%) but identified significant false positives (58 phantom shots) due to low shock threshold (12 m/s²) and wrist roll/shot name mismatches.
+

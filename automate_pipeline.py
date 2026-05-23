@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--audio", help="Manual path to the local audio narration file (.m4a/.mp3)")
     parser.add_argument("--dest", default="/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions", help="Base directory to save pulled logs")
     parser.add_argument("--manual-offset", type=float, help="Override offset detection and specify manual offset in seconds")
+    parser.add_argument("--session-dir", help="Path to local pulled session directory (skips ADB watch pull)")
     return parser.parse_args()
 
 def check_adb_devices(watch_ip):
@@ -247,27 +248,38 @@ def main():
     args = parse_args()
     
     # 1. Connect and pull watch session files
-    devices = check_adb_devices(args.watch_ip)
-    if args.watch_ip not in devices:
-        print(f"❌ ERROR: Watch {args.watch_ip} is not connected or authorized.")
-        sys.exit(1)
-        
-    session_dir = pull_latest_watch_session(args.watch_ip, args.dest)
-    if not session_dir:
-        sys.exit(1)
+    if args.session_dir:
+        session_dir = args.session_dir
+        print(f"Using local session directory: {session_dir}")
+    else:
+        devices = check_adb_devices(args.watch_ip)
+        if args.watch_ip not in devices:
+            print(f"❌ ERROR: Watch {args.watch_ip} is not connected or authorized.")
+            sys.exit(1)
+            
+        session_dir = pull_latest_watch_session(args.watch_ip, args.dest)
+        if not session_dir:
+            sys.exit(1)
         
     # 2. Get/Pull Audio Narration file
     audio_path = args.audio
     if not audio_path:
-        phone_id = find_phone_device(devices, args.watch_ip)
-        if phone_id:
-            audio_path = pull_audio_from_phone(phone_id, session_dir)
+        # Check if there is already an audio file in the session directory
+        local_audios = glob.glob(os.path.join(session_dir, "*.m4a")) + glob.glob(os.path.join(session_dir, "*.mp3"))
+        if local_audios:
+            audio_path = local_audios[0]
+            print(f"📖 Found local audio narration file in session directory: {audio_path}")
         else:
-            print("⚠️ Phone device not detected via ADB.")
+            if 'devices' in locals():
+                phone_id = find_phone_device(devices, args.watch_ip)
+                if phone_id:
+                    audio_path = pull_audio_from_phone(phone_id, session_dir)
+            if not audio_path:
+                print("⚠️ Phone device not detected or audio not found on phone.")
             
     if not audio_path:
         # Prompt user
-        print("\nCould not automatically find audio recording on phone.")
+        print("\nCould not automatically find audio recording.")
         audio_path = input("Please enter the path to the local audio file (.m4a/.mp3): ").strip()
         if not os.path.exists(audio_path):
             print("❌ ERROR: File does not exist.")
@@ -310,17 +322,23 @@ def main():
     else:
         print(f"🎯 Using manual clock offset: {offset:+.3f}s")
         
-    # 5. Call Gemini to transcribe & parse shot timings
-    try:
-        narrations = transcribe_audio_gemini(audio_path)
-        print(f"Successfully transcribed {len(narrations)} narrations.")
-    except Exception as e:
-        print(f"❌ Gemini transcription failed: {e}")
-        sys.exit(1)
-        
-    # Write raw narrations to session dir
-    with open(os.path.join(session_dir, "narrations_raw.json"), "w") as f:
-        json.dump(narrations, f, indent=2)
+    # 5. Call Gemini to transcribe & parse shot timings (or load local cache if exists)
+    narrations_cache_path = os.path.join(session_dir, "narrations_raw.json")
+    if os.path.exists(narrations_cache_path):
+        print(f"📖 Loading cached transcriptions from {narrations_cache_path}...")
+        with open(narrations_cache_path, "r") as f:
+            narrations = json.load(f)
+    else:
+        try:
+            narrations = transcribe_audio_gemini(audio_path)
+            print(f"Successfully transcribed {len(narrations)} narrations.")
+        except Exception as e:
+            print(f"❌ Gemini transcription failed: {e}")
+            sys.exit(1)
+            
+        # Write raw narrations to session dir
+        with open(narrations_cache_path, "w") as f:
+            json.dump(narrations, f, indent=2)
         
     # 6. Perform alignment with raw sensor logs
     gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
@@ -336,7 +354,26 @@ def main():
     df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
     start_time_ns = df_gyro.iloc[0]['time']
     start_time_ms = int(start_time_ns / 1_000_000)
-    
+    gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
+
+    # Detect and convert MM.SS timestamps to actual seconds if needed
+    if narrations:
+        max_t = max(n['timestamp_seconds'] for n in narrations)
+        looks_like_mm_ss = True
+        for n in narrations:
+            t = n['timestamp_seconds']
+            frac = t - int(t)
+            if frac > 0.60:
+                looks_like_mm_ss = False
+                break
+        if looks_like_mm_ss and max_t < gyro_duration / 3:
+            print("💡 Detected that Gemini timestamps are in MM.SS format. Converting to actual seconds...")
+            for n in narrations:
+                t = n['timestamp_seconds']
+                minutes = int(t)
+                seconds = round((t - minutes) * 100)
+                n['timestamp_seconds'] = float(minutes * 60 + seconds)
+
     aligned_shots = []
     print("\nAligning spoken narrations with physical movements...")
     for shot in narrations:
@@ -411,6 +448,24 @@ def main():
         
 def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
     timeline_shots = []
+    timeline_start = None
+    
+    # Try to find SYSTEM_START timestamp in the timeline file
+    with open(timeline_path, "r") as f:
+        for line in f:
+            if "SYSTEM_START:" in line:
+                m = re.search(r"Ts=(\d+)", line)
+                if m:
+                    timeline_start = int(m.group(1))
+                    break
+                    
+    # Fallback to start_time_ms if SYSTEM_START is missing
+    if timeline_start is None:
+        timeline_start = start_time_ms
+        print(f"⚠️ SYSTEM_START not found in timeline. Using sensor start time: {start_time_ms}")
+    else:
+        print(f"🎯 Found SYSTEM_START in timeline: {timeline_start} ms")
+        
     with open(timeline_path, "r") as f:
         for line in f:
             if line.startswith("Shot:"):
@@ -419,7 +474,7 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
                 m_ts = re.search(r"Ts=(\d+)", line)
                 if m_ts:
                     ts = int(m_ts.group(1))
-                    rel_t = (ts - start_time_ms) / 1000.0
+                    rel_t = (ts - timeline_start) / 1000.0
                     timeline_shots.append({
                         'ts_ms': ts,
                         'rel_time_seconds': rel_t,
