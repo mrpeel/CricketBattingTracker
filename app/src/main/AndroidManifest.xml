@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.BODY_SENSORS" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -56,6 +58,9 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/cricket_timeline" />
             </intent-filter>
         </service>
-    </application>
 
+        <service android:name=".services.AudioRecordService"
+                 android:foregroundServiceType="microphone"
+                 android:exported="false" />
+    </application>
 </manifest>

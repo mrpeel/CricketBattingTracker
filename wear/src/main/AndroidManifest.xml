@@ -44,6 +44,16 @@
             android:name=".services.TrackerService"
             android:foregroundServiceType="health"
             android:exported="true" />
+
+        <service
+            android:name=".services.MessageReceiverService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/start_tracking" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/stop_tracking" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

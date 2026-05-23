@@ -42,6 +42,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
 import android.content.Context
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
 
@@ -58,6 +64,19 @@ class MainActivity : ComponentActivity() {
             triggerForegroundLocationResolution()
         } else {
             android.util.Log.w("MainActivity", "Location permissions were denied.")
+        }
+    }
+
+    private val requestAudioPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            android.util.Log.d("MainActivity", "Audio recording permission granted successfully!")
+            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.refreshRecordings(this)
+            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(this)
+        } else {
+            android.util.Log.w("MainActivity", "Audio recording permission was denied.")
+            Toast.makeText(this, "Microphone permission is required to record narration", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -272,11 +291,18 @@ class MainActivity : ComponentActivity() {
         
         triggerForegroundLocationResolution()
         checkHealthConnectPermissions()
+        com.mrpeel.cricketbattingtracker.services.AudioRecordManager.refreshRecordings(this)
 
         setContent {
             val timeline by viewModel.currentTimeline.collectAsState()
             val allSessions by viewModel.allSessions.collectAsState()
             val selectedSessionId by viewModel.selectedInningsId.collectAsState()
+
+            val isRecording by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.isRecording.collectAsState()
+            val elapsedSeconds by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.elapsedSeconds.collectAsState()
+            val maxAmplitude by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.maxAmplitude.collectAsState()
+            val recordingsList by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.recordingsList.collectAsState()
+            val context = LocalContext.current
             
             // Athlete Profile preference state management
             var showProfileDialog by remember { mutableStateOf(false) }
@@ -336,6 +362,17 @@ class MainActivity : ComponentActivity() {
                                 SummaryCard("SESSIONS", "${allSessions.size}", "COUNT", Modifier.weight(1f))
                             }
                             
+                            SessionControlPanel(
+                                isRecording = isRecording,
+                                elapsedSeconds = elapsedSeconds,
+                                maxAmplitude = maxAmplitude,
+                                recordingsList = recordingsList,
+                                onRequestPermission = {
+                                    requestAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                },
+                                context = context
+                            )
+
                             Text(
                                 "HISTORY LIST",
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -930,6 +967,324 @@ fun ProfileDialog(
                     ) {
                         Text("SAVE", fontWeight = FontWeight.Bold)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SessionControlPanel(
+    isRecording: Boolean,
+    elapsedSeconds: Long,
+    maxAmplitude: Float,
+    recordingsList: List<java.io.File>,
+    onRequestPermission: () -> Unit,
+    context: Context
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "🏏 PITCH ANALYTIX CONSOLE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.secondary,
+                        letterSpacing = 1.5.sp
+                    )
+                    Text(
+                        if (isRecording) "SESSION TRACKING ACTIVE" else "SESSION CONTROLLER",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
+                }
+                
+                if (isRecording) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                    val alpha by infiniteTransition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(800, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "alpha"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF58FF63).copy(alpha = alpha))
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color.Gray.copy(alpha = 0.5f))
+                    )
+                }
+            }
+
+            if (!isRecording) {
+                Text(
+                    "Start session tracking to record raw watch telemetry and capture voice annotations. Recording saves automatically for direct sync.",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    lineHeight = 16.sp
+                )
+
+                Button(
+                    onClick = {
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                                context,
+                                android.Manifest.permission.RECORD_AUDIO
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context)
+                        } else {
+                            onRequestPermission()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🎙️", fontSize = 16.sp)
+                        Text(
+                            "START SESSION & AUDIO RECORD",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            color = Color(0xFF000C1B),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+
+                if (recordingsList.isNotEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
+                    Text(
+                        "RECENT NARRATIONS (${recordingsList.size})",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray,
+                        letterSpacing = 1.sp
+                    )
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 4.dp)
+                    ) {
+                        items(recordingsList.take(5)) { file ->
+                            RecordingHistoryItem(file, context)
+                        }
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    val minutes = elapsedSeconds / 60
+                    val seconds = elapsedSeconds % 60
+                    val timerStr = String.format(Locale.US, "%02d:%02d", minutes, seconds)
+                    
+                    Text(
+                        text = timerStr,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.sp
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .padding(horizontal = 32.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val random = remember { java.util.Random(1234) }
+                        for (i in 0 until 7) {
+                            val factor = 0.4f + 0.6f * random.nextFloat()
+                            val heightRatio = (maxAmplitude * factor).coerceIn(0.05f, 1f)
+                            
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .fillMaxHeight(heightRatio)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (i == 3) MaterialTheme.colorScheme.primary 
+                                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f + 0.5f * heightRatio)
+                                    )
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                com.mrpeel.cricketbattingtracker.services.AudioRecordManager.discardRecording(context)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                        ) {
+                            Text("DISCARD", fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 0.5.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                com.mrpeel.cricketbattingtracker.services.AudioRecordManager.stopRecording(context)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                            modifier = Modifier
+                                .weight(1.5f)
+                                .height(44.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(Color.White)
+                                )
+                                Text("STOP & SAVE", fontWeight = FontWeight.Black, fontSize = 11.sp, color = Color.White, letterSpacing = 0.5.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RecordingHistoryItem(file: java.io.File, context: Context) {
+    val playingFile by com.mrpeel.cricketbattingtracker.services.AudioPlayManager.playingFile.collectAsState()
+    val isPlaying = playingFile == file
+    
+    val timeFormatted = remember(file) {
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        sdf.format(Date(file.lastModified()))
+    }
+    
+    val sizeFormatted = remember(file) {
+        val kb = file.length() / 1024
+        "$kb KB"
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+        modifier = Modifier
+            .width(130.dp)
+            .height(72.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isPlaying) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.05f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    timeFormatted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    sizeFormatted,
+                    fontSize = 9.sp,
+                    color = Color.Gray
+                )
+            }
+            
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            else Color.White.copy(alpha = 0.05f)
+                        )
+                        .clickable {
+                            if (isPlaying) {
+                                com.mrpeel.cricketbattingtracker.services.AudioPlayManager.stopPlaying()
+                            } else {
+                                com.mrpeel.cricketbattingtracker.services.AudioPlayManager.playFile(context, file)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (isPlaying) "⏹️" else "▶️",
+                        fontSize = 10.sp,
+                        color = if (isPlaying) MaterialTheme.colorScheme.primary else Color.White
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.05f))
+                        .clickable {
+                            if (isPlaying) {
+                                com.mrpeel.cricketbattingtracker.services.AudioPlayManager.stopPlaying()
+                            }
+                            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.deleteRecording(file, context)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "🗑️",
+                        fontSize = 10.sp
+                    )
                 }
             }
         }
