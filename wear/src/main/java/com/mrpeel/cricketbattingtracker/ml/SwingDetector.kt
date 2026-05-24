@@ -497,44 +497,50 @@ class SwingDetector {
             if (preMean > 0f) postMax / preMean else 0f
         } else 0f
 
-        // 8. Hybrid Biomechanical-ML Classifier (Depth-4 Decision Tree)
+        // 8. Hybrid Biomechanical-ML Classifier (Depth-5 Balanced Decision Tree)
         var shotType = "UNKNOWN"
         val gyroMag = maxGyro
+        val planeRatio = if (deltaZ > 0.0f) (deltaX / deltaZ) else 0.0f
 
-        if (gyroMag < 8.0f && deltaZ <= 0.40f) {
-            shotType = "DEFENCE"
+        if (gyroMag > 22.12f) {
+            shotType = "POWER SHOT"
         } else {
-            if (rollImpactDeg <= -13.92f) {
-                if (gyroMag <= 28.48f) {
-                    if (gyroMag <= 17.40f) {
-                        shotType = if (yawImpactDeg <= 78.05f) "COVER DRIVE" else "ON-SIDE FLICK"
+            if (rollImpactDeg <= -3.22f) {
+                if (deltaZ <= 0.44f) {
+                    if (deltaX <= 0.75f) {
+                        shotType = if (gyroMag <= 14.11f) "DRIVE/DEFENCE" else "CUT/PULL"
                     } else {
-                        shotType = "PULL SHOT"
+                        shotType = if (deltaX <= 0.97f) "GLANCE/FLICK" else "CUT/PULL"
                     }
-                } else { // gyroMag > 28.48f
-                    if (yawImpactDeg <= 64.80f) {
-                        shotType = if (gyroMag <= 29.61f) "ON-SIDE FLICK" else "PULL SHOT"
+                } else {
+                    if (yawImpactDeg <= 6.22f) {
+                        shotType = if (planeRatio <= 0.67f) "DRIVE/DEFENCE" else "DEFLECTION/GUIDE"
                     } else {
-                        shotType = "ON-SIDE FLICK"
+                        shotType = if (rollImpactDeg <= -35.84f) "CUT/PULL" else "DRIVE/DEFENCE"
                     }
                 }
-            } else { // rollImpactDeg > -13.92f
-                if (deltaZ <= 0.40f) {
-                    if (deltaX <= 0.08f) {
-                        shotType = "COVER DRIVE"
-                    } else { // deltaX > 0.08f
-                        shotType = if (deltaZ <= 0.03f) "PUSH" else "ON-SIDE FLICK"
+            } else {
+                if (planeRatio <= 2.85f) {
+                    if (rollImpactDeg <= 18.16f) {
+                        shotType = if (rollImpactDeg <= 1.67f) "DRIVE/DEFENCE" else "CUT/PULL"
+                    } else {
+                        shotType = if (gyroMag <= 11.72f) "DRIVE/DEFENCE" else "GLANCE/FLICK"
                     }
-                } else { // deltaZ > 0.40f
-                    shotType = if (deltaX <= 1.16f) "COVER DRIVE" else "ON-SIDE FLICK"
+                } else {
+                    shotType = if (yawImpactDeg <= 3.94f) "DRIVE/DEFENCE" else "GLANCE/FLICK"
                 }
             }
         }
 
-        Log.d(TAG, "EVAL: Type=$shotType, MaxG=$gyroMag, Snap=$snapRatio, Roll=$rollImpactDeg, Angle=$yawImpactDeg, DX=$deltaX, DZ=$deltaZ")
+        Log.d(TAG, "EVAL: Type=$shotType, MaxG=$gyroMag, Snap=$snapRatio, Roll=$rollImpactDeg, Angle=$yawImpactDeg, DX=$deltaX, DZ=$deltaZ, PlaneRatio=$planeRatio")
 
-        // Shot Type Multipliers (Straight-bat: 1.45f, Cross-bat: 1.30f)
-        val multiplier = if (shotType in listOf("COVER DRIVE", "DEFENCE", "PUSH")) 1.45f else 1.30f
+        // Shot Type Multipliers (Straight-bat/Guided: 1.45f, Cross-bat/Wristy: 1.30f, Power: 1.40f)
+        val multiplier = when (shotType) {
+            "DRIVE/DEFENCE", "DEFLECTION/GUIDE" -> 1.45f
+            "GLANCE/FLICK", "CUT/PULL" -> 1.30f
+            "POWER SHOT" -> 1.40f
+            else -> 1.30f
+        }
 
         // Final Speed in km/h based on approved 0.68m bat radius
         val finalSpeedKmh = maxGyro * 0.68f * 3.6f * multiplier

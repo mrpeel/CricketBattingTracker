@@ -48,7 +48,7 @@ class SwingDetectorTest {
         }
 
         val gravZ = kotlin.math.sqrt((9.8f * 9.8f - gravY * gravY).coerceAtLeast(0f))
-        var time = 1_000_000_000L // Start at 1s
+        var time = 3_000_000_000L // Start at 3s to bypass 2.5s startup guard window
         
         // 1. Simulate quiet stance (0.8s)
         for (i in 0 until 40) {
@@ -113,7 +113,7 @@ class SwingDetectorTest {
             deltaZ = 0.2f
         )
         assertNotNull("Shot should be detected", shot)
-        assertEquals("COVER DRIVE", shot?.shotType)
+        assertEquals("DRIVE/DEFENCE", shot?.shotType)
         assertTrue("Efficiency should be high for a drive", (shot?.efficiency ?: 0f) > 80f)
         assertTrue("isHit should be true", shot?.isHit ?: false)
     }
@@ -123,17 +123,17 @@ class SwingDetectorTest {
         val shot = simulateShot(
             preGyro = 5f, 
             impactGyro = 10f, 
-            postGyro = 25f, 
+            postGyro = 15f,  // keep maxGyro <= 22.12 to stay in GLANCE/FLICK
             shock = 30f, 
             postGyroY = 1.0f,
-            rollImpactDeg = 0f, 
+            rollImpactDeg = 30f, // positive roll for pronation (top hand left)
             deltaX = 0.2f, 
             deltaZ = 0.1f
         )
         assertNotNull("Shot should be detected", shot)
-        assertEquals("ON-SIDE FLICK", shot?.shotType)
-        // With maxGyro = 25f, speedKmh = 25 * 0.68 * 3.6 * 1.30 = 79.56 km/h
-        assertEquals(79.56f, shot?.speedKmh ?: 0f, 0.1f)
+        assertEquals("GLANCE/FLICK", shot?.shotType)
+        // With maxGyro = sqrt(15^2 + 1^2) = 15.033f, speedKmh = 15.033 * 0.68 * 3.6 * 1.30 = 47.84 km/h
+        assertEquals(47.84f, shot?.speedKmh ?: 0f, 0.1f)
     }
 
     @Test
@@ -141,13 +141,13 @@ class SwingDetectorTest {
         val shot = simulateShot(
             preGyro = 10f, 
             impactGyro = 20f, 
-            postGyro = 20f, 
+            postGyro = 15f, 
             shock = 60f, 
-            postGyroY = 10f,
+            postGyroY = 5f,
             rollImpactDeg = -30f
         )
         assertNotNull("Shot should be detected", shot)
-        assertEquals("PULL SHOT", shot?.shotType)
+        assertEquals("CUT/PULL", shot?.shotType)
     }
 
     @Test
@@ -160,7 +160,7 @@ class SwingDetectorTest {
             deltaZ = 0.1f
         )
         assertNotNull("Shot should be detected", shot)
-        assertEquals("DEFENCE", shot?.shotType)
+        assertEquals("DRIVE/DEFENCE", shot?.shotType)
     }
 
     @Test
@@ -171,11 +171,11 @@ class SwingDetectorTest {
             postGyro = 12f, 
             shock = 40f, 
             rollImpactDeg = 0f, 
-            deltaX = 0.2f, 
+            deltaX = 0.02f, 
             deltaZ = 0.02f
         )
         assertNotNull("Shot should be detected", shot)
-        assertEquals("PUSH", shot?.shotType)
+        assertEquals("DRIVE/DEFENCE", shot?.shotType)
     }
 
     @Test

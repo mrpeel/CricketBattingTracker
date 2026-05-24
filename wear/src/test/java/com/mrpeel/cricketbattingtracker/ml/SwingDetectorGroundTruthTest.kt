@@ -69,6 +69,14 @@ class SwingDetectorGroundTruthTest {
             wristFolder = "Wrist_-_full_length_middle_stump-2026-05-10_05-37-44",
             transcriptFile = "full_length_middle_stump_transcript.csv",
             expectWatchData = false
+        ),
+        SessionConfig(
+            id = "live_session_1",
+            canonicalName = "live_session_1",
+            relativePath = "live_watch_sessions/session-2026-05-23_15-01-17",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
         )
     )
 
@@ -125,8 +133,12 @@ class SwingDetectorGroundTruthTest {
             println("=== Processing Session: ${config.canonicalName} ===")
             
             // 1. Resolve sensor files
-            val sessionDir = File(baseDir, "ground_truth/${config.relativePath}")
-            val wristDir = File(sessionDir, config.wristFolder)
+            val sessionDir = if (config.relativePath.startsWith("live_watch_sessions")) {
+                File(baseDir, config.relativePath)
+            } else {
+                File(baseDir, "ground_truth/${config.relativePath}")
+            }
+            val wristDir = if (config.wristFolder.isEmpty()) sessionDir else File(sessionDir, config.wristFolder)
             
             val accelFile = File(wristDir, "WatchAccelerometer.csv").takeIf { it.exists() } ?: File(wristDir, "Accelerometer.csv")
             val gyroFile = File(wristDir, "WatchGyroscope.csv").takeIf { it.exists() } ?: File(wristDir, "Gyroscope.csv")
@@ -380,12 +392,11 @@ class SwingDetectorGroundTruthTest {
         val detClean = detected.trim().uppercase()
 
         return when (detClean) {
-            "DEFENCE" -> gtClean.contains("DEFENCE")
-            "PULL SHOT" -> gtClean.contains("PULL")
-            "COVER DRIVE" -> gtClean.contains("COVER DRIVE")
-            "SWEEP" -> gtClean.contains("SWEEP")
-            "ON-SIDE FLICK" -> gtClean.contains("FLICK") || gtClean.contains("ON DRIVE") || gtClean.contains("LEG GLANCE")
-            "PUSH" -> gtClean.contains("PUSH") || gtClean.contains("STRAIGHT DRIVE")
+            "DRIVE/DEFENCE" -> gtClean.contains("DRIVE") || gtClean.contains("DEFENCE") || gtClean.contains("DEFENSE") || gtClean.contains("PUSH") || gtClean.contains("BLOCK")
+            "GLANCE/FLICK" -> gtClean.contains("FLICK") || gtClean.contains("GLANCE") || gtClean.contains("SWEEP")
+            "CUT/PULL" -> gtClean.contains("PULL") || gtClean.contains("CUT") || gtClean.contains("PUNCH")
+            "DEFLECTION/GUIDE" -> gtClean.contains("GUIDE") || gtClean.contains("STEER") || gtClean.contains("GLIDE") || gtClean.contains("LATE CUT") || gtClean.contains("UPPER CUT")
+            "POWER SHOT" -> gtClean.contains("POWER") || gtClean.contains("SLOG") || gtClean.contains("LOFT")
             else -> false
         }
     }
@@ -504,6 +515,38 @@ class SwingDetectorGroundTruthTest {
             val transcriptUsage = mutableMapOf<String, Int>()
 
             val shots = mutableListOf<GroundTruthShot>()
+
+            if (sessionCanonicalName == "live_session_1") {
+                val lines = transcriptFile.readLines()
+                if (lines.isEmpty()) return shots
+                val header = parseCsvLine(lines[0])
+                val typeIdx = header.indexOfFirst { it.equals("shot_type", ignoreCase = true) }
+                val timeIdx = header.indexOfFirst { it.equals("impact_time_seconds", ignoreCase = true) }
+                val narrationIdx = header.indexOfFirst { it.equals("narrated_text", ignoreCase = true) }
+                
+                for (i in 1 until lines.size) {
+                    val line = lines[i]
+                    if (line.isBlank()) continue
+                    val parts = parseCsvLine(line)
+                    if (parts.size <= maxOf(typeIdx, timeIdx, narrationIdx)) continue
+                    val shotType = parts[typeIdx].trim()
+                    val timestamp = parts[timeIdx].toFloatOrNull() ?: 0f
+                    val narration = parts[narrationIdx].trim()
+                    
+                    val isHit = !narration.lowercase().contains("miss")
+                    
+                    shots.add(GroundTruthShot(
+                        session = sessionCanonicalName,
+                        shotType = shotType,
+                        wristTimestamp = timestamp,
+                        narration = narration,
+                        batHit = isHit,
+                        batTrueSpeedKmh = null
+                    ))
+                }
+                return shots
+            }
+
             val lines = unifiedFile.readLines()
             if (lines.isEmpty()) return shots
 
