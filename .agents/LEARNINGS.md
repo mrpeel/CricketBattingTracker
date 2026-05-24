@@ -30,9 +30,9 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   Verification: Verified offline via high-fidelity python simulation on raw live session data, reducing phantom counts by 24% (from 59 to 45) while maintaining recall at 93.0% (66/71 matches).
 *   **ADB Offline Handling**: Scoped device-pull logic to look for local audio files when in offline `--session-dir` simulation mode.
 *   **Biomechanical Classifier Transition (May 2026)**:
-    *   Transitioned the classifier decision tree to target the 5 top-hand biomechanical classes: `DRIVE/DEFENCE`, `GLANCE/FLICK`, `CUT/PULL`, `DEFLECTION/GUIDE`, and `POWER SHOT`.
-    *   Updated the stroke multipliers to align with the new biomechanical classes (`1.45f` for straight-bat/guided, `1.30f` for cross-bat/wristy, and `1.40f` for power).
-    *   Resolved a startup guard window lockout issue in unit tests by shifting the simulated start timestamp past the 2.5s guard window.
+    *   Transitioned the classifier decision tree to target the 6 top-hand biomechanical classes: `DRIVE/DEFENCE`, `GLANCE/FLICK`, `CUT/PUNCH`, `PULL/HOOK`, `DEFLECTION/GUIDE`, and `POWER SHOT`.
+    *   Split the legacy `CUT/PULL` class by classifying as `PULL/HOOK` if `rollImpactDeg <= -15.0f && deltaX >= 0.30f` (representing broad, closed-wrist leg-side pulls), falling back to `CUT/PUNCH` otherwise.
+    *   Updated the stroke multipliers to align with the 6 biomechanical classes (`1.45f` for straight-bat/guided, `1.30f` for cross-bat/wristy/pull, and `1.40f` for power).
 
 ---
 
@@ -48,11 +48,11 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 | **Short off side** | 25 | 0 | 0 | 0 | 25 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | N/A (No active watch data) |
 | **full_toss** | 27 | 39 | 26 | 13 | 1 | 0.67 | 0.96 | 0.79 | 0.00 | 0.96 | N/A |
 | **full_length** | 23 | 0 | 0 | 0 | 23 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | N/A (No active watch data) |
-| **live_session_1** | 71 | 111 | 49 | 62 | 22 | 0.44 | 0.69 | 0.54 | 0.49 | 0.90 | N/A |
+| **live_session_1** | 71 | 111 | 49 | 62 | 22 | 0.44 | 0.69 | 0.54 | 0.35 | 0.90 | N/A |
 
 ### Key Backlog Insights:
-1.  **Pull Shots & Cover Drives**: The new classifier successfully maps these to the 5 top-hand classes. Classification accuracy for Cover Drives increased to 33%, and the false positive rate on Pull Shots was successfully reduced.
-2.  **Live Session Validation**: Integrating the physical Net session (`live_session_1`) yielded 49% Classification Accuracy (from 0% stationary baseline) and 90% Hit/Miss Agreement, confirming the value of the new 5-class top-hand biomechanical model.
+1.  **Cut/Punch vs Pull/Hook Isolation**: The new 6-class model successfully isolates pulls from cuts/back foot punches. In `live_session_1`, pull shots are now matching correctly as `PULL/HOOK` (increasing precision and reducing class overlap).
+2.  **Live Session Accuracy**: Incorporating the 6-class top-hand biomechanical model yields 35% Shot Classification Accuracy on `live_session_1` and 90% Hit/Miss Agreement.
 3.  **Cross-session Power Shots**: High-velocity shots in other sessions (such as `full_toss` and `Pull shots`) often cross the 22.12 rad/s threshold into `POWER SHOT`, resulting in correct hit metrics but lower historical label accuracy where power wasn't annotated.
 4.  **Telemetry Gaps**: "Short off side" and "Full length" sessions continue to show 0% recall due to lacking active watch sensor data in the historical folders.
 

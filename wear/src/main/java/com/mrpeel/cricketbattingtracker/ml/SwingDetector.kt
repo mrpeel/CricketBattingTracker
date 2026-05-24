@@ -497,10 +497,14 @@ class SwingDetector {
             if (preMean > 0f) postMax / preMean else 0f
         } else 0f
 
-        // 8. Hybrid Biomechanical-ML Classifier (Depth-5 Balanced Decision Tree)
+        // 8. Hybrid Biomechanical-ML Classifier (Depth-5 Balanced Decision Tree with 6 Classes)
         var shotType = "UNKNOWN"
         val gyroMag = maxGyro
         val planeRatio = if (deltaZ > 0.0f) (deltaX / deltaZ) else 0.0f
+
+        val getCutPullType = { r: Float, d: Float ->
+            if (r <= -15.0f && d >= 0.30f) "PULL/HOOK" else "CUT/PUNCH"
+        }
 
         if (gyroMag > 22.12f) {
             shotType = "POWER SHOT"
@@ -508,21 +512,21 @@ class SwingDetector {
             if (rollImpactDeg <= -3.22f) {
                 if (deltaZ <= 0.44f) {
                     if (deltaX <= 0.75f) {
-                        shotType = if (gyroMag <= 14.11f) "DRIVE/DEFENCE" else "CUT/PULL"
+                        shotType = if (gyroMag <= 14.11f) "DRIVE/DEFENCE" else getCutPullType(rollImpactDeg, deltaX)
                     } else {
-                        shotType = if (deltaX <= 0.97f) "GLANCE/FLICK" else "CUT/PULL"
+                        shotType = if (deltaX <= 0.97f) "GLANCE/FLICK" else getCutPullType(rollImpactDeg, deltaX)
                     }
                 } else {
                     if (yawImpactDeg <= 6.22f) {
                         shotType = if (planeRatio <= 0.67f) "DRIVE/DEFENCE" else "DEFLECTION/GUIDE"
                     } else {
-                        shotType = if (rollImpactDeg <= -35.84f) "CUT/PULL" else "DRIVE/DEFENCE"
+                        shotType = if (rollImpactDeg <= -35.84f) getCutPullType(rollImpactDeg, deltaX) else "DRIVE/DEFENCE"
                     }
                 }
             } else {
                 if (planeRatio <= 2.85f) {
                     if (rollImpactDeg <= 18.16f) {
-                        shotType = if (rollImpactDeg <= 1.67f) "DRIVE/DEFENCE" else "CUT/PULL"
+                        shotType = if (rollImpactDeg <= 1.67f) "DRIVE/DEFENCE" else getCutPullType(rollImpactDeg, deltaX)
                     } else {
                         shotType = if (gyroMag <= 11.72f) "DRIVE/DEFENCE" else "GLANCE/FLICK"
                     }
@@ -534,10 +538,10 @@ class SwingDetector {
 
         Log.d(TAG, "EVAL: Type=$shotType, MaxG=$gyroMag, Snap=$snapRatio, Roll=$rollImpactDeg, Angle=$yawImpactDeg, DX=$deltaX, DZ=$deltaZ, PlaneRatio=$planeRatio")
 
-        // Shot Type Multipliers (Straight-bat/Guided: 1.45f, Cross-bat/Wristy: 1.30f, Power: 1.40f)
+        // Shot Type Multipliers (Straight-bat/Guided: 1.45f, Cross-bat/Wristy/Pull: 1.30f, Power: 1.40f)
         val multiplier = when (shotType) {
             "DRIVE/DEFENCE", "DEFLECTION/GUIDE" -> 1.45f
-            "GLANCE/FLICK", "CUT/PULL" -> 1.30f
+            "GLANCE/FLICK", "CUT/PUNCH", "PULL/HOOK" -> 1.30f
             "POWER SHOT" -> 1.40f
             else -> 1.30f
         }

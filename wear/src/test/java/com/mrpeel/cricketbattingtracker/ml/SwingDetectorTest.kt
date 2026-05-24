@@ -144,10 +144,26 @@ class SwingDetectorTest {
             postGyro = 15f, 
             shock = 60f, 
             postGyroY = 5f,
-            rollImpactDeg = -30f
+            rollImpactDeg = -30f,
+            deltaX = 0.5f
         )
         assertNotNull("Shot should be detected", shot)
-        assertEquals("CUT/PULL", shot?.shotType)
+        assertEquals("PULL/HOOK", shot?.shotType)
+    }
+
+    @Test
+    fun testCutPunch() {
+        val shot = simulateShot(
+            preGyro = 10f, 
+            impactGyro = 20f, 
+            postGyro = 15f, 
+            shock = 60f, 
+            postGyroY = 5f,
+            rollImpactDeg = -10f,
+            deltaX = 0.2f
+        )
+        assertNotNull("Shot should be detected", shot)
+        assertEquals("CUT/PUNCH", shot?.shotType)
     }
 
     @Test

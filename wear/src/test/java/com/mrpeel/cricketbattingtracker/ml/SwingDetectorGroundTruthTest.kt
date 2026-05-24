@@ -394,7 +394,8 @@ class SwingDetectorGroundTruthTest {
         return when (detClean) {
             "DRIVE/DEFENCE" -> gtClean.contains("DRIVE") || gtClean.contains("DEFENCE") || gtClean.contains("DEFENSE") || gtClean.contains("PUSH") || gtClean.contains("BLOCK")
             "GLANCE/FLICK" -> gtClean.contains("FLICK") || gtClean.contains("GLANCE") || gtClean.contains("SWEEP")
-            "CUT/PULL" -> gtClean.contains("PULL") || gtClean.contains("CUT") || gtClean.contains("PUNCH")
+            "CUT/PUNCH" -> gtClean.contains("CUT") || gtClean.contains("PUNCH")
+            "PULL/HOOK" -> gtClean.contains("PULL") || gtClean.contains("HOOK")
             "DEFLECTION/GUIDE" -> gtClean.contains("GUIDE") || gtClean.contains("STEER") || gtClean.contains("GLIDE") || gtClean.contains("LATE CUT") || gtClean.contains("UPPER CUT")
             "POWER SHOT" -> gtClean.contains("POWER") || gtClean.contains("SLOG") || gtClean.contains("LOFT")
             else -> false
