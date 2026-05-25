@@ -36,9 +36,11 @@ This document captures resolved bugs, architectural changes, key logical finding
 *   **Watch TrackerService Lifecycle Crash (May 25, 2026)**:
     *   Resolved a lateinit `UninitializedPropertyAccessException` crash on the watch inside `TrackerService.onDestroy()` caused by calling `healthServicesManager.stopTracking()` when health services were disabled in `onCreate()`.
     *   Added a Kotlin `::healthServicesManager.isInitialized` guard. This successfully restored the Wearable Data Layer sync, allowing timeline data to sync back to the phone companion database (e.g., InningsId 17).
-*   **Pipeline Special Characters in Filenames Bug (May 25, 2026)**:
-    *   Fixed an `OSError` in `automate_pipeline.py` when exporting 6-second training segments. Biomechanical shot type classes contain forward slashes (e.g., `DRIVE/DEFENCE`), which were interpreted as sub-directories by `os.path.join()`.
-    *   Added `.replace("/", "_")` to filename sanitization for `shot_name` and `qual_name`.
+*   **Pipeline Auto-Start Alignment Decision (May 26, 2026)**:
+    *   Replaced the high-friction 5-tap calibration alignment with an automated clock offset sync based on the phone's audio narration filename date-time (e.g. `narration_20260525_122832.m4a`) and the watch timeline's `SYSTEM_START` timestamp.
+    *   For the latest session, this derived a `-1.767s` offset, aligning all 77 narrated events across the full 18-minute session without skipping any data.
+    *   Tuned `normalize_shot_class` in `automate_pipeline.py` to match the 6 new biomechanical classes (`PULL/HOOK`, `GLANCE/FLICK`, etc.), ensuring the alignment scorecard accurately reflects the classifier's performance.
+    *   Noted that Room Write-Ahead Log (WAL) mode requires pulling the SQLite main file, `-wal` file, and `-shm` file concurrently to verify complete data sync (e.g. recovering the full 123 shots).
 
 ---
 

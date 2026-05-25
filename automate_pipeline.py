@@ -10,6 +10,7 @@ import os
 import sys
 import json
 import time
+import datetime
 import glob
 import argparse
 import subprocess
@@ -292,33 +293,68 @@ def main():
     # 4. Calibration Alignment
     offset = args.manual_offset
     if offset is None:
-        print("🔍 Detecting calibration events (5-tap signature)...")
-        envelope, fps = load_audio_envelope(aiff_path)
-        audio_taps = find_calibration_taps_audio(envelope, fps)
+        # Attempt auto-start time synchronization
+        print("🔍 Attempting auto-start timestamp synchronization...")
+        audio_filename = os.path.basename(audio_path)
+        match = re.search(r"narration_(\d{8})_(\d{6})", audio_filename)
         
-        gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
-        sensor_taps, _ = find_calibration_taps_sensor(gyro_path)
-        
-        if audio_taps is not None and sensor_taps is not None:
-            # Sync off the first tap
-            offset = sensor_taps[0] - audio_taps[0]
-            print(f"🎯 Auto-calibration successful!")
-            print(f"   Audio taps (sec):  {audio_taps}")
-            print(f"   Sensor taps (sec): {sensor_taps}")
-            print(f"   Calculated Clock Offset: {offset:+.3f}s (Sensor = Audio {offset:+.3f}s)")
-        else:
-            print("⚠️ WARNING: Could not automatically detect the 5-tap calibration sequence.")
-            if audio_taps is None:
-                print("   - Failed to find 5 peaks in audio.")
-            if sensor_taps is None:
-                print("   - Failed to find 5 peaks in watch gyroscope.")
-            
-            # Fallback to manual offset input
-            inp = input("Please enter manual clock offset (seconds) or 0 to skip: ").strip()
+        watch_start_ms = None
+        timeline_path = os.path.join(session_dir, "latest_timeline.txt")
+        if os.path.exists(timeline_path):
             try:
-                offset = float(inp)
-            except:
-                offset = 0.0
+                with open(timeline_path, "r") as f:
+                    for line in f:
+                        if "SYSTEM_START:" in line:
+                            m = re.search(r"Ts=(\d+)", line)
+                            if m:
+                                watch_start_ms = int(m.group(1))
+                                break
+            except Exception as e:
+                print(f"⚠️ Error reading timeline for SYSTEM_START: {e}")
+
+        if match and watch_start_ms is not None:
+            date_str, time_str = match.groups()
+            try:
+                dt = datetime.datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
+                audio_start_epoch = dt.timestamp()
+                watch_start_epoch = watch_start_ms / 1000.0
+                offset = audio_start_epoch - watch_start_epoch
+                print(f"🎯 Auto-start synchronization successful!")
+                print(f"   Audio Start Time:  {dt} (Epoch: {audio_start_epoch:.3f}s)")
+                print(f"   Watch Start Time:  {datetime.datetime.fromtimestamp(watch_start_epoch)} (Epoch: {watch_start_epoch:.3f}s)")
+                print(f"   Calculated Clock Offset: {offset:+.3f}s (Sensor = Audio {offset:+.3f}s)")
+            except Exception as e:
+                print(f"⚠️ Failed to parse auto-start times: {e}")
+                offset = None
+
+        if offset is None:
+            print("🔍 Auto-start sync unavailable. Detecting calibration events (5-tap signature)...")
+            envelope, fps = load_audio_envelope(aiff_path)
+            audio_taps = find_calibration_taps_audio(envelope, fps)
+            
+            gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
+            sensor_taps, _ = find_calibration_taps_sensor(gyro_path)
+            
+            if audio_taps is not None and sensor_taps is not None:
+                # Sync off the first tap
+                offset = sensor_taps[0] - audio_taps[0]
+                print(f"🎯 Auto-calibration successful!")
+                print(f"   Audio taps (sec):  {audio_taps}")
+                print(f"   Sensor taps (sec): {sensor_taps}")
+                print(f"   Calculated Clock Offset: {offset:+.3f}s (Sensor = Audio {offset:+.3f}s)")
+            else:
+                print("⚠️ WARNING: Could not automatically detect the 5-tap calibration sequence.")
+                if audio_taps is None:
+                    print("   - Failed to find 5 peaks in audio.")
+                if sensor_taps is None:
+                    print("   - Failed to find 5 peaks in watch gyroscope.")
+                
+                # Fallback to manual offset input
+                inp = input("Please enter manual clock offset (seconds) or 0 to skip: ").strip()
+                try:
+                    offset = float(inp)
+                except:
+                    offset = 0.0
     else:
         print(f"🎯 Using manual clock offset: {offset:+.3f}s")
         
@@ -451,37 +487,23 @@ def normalize_shot_class(shot_name):
         return "Unknown"
     s = shot_name.lower().strip()
     
-    # Defence/Push - any variation on defence, any variation on push
-    if "defence" in s or "defense" in s or "push" in s:
-        return "Defence/Push"
-        
-    # Covers - any variation on covers/cover drive
-    if "cover" in s:
-        return "Covers"
-        
-    # V Drive - any variation on drive from mid on, straight, mid off
-    if "drive" in s or "punch" in s or "straight" in s or "mid off" in s or "mid on" in s or "mid-off" in s or "mid-on" in s:
-        return "V Drive"
-        
-    # Cut - any variation on cut shot/guide ball
-    if "cut" in s or "guide" in s:
-        return "Cut"
-        
-    # Pull shot - any variation on pull shot
-    if "pull" in s:
-        return "Pull shot"
-        
-    # Miss - any variation on miss
-    if "miss" in s:
-        return "Miss"
-        
-    # Flick - any variation on flick/ glance
+    # Map to the 6 biomechanical classes + Miss + Sweep
+    if "pull" in s or "hook" in s:
+        return "PULL/HOOK"
     if "flick" in s or "glance" in s:
-        return "Flick"
-        
-    # Sweep - any variation on sweep
+        return "GLANCE/FLICK"
+    if "cut" in s or "punch" in s:
+        return "CUT/PUNCH"
+    if "guide" in s or "deflection" in s or "deflect" in s:
+        return "DEFLECTION/GUIDE"
+    if "power" in s or "loft" in s:
+        return "POWER SHOT"
+    if "drive" in s or "defence" in s or "defense" in s or "push" in s or "straight" in s or "forward" in s or "block" in s:
+        return "DRIVE/DEFENCE"
     if "sweep" in s:
         return "Sweep"
+    if "miss" in s:
+        return "Miss"
         
     return "Unknown"
 

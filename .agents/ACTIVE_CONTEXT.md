@@ -19,7 +19,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ## 🛠️ Technical Approach
 *   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous 50Hz sensor logging. Rotates raw sensor vectors using quaternions and computes real-time metrics locally using `SwingDetector`.
 *   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives timeline data packages via Google Play Services Wearable Data Layer API. Integrates exercise sessions into Samsung/Google Health Connect under the "Cricket" type.
-*   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls sensor logs and phone audio, computes clock offsets using a 5-tap gyroscope/audio calibration signature, calls the Gemini API (`gemini-2.5-flash`) for time-coded transcriptions, and segments sensor data into 6-second windowed CSV files for model training.
+*   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls sensor logs and phone audio, computes clock offsets automatically using the phone audio's filename and watch's `SYSTEM_START` timestamp (falling back to a 5-tap gyroscope/audio signature), calls the Gemini API (`gemini-2.5-flash`) for time-coded transcriptions, and segments sensor data into 6-second windowed CSV files for model training.
 
 ---
 
@@ -32,7 +32,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | F-003 | Wearable Sync | Timeline JSON sync over Wearable Data Layer API | Completed | E2E Simulation |
 | F-004 | SQLite Persistence | Local Room database storage on the phone companion | Completed | Phone UI verification |
 | F-005 | Health Connect Sync | Push Innings and Heart Rate profiles under Cricket type | Completed | Health Connect client check |
-| F-006 | Narration Pipeline | Pull files, run 5-tap sync, transcribe via Gemini | Completed | Running pipeline script |
+| F-006 | Narration Pipeline | Pull files, run auto-start sync (5-tap fallback), transcribe via Gemini | Completed | Running pipeline script |
 | F-007 | Option B | Companion App Audio Recording & Local Transcription Integration | Completed | E2E verification |
 | B-001 | Pull Shot Precision | Reduce false positive rate on Pull shot classification | Backlog | `SwingDetectorGroundTruthTest` |
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
