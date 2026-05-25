@@ -26,19 +26,33 @@ for DEV in $DEVICES; do
     # Try to determine if it's a watch or phone (simplified check)
     IS_WATCH=$(adb -s $DEV shell getprop ro.build.characteristics)
     if [[ "$IS_WATCH" == *"watch"* ]]; then
-        WATCH_FOUND=true
-        WATCH_ID=$DEV
-        echo "✅ Wear OS Watch detected: $WATCH_ID"
+        if [ "$WATCH_FOUND" = false ]; then
+            WATCH_FOUND=true
+            WATCH_ID=$DEV
+            echo "✅ Wear OS Watch detected: $WATCH_ID"
+        else
+            echo "ℹ️ Additional Wear OS Watch connection detected and ignored: $DEV"
+        fi
     else
-        PHONE_FOUND=true
-        PHONE_ID=$DEV
-        echo "✅ Android Phone detected: $PHONE_ID"
+        if [ "$PHONE_FOUND" = false ]; then
+            PHONE_FOUND=true
+            PHONE_ID=$DEV
+            echo "✅ Android Phone detected: $PHONE_ID"
+        else
+            echo "ℹ️ Additional Android Phone connection detected and ignored: $DEV"
+        fi
     fi
 done
 
 if [ "$PHONE_FOUND" = false ] || [ "$WATCH_FOUND" = false ]; then
     echo "⚠️ Warning: Both a phone and a watch are needed for a full E2E test."
-    echo "Proceeding with available devices..."
+    if [ "$PHONE_FOUND" = false ]; then
+        echo "   -> No physical phone detected via ADB."
+    fi
+    if [ "$WATCH_FOUND" = false ]; then
+        echo "   -> No physical watch detected via ADB."
+    fi
+    echo "Proceeding only with available devices..."
 fi
 
 # 2. Build Release APKs (better performance for physics testing)

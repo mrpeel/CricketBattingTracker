@@ -33,6 +33,12 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   Transitioned the classifier decision tree to target the 6 top-hand biomechanical classes: `DRIVE/DEFENCE`, `GLANCE/FLICK`, `CUT/PUNCH`, `PULL/HOOK`, `DEFLECTION/GUIDE`, and `POWER SHOT`.
     *   Split the legacy `CUT/PULL` class by classifying as `PULL/HOOK` if `rollImpactDeg <= -15.0f && deltaX >= 0.30f` (representing broad, closed-wrist leg-side pulls), falling back to `CUT/PUNCH` otherwise.
     *   Updated the stroke multipliers to align with the 6 biomechanical classes (`1.45f` for straight-bat/guided, `1.30f` for cross-bat/wristy/pull, and `1.40f` for power).
+*   **Watch TrackerService Lifecycle Crash (May 25, 2026)**:
+    *   Resolved a lateinit `UninitializedPropertyAccessException` crash on the watch inside `TrackerService.onDestroy()` caused by calling `healthServicesManager.stopTracking()` when health services were disabled in `onCreate()`.
+    *   Added a Kotlin `::healthServicesManager.isInitialized` guard. This successfully restored the Wearable Data Layer sync, allowing timeline data to sync back to the phone companion database (e.g., InningsId 17).
+*   **Pipeline Special Characters in Filenames Bug (May 25, 2026)**:
+    *   Fixed an `OSError` in `automate_pipeline.py` when exporting 6-second training segments. Biomechanical shot type classes contain forward slashes (e.g., `DRIVE/DEFENCE`), which were interpreted as sub-directories by `os.path.join()`.
+    *   Added `.replace("/", "_")` to filename sanitization for `shot_name` and `qual_name`.
 
 ---
 

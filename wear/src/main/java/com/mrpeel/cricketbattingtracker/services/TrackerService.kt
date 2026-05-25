@@ -203,7 +203,9 @@ class TrackerService : Service(), SensorEventListener {
         super.onDestroy()
         Log.d(TAG, "Service Destroyed")
         sensorManager.unregisterListener(this)
-        healthServicesManager.stopTracking()
+        if (::healthServicesManager.isInitialized) {
+            healthServicesManager.stopTracking()
+        }
         
         if (!shouldDiscard) {
             val endTime = System.currentTimeMillis()

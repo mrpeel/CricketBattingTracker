@@ -422,8 +422,8 @@ def main():
     
     for idx, row in df_aligned.iterrows():
         t_impact = row['impact_time_seconds']
-        shot_name = row['shot_type'].lower().replace(" ", "_")
-        qual_name = row['quality'].lower().replace(" ", "_")
+        shot_name = row['shot_type'].lower().replace(" ", "_").replace("/", "_")
+        qual_name = row['quality'].lower().replace(" ", "_").replace("/", "_")
         
         t_start = t_impact - 3.0
         t_end = t_impact + 3.0

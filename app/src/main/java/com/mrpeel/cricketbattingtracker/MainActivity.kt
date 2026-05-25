@@ -303,7 +303,10 @@ class MainActivity : ComponentActivity() {
             val maxAmplitude by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.maxAmplitude.collectAsState()
             val recordingsList by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.recordingsList.collectAsState()
             val context = LocalContext.current
-            
+
+            // Tab navigation state: 0=Dashboard, 1=Record, 2=History
+            var selectedTab by remember { mutableStateOf(0) }
+
             // Athlete Profile preference state management
             var showProfileDialog by remember { mutableStateOf(false) }
             val prefs = remember { getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE) }
@@ -322,12 +325,15 @@ class MainActivity : ComponentActivity() {
                     .let { if (it.isEmpty()) "PA" else it }
             }
 
+            // Tab labels and icons
+            val tabSubtitles = listOf("YOUR CAREER", "SESSION CONSOLE", "SESSIONS HISTORY")
+
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF58FF63),      // Neon green
-                    secondary = Color(0xFFBCD2FE),   // Ice blue
-                    background = Color(0xFF000C1B),  // Deep navy
-                    surface = Color(0xFF001B3D),     // Navy surface
+                    primary = Color(0xFF58FF63),
+                    secondary = Color(0xFFBCD2FE),
+                    background = Color(0xFF000C1B),
+                    surface = Color(0xFF001B3D),
                     onBackground = Color.White,
                     onSurface = Color.White,
                     onPrimary = Color(0xFF000C1B)
@@ -337,119 +343,17 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        if (selectedSessionId == null) {
-                            // HOME SCREEN
-                            TopBar(
-                                title = "PITCH ANALYTIX", 
-                                subtitle = "SESSIONS HISTORY", 
-                                showBack = false, 
-                                onBack = {},
-                                initials = initials,
-                                onProfileClick = { showProfileDialog = true }
-                            )
-                            
-                            // Cumulative Career Statistics
-                            val careerMaxSpeed = allSessions.map { it.maxSpeed }.maxOrNull() ?: 0f
-                            val totalShots = allSessions.sumOf { it.totalShots }
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                SummaryCard("CAREER MAX", "${careerMaxSpeed.toInt()}", "KM/H", Modifier.weight(1f))
-                                SummaryCard("SHOTS", "$totalShots", "COUNT", Modifier.weight(1f))
-                                SummaryCard("SESSIONS", "${allSessions.size}", "COUNT", Modifier.weight(1f))
-                            }
-                            
-                            SessionControlPanel(
-                                isRecording = isRecording,
-                                elapsedSeconds = elapsedSeconds,
-                                maxAmplitude = maxAmplitude,
-                                recordingsList = recordingsList,
-                                onRequestPermission = {
-                                    requestAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-                                },
-                                context = context
-                            )
+                    if (selectedSessionId != null) {
+                        // ── DETAIL SCREEN (full-screen, above nav) ──────────────────────
+                        val selectedSession = allSessions.find { it.inningsId == selectedSessionId }
+                        val startFormatted = selectedSession?.let {
+                            SimpleDateFormat("d MMM HH:mm", Locale.getDefault()).format(Date(it.startTimeMillis))
+                        } ?: ""
+                        val rawLocation = selectedSession?.locationText ?: ""
+                        val suburb = if (rawLocation.contains(",")) rawLocation.substringAfter(",").trim() else rawLocation.trim()
+                        val subtitleText = if (startFormatted.isNotEmpty()) "$startFormatted • $suburb" else "INNINGS #${selectedSessionId}"
 
-                            Text(
-                                "HISTORY LIST",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                letterSpacing = 2.sp
-                            )
-                            
-                            if (allSessions.isEmpty()) {
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    shape = RoundedCornerShape(24.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(24.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Text(
-                                            "🏏",
-                                            fontSize = 48.sp,
-                                            modifier = Modifier.padding(bottom = 8.dp)
-                                        )
-                                        Text(
-                                            "NO SESSIONS SYNCED YET",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = Color.White,
-                                            letterSpacing = 1.sp
-                                        )
-                                        Text(
-                                            "Ready to track your innings? Open Pitch Analytix Pro on your Wear OS watch and start batting! Your shots, heart rate telemetry, and workout calories will automatically sync here.",
-                                            fontSize = 12.sp,
-                                            color = Color.Gray,
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            lineHeight = 18.sp
-                                        )
-                                    }
-                                }
-                            } else {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                    contentPadding = PaddingValues(bottom = 24.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    items(allSessions) { session ->
-                                        SessionHistoryCard(session) {
-                                            viewModel.selectInnings(session.inningsId)
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            // DETAIL SCREEN
-                            val selectedSession = allSessions.find { it.inningsId == selectedSessionId }
-                            val startFormatted = selectedSession?.let {
-                                SimpleDateFormat("d MMM HH:mm", Locale.getDefault()).format(Date(it.startTimeMillis))
-                            } ?: ""
-                            val rawLocation = selectedSession?.locationText ?: ""
-                            val suburb = if (rawLocation.contains(",")) {
-                                rawLocation.substringAfter(",").trim()
-                            } else {
-                                rawLocation.trim()
-                            }
-                            val subtitleText = if (startFormatted.isNotEmpty()) {
-                                "$startFormatted • $suburb"
-                            } else {
-                                "INNINGS #${selectedSessionId}"
-                            }
-
+                        Column(modifier = Modifier.fillMaxSize()) {
                             TopBar(
                                 title = "SESSION DETAILS",
                                 subtitle = subtitleText,
@@ -458,9 +362,7 @@ class MainActivity : ComponentActivity() {
                                 initials = initials,
                                 onProfileClick = { showProfileDialog = true }
                             )
-                            
                             DashboardSummary(timeline)
-                            
                             Text(
                                 "SESSION TIMELINE",
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -469,11 +371,154 @@ class MainActivity : ComponentActivity() {
                                 color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
                                 letterSpacing = 2.sp
                             )
-                            
                             TimelineList(timeline)
                         }
+                    } else {
+                        // ── MAIN APP with 3-TAB NAVIGATION ─────────────────────────────
+                        Scaffold(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            bottomBar = {
+                                NavigationBar(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 0.dp,
+                                    modifier = Modifier.height(64.dp)
+                                ) {
+                                    // Dashboard tab
+                                    NavigationBarItem(
+                                        selected = selectedTab == 0,
+                                        onClick = { selectedTab = 0 },
+                                        icon = {
+                                            Text(
+                                                "📊",
+                                                fontSize = if (selectedTab == 0) 22.sp else 18.sp
+                                            )
+                                        },
+                                        label = {
+                                            Text(
+                                                "DASHBOARD",
+                                                fontSize = 8.sp,
+                                                fontWeight = if (selectedTab == 0) FontWeight.Black else FontWeight.Normal,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                        },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                                            unselectedIconColor = Color.Gray,
+                                            unselectedTextColor = Color.Gray,
+                                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        )
+                                    )
+                                    // Record tab — badge pulses when recording
+                                    NavigationBarItem(
+                                        selected = selectedTab == 1,
+                                        onClick = { selectedTab = 1 },
+                                        icon = {
+                                            Box {
+                                                Text(
+                                                    if (isRecording) "⏺" else "🎙️",
+                                                    fontSize = if (selectedTab == 1) 22.sp else 18.sp
+                                                )
+                                                if (isRecording) {
+                                                    val infiniteTransition = rememberInfiniteTransition(label = "badge")
+                                                    val badgeAlpha by infiniteTransition.animateFloat(
+                                                        initialValue = 0.4f,
+                                                        targetValue = 1f,
+                                                        animationSpec = infiniteRepeatable(
+                                                            animation = tween(600, easing = LinearEasing),
+                                                            repeatMode = RepeatMode.Reverse
+                                                        ),
+                                                        label = "badge_alpha"
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Color(0xFFFF5252).copy(alpha = badgeAlpha))
+                                                            .align(Alignment.TopEnd)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        label = {
+                                            Text(
+                                                "RECORD",
+                                                fontSize = 8.sp,
+                                                fontWeight = if (selectedTab == 1) FontWeight.Black else FontWeight.Normal,
+                                                letterSpacing = 0.5.sp,
+                                                color = if (isRecording && selectedTab != 1) Color(0xFFFF5252) else Color.Unspecified
+                                            )
+                                        },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                                            unselectedIconColor = Color.Gray,
+                                            unselectedTextColor = Color.Gray,
+                                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        )
+                                    )
+                                    // History tab
+                                    NavigationBarItem(
+                                        selected = selectedTab == 2,
+                                        onClick = { selectedTab = 2 },
+                                        icon = {
+                                            Text(
+                                                "📋",
+                                                fontSize = if (selectedTab == 2) 22.sp else 18.sp
+                                            )
+                                        },
+                                        label = {
+                                            Text(
+                                                "HISTORY",
+                                                fontSize = 8.sp,
+                                                fontWeight = if (selectedTab == 2) FontWeight.Black else FontWeight.Normal,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                        },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                                            unselectedIconColor = Color.Gray,
+                                            unselectedTextColor = Color.Gray,
+                                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        )
+                                    )
+                                }
+                            }
+                        ) { paddingValues ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(paddingValues)
+                            ) {
+                                TopBar(
+                                    title = "PITCH ANALYTIX",
+                                    subtitle = tabSubtitles[selectedTab],
+                                    showBack = false,
+                                    onBack = {},
+                                    initials = initials,
+                                    onProfileClick = { showProfileDialog = true }
+                                )
+                                when (selectedTab) {
+                                    0 -> DashboardScreen(allSessions)
+                                    1 -> RecordScreen(
+                                        isRecording = isRecording,
+                                        elapsedSeconds = elapsedSeconds,
+                                        maxAmplitude = maxAmplitude,
+                                        recordingsList = recordingsList,
+                                        onRequestPermission = {
+                                            requestAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                        },
+                                        context = context
+                                    )
+                                    2 -> HistoryScreen(allSessions) { session ->
+                                        viewModel.selectInnings(session.inningsId)
+                                    }
+                                }
+                            }
+                        }
                     }
-                    
+
                     if (showProfileDialog) {
                         ProfileDialog(
                             currentName = userName,
@@ -613,10 +658,288 @@ fun SummaryCard(title: String, value: String, unit: String, modifier: Modifier =
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray, letterSpacing = 1.sp)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, fontSize = 32.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(unit, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(bottom = 6.dp))
+            // Value and unit on separate lines to avoid overflow with 3-digit numbers
+            Text(value, fontSize = 32.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+            Text(unit, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, letterSpacing = 0.5.sp)
+        }
+    }
+}
+
+// ── Dashboard Tab ──────────────────────────────────────────────────────────────
+@Composable
+fun DashboardScreen(allSessions: List<SessionHistoryItem>) {
+    val careerMaxSpeed = allSessions.map { it.maxSpeed }.maxOrNull() ?: 0f
+    val totalShots = allSessions.sumOf { it.totalShots }
+    val sessionCount = allSessions.size
+    val bestSession = allSessions.maxByOrNull { it.maxSpeed }
+    val lastSession = allSessions.firstOrNull()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Hero career best card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF001F4D)),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, Color(0xFF58FF63).copy(alpha = 0.25f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "🏏  CAREER BEST",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFFBCD2FE),
+                        letterSpacing = 2.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "${careerMaxSpeed.toInt()}",
+                        fontSize = 72.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF58FF63),
+                        lineHeight = 76.sp
+                    )
+                    Text(
+                        "KM/H BAT SPEED",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFBCD2FE).copy(alpha = 0.7f),
+                        letterSpacing = 1.5.sp
+                    )
+                }
+            }
+        }
+        // Shots + Sessions side by side
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Shots card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text("TOTAL SHOTS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray, letterSpacing = 1.sp)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "$totalShots",
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF58FF63)
+                        )
+                        Text("shots", fontSize = 11.sp, color = Color(0xFFBCD2FE).copy(alpha = 0.7f))
+                    }
+                }
+                // Sessions card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text("SESSIONS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray, letterSpacing = 1.sp)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "$sessionCount",
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF58FF63)
+                        )
+                        Text("tracked", fontSize = 11.sp, color = Color(0xFFBCD2FE).copy(alpha = 0.7f))
+                    }
+                }
+            }
+        }
+        // Best session quick-view
+        if (bestSession != null) {
+            item {
+                Text(
+                    "BEST SESSION",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFFBCD2FE).copy(alpha = 0.6f),
+                    letterSpacing = 2.sp
+                )
+            }
+            item {
+                val bestDate = SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(bestSession.startTimeMillis))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF001B3D)),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFF58FF63).copy(alpha = 0.15f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(bestDate, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            Text(bestSession.locationText.substringAfter(",").trim().ifEmpty { bestSession.locationText }, fontSize = 11.sp, color = Color.Gray)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("${bestSession.maxSpeed.toInt()}", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF58FF63))
+                                Text("KM/H", fontSize = 8.sp, color = Color.Gray, letterSpacing = 1.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("${bestSession.avgEfficiency.toInt()}%", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF58FF63))
+                                Text("EFF", fontSize = 8.sp, color = Color.Gray, letterSpacing = 1.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("${bestSession.totalShots}", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF58FF63))
+                                Text("SHOTS", fontSize = 8.sp, color = Color.Gray, letterSpacing = 1.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Last session quick-view (if different from best)
+        if (lastSession != null && lastSession.inningsId != bestSession?.inningsId) {
+            item {
+                Text(
+                    "LAST SESSION",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFFBCD2FE).copy(alpha = 0.6f),
+                    letterSpacing = 2.sp
+                )
+            }
+            item {
+                val lastDate = SimpleDateFormat("d MMM HH:mm", Locale.getDefault()).format(Date(lastSession.startTimeMillis))
+                val durationMs = lastSession.endTimeMillis - lastSession.startTimeMillis
+                val mins = durationMs / 1000 / 60
+                val secs = durationMs / 1000 % 60
+                val dur = if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF001B3D)),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(lastDate, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            Text(lastSession.locationText.substringAfter(",").trim().ifEmpty { lastSession.locationText }, fontSize = 11.sp, color = Color.Gray)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("${lastSession.totalShots} shots · ${lastSession.maxSpeed.toInt()} km/h · $dur", fontSize = 11.sp, color = Color(0xFFBCD2FE))
+                        }
+                    }
+                }
+            }
+        }
+        // Empty state
+        if (allSessions.isEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("🏏", fontSize = 48.sp)
+                        Text("NO SESSIONS YET", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 1.sp)
+                        Text(
+                            "Head to the Record tab to start your first session. Your stats will appear here.",
+                            fontSize = 12.sp, color = Color.Gray,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Record Tab ─────────────────────────────────────────────────────────────────
+@Composable
+fun RecordScreen(
+    isRecording: Boolean,
+    elapsedSeconds: Long,
+    maxAmplitude: Float,
+    recordingsList: List<java.io.File>,
+    onRequestPermission: () -> Unit,
+    context: android.content.Context
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 8.dp)
+    ) {
+        SessionControlPanel(
+            isRecording = isRecording,
+            elapsedSeconds = elapsedSeconds,
+            maxAmplitude = maxAmplitude,
+            recordingsList = recordingsList,
+            onRequestPermission = onRequestPermission,
+            context = context
+        )
+    }
+}
+
+// ── History Tab ────────────────────────────────────────────────────────────────
+@Composable
+fun HistoryScreen(allSessions: List<SessionHistoryItem>, onSessionClick: (SessionHistoryItem) -> Unit) {
+    if (allSessions.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Text("🏏", fontSize = 48.sp)
+                Text("NO SESSIONS SYNCED YET", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 1.sp)
+                Text(
+                    "Sync data from your Wear OS watch to see sessions here.",
+                    fontSize = 12.sp, color = Color.Gray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(allSessions) { session ->
+                SessionHistoryCard(session) { onSessionClick(session) }
             }
         }
     }
