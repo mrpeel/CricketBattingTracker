@@ -39,6 +39,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
 | B-005 | Companion Recording | Migrate audio recorder & transcription to App UI | Completed | E2E verification |
+| B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
 
 ---
 
