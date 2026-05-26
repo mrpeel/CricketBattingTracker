@@ -38,14 +38,35 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   Added a Kotlin `::healthServicesManager.isInitialized` guard. This successfully restored the Wearable Data Layer sync, allowing timeline data to sync back to the phone companion database (e.g., InningsId 17).
 *   **Pipeline Auto-Start Alignment Decision (May 26, 2026)**:
     *   Replaced the high-friction 5-tap calibration alignment with an automated clock offset sync based on the phone's audio narration filename date-time (e.g. `narration_20260525_122832.m4a`) and the watch timeline's `SYSTEM_START` timestamp.
-    *   For the latest session, this derived a `-1.767s` offset, aligning all 77 narrated events across the full 18-minute session without skipping any data.
+    *   For the latest session, this derived a `-1.767s` offset, aligning all narrated events across the full 18-minute session without skipping any data.
     *   Tuned `normalize_shot_class` in `automate_pipeline.py` to match the 6 new biomechanical classes (`PULL/HOOK`, `GLANCE/FLICK`, etc.), ensuring the alignment scorecard accurately reflects the classifier's performance.
-    *   Noted that Room Write-Ahead Log (WAL) mode requires pulling the SQLite main file, `-wal` file, and `-shm` file concurrently to verify complete data sync (e.g. recovering the full 123 shots).
-*   **Two-Stage Transcription & Parsing Pipeline Refinement (May 26, 2026)**:
-    *   Discovered that requesting structured JSON via `response_schema` over long audio recordings (> 15 minutes) caused Gemini to fall into repetition loops or misnumber/hallucinate shot counts.
-    *   Solved this by requesting a plain-text word-for-word transcript with timestamps (extremely high accuracy) and writing a robust regex-based Python parser (`extract_time_and_text`) to locally extract shot numbers, shot types, ratings, and timestamps.
-    *   Built phonetic mapping heuristics into the parser to automatically map echoing/misheard terms: "half" / "have" maps to "Off drive" (meaning Off side shot) and "full" / "fool" maps to "Pull shot".
-    *   Resulted in successfully aligning all 72 shots from Shot 1 to Shot 72 in today's batting session.
+    *   Noted that Room Write-Ahead Log (WAL) mode requires pulling the SQLite main file, `-wal` file, and `-shm` file concurrently to verify complete data sync.
+
+### 4. ⚠️ CRITICAL: Gemini Audio Transcription Brittleness (May 26, 2026)
+
+This is a major unresolved issue that MUST be addressed before the audio transcription pipeline is considered reliable.
+
+**Root Cause**: `gemini-2.5-flash` exhibits a **catastrophic repetition/hallucination loop** when asked to transcribe long audio files (> ~5 minutes). The model enters a generative loop producing hundreds of fake timestamps with identical content (e.g., 200+ lines of `"shot four cap"` or `"Okay."`). Every prompting strategy tested suffered from this:
+
+| Strategy | Result |
+|---|---|
+| Structured JSON schema (`response_schema`) | Hallucinated repeated shots, mis-numbered |
+| Plain text chronological transcript | Hallucinated 200+ "Okay." entries in a silence gap |
+| Zero-temperature strict format system instruction | Hallucinated 116 shots with identical text "Oh, that's a good shot." |
+| Simple natural prompt | Hallucinated `"shot four cap"` every second for 7 minutes |
+| Audio chunking (3-min chunks) | Chunks 0 & 2+ reset shot numbering to Shot 1; missing shots in middle chunks |
+| `gemini-2.5-pro` | 429 quota exhausted (free tier limit) |
+| `gemini-2.0-flash` | 429 quota exhausted (free tier limit) |
+
+**What works in practice:**
+*   The `complete_transcript.txt` from the previous session run (produced by an earlier prompt iteration) was a usable word-for-word transcript and successfully parsed 72 shot narrations.
+*   The existing `narrations_raw.json` cache file for `session-2026-05-26_12-28-05` correctly contains **72 shot narrations** (Shot 1 – Shot 72) with accurate timestamps derived from that transcript.
+*   The real-world session only contained **69 shots per user count** (not 72). The discrepancy warrants investigation, but Shots 70–72 may be from a final set narrated after the user considered the main session over.
+
+**Pending Investigation**:
+*   Why the API rate-limit quota is so aggressively hit (free tier: 20 req/day for `gemini-2.5-flash`). This is a hard blocker for re-transcription.
+*   Whether the chunking strategy can be made reliable by fixing shot number context being passed between chunks.
+*   Whether using a Whisper-based local model (e.g. `openai/whisper`) would be more reliable and cheaper for timestamped transcription, with Gemini only doing the shot classification step on the already-extracted text.
 
 ---
 
@@ -69,4 +90,5 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 2.  **Live Session Accuracy**: Incorporating the 6-class top-hand biomechanical model yields 35% Shot Classification Accuracy on `live_session_1` and 90% Hit/Miss Agreement.
 3.  **Cross-session Power Shots**: High-velocity shots in other sessions (such as `full_toss` and `Pull shots`) often cross the 22.12 rad/s threshold into `POWER SHOT`, resulting in correct hit metrics but lower historical label accuracy where power wasn't annotated.
 4.  **Telemetry Gaps**: "Short off side" and "Full length" sessions continue to show 0% recall due to lacking active watch sensor data in the historical folders.
+5.  **Transcription Pipeline Reliability**: The current Gemini-based transcription pipeline is brittle at 18-min file lengths. An alternative approach (Whisper + Gemini for classification only) should be evaluated to make the pipeline robust and quota-independent.
 
