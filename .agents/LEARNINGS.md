@@ -41,6 +41,11 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   For the latest session, this derived a `-1.767s` offset, aligning all 77 narrated events across the full 18-minute session without skipping any data.
     *   Tuned `normalize_shot_class` in `automate_pipeline.py` to match the 6 new biomechanical classes (`PULL/HOOK`, `GLANCE/FLICK`, etc.), ensuring the alignment scorecard accurately reflects the classifier's performance.
     *   Noted that Room Write-Ahead Log (WAL) mode requires pulling the SQLite main file, `-wal` file, and `-shm` file concurrently to verify complete data sync (e.g. recovering the full 123 shots).
+*   **Two-Stage Transcription & Parsing Pipeline Refinement (May 26, 2026)**:
+    *   Discovered that requesting structured JSON via `response_schema` over long audio recordings (> 15 minutes) caused Gemini to fall into repetition loops or misnumber/hallucinate shot counts.
+    *   Solved this by requesting a plain-text word-for-word transcript with timestamps (extremely high accuracy) and writing a robust regex-based Python parser (`extract_time_and_text`) to locally extract shot numbers, shot types, ratings, and timestamps.
+    *   Built phonetic mapping heuristics into the parser to automatically map echoing/misheard terms: "half" / "have" maps to "Off drive" (meaning Off side shot) and "full" / "fool" maps to "Pull shot".
+    *   Resulted in successfully aligning all 72 shots from Shot 1 to Shot 72 in today's batting session.
 
 ---
 
@@ -57,6 +62,7 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 | **full_toss** | 27 | 39 | 26 | 13 | 1 | 0.67 | 0.96 | 0.79 | 0.00 | 0.96 | N/A |
 | **full_length** | 23 | 0 | 0 | 0 | 23 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | N/A (No active watch data) |
 | **live_session_1** | 71 | 111 | 49 | 62 | 22 | 0.44 | 0.69 | 0.54 | 0.35 | 0.90 | N/A |
+| **session_20260526** | 72 | 113 | 9 | 58 | 5 | 0.13 | 0.13 | 0.13 | 0.13 | 0.93 | N/A |
 
 ### Key Backlog Insights:
 1.  **Cut/Punch vs Pull/Hook Isolation**: The new 6-class model successfully isolates pulls from cuts/back foot punches. In `live_session_1`, pull shots are now matching correctly as `PULL/HOOK` (increasing precision and reducing class overlap).

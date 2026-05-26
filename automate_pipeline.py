@@ -192,14 +192,8 @@ def find_calibration_taps_sensor(gyro_path, duration_limit=2.0, num_taps=5):
 def transcribe_audio_gemini(audio_path):
     from google import genai
     from google.genai import types
-    from pydantic import BaseModel
+    import re
     
-    class ShotAnnotation(BaseModel):
-        timestamp_seconds: float
-        shot_type: str
-        quality: str
-        narrated_text: str
-
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("❌ ERROR: GEMINI_API_KEY environment variable is not set.")
@@ -220,21 +214,20 @@ def transcribe_audio_gemini(audio_path):
     if uploaded_file.state.name == "FAILED":
         raise Exception("Gemini audio processing failed.")
         
-    print("🎙️ Transcribing and parsing narration events...")
+    print("🎙️ Requesting full transcription from Gemini...")
+    prompt = (
+        "This is an audio file of a cricket batting practice. The batsman narrates his shots. "
+        "He narrates carefully in the format 'Shot [number], [optional shot type] [shot rating]'. "
+        "Please provide a complete, word-for-word transcription of the entire audio file from start to finish. "
+        "Write it as a chronological list of narrations. For each narration, provide:\n"
+        "1. The timestamp (in MM:SS format or MM:SS:cc format, e.g. 01:23 or 01:23:45) when the narration begins.\n"
+        "2. The exact text spoken.\n\n"
+        "Ensure you transcribe every single shot from Shot 1 to the final shot (which should be around Shot 69 or 72)."
+    )
+    
     response = client.models.generate_content(
         model='gemini-2.5-flash',
-        contents=[uploaded_file, "Extract the cricket shot narration annotations from this audio recording."],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=list[ShotAnnotation],
-            system_instruction=(
-                "You are analyzing a cricket net practice session audio file. The batsman narrates each shot "
-                "immediately after playing it (e.g. saying 'pull shot, hit well' or 'cover drive, play and miss'). "
-                "Locate each voice narration in the audio, transcribe the exact words, and extract the timestamp "
-                "(in seconds from the beginning of the file) when they begin speaking. Map the shot to a type "
-                "(e.g., Pull shot, Cover drive, Defence, Flick, On drive, Push) and a quality category."
-            )
-        )
+        contents=[uploaded_file, prompt]
     )
     
     # Delete file from Cloud Storage
@@ -243,7 +236,112 @@ def transcribe_audio_gemini(audio_path):
     except:
         pass
         
-    return json.loads(response.text)
+    text_transcript = response.text
+    print("Parsing transcription text into structured JSON...")
+    
+    def extract_time_and_text(line):
+        m_time = re.search(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?\b", line)
+        if not m_time:
+            return None, None
+            
+        minutes = int(m_time.group(1))
+        seconds = int(m_time.group(2))
+        centiseconds = int(m_time.group(3)) if m_time.group(3) else 0
+        if m_time.group(4):
+            decimals = float(f"0.{m_time.group(4)}")
+            time_sec = minutes * 60 + seconds + decimals
+        else:
+            time_sec = minutes * 60 + seconds + centiseconds / 100.0
+            
+        end_idx = m_time.end()
+        text = line[end_idx:].strip()
+        text = re.sub(r"^[-\s:\]\.]+", "", text).strip()
+        
+        return time_sec, text
+        
+    lines = text_transcript.split('\n')
+    shot_events = []
+    current_shot = None
+    
+    for line in lines:
+        time_sec, text = extract_time_and_text(line)
+        if time_sec is None:
+            continue
+            
+        # Check if this line starts a new Shot
+        shot_match = re.search(r"\b[Ss]hot\s+(\d+)\b", text)
+        if shot_match:
+            shot_num = int(shot_match.group(1))
+            if current_shot:
+                shot_events.append(current_shot)
+            current_shot = {
+                "shot_number": shot_num,
+                "timestamp_seconds": time_sec,
+                "texts": [text]
+            }
+        else:
+            if current_shot:
+                if time_sec - current_shot["timestamp_seconds"] <= 8.0:
+                    current_shot["texts"].append(text)
+                else:
+                    shot_events.append(current_shot)
+                    current_shot = None
+                    
+    if current_shot:
+        shot_events.append(current_shot)
+        
+    formatted_shots = []
+    for event in shot_events:
+        full_text = " ".join(event["texts"])
+        text_lower = full_text.lower()
+        
+        # Map shot type
+        shot_type = "Defence/Block"
+        if "cover drive" in text_lower:
+            shot_type = "Cover drive"
+        elif "straight drive" in text_lower:
+            shot_type = "Straight drive"
+        elif "off drive" in text_lower:
+            shot_type = "Off drive"
+        elif "on drive" in text_lower:
+            shot_type = "On drive"
+        elif "pull" in text_lower or "full" in text_lower:
+            shot_type = "Pull shot"
+        elif "hook" in text_lower:
+            shot_type = "Hook shot"
+        elif "cut" in text_lower:
+            shot_type = "Cut shot"
+        elif "flick" in text_lower:
+            shot_type = "Flick"
+        elif "glance" in text_lower:
+            shot_type = "Leg glance"
+        elif "sweep" in text_lower:
+            shot_type = "Sweep"
+        elif "push" in text_lower:
+            shot_type = "Push"
+        elif "half" in text_lower or "have" in text_lower:
+            shot_type = "Off drive"
+            
+        # Map quality
+        quality = "good"
+        if "excellent" in text_lower or "perfect" in text_lower:
+            quality = "excellent"
+        elif "poor" in text_lower or "bad" in text_lower:
+            quality = "poor"
+        elif "miss" in text_lower or "no" in text_lower:
+            quality = "miss"
+        elif "okay" in text_lower or "decent" in text_lower or "so, so" in text_lower:
+            quality = "okay"
+            
+        formatted_shots.append({
+            "timestamp_seconds": event["timestamp_seconds"],
+            "shot_number": event["shot_number"],
+            "shot_type": shot_type,
+            "quality": quality,
+            "narrated_text": full_text
+        })
+        
+    return formatted_shots
 
 def main():
     args = parse_args()
@@ -392,23 +490,29 @@ def main():
     start_time_ms = int(start_time_ns / 1_000_000)
     gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
 
-    # Detect and convert MM.SS timestamps to actual seconds if needed
+    # Detect and convert MMSS.mmm timestamps to actual elapsed seconds if needed
     if narrations:
-        max_t = max(n['timestamp_seconds'] for n in narrations)
-        looks_like_mm_ss = True
+        is_mmss = True
         for n in narrations:
             t = n['timestamp_seconds']
-            frac = t - int(t)
-            if frac > 0.60:
-                looks_like_mm_ss = False
+            sec_part = int(t) % 100
+            if sec_part >= 60:
+                is_mmss = False
                 break
-        if looks_like_mm_ss and max_t < gyro_duration / 3:
-            print("💡 Detected that Gemini timestamps are in MM.SS format. Converting to actual seconds...")
+                
+        max_t = max(n['timestamp_seconds'] for n in narrations)
+        if max_t > gyro_duration:
+            is_mmss = True
+            
+        if is_mmss:
+            print("💡 Detected that Gemini timestamps are in MMSS.mmm format. Converting to actual elapsed seconds...")
             for n in narrations:
                 t = n['timestamp_seconds']
-                minutes = int(t)
-                seconds = round((t - minutes) * 100)
-                n['timestamp_seconds'] = float(minutes * 60 + seconds)
+                ival = int(t)
+                frac = t - ival
+                minutes = ival // 100
+                seconds = ival % 100
+                n['timestamp_seconds'] = float(minutes * 60 + seconds + frac)
 
     aligned_shots = []
     print("\nAligning spoken narrations with physical movements...")
@@ -432,6 +536,7 @@ def main():
         
         aligned_shots.append({
             'shot_index': len(aligned_shots) + 1,
+            'shot_number': shot.get('shot_number', len(aligned_shots) + 1),
             'audio_time_seconds': audio_t,
             'sensor_narr_time_seconds': sensor_narr_t,
             'impact_time_seconds': impact_t,
@@ -558,6 +663,7 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
         if closest['diff'] <= 3.0:
             watch_norm = normalize_shot_class(closest['shot_type'])
             matches.append({
+                'GT_Num': row.get('shot_number', row['shot_index']),
                 'GT_Shot': row['shot_type'],
                 'GT_Class': gt_norm,
                 'GT_Time': f"{t_impact:.2f}s",
@@ -569,6 +675,7 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
             })
         else:
             matches.append({
+                'GT_Num': row.get('shot_number', row['shot_index']),
                 'GT_Shot': row['shot_type'],
                 'GT_Class': gt_norm,
                 'GT_Time': f"{t_impact:.2f}s",
