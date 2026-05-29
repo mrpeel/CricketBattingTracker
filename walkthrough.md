@@ -27,3 +27,27 @@ Because tracking biomechanics is highly sensitive to the individual user and dev
 3. Build and Deploy the `:app` module to your Samsung Phone.
 4. Put the watch on your left hand under a sweatband, head to the nets, and hit START. 
 5. See how accurately the baseline math detects the impact peaks! All the raw data generated can now be exported to train your custom ML shot-type classifier for V2.
+
+---
+
+## Stance & Detection Reliability Improvements (V2)
+
+To address high false positive rates during walk breaks and improve shot recall, we implemented the following enhancements:
+
+### 1. 5-Condition Facing-Up Gate
+All shot detection is now anchored to a confirmed guard stance (`ACTIVITY_CLASSIFY -> FACING_UP_LOCKED`):
+* **Gyroscope Stability**: `gyro_std < 0.9 rad/s` (over 1.0s window).
+* **Accelerometer Stability**: `accel_std < 1.5 m/s²` (over 1.0s window).
+* **Bat Orientation Stability**: `ori_disp_mean < 1.5°` (over 500ms window).
+* **Step Detector Suppression**: Instantly invalidates stance lock if `TYPE_STEP_DETECTOR` fires within 2.0s (acts as a walking kill-switch).
+* **Gravity Y Arm-Extension Anchor**: Requires `mean_gravity_y <= -3.5 m/s²` (confirms lead arm is extended towards the ball rather than resting at the side).
+
+### 2. Stance Break-Tolerance Window
+* To prevent minor movements or bat rocking at guard from fully resetting the lock timer, we added a **1.2-second break-tolerance grace period** (`FACING_UP_BREAK_TOLERANCE_NS`).
+* If conditions temporarily fail but recover within 1.2s, the lock timer pauses and resumes, rather than resetting to zero.
+* A 1.2s window is mathematically required because the 1.0s rolling standard deviation window lags physical rocking.
+
+### 3. Sensor Stack & UI Upgrades
+* Switched bat orientation tracking to `TYPE_GAME_ROTATION_VECTOR` (magnetometer-free) to eliminate magnetic interference from bats or sight-screens.
+* Added a pulsing "FACING UP" visual status badge on the Wear OS Watch UI for real-time stance confirmation.
+
