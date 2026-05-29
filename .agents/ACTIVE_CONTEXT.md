@@ -38,6 +38,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | F-009 | Game Rotation Vector | Switch primary bat orientation quaternion to TYPE_GAME_ROTATION_VECTOR (no magnetometer) | **Completed** | Build passes; next live session |
 | F-010 | Step Detector Integration | TYPE_STEP_DETECTOR feeds a walking kill-switch into the facing-up gate | **Completed** | Build passes; next live session |
 | F-011 | Watch UI Stance Indicator | Pulsing 'Facing Up' badge on Wear OS UI for real-time stance confirmation | **Completed** | Manual stance check on watch screen |
+| F-012 | Stance Break Tolerance | 1.2s break-tolerance window handles transient failures (bat rocking) during stance lock | **Completed** | SwingDetectorTest unit tests |
 | B-001 | Pull Shot Precision | Reduce false positive rate on Pull shot classification | Backlog | `SwingDetectorGroundTruthTest` |
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |

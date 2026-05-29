@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +39,7 @@ fun SessionSummaryScreen(
     lastImpactTimeMs: Long,
     lastFollowThroughAngle: Float,
     lastWristRollDeg: Float,
+    isFacingUp: Boolean,
     onBackPressed: () -> Unit
 ) {
     // Intercept physical bottom watch button press
@@ -57,6 +60,18 @@ fun SessionSummaryScreen(
         else -> iceBlue
     }
 
+    // Pulse animation for Facing Up indicator
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val alphaPulse by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+
     // ---- PAGE 1: Last shot glanceable view ----
     // Layout is a single Box that fills the circle.
     // Designed to show everything without scrolling.
@@ -66,18 +81,21 @@ fun SessionSummaryScreen(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        // ── 1. Top Section: Shot Type ──────────────────────────────────
+        // ── 1. Top Section: Shot Type / Facing Up Status ──────────────────
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 10.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(ratingColor.copy(alpha = 0.2f))
+                .background(
+                    if (isFacingUp) neonGreen.copy(alpha = alphaPulse)
+                    else ratingColor.copy(alpha = 0.2f)
+                )
                 .padding(horizontal = 10.dp, vertical = 2.dp)
         ) {
             Text(
-                text = lastType.uppercase(),
-                color = ratingColor,
+                text = if (isFacingUp) "FACING UP" else lastType.uppercase(),
+                color = if (isFacingUp) Color.Black else ratingColor,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 1.sp

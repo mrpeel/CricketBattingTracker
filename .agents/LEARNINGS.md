@@ -22,6 +22,10 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Loosened Thresholds**: Loosen `g_lim` to `1.5 rad/s`, `a_lim` to `3.0 m/s²`, and `o_lim` to `3.0°` (Option A).
         *   **Shortened Duration**: Reduce stance lock requirement to **0.8s** to fit natural pre-swing stillness.
         *   **Result**: Recall increased from **55.1% to 92.8%** on physical logs while retaining robust walking rejection.
+*   **Stance Break Tolerance (May 29, 2026)**:
+    *   **The Problem**: The tightened thresholds (gyro_std < 0.9, accel_std < 1.5, ori_disp < 1.5°) and 1.2s lock duration were too sensitive. Fidgeting or rocking the bat slightly during guard reset the 1.2s timer completely, causing delayed/missed locks.
+    *   **The Solution**: Implemented a 1.2-second break-tolerance window (`FACING_UP_BREAK_TOLERANCE_NS = 1.2s`). A 1.2s window is mathematically required because the 1.0s rolling standard deviation window lags physical disturbances (a 200ms rock keeps standard deviation elevated for 1.0s). If conditions fail temporarily during guard, the timer pauses and resumes if conditions recover within 1.2s.
+    *   **Verification**: Unit tests `testBreakToleranceWindowRecovery` and `testBreakToleranceWindowExpiration` verified correctness.
 *   **Android & Wear OS Discoveries**:
 *   **Rotation Vector `qw` Reconstruction**: When Rotation Vector events return only 3 values `[qx, qy, qz]`, `qw` is dynamically reconstructed using:
     ```kotlin
@@ -71,6 +75,18 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   Updated the transcription prompt to explicitly reference expected shot types from all 6 biomechanical classes (e.g., Straight Drive, Cover Drive, Traditional Sweep, Slog Sweep, Helicopter Shot, etc.).
     *   Configured the model pipeline to use the `gemini-3.5-flash` model as requested, with a dynamic fallback list (`gemini-2.0-flash` -> `gemini-2.5-flash`).
     *   This resolved all long-audio repetition loops and parsed 100% of the narrated shots (69/69 shots) correctly on the latest 20-minute batting session.
+*   **Bluetooth Audio Microphone Routing — Async Wait + Device Pinning (May 29, 2026)**:
+    *   **The Root Race Condition**: The previous fix called `setCommunicationDevice()` / `startBluetoothSco()` — both of which are **asynchronous** — and then immediately started `MediaRecorder`. The BT SCO/LE channel had not actually opened yet, so the recorder silently fell through to the phone's built-in mic.
+    *   **The Fix (commit 91caa70)**:
+        *   Converted `startRecordingFlow()` to a `suspend fun` running on `Dispatchers.Main`.
+        *   **API 31+**: After `setCommunicationDevice()`, suspend via `OnCommunicationDeviceChangedListener` (up to 1500ms timeout) waiting for the route confirmation callback. On timeout, clear the route and fall back to built-in mic.
+        *   **API < 31**: After `startBluetoothSco()`, suspend via `ACTION_SCO_AUDIO_STATE_UPDATED` broadcast until `SCO_AUDIO_STATE_CONNECTED` fires.
+        *   Called `MediaRecorder.setPreferredDevice(bluetoothDevice)` (API 28+) to pin the recorder to the confirmed device handle — without this, the OS can silently fall back to built-in mic even after routing is set.
+        *   All failure paths (permission denied, no BT device, timeout) degrade gracefully to built-in mic with descriptive log lines.
+    *   **Key Insight**: `setCommunicationDevice()` returning `true` only means the *request was accepted*, not that the route is *active*. The `OnCommunicationDeviceChangedListener` callback is the only reliable confirmation that audio is actually flowing through the BT device.
+*   **Audio Decompression File Size Reduction (May 29, 2026)**:
+    *   **The Problem**: The Python pipeline script was always running `afconvert` to decompress the AAC `.m4a` file into an uncompressed `.aiff` file (expanding file sizes by ~6x, e.g. 18MB to 103MB) in order to use the standard Python `aifc` module for 5-tap calibration peak analysis.
+    *   **The Fix**: Deferred the AIFF conversion so it only runs if the auto-start metadata timestamp sync is unavailable or fails. Since auto-sync succeeded on today's session, the large AIFF file was never created, saving massive disk space.
 
 
 ### 4. ⚠️ CRITICAL: Root Cause of False Positive Shot Detections (May 26, 2026)

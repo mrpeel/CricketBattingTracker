@@ -21,6 +21,13 @@ object SessionManager {
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
 
+    private val _isFacingUp = MutableStateFlow(false)
+    val isFacingUp: StateFlow<Boolean> = _isFacingUp.asStateFlow()
+
+    fun setFacingUp(active: Boolean) {
+        _isFacingUp.value = active
+    }
+
     private val _shotCount = MutableStateFlow(0)
     val shotCount: StateFlow<Int> = _shotCount.asStateFlow()
 
@@ -110,5 +117,6 @@ object SessionManager {
         _lastWristRollDeg.value = 0f
         allSpeeds.clear()
         _isTracking.value = false
+        _isFacingUp.value = false
     }
 }

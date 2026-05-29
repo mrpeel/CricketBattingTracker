@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity() {
                 val shotCount = SessionManager.shotCount.collectAsState()
                 val avgSpeed = SessionManager.avgSpeed.collectAsState()
                 val maxSpeed = SessionManager.maxSpeed.collectAsState()
+                val isFacingUp = SessionManager.isFacingUp.collectAsState()
                 
                 val excellentShots = SessionManager.excellentShots.collectAsState()
                 val goodShots = SessionManager.goodShots.collectAsState()
@@ -162,6 +163,7 @@ class MainActivity : ComponentActivity() {
                             lastImpactTimeMs = lastImpactTimeMs.value,
                             lastFollowThroughAngle = lastFollowThroughAngle.value,
                             lastWristRollDeg = lastWristRollDeg.value,
+                            isFacingUp = isFacingUp.value,
                             onBackPressed = {
                                 navController.navigate("actions")
                             }

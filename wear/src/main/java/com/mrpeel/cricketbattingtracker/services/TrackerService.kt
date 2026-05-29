@@ -34,6 +34,8 @@ class TrackerService : Service(), SensorEventListener {
     private var gyroSensor: Sensor? = null
     private var gravitySensor: Sensor? = null
     private var rotationSensor: Sensor? = null
+    private var gameRotationSensor: Sensor? = null
+    private var stepDetectorSensor: Sensor? = null
     private var heartRateSensor: Sensor? = null
     
     private var wakeLock: PowerManager.WakeLock? = null
@@ -51,6 +53,8 @@ class TrackerService : Service(), SensorEventListener {
     private var gyroWriter: BufferedWriter? = null
     private var gravityWriter: BufferedWriter? = null
     private var rotationWriter: BufferedWriter? = null
+    private var gameRotationWriter: BufferedWriter? = null
+    private var stepWriter: BufferedWriter? = null
     private var sessionStartNanos: Long = 0L
 
     override fun onCreate() {
@@ -68,17 +72,25 @@ class TrackerService : Service(), SensorEventListener {
         // healthServicesManager.startTracking()
         
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
-        gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
-        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
-        
-        if (accelSensor == null) Log.w(TAG, "Hardware Accelerometer is NOT available!")
-        if (heartRateSensor == null) Log.w(TAG, "Hardware Heart Rate Sensor is NOT available!")
-        if (gyroSensor == null) Log.w(TAG, "Hardware Gyroscope is NOT available!")
-        if (gravitySensor == null) Log.w(TAG, "Hardware Gravity Sensor is NOT available (SwingDetector will estimate gravity from Accelerometer)")
-        if (rotationSensor == null) Log.w(TAG, "Hardware Rotation Vector is NOT available!")
+        accelSensor          = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        gyroSensor           = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        gravitySensor        = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
+        rotationSensor       = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        // GAME_ROTATION_VECTOR: magnetometer-free quaternion — more stable for bat orientation
+        // (immune to metal bat springs, chain-link fences, metallic structures on pitch)
+        gameRotationSensor   = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+        // STEP_DETECTOR: fires once per foot-strike step on dedicated DSP hardware
+        // Used to definitively detect walking and suppress false facing-up detection
+        stepDetectorSensor   = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+        heartRateSensor      = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+
+        if (accelSensor == null)        Log.w(TAG, "Hardware Accelerometer is NOT available!")
+        if (heartRateSensor == null)    Log.w(TAG, "Hardware Heart Rate Sensor is NOT available!")
+        if (gyroSensor == null)         Log.w(TAG, "Hardware Gyroscope is NOT available!")
+        if (gravitySensor == null)      Log.w(TAG, "Hardware Gravity Sensor is NOT available (SwingDetector will estimate gravity from Accelerometer)")
+        if (rotationSensor == null)     Log.w(TAG, "Hardware Rotation Vector is NOT available!")
+        if (gameRotationSensor == null) Log.w(TAG, "Game Rotation Vector NOT available — bat orientation will use standard Rotation Vector (magnetometer subject to interference)")
+        if (stepDetectorSensor == null) Log.w(TAG, "Step Detector NOT available — walking discrimination will fall back to accel cadence heuristic")
         
         // Setup wake lock to keep recording while screen is off
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -89,6 +101,10 @@ class TrackerService : Service(), SensorEventListener {
             Log.d(TAG, "Shot detected! ${shot.shotType}, Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
             sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$shotTime")
             SessionManager.addShot(shot)
+        }
+        
+        swingDetector.onFacingUpChanged = { isFacingUp ->
+            SessionManager.setFacingUp(isFacingUp)
         }
     }
 
@@ -111,19 +127,28 @@ class TrackerService : Service(), SensorEventListener {
                 val ts = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
                 val sessionDir = File(getExternalFilesDir(null), "sessions/session-$ts")
                 sessionDir.mkdirs()
-                
+
                 accWriter = File(sessionDir, "WatchAccelerometer.csv").bufferedWriter()
                 accWriter?.write("time,seconds_elapsed,x,y,z\n")
-                
+
                 gyroWriter = File(sessionDir, "WatchGyroscope.csv").bufferedWriter()
                 gyroWriter?.write("time,seconds_elapsed,x,y,z\n")
-                
+
                 gravityWriter = File(sessionDir, "WatchGravity.csv").bufferedWriter()
                 gravityWriter?.write("time,seconds_elapsed,x,y,z\n")
-                
+
+                // Standard Rotation Vector (with magnetometer) — kept for long-term reference
                 rotationWriter = File(sessionDir, "WatchOrientation.csv").bufferedWriter()
                 rotationWriter?.write("time,seconds_elapsed,qx,qy,qz,qw\n")
-                
+
+                // Game Rotation Vector (no magnetometer) — preferred for short-term bat orientation
+                gameRotationWriter = File(sessionDir, "WatchGameOrientation.csv").bufferedWriter()
+                gameRotationWriter?.write("time,seconds_elapsed,qx,qy,qz,qw\n")
+
+                // Step events (timestamp only)
+                stepWriter = File(sessionDir, "WatchSteps.csv").bufferedWriter()
+                stepWriter?.write("time,seconds_elapsed\n")
+
                 Log.d(TAG, "Raw Logging ENABLED to \${sessionDir.absolutePath}")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to prep log writers: \${e.message}")
@@ -140,11 +165,16 @@ class TrackerService : Service(), SensorEventListener {
         wakeLock?.acquire(3 * 60 * 60 * 1000L) // maximum 3 hours
         
         // SENSOR_DELAY_GAME = 50Hz, explicit 0 latency out of caution against Wear OS suspending listeners
-        accelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        gyroSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        gravitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        heartRateSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0) }
+        accelSensor?.let        { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        gyroSensor?.let         { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        gravitySensor?.let      { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        rotationSensor?.let     { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        // Game Rotation Vector: no magnetometer — preferred for bat orientation (immunity to field distortion)
+        gameRotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
+        // Step Detector: fires per foot-strike on hardware DSP (near-zero power)
+        // SENSOR_DELAY_NORMAL is correct — the sensor fires on events, not on a poll interval
+        stepDetectorSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0) }
+        heartRateSensor?.let    { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0) }
         
         Log.d(TAG, "Service Started, tracking sensors")
         return START_STICKY
@@ -238,6 +268,8 @@ class TrackerService : Service(), SensorEventListener {
                 gyroWriter?.close()
                 gravityWriter?.close()
                 rotationWriter?.close()
+                gameRotationWriter?.close()
+                stepWriter?.close()
             } catch (e: Exception) {}
         }
     }
@@ -253,9 +285,19 @@ class TrackerService : Service(), SensorEventListener {
 
         when (type) {
             Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(vals, ts)
-            Sensor.TYPE_GYROSCOPE -> swingDetector.processGyro(vals, ts)
-            Sensor.TYPE_GRAVITY -> swingDetector.processGravity(vals, ts)
-            Sensor.TYPE_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
+            Sensor.TYPE_GYROSCOPE     -> swingDetector.processGyro(vals, ts)
+            Sensor.TYPE_GRAVITY       -> swingDetector.processGravity(vals, ts)
+            // ROTATION_VECTOR kept for reference only — SwingDetector uses GAME_ROTATION_VECTOR
+            Sensor.TYPE_ROTATION_VECTOR      -> { /* logged below; not fed to SwingDetector */ }
+            // GAME_ROTATION_VECTOR: no magnetometer — primary source for bat orientation in SwingDetector
+            Sensor.TYPE_GAME_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
+            // STEP_DETECTOR: single event per foot-strike; used to detect walking and break facing-up gate
+            Sensor.TYPE_STEP_DETECTOR -> {
+                swingDetector.processStep(ts)
+                val stepTime = System.currentTimeMillis()
+                sessionTimeline.add("Step: Ts=$stepTime")
+                Log.v(TAG, "Step detected at ${ts / 1_000_000_000.0f}s")
+            }
             Sensor.TYPE_HEART_RATE -> {
                 val bpm = vals[0].toInt()
                 if (bpm > 0) {
@@ -269,22 +311,25 @@ class TrackerService : Service(), SensorEventListener {
         if (enableRawLogging) {
             if (sessionStartNanos == 0L) sessionStartNanos = ts
             val elapsedSecs = (ts - sessionStartNanos) / 1_000_000_000.0
-            
+
+            fun quatW(v: FloatArray): Float =
+                if (v.size > 3) v[3]
+                else kotlin.math.sqrt(kotlin.math.max(0.0f, 1.0f - v[0]*v[0] - v[1]*v[1] - v[2]*v[2]))
+
             try {
-                if (type == Sensor.TYPE_ACCELEROMETER) {
-                    accWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
-                } else if (type == Sensor.TYPE_GYROSCOPE) {
-                    gyroWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
-                } else if (type == Sensor.TYPE_GRAVITY) {
-                    gravityWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
-                } else if (type == Sensor.TYPE_ROTATION_VECTOR) {
-                    val qw = if (vals.size > 3) vals[3] else {
-                        val qx = vals[0]
-                        val qy = vals[1]
-                        val qz = vals[2]
-                        kotlin.math.sqrt(kotlin.math.max(0.0f, 1.0f - qx * qx - qy * qy - qz * qz))
-                    }
-                    rotationWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], qw))
+                when (type) {
+                    Sensor.TYPE_ACCELEROMETER ->
+                        accWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
+                    Sensor.TYPE_GYROSCOPE ->
+                        gyroWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
+                    Sensor.TYPE_GRAVITY ->
+                        gravityWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
+                    Sensor.TYPE_ROTATION_VECTOR ->
+                        rotationWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], quatW(vals)))
+                    Sensor.TYPE_GAME_ROTATION_VECTOR ->
+                        gameRotationWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], quatW(vals)))
+                    Sensor.TYPE_STEP_DETECTOR ->
+                        stepWriter?.write(String.format(java.util.Locale.US, "%d,%.6f\n", ts, elapsedSecs))
                 }
             } catch (e: Exception) {}
         }

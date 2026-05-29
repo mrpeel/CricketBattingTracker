@@ -290,6 +290,7 @@ class SwingDetector {
     // Facing-up tracking
     private var facingUpGateStart  = 0L   // when all 3 conditions first became true
     private var facingUpGateActive = false // are all 3 conditions currently satisfied?
+    private var facingUpBreakStart = 0L   // when conditions first failed (0 = not in break)
     private var facingUpLockedAt   = 0L   // when we confirmed 1.5s of facing-up
     private var facingUpExitTime   = 0L   // when we transitioned to shot search
 
@@ -337,6 +338,8 @@ class SwingDetector {
         const val FACING_UP_MIN_DURATION_NS  = 1_200_000_000L  // 1.2 seconds
         // How long after facing-up to wait for a backswing before giving up
         const val BACKSWING_TIMEOUT_NS       = 5_000_000_000L  // 5.0 seconds
+        // Break tolerance window for transient condition failures (e.g. bat rocking)
+        const val FACING_UP_BREAK_TOLERANCE_NS = 1_200_000_000L // 1.2 seconds
         // Gyro threshold to declare backswing departure has started
         const val BACKSWING_TRIGGER_RAD_S    = 5.0f
         // Post-shot recovery guard: no new facing-up arm during this window
@@ -378,6 +381,7 @@ class SwingDetector {
         if (facingUpGateActive) {
             Log.d(TAG, "🦶 Step detected — breaking facing-up gate immediately")
             facingUpGateActive = false
+            facingUpBreakStart = 0L
         }
         // If already FACING_UP_LOCKED, a step means the player walked away; return to classify
         if (detectorState == DetectorState.FACING_UP_LOCKED) {
@@ -450,10 +454,18 @@ class SwingDetector {
                 facingUpGateActive = true
                 facingUpGateStart  = timestamp
                 stanceStartTime    = timestamp
+                facingUpBreakStart = 0L
                 Log.v(TAG, "Facing-up gate opened (gyroStd=${"%.2f".format(gyroStd)}, " +
                            "accelStd=${"%.2f".format(accelStd)}, oriDisp=${"%.2f".format(oriDisp)}°, " +
                            "gravY=${"%.2f".format(meanGravY)}, stepAge=${(timestamp - lastStepTimestampNs) / 1_000_000}ms)")
             } else {
+                if (facingUpBreakStart != 0L) {
+                    val breakDuration = timestamp - facingUpBreakStart
+                    facingUpGateStart += breakDuration
+                    stanceStartTime += breakDuration
+                    facingUpBreakStart = 0L
+                    Log.v(TAG, "Facing-up conditions restored after ${breakDuration / 1_000_000}ms break; resuming timer.")
+                }
                 val heldFor = timestamp - facingUpGateStart
                 if (heldFor >= FACING_UP_MIN_DURATION_NS) {
                     facingUpLockedAt   = timestamp
@@ -467,12 +479,18 @@ class SwingDetector {
             }
         } else {
             if (facingUpGateActive) {
-                val heldFor = timestamp - facingUpGateStart
-                Log.v(TAG, "Facing-up gate broken after ${heldFor / 1_000_000}ms " +
-                           "(gyroStd=${"%.2f".format(gyroStd)}, accelStd=${"%.2f".format(accelStd)}, " +
-                           "oriDisp=${"%.2f".format(oriDisp)}°, noStep=$noRecentStep, " +
-                           "armExtended=$armExtended gravY=${"%.2f".format(meanGravY)})")
-                facingUpGateActive = false
+                if (facingUpBreakStart == 0L) {
+                    facingUpBreakStart = timestamp
+                    Log.v(TAG, "Facing-up conditions failed (gyroStd=${"%.2f".format(gyroStd)}, " +
+                               "accelStd=${"%.2f".format(accelStd)}, oriDisp=${"%.2f".format(oriDisp)}°, " +
+                               "gravY=${"%.2f".format(meanGravY)}); entering break tolerance window.")
+                } else if (timestamp - facingUpBreakStart > FACING_UP_BREAK_TOLERANCE_NS) {
+                    val heldFor = timestamp - facingUpGateStart
+                    Log.v(TAG, "Facing-up gate broken after ${heldFor / 1_000_000}ms " +
+                               "(break duration ${(timestamp - facingUpBreakStart) / 1_000_000}ms > tolerance)")
+                    facingUpGateActive = false
+                    facingUpBreakStart = 0L
+                }
             }
         }
     }
@@ -545,6 +563,7 @@ class SwingDetector {
     private fun resetToClassify() {
         setDetectorState(DetectorState.ACTIVITY_CLASSIFY)
         facingUpGateActive = false
+        facingUpBreakStart = 0L
     }
 
     // ---- Shot evaluation (unchanged classifier logic) ----
