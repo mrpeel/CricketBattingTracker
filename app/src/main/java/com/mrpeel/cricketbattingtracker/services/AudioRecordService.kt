@@ -7,6 +7,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
@@ -67,6 +69,7 @@ class AudioRecordService : Service() {
             recordingFile = file
             AudioRecordManager.activeRecordingFile = file
 
+            enableBluetoothRouting()
             setupMediaRecorder(file)
             mediaRecorder?.start()
             
@@ -95,7 +98,7 @@ class AudioRecordService : Service() {
         }
         
         recorder.apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             setAudioSamplingRate(44100)
@@ -209,10 +212,56 @@ class AudioRecordService : Service() {
         }
     }
 
+    private fun enableBluetoothRouting() {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        try {
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val devices = audioManager.availableCommunicationDevices
+                val bluetoothDevice = devices.firstOrNull {
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                }
+                if (bluetoothDevice != null) {
+                    val result = audioManager.setCommunicationDevice(bluetoothDevice)
+                    Log.d(TAG, "setCommunicationDevice Bluetooth Sco/Ble result: $result, device: ${bluetoothDevice.productName}")
+                } else {
+                    Log.d(TAG, "No Bluetooth communication device available; using default built-in mic")
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.startBluetoothSco()
+                @Suppress("DEPRECATION")
+                audioManager.isBluetoothScoOn = true
+                Log.d(TAG, "Legacy startBluetoothSco called")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to enable Bluetooth audio routing", e)
+        }
+    }
+
+    private fun disableBluetoothRouting() {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audioManager.clearCommunicationDevice()
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.isBluetoothScoOn = false
+                @Suppress("DEPRECATION")
+                audioManager.stopBluetoothSco()
+            }
+            audioManager.mode = AudioManager.MODE_NORMAL
+            Log.d(TAG, "Bluetooth routing cleared, mode set back to NORMAL")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to disable Bluetooth audio routing", e)
+        }
+    }
+
     private fun cleanup() {
         timerJob?.cancel()
         amplitudeJob?.cancel()
         serviceScope.cancel()
+        disableBluetoothRouting()
         AudioRecordManager.updateRecordingState(false)
         AudioRecordManager.activeRecordingFile = null
     }

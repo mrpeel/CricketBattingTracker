@@ -68,10 +68,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private val requestAudioPermissionLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val recordGranted = permissions[android.Manifest.permission.RECORD_AUDIO] ?: false
+        val btGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            permissions[android.Manifest.permission.BLUETOOTH_CONNECT] ?: false
+        } else {
+            true
+        }
+        if (recordGranted) {
             android.util.Log.d("MainActivity", "Audio recording permission granted successfully!")
+            if (!btGranted) {
+                android.util.Log.w("MainActivity", "Bluetooth connect permission denied; recording will fallback to built-in mic.")
+            }
             com.mrpeel.cricketbattingtracker.services.AudioRecordManager.refreshRecordings(this)
             com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(this)
         } else {
@@ -507,7 +516,12 @@ class MainActivity : ComponentActivity() {
                                         maxAmplitude = maxAmplitude,
                                         recordingsList = recordingsList,
                                         onRequestPermission = {
-                                            requestAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                            val permissions = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                                arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.BLUETOOTH_CONNECT)
+                                            } else {
+                                                arrayOf(android.Manifest.permission.RECORD_AUDIO)
+                                            }
+                                            requestAudioPermissionLauncher.launch(permissions)
                                         },
                                         context = context
                                     )
@@ -1377,11 +1391,19 @@ fun SessionControlPanel(
 
                 Button(
                     onClick = {
-                        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                        val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(
+                            context,
+                            android.Manifest.permission.RECORD_AUDIO
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        val hasBt = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            androidx.core.content.ContextCompat.checkSelfPermission(
                                 context,
-                                android.Manifest.permission.RECORD_AUDIO
+                                android.Manifest.permission.BLUETOOTH_CONNECT
                             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                        ) {
+                        } else {
+                            true
+                        }
+                        if (hasAudio && hasBt) {
                             com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context)
                         } else {
                             onRequestPermission()

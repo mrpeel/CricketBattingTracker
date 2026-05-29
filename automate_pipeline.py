@@ -196,6 +196,14 @@ def transcribe_audio_gemini(audio_path):
     
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
+        dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+        if os.path.exists(dotenv_path):
+            with open(dotenv_path, "r") as f:
+                for line in f:
+                    if line.startswith("GEMINI_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip()
+                        break
+    if not api_key:
         print("❌ ERROR: GEMINI_API_KEY environment variable is not set.")
         print("Please export it in your shell: export GEMINI_API_KEY='your_api_key'")
         sys.exit(1)
@@ -214,21 +222,63 @@ def transcribe_audio_gemini(audio_path):
     if uploaded_file.state.name == "FAILED":
         raise Exception("Gemini audio processing failed.")
         
-    print("🎙️ Requesting full transcription from Gemini...")
+    from pydantic import BaseModel
+    from typing import List
+
+    class NarrationItem(BaseModel):
+        timestamp_seconds: float
+        shot_number: int
+        shot_type: str
+        rating: str
+        narrated_text: str
+
+    class NarrationList(BaseModel):
+        narrations: List[NarrationItem]
+
+    print("🎙️ Preparing prompt with biomechanics constraints...")
     prompt = (
-        "This is an audio file of a cricket batting practice. The batsman narrates his shots. "
-        "He narrates carefully in the format 'Shot [number], [optional shot type] [shot rating]'. "
-        "Please provide a complete, word-for-word transcription of the entire audio file from start to finish. "
-        "Write it as a chronological list of narrations. For each narration, provide:\n"
-        "1. The timestamp (in MM:SS format or MM:SS:cc format, e.g. 01:23 or 01:23:45) when the narration begins.\n"
-        "2. The exact text spoken.\n\n"
-        "Ensure you transcribe every single shot from Shot 1 to the final shot (which should be around Shot 69 or 72)."
+        "You are an expert audio transcription assistant.\n"
+        "Analyze the provided audio recording of a cricket batting practice.\n"
+        "The batsman narrates his shots after playing them, speaking clearly in one of these formats:\n"
+        "1. \"Shot [number] [Shot Type] [Rating]\" (for example: \"Shot 1 Cover drive Excellent\" or \"Shot 12 Pull shot Good\").\n"
+        "2. \"[Number] [Shot Type] [Rating]\" (for example: \"One, push shot, good\" or \"Twelve, pull shot, excellent\").\n\n"
+        "The audio contains long periods of silence, ball impact noises, and background sounds. Ignore all silence and background noise.\n\n"
+        "Search the entire audio file for all spoken narrations matching the pattern.\n"
+        "The batsman may refer to the following expected shot types (grouped by biomechanical class):\n"
+        "- Drive/Defence: \"Straight Drive\", \"Cover Drive\", \"Off Drive\", \"On Drive\", \"Forward Defensive\", \"Back-foot Defensive\", \"Push Shot\" (or \"Push\")\n"
+        "- Glance/Flicks: \"Flick Shot\", \"Leg Glance\", \"On-Glance\", \"Traditional Sweep Shot\" (or \"Sweep\")\n"
+        "- Cut/Punch: \"Square Cut\", \"Cut\", \"Back-foot Punch\"\n"
+        "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
+        "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\"\n"
+        "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\"\n\n"
+        "The batsman will rate the shot quality using one of these rating words:\n"
+        "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\"\n\n"
+        "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
+        "Do not skip shots, do not hallucinate repetitive entries in silence, and output only the matching list."
     )
     
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=[uploaded_file, prompt]
-    )
+    models_to_try = ['gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash']
+    response = None
+    last_err = None
+    for model_name in models_to_try:
+        try:
+            print(f"🎙️ Requesting structured transcription from {model_name}...")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[uploaded_file, prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=NarrationList,
+                ),
+            )
+            print(f"✅ Success with {model_name}!")
+            break
+        except Exception as e:
+            print(f"⚠️ {model_name} failed: {e}")
+            last_err = e
+            
+    if response is None:
+        raise Exception(f"All Gemini models failed. Last error: {last_err}")
     
     # Delete file from Cloud Storage
     try:
@@ -237,58 +287,77 @@ def transcribe_audio_gemini(audio_path):
         pass
         
     text_transcript = response.text
-    print("Parsing transcription text into structured JSON...")
+    print("Parsing transcription text...")
     
-    def extract_time_and_text(line):
-        m_time = re.search(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?\b", line)
-        if not m_time:
-            return None, None
-            
-        minutes = int(m_time.group(1))
-        seconds = int(m_time.group(2))
-        centiseconds = int(m_time.group(3)) if m_time.group(3) else 0
-        if m_time.group(4):
-            decimals = float(f"0.{m_time.group(4)}")
-            time_sec = minutes * 60 + seconds + decimals
-        else:
-            time_sec = minutes * 60 + seconds + centiseconds / 100.0
-            
-        end_idx = m_time.end()
-        text = line[end_idx:].strip()
-        text = re.sub(r"^[-\s:\]\.]+", "", text).strip()
-        
-        return time_sec, text
-        
-    lines = text_transcript.split('\n')
     shot_events = []
-    current_shot = None
+    parsed_structured = False
     
-    for line in lines:
-        time_sec, text = extract_time_and_text(line)
-        if time_sec is None:
-            continue
+    try:
+        data = json.loads(text_transcript)
+        items = data.get("narrations", [])
+        if items:
+            for item in items:
+                shot_events.append({
+                    "shot_number": int(item.get("shot_number", 0)),
+                    "timestamp_seconds": float(item.get("timestamp_seconds", 0.0)),
+                    "texts": [item.get("narrated_text", "")]
+                })
+            parsed_structured = True
+            print(f"✅ Successfully parsed {len(shot_events)} shots via Pydantic response_schema.")
+    except Exception as e:
+        print(f"⚠️ Failed to parse structured JSON ({e}). Falling back to line-by-line regex...")
+        
+    if not parsed_structured:
+        # Fallback to legacy regex parsing
+        def extract_time_and_text(line):
+            m_time = re.search(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?\b", line)
+            if not m_time:
+                return None, None
+                
+            minutes = int(m_time.group(1))
+            seconds = int(m_time.group(2))
+            centiseconds = int(m_time.group(3)) if m_time.group(3) else 0
+            if m_time.group(4):
+                decimals = float(f"0.{m_time.group(4)}")
+                time_sec = minutes * 60 + seconds + decimals
+            else:
+                time_sec = minutes * 60 + seconds + centiseconds / 100.0
+                
+            end_idx = m_time.end()
+            text = line[end_idx:].strip()
+            text = re.sub(r"^[-\s:\]\.]+", "", text).strip()
             
-        # Check if this line starts a new Shot
-        shot_match = re.search(r"\b[Ss]hot\s+(\d+)\b", text)
-        if shot_match:
-            shot_num = int(shot_match.group(1))
-            if current_shot:
-                shot_events.append(current_shot)
-            current_shot = {
-                "shot_number": shot_num,
-                "timestamp_seconds": time_sec,
-                "texts": [text]
-            }
-        else:
-            if current_shot:
-                if time_sec - current_shot["timestamp_seconds"] <= 8.0:
-                    current_shot["texts"].append(text)
-                else:
+            return time_sec, text
+            
+        lines = text_transcript.split('\n')
+        current_shot = None
+        
+        for line in lines:
+            time_sec, text = extract_time_and_text(line)
+            if time_sec is None:
+                continue
+                
+            # Check if this line starts a new Shot
+            shot_match = re.search(r"\b[Ss]hot\s+(\d+)\b", text)
+            if shot_match:
+                shot_num = int(shot_match.group(1))
+                if current_shot:
                     shot_events.append(current_shot)
-                    current_shot = None
-                    
-    if current_shot:
-        shot_events.append(current_shot)
+                current_shot = {
+                    "shot_number": shot_num,
+                    "timestamp_seconds": time_sec,
+                    "texts": [text]
+                }
+            else:
+                if current_shot:
+                    if time_sec - current_shot["timestamp_seconds"] <= 8.0:
+                        current_shot["texts"].append(text)
+                    else:
+                        shot_events.append(current_shot)
+                        current_shot = None
+                        
+        if current_shot:
+            shot_events.append(current_shot)
         
     formatted_shots = []
     for event in shot_events:
@@ -384,10 +453,6 @@ def main():
             print("❌ ERROR: File does not exist.")
             sys.exit(1)
             
-    # 3. Process Audio to AIFF for peak alignment
-    aiff_path = os.path.join(session_dir, "audio_narration.aiff")
-    convert_to_aiff(audio_path, aiff_path)
-    
     # 4. Calibration Alignment
     offset = args.manual_offset
     if offset is None:
@@ -427,6 +492,9 @@ def main():
 
         if offset is None:
             print("🔍 Auto-start sync unavailable. Detecting calibration events (5-tap signature)...")
+            # Convert to AIFF only when needed for peak detection
+            aiff_path = os.path.join(session_dir, "audio_narration.aiff")
+            convert_to_aiff(audio_path, aiff_path)
             envelope, fps = load_audio_envelope(aiff_path)
             audio_taps = find_calibration_taps_audio(envelope, fps)
             

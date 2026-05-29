@@ -77,6 +77,14 @@ class SwingDetectorGroundTruthTest {
             wristFolder = "",
             transcriptFile = "ground_truth_aligned.csv",
             expectWatchData = true
+        ),
+        SessionConfig(
+            id = "session_20260529",
+            canonicalName = "session_20260529",
+            relativePath = "live_watch_sessions/sessions/session-2026-05-29_12-27-17",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
         )
     )
 
@@ -143,7 +151,7 @@ class SwingDetectorGroundTruthTest {
             val accelFile = File(wristDir, "WatchAccelerometer.csv").takeIf { it.exists() } ?: File(wristDir, "Accelerometer.csv")
             val gyroFile = File(wristDir, "WatchGyroscope.csv").takeIf { it.exists() } ?: File(wristDir, "Gyroscope.csv")
             val gravFile = File(wristDir, "WatchGravity.csv").takeIf { it.exists() } ?: File(wristDir, "Gravity.csv")
-            val orientFile = File(wristDir, "WatchOrientation.csv").takeIf { it.exists() } ?: File(wristDir, "Orientation.csv")
+            val orientFile = File(wristDir, "WatchGameOrientation.csv").takeIf { it.exists() } ?: File(wristDir, "WatchOrientation.csv").takeIf { it.exists() } ?: File(wristDir, "Orientation.csv")
 
             println("Sensor files: ")
             println("  Accel:  ${accelFile.absolutePath}")
@@ -517,7 +525,7 @@ class SwingDetectorGroundTruthTest {
 
             val shots = mutableListOf<GroundTruthShot>()
 
-            if (sessionCanonicalName == "live_session_1") {
+            if (sessionCanonicalName == "live_session_1" || sessionCanonicalName == "session_20260529") {
                 val lines = transcriptFile.readLines()
                 if (lines.isEmpty()) return shots
                 val header = parseCsvLine(lines[0])
