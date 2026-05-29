@@ -59,6 +59,25 @@ class RingBuffer(val capacity: Int) {
         val variance = (sumSq / count) - (mean * mean)
         return sqrt(max(0.0, variance)).toFloat()
     }
+
+    /**
+     * Computes the mean of the Y component over the given time window.
+     * Returns 0f if fewer than 5 samples are in the window (not enough data).
+     */
+    fun calculateMeanY(startNanos: Long, endNanos: Long): Float {
+        var count = 0
+        var sum = 0.0
+        var idx = if (head == 0) capacity - 1 else head - 1
+        for (i in 0 until size) {
+            val t = timestamps[idx]
+            if (t in startNanos..endNanos) {
+                sum += y[idx].toDouble()
+                count++
+            }
+            idx = if (idx == 0) capacity - 1 else idx - 1
+        }
+        return if (count >= 5) (sum / count).toFloat() else 0f
+    }
 }
 
 /**
@@ -294,20 +313,28 @@ class SwingDetector {
     private val estimatedGravity = FloatArray(3)
     private var gravityFound = false
 
-    // ---- Facing-Up detection thresholds (validated against live session data) ----
+    // ---- Facing-Up detection thresholds (validated against 3-session empirical analysis) ----
     companion object {
-        // Gyro std-of-magnitude over 1s window must be below this
-        const val FACING_UP_GYRO_STD_MAX     = 1.5f   // rad/s
-        // Accelerometer std-of-magnitude over 1s window (foot-strike suppressor)
-        const val FACING_UP_ACCEL_STD_MAX    = 3.0f   // m/s²
-        // Mean angular displacement of quaternion over 1s window (bat orientation lock)
-        const val FACING_UP_ORI_DISP_MAX_DEG = 3.0f   // degrees
+        // Condition A: Gyro std-of-magnitude over 1s window — bat must not be swinging
+        // Restored to original 0.9 rad/s (loosened to 1.5 caused walk-arming false positives)
+        const val FACING_UP_GYRO_STD_MAX     = 0.9f   // rad/s
+        // Condition B: Accelerometer std-of-magnitude over 1s window — foot-strike suppressor
+        // Restored to original 1.5 m/s² (loosened to 3.0 was too permissive)
+        const val FACING_UP_ACCEL_STD_MAX    = 1.5f   // m/s²
+        // Condition C: Mean angular displacement of quaternion over 1s window — bat orientation lock
+        // Compromise: 1.5° (original 0.5° caused recall loss; 3.0° was too loose)
+        const val FACING_UP_ORI_DISP_MAX_DEG = 1.5f   // degrees
+        // Condition E: Gravity Y arm-extension anchor — requires arm to be extended (not limp/resting)
+        // At guard stance, mean gravity Y = -8.6 m/s² (P50) across 3 sessions; when arm hangs at rest
+        // or is in the lap, Y drifts toward 0. Threshold of -3.5 passes ~85% of guard samples while
+        // blocking ~25% of arm-at-rest samples. Falls back to true if gravity data is unavailable.
+        const val FACING_UP_GRAVITY_Y_MIN    = -3.5f  // m/s²
         // Recency gate: a step event within this window breaks the facing-up gate
         // 2.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
-        // This guarantees at least 3 steps would have to be missed to arm while walking
         const val STEP_RECENCY_NS            = 2_000_000_000L  // 2.0 seconds
-        // How long all conditions must hold continuously before we're "locked"
-        const val FACING_UP_MIN_DURATION_NS  = 800_000_000L  // 0.8 seconds
+        // How long ALL conditions must hold continuously before we're "locked".
+        // Increased from 0.8s to 1.2s — harder to spuriously arm during brief still moments.
+        const val FACING_UP_MIN_DURATION_NS  = 1_200_000_000L  // 1.2 seconds
         // How long after facing-up to wait for a backswing before giving up
         const val BACKSWING_TIMEOUT_NS       = 5_000_000_000L  // 5.0 seconds
         // Gyro threshold to declare backswing departure has started
@@ -371,15 +398,17 @@ class SwingDetector {
     }
 
     /**
-     * ACTIVITY_CLASSIFY: Continuously evaluate whether the 4-condition facing-up
-     * gate is satisfied. Transitions to FACING_UP_LOCKED when all four have been
-     * true for >= 1.5s consecutively.
+     * ACTIVITY_CLASSIFY: Continuously evaluate whether the 5-condition facing-up
+     * gate is satisfied. Transitions to FACING_UP_LOCKED when all five have been
+     * true for >= 1.2s consecutively.
      *
-     * The four conditions:
-     *   A. gyro_std(1s) < 0.9 rad/s           — bat not swinging
-     *   B. accel_std(1s) < 1.5 m/s²           — no foot-strike shock
-     *   C. ori_disp_mean(1s) < 0.5°           — bat orientation locked at guard angle
-     *   D. no step event in last 2.0s          — definitive walking kill switch
+     * The five conditions:
+     *   A. gyro_std(1s)    < 0.9 rad/s   — bat not swinging
+     *   B. accel_std(1s)   < 1.5 m/s²   — no foot-strike shock
+     *   C. ori_disp(1s)    < 1.5°        — bat orientation locked at guard angle
+     *   D. no step in last 2.0s          — definitive walking kill switch
+     *   E. mean_gravity_y(1s) <= -3.5    — arm extended toward bat (not limp/resting)
+     *      Falls back to true if gravity sensor data is unavailable (< 5 samples).
      *
      * Ignores all signals during the post-shot recovery guard window.
      */
@@ -404,10 +433,17 @@ class SwingDetector {
         val noRecentStep = lastStepTimestampNs == 0L ||
                            (timestamp - lastStepTimestampNs) > STEP_RECENCY_NS
 
-        val allConditionsMet = gyroStd < FACING_UP_GYRO_STD_MAX &&
+        // Condition E: gravity Y arm-extension anchor.
+        // Returns 0f if < 5 gravity samples in window — treat as satisfied (fail-open) to
+        // avoid breaking detection when the gravity sensor is slow to populate.
+        val meanGravY = gravBuffer.calculateMeanY(stdWindowStart, timestamp)
+        val armExtended = meanGravY == 0f || meanGravY <= FACING_UP_GRAVITY_Y_MIN
+
+        val allConditionsMet = gyroStd  < FACING_UP_GYRO_STD_MAX &&
                                accelStd < FACING_UP_ACCEL_STD_MAX &&
                                oriDisp  < FACING_UP_ORI_DISP_MAX_DEG &&
-                               noRecentStep
+                               noRecentStep &&
+                               armExtended
 
         if (allConditionsMet) {
             if (!facingUpGateActive) {
@@ -416,7 +452,7 @@ class SwingDetector {
                 stanceStartTime    = timestamp
                 Log.v(TAG, "Facing-up gate opened (gyroStd=${"%.2f".format(gyroStd)}, " +
                            "accelStd=${"%.2f".format(accelStd)}, oriDisp=${"%.2f".format(oriDisp)}°, " +
-                           "stepAge=${(timestamp - lastStepTimestampNs) / 1_000_000}ms)")
+                           "gravY=${"%.2f".format(meanGravY)}, stepAge=${(timestamp - lastStepTimestampNs) / 1_000_000}ms)")
             } else {
                 val heldFor = timestamp - facingUpGateStart
                 if (heldFor >= FACING_UP_MIN_DURATION_NS) {
@@ -425,16 +461,17 @@ class SwingDetector {
                     stanceExitTime     = timestamp
                     setDetectorState(DetectorState.FACING_UP_LOCKED)
                     Log.d(TAG, "✅ FACING UP LOCKED at ${timestamp / 1_000_000_000.0f}s " +
-                               "(held ${heldFor / 1_000_000}ms, oriDisp=${"%.2f".format(oriDisp)}°)")
+                               "(held ${heldFor / 1_000_000}ms, oriDisp=${"%.2f".format(oriDisp)}°, " +
+                               "gravY=${"%.2f".format(meanGravY)})")
                 }
             }
         } else {
             if (facingUpGateActive) {
                 val heldFor = timestamp - facingUpGateStart
                 Log.v(TAG, "Facing-up gate broken after ${heldFor / 1_000_000}ms " +
-                           "(gyroStd=${"%.2f".format(gyroStd)}, " +
-                           "accelStd=${"%.2f".format(accelStd)}, " +
-                           "oriDisp=${"%.2f".format(oriDisp)}°, noStep=$noRecentStep)")
+                           "(gyroStd=${"%.2f".format(gyroStd)}, accelStd=${"%.2f".format(accelStd)}, " +
+                           "oriDisp=${"%.2f".format(oriDisp)}°, noStep=$noRecentStep, " +
+                           "armExtended=$armExtended gravY=${"%.2f".format(meanGravY)})")
                 facingUpGateActive = false
             }
         }
