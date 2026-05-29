@@ -5,7 +5,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ---
 
 ## 🎯 System Objectives
-*   **Active Phase**: Data Collection & Synchronization Pipeline — Transcription Reliability Improvement
+*   **Active Phase**: Shot Detection Reliability — Facing-Up Anchor Implementation
 *   **High-Level Vision**: Pitch Analytix Pro is a professional-grade cricket training companion utilizing Wear OS IMU sensors, local kinematics heuristics, mobile dashboards, and cloud transcription pipelines.
 *   **"The Digital Pavilion" UI Spec**:
     *   **Background**: `#000000` (True Black for OLED screen battery conservation) / `#001B3D` (Deep Navy accents).
@@ -17,7 +17,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ---
 
 ## 🛠️ Technical Approach
-*   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous 50Hz sensor logging. Rotates raw sensor vectors using quaternions and computes real-time metrics locally using `SwingDetector`.
+*   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous 50Hz sensor logging. Rotates raw sensor vectors using quaternions and computes real-time metrics locally using `SwingDetector`. Now records 7 data streams: Accel, Gyro, Gravity, Rotation Vector, **Game Rotation Vector** (magnetometer-free), **Step Detector events**, and Heart Rate.
 *   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives timeline data packages via Google Play Services Wearable Data Layer API. Integrates exercise sessions into Samsung/Google Health Connect under the "Cricket" type.
 *   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls sensor logs and phone audio, computes clock offsets automatically using the phone audio's filename and watch's `SYSTEM_START` timestamp (falling back to a 5-tap gyroscope/audio signature), calls the Gemini API (`gemini-2.5-flash`) for time-coded transcriptions, and segments sensor data into 6-second windowed CSV files for model training.
 
@@ -34,23 +34,28 @@ This file defines the system objectives, feature backlog catalog, active technic
 | F-005 | Health Connect Sync | Push Innings and Heart Rate profiles under Cricket type | Completed | Health Connect client check |
 | F-006 | Narration Pipeline | Pull files, run auto-start sync (5-tap fallback), transcribe via Gemini | Completed | Running pipeline script |
 | F-007 | Companion Audio Recording | Companion App Audio Recording & Local Transcription Integration | Completed | E2E verification |
+| F-008 | Facing-Up Anchor | 4-condition facing-up gate anchors all shot detection to a confirmed guard stance | **Completed** | GroundTruthTest + next live session |
+| F-009 | Game Rotation Vector | Switch primary bat orientation quaternion to TYPE_GAME_ROTATION_VECTOR (no magnetometer) | **Completed** | Build passes; next live session |
+| F-010 | Step Detector Integration | TYPE_STEP_DETECTOR feeds a walking kill-switch into the facing-up gate | **Completed** | Build passes; next live session |
+| F-011 | Watch UI Stance Indicator | Pulsing 'Facing Up' badge on Wear OS UI for real-time stance confirmation | **Completed** | Manual stance check on watch screen |
 | B-001 | Pull Shot Precision | Reduce false positive rate on Pull shot classification | Backlog | `SwingDetectorGroundTruthTest` |
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
 | B-005 | Companion Recording | Migrate audio recorder & transcription to App UI | Completed | E2E verification |
 | B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
-| **B-007** | **Transcription Reliability** | **Replace brittle Gemini long-audio transcription with Whisper-based local timestamped transcription + Gemini for shot classification only** | **Active Backlog** | **Pipeline re-run producing correct shot count for 18-min session** |
+| B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
 
 ---
 
-## 🔖 Current Session State (session-2026-05-26_12-28-05)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-05-26_12-28-05`
-*   **Audio File**: `narration_20260526_122802.m4a` (18 minutes, 1109 seconds)
-*   **Narrations Cache**: `narrations_raw.json` — contains **72 shot narrations** (Shot 1–72) with timestamps. User reported 69 shots were actually played; discrepancy TBD.
-*   **Ground Truth CSV**: `ground_truth_aligned.csv` — 72 shots aligned to sensor peaks.
-*   **Last Pipeline Run Result**: 72 GT shots, 113 watch-detected, 9 correct classifications (12.5%), 93% Hit/Miss Agreement.
-*   **API Quota Status**: `gemini-2.5-flash` free-tier **20 req/day limit is exhausted** for today. Cannot re-run transcription until tomorrow or with a paid API key.
+## 🔖 Current Session State (session-2026-05-29_12-27-17)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-05-29_12-27-17`
+*   **Audio File**: `narration_20260529_122712.m4a`
+*   **Narrations Cache**: `narrations_raw.json` — contains 69 narrated shots with accurate timestamps.
+*   **Ground Truth CSV**: `ground_truth_aligned.csv` — 69 shots aligned to sensor peaks.
+*   **Primary Problem Diagnosed**: Low shot recall (53.6% missed shots) due to too-strict orientation stability limit (0.5°) and 1.5s lock duration requirement.
+*   **Resolution**: Decoupled standard deviation metrics (1.0s window) from orientation stability (500ms window), loosened limits (`g_lim=1.5`, `a_lim=3.0`, `o_lim=3.0°`), and reduced duration to `0.8s`. This increased simulated recall from 55.1% to **92.8%**.
+*   **Next Step**: Deploy the optimized `SwingDetector` to physical watch and test.
 
 ---
 
@@ -63,3 +68,8 @@ This file defines the system objectives, feature backlog catalog, active technic
 ### 2. Manual E2E Simulation
 *   **Launch Emulators**: Run `./start_emulators.sh` to boot Phone and Wear AVD targets.
 *   **Visible E2E Script**: Execute `./run_visible_e2e.sh` to compile, deploy both apps, simulate shots, and verify synchronization.
+
+### 3. Live Session Verification
+*   Deploy `wear` debug APK to physical watch: `./deploy_physical.sh`
+*   Record a session with `ENABLE_RAW_LOGGING=true` to get all 7 CSV files including `WatchGameOrientation.csv` and `WatchSteps.csv`
+*   Run `automate_pipeline.py` and compare detection count to narrated shot count
