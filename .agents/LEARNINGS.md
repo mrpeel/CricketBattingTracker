@@ -155,3 +155,10 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 3.  **Live Session Accuracy**: Incorporating the 6-class top-hand biomechanical model yields 35% Shot Classification Accuracy on `live_session_1` and 90% Hit/Miss Agreement.
 4.  **Telemetry Gaps**: "Short off side" and "Full length" sessions continue to show 0% recall due to lacking active watch sensor data in the historical folders.
 5.  **Transcription Pipeline Reliability**: The current Gemini-based transcription pipeline is brittle at 18-min file lengths. An alternative approach (Whisper + Gemini for classification only) should be evaluated to make the pipeline robust and quota-independent.
+6.  **Local Whisper Pipeline & Segment Grouping (May 30, 2026)**:
+    *   **The Problem**: Whisper transcribes speech in very short segments separated by pauses. This caused consecutive segments like "all three forward defense" and "poor" to be treated as separate Ground Truth events, inflating the GT shot count from ~100 to 224+ and mis-aligning the sequence indices.
+    *   **The Solution**: Implemented a segment merging algorithm in `transcribe_audio_local` that groups adjacent Whisper segments if the start-to-start elapsed time is <= 7.0 seconds and the current segment does not introduce a new shot number.
+    *   **Phonetic and Digit Slip Correction**: Added phonetic pre-mappings like `backward defense` -> `back-foot defensive`, `well {num}` -> `ball {num}`, `so to` -> `so two`, `catch up` -> `facing up`, etc.
+    *   **Filtering & Sequence Correction**: Required that each event contains either a shot number, shot type, or admin action (eliminating conversational quality-only events like "that'll be good"). Additionally ignored sequence numbers that jump backwards (e.g. "so two backward defense" matched as 2 when the count was at 10).
+    *   **Result**: GT shot count for the active 18-minute session dropped from 224 to 109, and successfully matched all 22 watch-detected events within 1.0 seconds of error.
+
