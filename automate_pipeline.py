@@ -292,7 +292,8 @@ def transcribe_audio_local(audio_path):
             "Flick Shot", "Glance", "Leg Glance", "On-Glance", "Traditional Sweep Shot", "Sweep", 
             "Square Cut", "Cut", "Back-foot Punch", "Punch", "Pull Shot", "Hook Shot", 
             "Late Cut", "Steer", "Glide", "push", "Slog", "Big hit", "Hit over cow", 
-            "Hit over cow corner", "Slog Sweep", "Switch Hit", "Reverse Sweep"
+            "Hit over cow corner", "Slog Sweep", "Switch Hit", "Reverse Sweep",
+            "no shot", "leave"
         ],
         "Quality": [
             "Good", "great", "middled it", "nailed it", "smoked it", "smashed it", 
@@ -369,6 +370,20 @@ def transcribe_audio_local(audio_path):
                     matched_admin = term
                     break
                     
+            # Handle delayed rating appending logic
+            if shot_num is None and matched_shot is None and matched_quality is not None and matched_admin is None:
+                if len(txt.split()) <= 3 and raw_events:
+                    prev_ev = raw_events[-1]
+                    time_diff = t_val - prev_ev["timestamp_seconds"]
+                    if time_diff <= 10.0:
+                        prev_ev["text"] = (prev_ev["text"] + " " + txt).strip()
+                        prev_ev["quality"] = matched_quality
+                        print(f"   📝 Appended delayed quality '{matched_quality}' to shot: '{prev_ev['text']}' (diff={time_diff:.1f}s)")
+                        continue
+                    else:
+                        print(f"   🗑️ Discarding delayed quality '{matched_quality}' at {t_val:.1f}s (diff={time_diff:.1f}s > 10s)")
+                        continue
+                    
             # Require either shot number, shot type, admin action, or explicit "facing up"
             # to filter out quality-only false positive events
             if shot_num is not None or matched_shot is not None or matched_admin is not None or "facing up" in txt:
@@ -404,63 +419,82 @@ def transcribe_audio_local(audio_path):
                 # Ignore sequence numbers that jump backwards (phonetic slips or setup talk)
                 num = None
                 
-        if num is not None:
-            if num > last_num + 5:
-                mod_num = num % 100
-                if abs(mod_num - last_num) <= 5:
-                    num = mod_num
-                elif num > 100:
-                    num = last_num + 1
-            last_num = num
-        else:
-            # Ignore events that represent setup talk (e.g. containing "facing up" or general conversation)
-            # and don't describe a shot
-            if "facing up" in ev["text"] and ev["shot_type"] is None and ev["quality"] is None:
-                continue
-            last_num += 1
-            num = last_num
-            
-        s_type = "Defence/Block"
-        quality = "good"
+        is_facing_up = "facing up" in ev["text"].lower() and ev["shot_type"] is None
         
-        raw_shot = ev["shot_type"]
-        if raw_shot:
-            raw_shot_lower = raw_shot.lower()
-            if "cover drive" in raw_shot_lower:
-                s_type = "Cover drive"
-            elif "straight drive" in raw_shot_lower:
-                s_type = "Straight drive"
-            elif "off drive" in raw_shot_lower:
-                s_type = "Off drive"
-            elif "on drive" in raw_shot_lower:
-                s_type = "On drive"
-            elif "pull" in raw_shot_lower:
-                s_type = "Pull shot"
-            elif "hook" in raw_shot_lower:
-                s_type = "Hook shot"
-            elif "cut" in raw_shot_lower:
-                s_type = "Cut shot"
-            elif "flick" in raw_shot_lower:
-                s_type = "Flick"
-            elif "glance" in raw_shot_lower:
-                s_type = "Leg glance"
-            elif "sweep" in raw_shot_lower:
-                s_type = "Sweep"
-            elif "push" in raw_shot_lower:
-                s_type = "Push"
+        if is_facing_up:
+            s_type = "Facing up"
+            num = None
+            # Extract quality if present
+            quality = "good"
+            raw_qual = ev["quality"]
+            if raw_qual:
+                raw_qual_lower = raw_qual.lower()
+                if any(w in raw_qual_lower for w in ["okay", "ok", "decent"]):
+                    quality = "okay"
+                elif any(w in raw_qual_lower for w in ["poor", "bad", "average"]):
+                    quality = "poor"
+        else:
+            if ev["shot_type"] is None and num is None:
+                # Discard events with no shot number and no shot type that are not stance checks
+                continue
                 
-        raw_qual = ev["quality"]
-        if raw_qual:
-            raw_qual_lower = raw_qual.lower()
-            if any(w in raw_qual_lower for w in ["excellent", "perfect", "nailed it", "smoked it", "smashed it", "middled it", "great"]):
-                quality = "excellent"
-            elif any(w in raw_qual_lower for w in ["poor", "bad", "average", "toe", "toed", "edge", "edged", "mishit", "hit high"]):
-                quality = "poor"
-            elif any(w in raw_qual_lower for w in ["miss", "play and miss"]):
-                quality = "miss"
-            elif any(w in raw_qual_lower for w in ["okay", "ok", "decent"]):
-                quality = "okay"
+            if num is not None:
+                if num > last_num + 5:
+                    mod_num = num % 100
+                    if abs(mod_num - last_num) <= 5:
+                        num = mod_num
+                    elif num > 100:
+                        num = last_num + 1
+                last_num = num
+            else:
+                last_num += 1
+                num = last_num
                 
+            s_type = "Defence/Block"
+            quality = "good"
+            
+            raw_shot = ev["shot_type"]
+            if raw_shot:
+                raw_shot_lower = raw_shot.lower()
+                if "cover drive" in raw_shot_lower:
+                    s_type = "Cover drive"
+                elif "straight drive" in raw_shot_lower:
+                    s_type = "Straight drive"
+                elif "off drive" in raw_shot_lower:
+                    s_type = "Off drive"
+                elif "on drive" in raw_shot_lower:
+                    s_type = "On drive"
+                elif "pull" in raw_shot_lower:
+                    s_type = "Pull shot"
+                elif "hook" in raw_shot_lower:
+                    s_type = "Hook shot"
+                elif "cut" in raw_shot_lower:
+                    s_type = "Cut shot"
+                elif "flick" in raw_shot_lower:
+                    s_type = "Flick"
+                elif "glance" in raw_shot_lower:
+                    s_type = "Leg glance"
+                elif "sweep" in raw_shot_lower:
+                    s_type = "Sweep"
+                elif "push" in raw_shot_lower:
+                    s_type = "Push"
+                elif "no shot" in raw_shot_lower:
+                    s_type = "No shot"
+                elif "leave" in raw_shot_lower:
+                    s_type = "Leave"
+                    
+            raw_qual = ev["quality"]
+            if raw_qual:
+                raw_qual_lower = raw_qual.lower()
+                if any(w in raw_qual_lower for w in ["excellent", "perfect", "nailed it", "smoked it", "smashed it", "middled it", "great"]):
+                    quality = "excellent"
+                elif any(w in raw_qual_lower for w in ["poor", "bad", "average", "toe", "toed", "edge", "edged", "mishit", "hit high"]):
+                    quality = "poor"
+                elif any(w in raw_qual_lower for w in ["miss", "play and miss"]):
+                    quality = "miss"
+                elif any(w in raw_qual_lower for w in ["okay", "ok", "decent"]):
+                    quality = "okay"
+                    
         formatted_shots.append({
             "timestamp_seconds": ev["timestamp_seconds"],
             "shot_number": num,
@@ -876,33 +910,145 @@ def main():
                 n['timestamp_seconds'] = float(minutes * 60 + seconds + frac)
 
     aligned_shots = []
-    print("\nAligning spoken narrations with physical movements...")
-    for shot in narrations:
+    
+    # Build candidate lists
+    all_candidates = []
+    for i, shot in enumerate(narrations):
         audio_t = shot['timestamp_seconds']
         sensor_narr_t = audio_t + offset
+        is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up"])
         
-        # Search window in raw sensor data: [sensor_narr_t - 6.0, sensor_narr_t]
-        window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t)]
-        if len(window) == 0:
-            print(f"   ⚠️ Skipping narration '{shot['narrated_text']}' at {audio_t:.1f}s: No sensor data in window.")
-            continue
+        cands = []
+        if is_non_swing:
+            cands.append({
+                'time': sensor_narr_t - 2.5,
+                'mag': 1.0,
+                'is_fallback': True
+            })
+        else:
+            window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t + 0.5)]
+            peaks = []
+            if len(window) > 0:
+                sorted_samples = window.sort_values(by='mag', ascending=False)
+                for _, row in sorted_samples.iterrows():
+                    pt = row['seconds_elapsed']
+                    pmag = row['mag']
+                    if pmag < 1.5:
+                        continue
+                    if not any(abs(pt - p['time']) < 1.0 for p in peaks):
+                        peaks.append({
+                            'time': pt,
+                            'mag': pmag,
+                            'is_fallback': False
+                        })
+                        if len(peaks) >= 5:
+                            break
+            cands.extend(peaks)
+            cands.append({
+                'time': sensor_narr_t - 2.5,
+                'mag': 1.0,
+                'is_fallback': True
+            })
+        all_candidates.append(cands)
+        
+    def calculate_candidate_score(cand, sensor_narr_t):
+        t = cand['time']
+        mag = cand['mag']
+        is_fallback = cand['is_fallback']
+        if is_fallback:
+            return -3.0
+        lag = sensor_narr_t - t
+        if lag < -0.5:
+            return -999999.0
+        elif lag < 0.0:
+            return np.log(mag) - ((lag - 2.5) ** 2) / 4.5 - 5.0
+        else:
+            return np.log(mag) - ((lag - 2.5) ** 2) / 4.5
+
+    # DP Table
+    M = len(narrations)
+    dp = []
+    parent = []
+    
+    # Initialize first step
+    first_narr_t = narrations[0]['timestamp_seconds'] + offset
+    dp.append([calculate_candidate_score(cand, first_narr_t) for cand in all_candidates[0]])
+    parent.append([-1] * len(all_candidates[0]))
+    
+    for i in range(1, M):
+        sensor_narr_t = narrations[i]['timestamp_seconds'] + offset
+        dp_i = []
+        parent_i = []
+        for j, cand in enumerate(all_candidates[i]):
+            best_score = -999999.0
+            best_k = -1
+            score_j = calculate_candidate_score(cand, sensor_narr_t)
             
-        # Find peak gyro magnitude (impact time)
-        idx_max = window['mag'].idxmax()
-        impact_row = df_gyro.loc[idx_max]
+            # Enforce chronological order with min gap
+            # Swing-to-swing gap: 1.5s. Non-swing gap: 0.5s.
+            prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up"])
+            curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up"])
+            min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
+            
+            for k, prev_cand in enumerate(all_candidates[i-1]):
+                if prev_cand['time'] < cand['time'] - min_gap:
+                    val = dp[i-1][k] + score_j
+                    if val > best_score:
+                        best_score = val
+                        best_k = k
+                        
+            # Dynamic relaxation if no path is valid
+            if best_k == -1:
+                for k, prev_cand in enumerate(all_candidates[i-1]):
+                    if prev_cand['time'] < cand['time']:
+                        val = dp[i-1][k] + score_j
+                        if val > best_score:
+                            best_score = val
+                            best_k = k
+            if best_k == -1:
+                # Force fallback to the first candidate of the previous step
+                best_k = 0
+                best_score = dp[i-1][0] + score_j
+                
+            dp_i.append(best_score)
+            parent_i.append(best_k)
+        dp.append(dp_i)
+        parent.append(parent_i)
+        
+    # Backtrack
+    best_j = int(np.argmax(dp[M-1]))
+    chosen_indices = [best_j]
+    for i in range(M-1, 0, -1):
+        best_j = parent[i][best_j]
+        chosen_indices.append(best_j)
+    chosen_indices.reverse()
+    
+    print("\nAligning spoken narrations with physical movements...")
+    for i, shot in enumerate(narrations):
+        audio_t = shot['timestamp_seconds']
+        sensor_narr_t = audio_t + offset
+        chosen_cand = all_candidates[i][chosen_indices[i]]
+        impact_t = chosen_cand['time']
+        
+        closest_row = df_gyro.iloc[(df_gyro['seconds_elapsed'] - impact_t).abs().argsort()[:1]]
+        impact_row = closest_row.iloc[0]
         impact_t = impact_row['seconds_elapsed']
         impact_ns = impact_row['time']
+        gyro_mag = impact_row['mag'] if not chosen_cand['is_fallback'] else chosen_cand['mag']
         
-        print(f"   🔗 '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Swing at {impact_t:.2f}s sensor (rel) / {impact_ns} (ns)")
-        
+        if chosen_cand['is_fallback']:
+            print(f"   💨 '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Fallback at {impact_t:.2f}s sensor (rel) / {impact_ns} (ns)")
+        else:
+            print(f"   🔗 '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Swing at {impact_t:.2f}s sensor (rel) / {impact_ns} (ns)")
+            
         aligned_shots.append({
             'shot_index': len(aligned_shots) + 1,
-            'shot_number': shot.get('shot_number', len(aligned_shots) + 1),
+            'shot_number': shot.get('shot_number'),
             'audio_time_seconds': audio_t,
             'sensor_narr_time_seconds': sensor_narr_t,
             'impact_time_seconds': impact_t,
             'impact_timestamp_ns': impact_ns,
-            'impact_gyro_mag': impact_row['mag'],
+            'impact_gyro_mag': gyro_mag,
             'shot_type': shot['shot_type'],
             'quality': shot['quality'],
             'narrated_text': shot['narrated_text']
@@ -920,9 +1066,42 @@ def main():
     
     df_accel = pd.read_csv(accel_path)
     df_gravity = pd.read_csv(gravity_path)
-    df_orient = pd.read_csv(orient_path)
     
+    # Load Game Rotation Vector or fallback orientation
+    game_orient_path = os.path.join(session_dir, "WatchGameOrientation.csv")
+    if os.path.exists(game_orient_path):
+        df_orient = pd.read_csv(game_orient_path)
+        print("📖 Loaded WatchGameOrientation.csv for bat orientation")
+    else:
+        df_orient = pd.read_csv(orient_path)
+        print("📖 Loaded WatchOrientation.csv for bat orientation (fallback)")
+        
+    steps_path = os.path.join(session_dir, "WatchSteps.csv")
+    if os.path.exists(steps_path):
+        df_steps = pd.read_csv(steps_path)
+        print("📖 Loaded WatchSteps.csv for walking steps check")
+    else:
+        df_steps = None
+        
+    # Run Stance Diagnostics for Facing up events
+    stance_events_count = 0
     for idx, row in df_aligned.iterrows():
+        if row['shot_type'] == "Facing up":
+            run_stance_diagnostics(
+                row['narrated_text'],
+                row['audio_time_seconds'],
+                row['impact_time_seconds'],
+                df_gyro, df_accel, df_gravity, df_orient, df_steps
+            )
+            stance_events_count += 1
+    if stance_events_count == 0:
+        print("ℹ️ No 'Facing up' stance events found in this session.")
+    
+    segments_saved = 0
+    for idx, row in df_aligned.iterrows():
+        if row['shot_type'] == "Facing up":
+            continue
+            
         t_impact = row['impact_time_seconds']
         shot_name = row['shot_type'].lower().replace(" ", "_").replace("/", "_")
         qual_name = row['quality'].lower().replace(" ", "_").replace("/", "_")
@@ -940,14 +1119,95 @@ def main():
         a_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchAccelerometer.csv"), index=False)
         gr_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchGravity.csv"), index=False)
         o_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchOrientation.csv"), index=False)
+        segments_saved += 1
         
-    print(f"✅ Saved {len(df_aligned)} segments to {segments_dir}/")
+    print(f"✅ Saved {segments_saved} training segments to {segments_dir}/")
     
     # 8. Compare with watch-detected shots in latest_timeline.txt
     timeline_path = os.path.join(session_dir, "latest_timeline.txt")
     if os.path.exists(timeline_path):
         compare_with_timeline(timeline_path, df_aligned, start_time_ms)
+def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, df_gravity, df_orient, df_steps):
+    t_start = t_stance
+    t_end = t_stance + 1.5
+    
+    # gyro std
+    g_win = df_gyro[(df_gyro['seconds_elapsed'] >= t_start) & (df_gyro['seconds_elapsed'] <= t_end)]
+    if len(g_win) >= 2:
+        g_mags = np.sqrt(g_win['x']**2 + g_win['y']**2 + g_win['z']**2)
+        gyro_std = np.std(g_mags, ddof=0)
+    else:
+        gyro_std = 0.0
         
+    # accel std
+    a_win = df_accel[(df_accel['seconds_elapsed'] >= t_start) & (df_accel['seconds_elapsed'] <= t_end)]
+    if len(a_win) >= 2:
+        a_mags = np.sqrt(a_win['x']**2 + a_win['y']**2 + a_win['z']**2)
+        accel_std = np.std(a_mags, ddof=0)
+    else:
+        accel_std = 0.0
+        
+    # ori_disp
+    if df_orient is not None and len(df_orient) > 0:
+        o_win = df_orient[(df_orient['seconds_elapsed'] >= t_start) & (df_orient['seconds_elapsed'] <= t_end)]
+        if len(o_win) >= 2:
+            o_win = o_win.sort_values(by='seconds_elapsed')
+            qx = o_win['qx'].values
+            qy = o_win['qy'].values
+            qz = o_win['qz'].values
+            qw = o_win['qw'].values
+            dots = qx[:-1]*qx[1:] + qy[:-1]*qy[1:] + qz[:-1]*qz[1:] + qw[:-1]*qw[1:]
+            dots = np.clip(np.abs(dots), -1.0, 1.0)
+            angles = np.degrees(2.0 * np.arccos(dots))
+            ori_disp = np.mean(angles)
+        else:
+            ori_disp = 999.0
+    else:
+        ori_disp = 0.0
+        
+    # steps
+    if df_steps is not None and len(df_steps) > 0:
+        s_win = df_steps[(df_steps['seconds_elapsed'] >= t_start - 2.0) & (df_steps['seconds_elapsed'] <= t_end)]
+        steps_count = len(s_win)
+    else:
+        steps_count = 0
+        
+    # mean gravity Y
+    if df_gravity is not None and len(df_gravity) > 0:
+        gr_win = df_gravity[(df_gravity['seconds_elapsed'] >= t_start) & (df_gravity['seconds_elapsed'] <= t_end)]
+        grav_y = np.mean(gr_win['y']) if len(gr_win) > 0 else 0.0
+    else:
+        grav_y = -9.8
+        
+    # Check conditions
+    gyro_ok = gyro_std < 0.9
+    accel_ok = accel_std < 1.5
+    ori_ok = ori_disp < 1.5
+    steps_ok = steps_count == 0
+    grav_ok = grav_y <= -3.5 or grav_y == 0.0
+    
+    passed = gyro_ok and accel_ok and ori_ok and steps_ok and grav_ok
+    status_emoji = "🟢 SUCCESS" if passed else "🔴 FAILED"
+    
+    print("\n=================== Stance Check Alignment Analysis ===================")
+    print(f"Stance Event: '{narrated_text}'")
+    print(f"Time:         {audio_t:.1f}s (audio) ➔ Stance aligned at {t_stance:.2f}s sensor (rel)")
+    print(f"  1. Gyro Std:    {gyro_std:.2f} rad/s  (Limit: < 0.9)  ➔ {'PASS' if gyro_ok else 'FAIL'}")
+    print(f"  2. Accel Std:   {accel_std:.2f} m/s²   (Limit: < 1.5)  ➔ {'PASS' if accel_ok else 'FAIL'}")
+    print(f"  3. Ori Disp:    {ori_disp:.2f} deg    (Limit: < 1.5)  ➔ {'PASS' if ori_ok else 'FAIL'}")
+    print(f"  4. Steps:       {steps_count} steps     (Limit: 0)      ➔ {'PASS' if steps_ok else 'FAIL'}")
+    print(f"  5. Gravity Y:   {grav_y:.2f} m/s²  (Limit: <= -3.5)➔ {'PASS' if grav_ok else 'FAIL'}")
+    print(f"STATUS: {status_emoji} ({'All conditions met' if passed else 'Stance lock would fail'})")
+    if not passed:
+        fails = []
+        if not gyro_ok: fails.append(f"Gyro Std ({gyro_std:.2f} >= 0.9)")
+        if not accel_ok: fails.append(f"Accel Std ({accel_std:.2f} >= 1.5)")
+        if not ori_ok: fails.append(f"Ori Disp ({ori_disp:.2f} >= 1.5)")
+        if not steps_ok: fails.append(f"Steps count ({steps_count} > 0)")
+        if not grav_ok: fails.append(f"Gravity Y ({grav_y:.2f} > -3.5)")
+        print(f"  Failed condition(s): {', '.join(fails)}")
+    print("-----------------------------------------------------------------------")
+
 def normalize_shot_class(shot_name):
     if not shot_name:
         return "Unknown"
@@ -1016,6 +1276,9 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
         
     matches = []
     for idx, row in df_aligned.iterrows():
+        if row['shot_type'] == "Facing up":
+            continue
+            
         t_impact = row['impact_time_seconds']
         df_timeline['diff'] = np.abs(df_timeline['rel_time_seconds'] - t_impact)
         closest = df_timeline.loc[df_timeline['diff'].idxmin()]

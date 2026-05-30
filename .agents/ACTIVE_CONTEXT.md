@@ -49,14 +49,12 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session-2026-05-29_12-27-17)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-05-29_12-27-17`
-*   **Audio File**: `narration_20260529_122712.m4a`
-*   **Narrations Cache**: `narrations_raw.json` — contains 69 narrated shots with accurate timestamps.
-*   **Ground Truth CSV**: `ground_truth_aligned.csv` — 69 shots aligned to sensor peaks.
-*   **Primary Problem Diagnosed**: Low shot recall (53.6% missed shots) due to too-strict orientation stability limit (0.5°) and 1.5s lock duration requirement.
-*   **Resolution**: Decoupled standard deviation metrics (1.0s window) from orientation stability (500ms window), loosened limits (`g_lim=1.5`, `a_lim=3.0`, `o_lim=3.0°`), and reduced duration to `0.8s`. This increased simulated recall from 55.1% to **92.8%**.
-*   **Next Step**: Deploy the optimized `SwingDetector` to physical watch and test.
+## 🔖 Current Session State (session-2026-05-30_15-04-41)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-05-30_15-04-41`
+*   **Audio File**: `narration_20260530_150437.m4a`
+*   **Status**: Transcribed and aligned using DP sequence alignment. Excluded stance checks from shot counts and exported stance sensor diagnostics.
+*   **Previous Session (session-2026-05-29_12-27-17)**: Fully aligned (69 shots, 92.8% simulated recall).
+
 
 ---
 
