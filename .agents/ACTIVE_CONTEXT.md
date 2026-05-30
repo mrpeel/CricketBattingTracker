@@ -17,7 +17,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ---
 
 ## 🛠️ Technical Approach
-*   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous 50Hz sensor logging. Rotates raw sensor vectors using quaternions and computes real-time metrics locally using `SwingDetector`. Now records 7 data streams: Accel, Gyro, Gravity, Rotation Vector, **Game Rotation Vector** (magnetometer-free), **Step Detector events**, and Heart Rate.
+*   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous 50Hz sensor logging. Rotates raw sensor vectors using quaternions and computes real-time metrics locally using `SwingDetector`. When raw logging is enabled (diagnostics mode), it dynamically registers and logs the full watch sensor stack (up to 15 standard Wear OS physical and virtual sensors) to CSV files using a dedicated background thread (`SensorLoggingThread`) to prevent system lag.
 *   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives timeline data packages via Google Play Services Wearable Data Layer API. Integrates exercise sessions into Samsung/Google Health Connect under the "Cricket" type.
 *   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls sensor logs and phone audio, computes clock offsets automatically using the phone audio's filename and watch's `SYSTEM_START` timestamp (falling back to a 5-tap gyroscope/audio signature), calls the Gemini API (`gemini-2.5-flash`) for time-coded transcriptions, and segments sensor data into 6-second windowed CSV files for model training.
 
@@ -46,6 +46,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-005 | Companion Recording | Migrate audio recorder & transcription to App UI | Completed | E2E verification |
 | B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
 | B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
+| F-013 | Full Watch Sensor Stack Logging | Background logging of up to 15 physical/virtual Wear OS sensors when raw logging/diagnostics is enabled | **Completed** | E2E simulation verify 11 CSV files |
 
 ---
 

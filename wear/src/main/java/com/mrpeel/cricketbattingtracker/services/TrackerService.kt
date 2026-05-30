@@ -47,20 +47,48 @@ class TrackerService : Service(), SensorEventListener {
     private val sessionTimeline = mutableListOf<String>()
     private var shouldDiscard = false
 
-    // Hybrid Raw Debug Logging
+    // Background Sensor Handling Thread
+    private var sensorThread: android.os.HandlerThread? = null
+    private var sensorHandler: android.os.Handler? = null
+
+    // Dynamic Raw Debug Logging for Full Watch Sensor Stack
     private var enableRawLogging = false
-    private var accWriter: BufferedWriter? = null
-    private var gyroWriter: BufferedWriter? = null
-    private var gravityWriter: BufferedWriter? = null
-    private var rotationWriter: BufferedWriter? = null
-    private var gameRotationWriter: BufferedWriter? = null
-    private var stepWriter: BufferedWriter? = null
     private var sessionStartNanos: Long = 0L
+
+    private data class SensorConfig(
+        val type: Int,
+        val fileName: String,
+        val header: String
+    )
+
+    private val writers = mutableMapOf<Int, BufferedWriter>()
+
+    private val sensorConfigs = listOf(
+        SensorConfig(Sensor.TYPE_ACCELEROMETER, "WatchAccelerometer.csv", "time,seconds_elapsed,x,y,z\n"),
+        SensorConfig(Sensor.TYPE_GYROSCOPE, "WatchGyroscope.csv", "time,seconds_elapsed,x,y,z\n"),
+        SensorConfig(Sensor.TYPE_GRAVITY, "WatchGravity.csv", "time,seconds_elapsed,x,y,z\n"),
+        SensorConfig(Sensor.TYPE_ROTATION_VECTOR, "WatchOrientation.csv", "time,seconds_elapsed,qx,qy,qz,qw\n"),
+        SensorConfig(Sensor.TYPE_GAME_ROTATION_VECTOR, "WatchGameOrientation.csv", "time,seconds_elapsed,qx,qy,qz,qw\n"),
+        SensorConfig(Sensor.TYPE_STEP_DETECTOR, "WatchSteps.csv", "time,seconds_elapsed\n"),
+        SensorConfig(Sensor.TYPE_HEART_RATE, "WatchHeartRate.csv", "time,seconds_elapsed,bpm\n"),
+        SensorConfig(Sensor.TYPE_LINEAR_ACCELERATION, "WatchLinearAcceleration.csv", "time,seconds_elapsed,x,y,z\n"),
+        SensorConfig(Sensor.TYPE_MAGNETIC_FIELD, "WatchMagnetometer.csv", "time,seconds_elapsed,x,y,z\n"),
+        SensorConfig(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, "WatchMagnetometerUncalibrated.csv", "time,seconds_elapsed,x,y,z,bias_x,bias_y,bias_z\n"),
+        SensorConfig(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, "WatchGyroscopeUncalibrated.csv", "time,seconds_elapsed,x,y,z,bias_x,bias_y,bias_z\n"),
+        SensorConfig(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED, "WatchAccelerometerUncalibrated.csv", "time,seconds_elapsed,x,y,z,bias_x,bias_y,bias_z\n"),
+        SensorConfig(Sensor.TYPE_PRESSURE, "WatchBarometer.csv", "time,seconds_elapsed,pressure\n"),
+        SensorConfig(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR, "WatchGeomagneticOrientation.csv", "time,seconds_elapsed,qx,qy,qz,qw\n"),
+        SensorConfig(Sensor.TYPE_STEP_COUNTER, "WatchStepCounter.csv", "time,seconds_elapsed,steps\n")
+    )
 
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service Created")
         
+        // Initialize background thread for sensor processing & I/O
+        sensorThread = android.os.HandlerThread("SensorLoggingThread").apply { start() }
+        sensorHandler = android.os.Handler(sensorThread!!.looper)
+
         dataSyncManager = DataSyncManager(this)
         // Disable HealthServicesManager MeasureClient in favor of standard Android heart rate sensor
         // healthServicesManager = HealthServicesManager(this)
@@ -120,38 +148,28 @@ class TrackerService : Service(), SensorEventListener {
             stopSelf()
             return START_NOT_STICKY
         }
-        
-        enableRawLogging = intent?.getBooleanExtra("ENABLE_RAW_LOGGING", false) ?: false
+           enableRawLogging = intent?.getBooleanExtra("ENABLE_RAW_LOGGING", false) ?: false
         if (enableRawLogging) {
             try {
                 val ts = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
                 val sessionDir = File(getExternalFilesDir(null), "sessions/session-$ts")
                 sessionDir.mkdirs()
 
-                accWriter = File(sessionDir, "WatchAccelerometer.csv").bufferedWriter()
-                accWriter?.write("time,seconds_elapsed,x,y,z\n")
-
-                gyroWriter = File(sessionDir, "WatchGyroscope.csv").bufferedWriter()
-                gyroWriter?.write("time,seconds_elapsed,x,y,z\n")
-
-                gravityWriter = File(sessionDir, "WatchGravity.csv").bufferedWriter()
-                gravityWriter?.write("time,seconds_elapsed,x,y,z\n")
-
-                // Standard Rotation Vector (with magnetometer) — kept for long-term reference
-                rotationWriter = File(sessionDir, "WatchOrientation.csv").bufferedWriter()
-                rotationWriter?.write("time,seconds_elapsed,qx,qy,qz,qw\n")
-
-                // Game Rotation Vector (no magnetometer) — preferred for short-term bat orientation
-                gameRotationWriter = File(sessionDir, "WatchGameOrientation.csv").bufferedWriter()
-                gameRotationWriter?.write("time,seconds_elapsed,qx,qy,qz,qw\n")
-
-                // Step events (timestamp only)
-                stepWriter = File(sessionDir, "WatchSteps.csv").bufferedWriter()
-                stepWriter?.write("time,seconds_elapsed\n")
-
-                Log.d(TAG, "Raw Logging ENABLED to \${sessionDir.absolutePath}")
+                for (config in sensorConfigs) {
+                    val sensor = sensorManager.getDefaultSensor(config.type)
+                    if (sensor != null) {
+                        try {
+                            val writer = File(sessionDir, config.fileName).bufferedWriter()
+                            writer.write(config.header)
+                            writers[config.type] = writer
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to create writer for ${config.fileName}", e)
+                        }
+                    }
+                }
+                Log.d(TAG, "Raw Logging ENABLED for all supported sensors in: ${sessionDir.absolutePath}")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to prep log writers: \${e.message}")
+                Log.e(TAG, "Failed to prep log writers: ${e.message}")
             }
         }
         if (sessionTimeline.isEmpty()) {
@@ -164,17 +182,32 @@ class TrackerService : Service(), SensorEventListener {
         startForegroundService()
         wakeLock?.acquire(3 * 60 * 60 * 1000L) // maximum 3 hours
         
-        // SENSOR_DELAY_GAME = 50Hz, explicit 0 latency out of caution against Wear OS suspending listeners
-        accelSensor?.let        { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        gyroSensor?.let         { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        gravitySensor?.let      { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        rotationSensor?.let     { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        // Game Rotation Vector: no magnetometer — preferred for bat orientation (immunity to field distortion)
-        gameRotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0) }
-        // Step Detector: fires per foot-strike on hardware DSP (near-zero power)
-        // SENSOR_DELAY_NORMAL is correct — the sensor fires on events, not on a poll interval
-        stepDetectorSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0) }
-        heartRateSensor?.let    { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0) }
+        // Register sensor listeners on background thread handler
+        if (enableRawLogging) {
+            // Register ALL supported configurations for full stack diagnostics
+            for (config in sensorConfigs) {
+                val sensor = sensorManager.getDefaultSensor(config.type)
+                if (sensor != null) {
+                    val delay = if (config.type == Sensor.TYPE_STEP_DETECTOR || 
+                                     config.type == Sensor.TYPE_HEART_RATE ||
+                                     config.type == Sensor.TYPE_STEP_COUNTER) {
+                        SensorManager.SENSOR_DELAY_NORMAL
+                    } else {
+                        SensorManager.SENSOR_DELAY_GAME
+                    }
+                    sensorManager.registerListener(this, sensor, delay, 0, sensorHandler)
+                }
+            }
+        } else {
+            // Register ONLY the subset required for real-time SwingDetector to save battery
+            accelSensor?.let        { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
+            gyroSensor?.let         { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
+            gravitySensor?.let      { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
+            rotationSensor?.let     { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
+            gameRotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
+            stepDetectorSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
+            heartRateSensor?.let    { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
+        }
         
         Log.d(TAG, "Service Started, tracking sensors")
         return START_STICKY
@@ -233,6 +266,10 @@ class TrackerService : Service(), SensorEventListener {
         super.onDestroy()
         Log.d(TAG, "Service Destroyed")
         sensorManager.unregisterListener(this)
+        
+        // Safely shutdown background handler thread
+        sensorThread?.quitSafely()
+        
         if (::healthServicesManager.isInitialized) {
             healthServicesManager.stopTracking()
         }
@@ -262,16 +299,18 @@ class TrackerService : Service(), SensorEventListener {
                 it.release()
             }
         }
-        if (enableRawLogging) {
+        
+        // Clean up and close all dynamic log writers
+        for ((type, writer) in writers) {
             try {
-                accWriter?.close()
-                gyroWriter?.close()
-                gravityWriter?.close()
-                rotationWriter?.close()
-                gameRotationWriter?.close()
-                stepWriter?.close()
-            } catch (e: Exception) {}
+                writer.flush()
+                writer.close()
+                Log.d(TAG, "Closed raw log writer for sensor type $type")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to close raw log writer for sensor type $type", e)
+            }
         }
+        writers.clear()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -283,15 +322,12 @@ class TrackerService : Service(), SensorEventListener {
         val ts = event.timestamp
         val vals = event.values
 
+        // Standard real-time sensor processing for state machine
         when (type) {
             Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(vals, ts)
             Sensor.TYPE_GYROSCOPE     -> swingDetector.processGyro(vals, ts)
             Sensor.TYPE_GRAVITY       -> swingDetector.processGravity(vals, ts)
-            // ROTATION_VECTOR kept for reference only — SwingDetector uses GAME_ROTATION_VECTOR
-            Sensor.TYPE_ROTATION_VECTOR      -> { /* logged below; not fed to SwingDetector */ }
-            // GAME_ROTATION_VECTOR: no magnetometer — primary source for bat orientation in SwingDetector
             Sensor.TYPE_GAME_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
-            // STEP_DETECTOR: single event per foot-strike; used to detect walking and break facing-up gate
             Sensor.TYPE_STEP_DETECTOR -> {
                 swingDetector.processStep(ts)
                 val stepTime = System.currentTimeMillis()
@@ -308,30 +344,50 @@ class TrackerService : Service(), SensorEventListener {
             }
         }
 
+        // Dynamic background thread logging for full watch sensor stack
         if (enableRawLogging) {
-            if (sessionStartNanos == 0L) sessionStartNanos = ts
-            val elapsedSecs = (ts - sessionStartNanos) / 1_000_000_000.0
-
-            fun quatW(v: FloatArray): Float =
-                if (v.size > 3) v[3]
-                else kotlin.math.sqrt(kotlin.math.max(0.0f, 1.0f - v[0]*v[0] - v[1]*v[1] - v[2]*v[2]))
-
-            try {
-                when (type) {
-                    Sensor.TYPE_ACCELEROMETER ->
-                        accWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
-                    Sensor.TYPE_GYROSCOPE ->
-                        gyroWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
-                    Sensor.TYPE_GRAVITY ->
-                        gravityWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2]))
-                    Sensor.TYPE_ROTATION_VECTOR ->
-                        rotationWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], quatW(vals)))
-                    Sensor.TYPE_GAME_ROTATION_VECTOR ->
-                        gameRotationWriter?.write(String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], quatW(vals)))
-                    Sensor.TYPE_STEP_DETECTOR ->
-                        stepWriter?.write(String.format(java.util.Locale.US, "%d,%.6f\n", ts, elapsedSecs))
+            val writer = writers[type]
+            if (writer != null) {
+                try {
+                    if (sessionStartNanos == 0L) sessionStartNanos = ts
+                    val elapsedSecs = (ts - sessionStartNanos) / 1_000_000_000.0
+                    
+                    val csvLine = when (type) {
+                        Sensor.TYPE_ROTATION_VECTOR,
+                        Sensor.TYPE_GAME_ROTATION_VECTOR,
+                        Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR -> {
+                            val qw = if (vals.size > 3) vals[3]
+                                     else kotlin.math.sqrt(kotlin.math.max(0.0f, 1.0f - vals[0]*vals[0] - vals[1]*vals[1] - vals[2]*vals[2]))
+                            String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], qw)
+                        }
+                        Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED,
+                        Sensor.TYPE_GYROSCOPE_UNCALIBRATED,
+                        Sensor.TYPE_ACCELEROMETER_UNCALIBRATED -> {
+                            val x = vals.getOrNull(0) ?: 0f
+                            val y = vals.getOrNull(1) ?: 0f
+                            val z = vals.getOrNull(2) ?: 0f
+                            val bx = vals.getOrNull(3) ?: 0f
+                            val by = vals.getOrNull(4) ?: 0f
+                            val bz = vals.getOrNull(5) ?: 0f
+                            String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, x, y, z, bx, by, bz)
+                        }
+                        Sensor.TYPE_HEART_RATE,
+                        Sensor.TYPE_PRESSURE,
+                        Sensor.TYPE_STEP_COUNTER -> {
+                            String.format(java.util.Locale.US, "%d,%.6f,%.6f\n", ts, elapsedSecs, vals[0])
+                        }
+                        Sensor.TYPE_STEP_DETECTOR -> {
+                            String.format(java.util.Locale.US, "%d,%.6f\n", ts, elapsedSecs)
+                        }
+                        else -> {
+                            String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2])
+                        }
+                    }
+                    writer.write(csvLine)
+                } catch (e: Exception) {
+                    // Fail silently to prevent exception looping under high frequency events
                 }
-            } catch (e: Exception) {}
+            }
         }
     }
 

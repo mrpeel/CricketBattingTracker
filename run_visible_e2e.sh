@@ -49,7 +49,7 @@ sleep 2
 
 # 6. Start Tracking Service on Wear
 echo "🏃 Activating TrackerService..."
-adb -s $WEAR_TARGET shell am start-foreground-service -a START_TRACKING $WEAR_PKG/.services.TrackerService
+adb -s $WEAR_TARGET shell am start-foreground-service -a START_TRACKING --ez ENABLE_RAW_LOGGING true $WEAR_PKG/.services.TrackerService
 sleep 5
 
 # 7. Run Professional Shot Simulation
