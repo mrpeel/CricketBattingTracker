@@ -174,6 +174,15 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
     *   **The Problem**: The audio narration format `"facing up"` -> `[shot type]` -> `[shot rating]` transcribes stance checks as identical `"facing up"` strings. Because the duplicate check in the parsing pipeline evaluated `raw_events[-2:]` and unconditionally suppressed matching strings, subsequent stance checks (which matched the stance check from two steps ago) were discarded, dropping 2 out of 5 stance checks.
     *   **The Solution**: Added a maximum time window constraint of **3.5 seconds** to the deduplication filter. Events are now only suppressed as duplicates if they have similar text **and** occur within 3.5 seconds of each other (preventing Whisper loop hallucination repeats while preserving genuine sequential stance checks and consecutive identical shots).
     *   **Result**: 100% of the 5 stance checks and 5 shots were successfully captured and aligned in the latest session folder. Stance check diagnostics also successfully highlighted that Stance Check 4 failed due to physical movement/footsteps (`Steps count = 3`), explaining why Shot 4 went undetected by the watch.
+10. **Whisper vs. Gemini API Transcription Comparison (May 31, 2026)**:
+    *   **Whisper Limitations**:
+        *   *Timestamp Drift*: Local Whisper on CPU suffers from significant timestamp drift and scaling (e.g. stretching a 31s timeline to 57s), making it extremely difficult to establish a constant alignment offset without manual interventions.
+        *   *Phonetic Slips*: Whisper frequently mis-transcribes short cricket phrases under mono/noise (e.g. transcribing `"cut shot"` as `"Touch shot"`, which collided with the push pre-mapping, and `"leg glance"` as `"We're going to"`, which collided with forward defensive).
+    *   **Gemini API Advantages**:
+        *   *Accuracy*: The Gemini API (`gemini-3.5-flash`) accurately transcribes both the correct terms and the precise timestamps (matching the true audio energy peaks).
+        *   *Structured Stance Integration*: By making the `shot_number` and `rating` optional in the Pydantic schema, Gemini can return `"Facing up"` stance checks (with `shot_number: null`) and numbered shots together, removing the need for Whisper phonetic pre-mappings.
+        *   *Dynamic Prompt Loading*: Storing transcription guidelines in [gemini_narration_prompt.md](file:///Users/neilkloot/Code/CricketBattingTracker/gemini_narration_prompt.md) allows runtime updates to the vocabulary and format.
+
 
 
 
