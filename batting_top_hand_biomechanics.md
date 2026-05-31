@@ -42,6 +42,7 @@
   * Late Cut
   * Square Upper Cut
   * Steer / Glide (to third man)
+  * Guide
 
 ## Class 6 - Power Shot
 **The Accelerated Extension-Flexion Class (The High-Velocity Release)**
@@ -51,6 +52,7 @@
   * Slog Sweep
   * Switch Hit / Reverse Sweep (where top/bottom hand roles mirror mid-swing)
   * Helicopter Shot
+  * Power shot
 
 ## State 7 - Facing Up
 **The Static Isometric Baseline**

@@ -742,6 +742,8 @@ def transcribe_audio_gemini(audio_path):
             shot_type = "Push"
         elif "punch" in text_lower:
             shot_type = "Punch"
+        elif "defense" in text_lower or "defence" in text_lower or "defensive" in text_lower or "block" in text_lower:
+            shot_type = "Defence/Block"
         elif "half" in text_lower or "have" in text_lower:
             shot_type = "Off drive"
             
