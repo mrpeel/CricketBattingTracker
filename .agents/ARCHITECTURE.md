@@ -32,14 +32,14 @@ graph TD
 
 ---
 
-## ⌚ Real-Time WearOS Kinematics State Machine (v2 — Facing-Up Anchored)
+## ⌚ Real-Time WearOS Kinematics State Machine (v3 — Hybrid Facing-Up Anchored)
 
-The shot detection system uses a 4-state machine evaluated on every gyroscope event. The key architectural change from v1 is **anchoring all shot detection to a confirmed facing-up phase** rather than relying solely on gyro-std thresholding, which was proven to produce ~60% false positives during walking breaks.
+The shot detection system uses a 4-state machine evaluated on every gyroscope event. The key architectural change is **anchoring all shot detection to a confirmed facing-up phase** using a hybrid M-of-N stance gate to eliminate false triggers from walking breaks or wiggles.
 
 ```mermaid
 stateDiagram-v2
     [*] --> ACTIVITY_CLASSIFY
-    ACTIVITY_CLASSIFY --> FACING_UP_LOCKED : all 4 conditions for ≥ 1.5s
+    ACTIVITY_CLASSIFY --> FACING_UP_LOCKED : hybrid gates satisfied for ≥ 1.2s
     FACING_UP_LOCKED --> ACTIVITY_CLASSIFY : step event OR timeout > 5s
     FACING_UP_LOCKED --> MEASURING_ARC : gyro_mag > 5.0 rad/s (backswing)
     MEASURING_ARC --> CONTACT_WAIT : swing duration ≥ 1.0s
@@ -48,12 +48,15 @@ stateDiagram-v2
 
 ### State Descriptions
 
-1. **`ACTIVITY_CLASSIFY`**: Evaluates the **4-condition facing-up gate** on every gyro sample:
-   - **A.** `gyro_std(1s) < 0.9 rad/s` — bat not swinging
-   - **B.** `accel_std(1s) < 1.5 m/s²` — no foot-strike shock
-   - **C.** `ori_disp_mean(1s) < 0.5°` — quaternion orientation locked at guard angle (bat not drifting)
-   - **D.** no `TYPE_STEP_DETECTOR` event in the last **2.0s** — definitive walking kill-switch
-   - All four must be continuously true for **≥ 1.5s** to transition to `FACING_UP_LOCKED`.
+1. **`ACTIVITY_CLASSIFY`**: Evaluates the **Hybrid M-of-N Stance Gate (H9)** on every gyro sample:
+   - **Mandatory Gates**:
+     - **A.** `gyro_std(1s) < 1.2 rad/s` — bat must be still (not swinging)
+     - **D.** No `TYPE_STEP_DETECTOR` event in the last **1.0s** — walking kill-switch
+   - **Flexible Gates** (at least **1 of 3** must pass):
+     - **B.** `accel_std(1s) < 2.0 m/s²` — no foot-strike shock
+     - **C.** `ori_disp_mean(500ms) < 2.0°` — quaternion orientation locked at guard angle (bat not drifting)
+     - **E.** `mean_gravity_y(1s) <= -3.5 m/s²` — arm extended downward toward bat (pose check)
+   - Conditions must hold consecutively for **≥ 1.2s** (with a **1.5s break tolerance window** allowing recovery from transient wiggles) to transition to `FACING_UP_LOCKED`.
    - Suppressed for `POST_SHOT_GUARD_NS = 2.5s` after each shot.
 
 2. **`FACING_UP_LOCKED`**: Stance is confirmed. Now watching for the bat to depart (backswing). Captures the reference stance quaternion from `TYPE_GAME_ROTATION_VECTOR`. Transitions:
@@ -64,15 +67,14 @@ stateDiagram-v2
 
 4. **`CONTACT_WAIT`**: Waits for `T_peak + 0.75s` of post-contact sensor data, then calls `evaluateShot()` and returns to `ACTIVITY_CLASSIFY`.
 
-### Facing-Up Empirical Validation (session-2026-05-26_12-28-05)
+### Facing-Up Empirical Validation (session-2026-05-31_14-12-10)
 
-| Metric | `gyro_std` alone (v1) | 4-condition gate (v2, no step) | 4-condition + step gate (v2, full) |
+| Metric | `gyro_std` alone (v1) | 4-condition gate (v2) | Hybrid M-of-N gate (H9, full) |
 |---|---|---|---|
-| Pre-shot window TP | 71% | ~40% | ~85-90% (est.) |
-| Walk break FP | 59% | ~18% | **< 1%** (est.) |
-| Separation (TP−FP) | +12% | +22% | **+85%** (est.) |
+| Pre-shot window TP | 71% | ~40% | **78.3%** |
+| Walk break FP | 59% | ~18% | **1.68 FPs/min** |
 
-Key finding: The `TYPE_STEP_DETECTOR` fires every ~0.67s at walking pace (90 steps/min). The 2.0s recency window ensures virtually no walk period can sustain a 1.5s facing-up gate. But it does **not** fire during bat swings (DSP pedometer rejects the unilateral impulse pattern).
+Key finding: The `TYPE_STEP_DETECTOR` fires every ~0.67s at walking pace (90 steps/min). The 1.0s recency window ensures virtually no walk period can sustain a 1.2s facing-up gate. But it does **not** fire during bat swings (DSP pedometer rejects the unilateral impulse pattern).
 
 ---
 

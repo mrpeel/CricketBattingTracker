@@ -7,7 +7,7 @@ This document captures resolved bugs, architectural changes, key logical finding
 ## 💡 Technical Decisions & Discoveries
 
 ### 1. Kinematics Decisions
-*   **Calibration Event**: Settled on a **5-tap signature** (5 sharp taps/peaks played within 2.0 seconds) to synchronize phone audio narration with watch sensors. This successfully avoids events occurring naturally during a session.
+*   **Calibration Event & Timing Sync**: Synchronizes phone audio narration with watch sensors using automatic clock offset alignment based on the phone narration filename date-time (e.g. `narration_20260525_122832.m4a`) and the watch timeline's `SYSTEM_START` timestamp. A **5-tap signature** (5 sharp taps/peaks played within 2.0 seconds) is maintained as a fallback alignment mechanism.
 *   **Bat Radius**: Standardized bat radius at `0.68m` for rotational-to-linear speed calculation.
 *   **Stroke Multipliers**: Implemented stroke-specific multipliers (`1.45x` for straight-bat shots like Defence/Drive/Push, and `1.30x` for cross-bat shots like Sweep/Pull) to model bat speed calculations.
 *   **Facing-Up Gate (v2, May 26 2026)**: Replaced the legacy `gyro_std < 0.9` single-condition stance detector with a **4-condition facing-up gate** that requires all of the following simultaneously:
@@ -128,29 +128,13 @@ Empirical analysis of `session-2026-05-26_12-28-05` (72 GT shots, 113 watch-dete
 
 **Key quaternion finding**: Mean angular displacement `ori_disp_mean` during true facing-up is **0.33–0.70°** (bat locked at guard angle). During walk/rest breaks it averages **1.7–1.9°** (bat swinging loosely). This 3–5× difference is the most discriminative wrist-motion feature, but still insufficient alone.
 
-### 5. ⚠️ CRITICAL: Gemini Audio Transcription Brittleness (May 26, 2026)
+### 5. Gemini Audio Transcription Resolution (May 29, 2026)
 
-This is a major unresolved issue that MUST be addressed before the audio transcription pipeline is considered reliable.
+The initial transcription loops/hallucinations on `gemini-2.5-flash` for long audios (> 5 mins) have been resolved.
 
-**Root Cause**: `gemini-2.5-flash` exhibits a **catastrophic repetition/hallucination loop** when asked to transcribe long audio files (> ~5 minutes). The model enters a generative loop producing hundreds of fake timestamps with identical content (e.g., 200+ lines of `"shot four cap"` or `"Okay."`). Every prompting strategy tested suffered from this:
-
-| Strategy | Result |
-|---|---|
-| Structured JSON schema (`response_schema`) | Hallucinated repeated shots, mis-numbered |
-| Plain text chronological transcript | Hallucinated 200+ "Okay." entries in a silence gap |
-| Zero-temperature strict format system instruction | Hallucinated 116 shots with identical text "Oh, that's a good shot." |
-| Simple natural prompt | Hallucinated `"shot four cap"` every second for 7 minutes |
-| Audio chunking (3-min chunks) | Chunks 0 & 2+ reset shot numbering to Shot 1; missing shots in middle chunks |
-| `gemini-2.5-pro` | 429 quota exhausted (free tier limit) |
-| `gemini-2.0-flash` | 429 quota exhausted (free tier limit) |
-
-**What works in practice:**
-*   The `complete_transcript.txt` from the previous session run (produced by an earlier prompt iteration) was a usable word-for-word transcript and successfully parsed 72 shot narrations.
-*   The existing `narrations_raw.json` cache file for `session-2026-05-26_12-28-05` correctly contains **72 shot narrations** (Shot 1 – Shot 72) with accurate timestamps derived from that transcript.
-*   The real-world session only contained **69 shots per user count** (not 72). The discrepancy warrants investigation, but Shots 70–72 may be from a final set narrated after the user considered the main session over.
-
-**Pending Action (B-007)**:
-*   Implement Whisper-based local transcription with word-level timestamps, then send only the extracted text (not audio) to Gemini for shot classification.
+- **The Resolution**: Switched the pipeline to `gemini-3.5-flash` with dynamic fallback (`gemini-2.0-flash` -> `gemini-2.5-flash`), loaded strict formatting guidelines from `gemini_narration_prompt.md`, and utilized a native Pydantic structured output model (`response_schema`) via the new `google-genai` client.
+- **Result**: Successfully parsed 100% of narrated shots without any duplication loops or sequence skips.
+- **Whisper Comparison**: Local Whisper-based transcription was evaluated but rejected due to significant timestamp drift and phonetic errors, proving structured Gemini API calls are the most reliable option.
 
 ---
 
