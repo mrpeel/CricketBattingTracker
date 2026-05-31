@@ -37,6 +37,7 @@ class TrackerService : Service(), SensorEventListener {
     private var gameRotationSensor: Sensor? = null
     private var stepDetectorSensor: Sensor? = null
     private var heartRateSensor: Sensor? = null
+    private var magnetometerSensor: Sensor? = null
     
     private var wakeLock: PowerManager.WakeLock? = null
     private val swingDetector = SwingDetector()
@@ -112,6 +113,7 @@ class TrackerService : Service(), SensorEventListener {
         stepDetectorSensor   = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR, true)
             ?: sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
         heartRateSensor      = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+        magnetometerSensor   = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
 
         if (accelSensor == null)        Log.w(TAG, "Hardware Accelerometer is NOT available!")
         if (heartRateSensor == null)    Log.w(TAG, "Hardware Heart Rate Sensor is NOT available!")
@@ -120,6 +122,7 @@ class TrackerService : Service(), SensorEventListener {
         if (rotationSensor == null)     Log.w(TAG, "Hardware Rotation Vector is NOT available!")
         if (gameRotationSensor == null) Log.w(TAG, "Game Rotation Vector NOT available — bat orientation will use standard Rotation Vector (magnetometer subject to interference)")
         if (stepDetectorSensor == null) Log.w(TAG, "Step Detector NOT available — walking discrimination will fall back to accel cadence heuristic")
+        if (magnetometerSensor == null) Log.w(TAG, "Magnetometer NOT available — POWER SHOT override will rely on gyro magnitude only")
         
         // Setup wake lock to keep recording while screen is off
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -215,6 +218,7 @@ class TrackerService : Service(), SensorEventListener {
             gameRotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
             stepDetectorSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
             heartRateSensor?.let    { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
+            magnetometerSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
         }
         
         Log.d(TAG, "Service Started, tracking sensors")
@@ -336,6 +340,7 @@ class TrackerService : Service(), SensorEventListener {
             Sensor.TYPE_GYROSCOPE     -> swingDetector.processGyro(vals, ts)
             Sensor.TYPE_GRAVITY       -> swingDetector.processGravity(vals, ts)
             Sensor.TYPE_GAME_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
+            Sensor.TYPE_MAGNETIC_FIELD -> swingDetector.processMagnetometer(vals, ts)
             Sensor.TYPE_STEP_DETECTOR -> {
                 swingDetector.processStep(ts)
                 val stepTime = System.currentTimeMillis()
