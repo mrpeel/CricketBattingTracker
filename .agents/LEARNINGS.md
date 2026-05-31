@@ -101,12 +101,14 @@ This document captures resolved bugs, architectural changes, key logical finding
         2. Shot rating "Edge"/"Edged" default-classified to "good" instead of "poor".
         3. "Guide" and "Glide" were classified as defense/block (normalizing to "DRIVE/DEFENCE") instead of "DEFLECTION/GUIDE".
         4. "Power shot" default-classified to "Defence/Block" (normalizing to "DRIVE/DEFENCE") instead of "POWER SHOT".
+        5. "Back foot punch" was classified as "Defence/Block" (normalizing to "DRIVE/DEFENCE") instead of "CUT/PUNCH".
     *   **The Fix**:
         1. Added "Evade" shot type mapping and added `"evade"` to all alignment `is_non_swing` checks.
         2. Added "edge"/"edged" quality mapping to `"poor"`.
         3. Mapped "guide", "glide", and "steer" to `"Guide"` shot type and updated `normalize_shot_class` to check for `"glide"`.
         4. Mapped "power" and "loft" to `"Power shot"` in `transcribe_audio_gemini`.
-    *   **Result**: Edge shots are now rated `"poor"`, evades align correctly as non-swing timelines, guides/glides normalize to `"DEFLECTION/GUIDE"`, and power shots now match correctly as `"POWER SHOT"`, raising session accuracy.
+        5. Mapped "punch" to `"Punch"` shot type in `transcribe_audio_gemini`.
+    *   **Result**: Edge shots are now rated `"poor"`, evades align correctly as non-swing timelines, guides/glides normalize to `"DEFLECTION/GUIDE"`, power shots match correctly as `"POWER SHOT"`, and punch shots map to `"CUT/PUNCH"`, improving session accuracy.
 
 
 
