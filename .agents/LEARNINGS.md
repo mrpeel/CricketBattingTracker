@@ -234,3 +234,9 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
     *   **Key Insight — Quaternion-relative features are irreplaceable**: The raw sensor features (mag_x, grav_x, gyro_y) cannot substitute for quaternion-stance-relative features (`rollImpactDeg`, `deltaX`) when differentiating CUT/PUNCH from PULL/HOOK. The post-classification override approach is the safest augmentation strategy.
     *   **POWER SHOT accuracy**: Improved from 2/9 (22%) to 6/9 (67%) with zero regressions on any other class.
 
+15. **Step Recency Window Reduction (June 1, 2026)**:
+    *   **The Problem**: The 2.0-second step recency window (`STEP_RECENCY_NS = 2.0s`) was too conservative for rapid delivery cycles (e.g. bowling machine delivering a ball every 6 seconds). The player was not getting enough time to stand still and let the watch lock into the facing-up stance before the swing occurred.
+    *   **The Solution**: Reduced the step recency window to **1.0 second**. This allows the stance gate to recover much faster and begin detecting the "Facing Up" phase earlier, while still providing walking discrimination (since a walking cadence of ~90 steps/minute produces a step event every ~0.67s, which is well within the 1.0s window).
+    *   **Verification**: All Wear OS unit tests passed successfully, and the updated APK was compiled and deployed to the watch.
+
+
