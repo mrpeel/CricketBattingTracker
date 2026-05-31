@@ -211,7 +211,10 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
     *   **The Fix**: Added explicit keyword mapping in `transcribe_audio_gemini` for `"defense"`, `"defence"`, `"defensive"`, and `"block"` mapping directly to `"Defence/Block"`. This guarantees that defensive narrations are processed and normalized to `"DRIVE/DEFENCE"` even when they lack a shot number.
     *   **Result**: Successfully ran the pipeline on `session-2026-05-31_14-12-10`, transcribing and aligning all 78 shots. Defensive blocks are now fully preserved and classified correctly.
 
-
-
-
+12. **Wake-Up Step Sensors & Hybrid M-of-N Stance Gate (May 31, 2026)**:
+    *   **Step Sensor Suspension Diagnosis**: Analyzed `WatchSteps.csv` and `WatchStepCounter.csv` for `session-2026-05-31_14-12-10` and discovered that the Sensor Hub suspended/batched non-wake-up step events when the screen went off or entered ambient mode. The accumulated steps (+68) were only flushed to the AP when the screen woke up at 169.7s, after which they suspended again.
+    *   **The Sensor Fix**: Modified `TrackerService.kt` to retrieve the **wake-up version** of the step detector and counter: `sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR, true)` and `Sensor.TYPE_STEP_COUNTER` (forraw logging). This forces the hardware Sensor Hub to deliver walking interrupts immediately to the CPU in real-time, even in ambient mode.
+    *   **Hybrid M-of-N Stance Gate**: Transitioned the stance gate in `SwingDetector.kt` to a flexible hybrid configuration (H9). It requires walking suppression (steps) and gyroscope stillness (`gyroStd < 1.2 rad/s`) as mandatory conditions, but allows wiggles or orientation drift by requiring only **one** of the remaining three flexible conditions (accel, orientation stability, and gravity Y) to pass.
+    *   **Break Tolerance Tweak**: Extended the break-tolerance window (`FACING_UP_BREAK_TOLERANCE_NS`) to 1.5s to compensate for standard deviation decay lag under the tighter `1.2 rad/s` gyro limit.
+    *   **Results**: Offline E2E simulation verified that the H9 configuration improves recall to **78.3%** on physical logs while keeping false triggers low (1.68 FPs/min). All 10 Wear OS unit tests passed successfully.
 
