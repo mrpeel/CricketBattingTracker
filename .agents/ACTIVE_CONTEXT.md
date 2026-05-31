@@ -50,11 +50,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session-2026-05-31_10-06-52)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-05-31_10-06-52`
-*   **Audio File**: `narration_20260531_100649.m4a`
-*   **Status**: Fully aligned 5 stance checks and 5 shots sequentially. Stance check diagnostics successfully mapped 4/5 locks as passed, with stance check 4 identified as failed due to pre-swing steps.
-*   **Previous Session (session-2026-05-30_15-04-41)**: Transcribed and aligned using DP sequence alignment.
+## 🔖 Current Session State (session-2026-05-31_14-12-10)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-05-31_14-12-10`
+*   **Audio File**: `narration_20260531_141205.m4a`
+*   **Status**: Fully completed implementation of the wake-up step sensors and the hybrid M-of-N stance gate logic (Configuration H9). The timing failure under tighter limits was resolved by expanding the break tolerance window to 1.5s. All 10 Wear OS unit tests passed, and offline simulation confirmed 78.3% recall with 1.68 FPs/min.
+*   **Previous Session (session-2026-05-31_10-06-52)**: Checked stance check alignment, indicating 4/5 locks passed.
 
 
 ---
