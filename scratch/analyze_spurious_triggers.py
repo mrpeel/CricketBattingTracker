@@ -36,6 +36,105 @@ class ThresholdConfig:
 
 CONFIGS = [
     ThresholdConfig(
+        name="Production Kotlin",
+        gyro_std_max=1.6,
+        accel_std_max=3.25,
+        ori_disp_max_deg=3.05,
+        grav_y_max=-6.0,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=4,
+        description="Thresholds currently deployed in SwingDetector.kt (1.2s lock)"
+    ),
+    ThresholdConfig(
+        name="Production (grav -5.5)",
+        gyro_std_max=1.6,
+        accel_std_max=3.25,
+        ori_disp_max_deg=3.05,
+        grav_y_max=-5.5,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=4,
+        description="Production with looser Gravity Y (-5.5)"
+    ),
+    ThresholdConfig(
+        name="Production (grav -5.0)",
+        gyro_std_max=1.6,
+        accel_std_max=3.25,
+        ori_disp_max_deg=3.05,
+        grav_y_max=-5.0,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=4,
+        description="Production with looser Gravity Y (-5.0)"
+    ),
+    ThresholdConfig(
+        name="Production (grav -4.5)",
+        gyro_std_max=1.6,
+        accel_std_max=3.25,
+        ori_disp_max_deg=3.05,
+        grav_y_max=-4.5,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=4,
+        description="Production with looser Gravity Y (-4.5)"
+    ),
+    ThresholdConfig(
+        name="Production (grav -4.0)",
+        gyro_std_max=1.6,
+        accel_std_max=3.25,
+        ori_disp_max_deg=3.05,
+        grav_y_max=-4.0,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=4,
+        description="Production with looser Gravity Y (-4.0)"
+    ),
+    ThresholdConfig(
+        name="Production (grav -3.5)",
+        gyro_std_max=1.6,
+        accel_std_max=3.25,
+        ori_disp_max_deg=3.05,
+        grav_y_max=-3.5,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=4,
+        description="Production with looser Gravity Y (-3.5)"
+    ),
+    ThresholdConfig(
+        name="Production (no grav)",
+        gyro_std_max=1.6,
+        accel_std_max=3.25,
+        ori_disp_max_deg=3.05,
+        grav_y_max=999.0,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=4,
+        description="Production without Gravity Y check"
+    ),
+    ThresholdConfig(
+        name="Grid Search F1-Opt",
+        gyro_std_max=1.3,
+        accel_std_max=2.75,
+        ori_disp_max_deg=3.5,
+        grav_y_max=-5.0,
+        step_window_s=2.0,
+        lock_duration_s=0.8,
+        min_motion_conditions=4,
+        description="F1-balanced optimized thresholds (0.8s lock)"
+    ),
+    ThresholdConfig(
+        name="Grid Search F2-Opt",
+        gyro_std_max=2.2,
+        accel_std_max=4.25,
+        ori_disp_max_deg=4.25,
+        grav_y_max=-1.5,
+        step_window_s=2.0,
+        lock_duration_s=0.8,
+        min_motion_conditions=4,
+        description="F2-recall prioritized optimized thresholds (0.8s lock)"
+    ),
+    ThresholdConfig(
         name="Current (Tight)",
         gyro_std_max=0.9,
         accel_std_max=1.5,
@@ -78,6 +177,17 @@ CONFIGS = [
         lock_duration_s=0.8,
         min_motion_conditions=4,
         description="Only require no steps (baseline upper bound for recall)"
+    ),
+    ThresholdConfig(
+        name="D2: Steps Only (1.5s)",
+        gyro_std_max=999.0,
+        accel_std_max=999.0,
+        ori_disp_max_deg=999.0,
+        grav_y_max=999.0,
+        step_window_s=1.5,
+        lock_duration_s=0.8,
+        min_motion_conditions=4,
+        description="Only require no steps in last 1.5s (baseline upper bound)"
     ),
     ThresholdConfig(
         name="H2: Loosen All (2 of 4)",
@@ -184,6 +294,30 @@ CONFIGS = [
         gyro_mandatory=True,
         accel_mandatory=True,
         description="Tight thresholds, Gyro & Accel & steps mandatory + any 1 of remaining 2"
+    ),
+    ThresholdConfig(
+        name="H9: Steps+Gyro Mand(Mod 2/4)",
+        gyro_std_max=1.2,
+        accel_std_max=2.0,
+        ori_disp_max_deg=2.0,
+        grav_y_max=-3.5,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=2,
+        gyro_mandatory=True,
+        description="Moderate thresholds, Gyro < 1.2 & steps mandatory + any 1 of remaining 3 (1.2s lock)"
+    ),
+    ThresholdConfig(
+        name="H10: Steps+Gyro Mand(grav -2.5)",
+        gyro_std_max=1.2,
+        accel_std_max=2.0,
+        ori_disp_max_deg=2.0,
+        grav_y_max=-2.5,
+        step_window_s=2.0,
+        lock_duration_s=1.2,
+        min_motion_conditions=2,
+        gyro_mandatory=True,
+        description="Moderate thresholds, Gyro < 1.2 & steps mandatory + any 1 of remaining 3 (grav -2.5, 1.2s lock)"
     ),
 ]
 
