@@ -192,6 +192,9 @@ def find_calibration_taps_sensor(gyro_path, duration_limit=2.0, num_taps=5):
 
 def clean_and_normalize(text):
     pre_mappings = {
+        r"\bboard\s+defens(e|ive)\b": "forward defensive",
+        r"\btouch\s+shot\b": "push",
+        r"\bwe're\s+going\s+to\b": "forward defensive",
         r"\b(space|place|lacing|racing|lacing) up\b": "facing up",
         r"\bpuncture\b": "punch shot",
         r"\byorka\b": "yorker",
@@ -260,6 +263,7 @@ def transcribe_audio_local(audio_path):
             continue
         cleaned = clean_and_normalize(text)
         has_num = re.search(num_pattern, cleaned) is not None
+        is_facing_up_start = "facing up" in cleaned
         
         if not grouped_segments:
             grouped_segments.append({
@@ -271,9 +275,10 @@ def transcribe_audio_local(audio_path):
         else:
             prev = grouped_segments[-1]
             elapsed = s["start"] - prev["start"]
+            is_prev_facing_up = "facing up" in prev["text"]
             
-            # Merge if elapsed <= 7.0s and current segment does not introduce a new shot number
-            if elapsed <= 7.0 and not has_num:
+            # Merge if elapsed <= 7.0s, current is not a new shot number, and neither is a "facing up" start/end
+            if elapsed <= 7.0 and not has_num and not is_facing_up_start and not is_prev_facing_up:
                 prev["text"] = (prev["text"] + " " + cleaned).strip()
                 prev["end"] = s["end"]
             else:
@@ -390,14 +395,16 @@ def transcribe_audio_local(audio_path):
                 is_duplicate = False
                 for prev_ev in raw_events[-2:]:
                     prev_txt = prev_ev["text"]
-                    if prev_txt == txt:
-                        is_duplicate = True
-                        break
-                    if len(txt) > 5 and len(prev_txt) > 5:
-                        ratio = difflib.SequenceMatcher(None, txt, prev_txt).ratio()
-                        if ratio > 0.85:
+                    time_diff = abs(t_val - prev_ev["timestamp_seconds"])
+                    if time_diff <= 3.5:
+                        if prev_txt == txt:
                             is_duplicate = True
                             break
+                        if len(txt) > 5 and len(prev_txt) > 5:
+                            ratio = difflib.SequenceMatcher(None, txt, prev_txt).ratio()
+                            if ratio > 0.85:
+                                is_duplicate = True
+                                break
                 if is_duplicate:
                     continue
                     
@@ -926,7 +933,7 @@ def main():
                 'is_fallback': True
             })
         else:
-            window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t + 0.5)]
+            window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t + 7.0)]
             peaks = []
             if len(window) > 0:
                 sorted_samples = window.sort_values(by='mag', ascending=False)
@@ -958,7 +965,7 @@ def main():
         if is_fallback:
             return -3.0
         lag = sensor_narr_t - t
-        if lag < -0.5:
+        if lag < -7.0:
             return -999999.0
         elif lag < 0.0:
             return np.log(mag) - ((lag - 2.5) ** 2) / 4.5 - 5.0
