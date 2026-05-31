@@ -239,8 +239,8 @@ class SwingDetectorTest {
             time += 20_000_000L
         }
 
-        // 3. Restore quiet stance (1.8s) - 90 samples
-        for (i in 0 until 90) {
+        // 3. Restore quiet stance (2.1s) - 105 samples
+        for (i in 0 until 105) {
             detector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)

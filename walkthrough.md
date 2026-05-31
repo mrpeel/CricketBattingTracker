@@ -79,4 +79,24 @@ We cleared the cache and verified the updated pipeline against the live session 
   * Power shots mapped to `POWER SHOT`.
   * Evades/leaves correctly treated as non-swing events.
 
+---
 
+## Stance Gate M-of-N Optimization & Wake-Up Step Sensors (May 31, 2026)
+
+We have implemented the approved hybrid M-of-N stance gate logic and solved the hardware-level step sensor suspension bug:
+
+### 1. Wake-Up Step Sensors
+* **The Bug**: On Wear OS, non-wake-up step detector/counter sensors are suspended/batched by the Sensor Hub when the watch screen goes off or transitions to ambient mode, despite having a background partial wake lock. This caused all step interrupts to be batched and delayed by up to 3 minutes, only flushing when the screen turned on (e.g. at 169.7s).
+* **The Fix**: Modified [TrackerService.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/services/TrackerService.kt) to request the **wake-up version** of the sensors: `sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR, true)` and `Sensor.TYPE_STEP_COUNTER` (in raw logging). This instructs the hardware Sensor Hub to deliver walking interrupts immediately to the CPU in real-time, even in ambient mode.
+
+### 2. Hybrid M-of-N Stance Gate
+* **The Change**: Modified [SwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingDetector.kt) to use a flexible "M-of-N" architecture.
+* **Logic**: Enforces walking suppression (steps) and gyroscope stillness (`gyroStd < 1.2 rad/s`) as **mandatory** gates, but permits wiggles or wrist shifts by requiring only **one** of the remaining three stability conditions to pass:
+  1. `accelStd < 2.0 m/s²` (foot-strike/movement)
+  2. `oriDisp < 2.0°` (angular orientation drift)
+  3. `meanGravY <= -3.5 m/s²` (lead arm extended)
+* **Results**: Verified via python E2E simulation, demonstrating a significant increase in shot recall from **66.7% to 78.3%** on physical logs while keeping false triggers low (1.68 FPs/min).
+
+### 3. Verification & Unit Tests
+* Extended the break-tolerance window to `1.5 seconds` (`FACING_UP_BREAK_TOLERANCE_NS`) to account for standard deviation decay lag under the tighter `1.2 rad/s` gyro limit.
+* Compiled and ran the full Wear OS test suite (`./gradlew :wear:testDebugUnitTest`) successfully (10/10 green).

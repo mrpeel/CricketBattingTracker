@@ -317,17 +317,17 @@ class SwingDetector {
     // ---- Facing-Up detection thresholds (validated against 3-session empirical analysis) ----
     companion object {
         // Condition A: Gyro std-of-magnitude over 1s window — bat must not be swinging
-        // Optimized: 1.6f rad/s (based on grid search analysis)
-        const val FACING_UP_GYRO_STD_MAX     = 1.6f   // rad/s
+        // Optimized: 1.2f rad/s (Mandatory stillness)
+        const val FACING_UP_GYRO_STD_MAX     = 1.2f   // rad/s
         // Condition B: Accelerometer std-of-magnitude over 1s window — foot-strike suppressor
-        // Optimized: 3.25f m/s² (based on grid search analysis)
-        const val FACING_UP_ACCEL_STD_MAX    = 3.25f  // m/s²
+        // Optimized: 2.0f m/s² (Flexible motion threshold)
+        const val FACING_UP_ACCEL_STD_MAX    = 2.0f   // m/s²
         // Condition C: Mean angular displacement of quaternion over 1s window — bat orientation lock
-        // Optimized: 3.05° (based on grid search analysis)
-        const val FACING_UP_ORI_DISP_MAX_DEG = 3.05f  // degrees
+        // Optimized: 2.0f° (Flexible orientation threshold)
+        const val FACING_UP_ORI_DISP_MAX_DEG = 2.0f   // degrees
         // Condition E: Gravity Y arm-extension anchor — requires arm to be extended (not limp/resting)
-        // Optimized: -6.0f m/s² (based on grid search analysis, stricter pose filter)
-        const val FACING_UP_GRAVITY_Y_MIN    = -6.0f  // m/s²
+        // Optimized: -3.5f m/s² (Flexible pose threshold)
+        const val FACING_UP_GRAVITY_Y_MIN    = -3.5f  // m/s²
         // Recency gate: a step event within this window breaks the facing-up gate
         // 2.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
         const val STEP_RECENCY_NS            = 2_000_000_000L  // 2.0 seconds
@@ -337,11 +337,13 @@ class SwingDetector {
         // How long after facing-up to wait for a backswing before giving up
         const val BACKSWING_TIMEOUT_NS       = 5_000_000_000L  // 5.0 seconds
         // Break tolerance window for transient condition failures (e.g. bat rocking)
-        const val FACING_UP_BREAK_TOLERANCE_NS = 1_200_000_000L // 1.2 seconds
+        const val FACING_UP_BREAK_TOLERANCE_NS = 1_500_000_000L // 1.5 seconds
         // Gyro threshold to declare backswing departure has started
         const val BACKSWING_TRIGGER_RAD_S    = 5.0f
         // Post-shot recovery guard: no new facing-up arm during this window
         const val POST_SHOT_GUARD_NS         = 2_500_000_000L  // 2.5 seconds
+        // Minimum number of flexible conditions required to pass (out of accel, ori, gravity)
+        const val FACING_UP_MIN_FLEXIBLE_CONDITIONS = 1
     }
 
     fun processGyro(values: FloatArray, timestamp: Long) {
@@ -439,13 +441,22 @@ class SwingDetector {
         // Returns 0f if < 5 gravity samples in window — treat as satisfied (fail-open) to
         // avoid breaking detection when the gravity sensor is slow to populate.
         val meanGravY = gravBuffer.calculateMeanY(stdWindowStart, timestamp)
+
+        // Mandatory Gates
+        val gyroOk = gyroStd < FACING_UP_GYRO_STD_MAX
+        val stepsOk = noRecentStep
+
+        // Flexible Gates (any 1 of 3 must pass)
+        val accelOk = accelStd < FACING_UP_ACCEL_STD_MAX
+        val oriOk = oriDisp < FACING_UP_ORI_DISP_MAX_DEG
         val armExtended = meanGravY == 0f || meanGravY <= FACING_UP_GRAVITY_Y_MIN
 
-        val allConditionsMet = gyroStd  < FACING_UP_GYRO_STD_MAX &&
-                               accelStd < FACING_UP_ACCEL_STD_MAX &&
-                               oriDisp  < FACING_UP_ORI_DISP_MAX_DEG &&
-                               noRecentStep &&
-                               armExtended
+        var flexiblePassedCount = 0
+        if (accelOk) flexiblePassedCount++
+        if (oriOk) flexiblePassedCount++
+        if (armExtended) flexiblePassedCount++
+
+        val allConditionsMet = gyroOk && stepsOk && (flexiblePassedCount >= FACING_UP_MIN_FLEXIBLE_CONDITIONS)
 
         if (allConditionsMet) {
             if (!facingUpGateActive) {

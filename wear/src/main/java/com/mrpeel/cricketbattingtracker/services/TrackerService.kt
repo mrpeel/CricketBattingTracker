@@ -108,8 +108,9 @@ class TrackerService : Service(), SensorEventListener {
         // (immune to metal bat springs, chain-link fences, metallic structures on pitch)
         gameRotationSensor   = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
         // STEP_DETECTOR: fires once per foot-strike step on dedicated DSP hardware
-        // Used to definitively detect walking and suppress false facing-up detection
-        stepDetectorSensor   = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+        // We request the wake-up version to prevent Sensor Hub suspension in ambient/screen-off mode.
+        stepDetectorSensor   = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR, true)
+            ?: sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
         heartRateSensor      = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
 
         if (accelSensor == null)        Log.w(TAG, "Hardware Accelerometer is NOT available!")
@@ -186,7 +187,14 @@ class TrackerService : Service(), SensorEventListener {
         if (enableRawLogging) {
             // Register ALL supported configurations for full stack diagnostics
             for (config in sensorConfigs) {
-                val sensor = sensorManager.getDefaultSensor(config.type)
+                // Request wake-up version of low-frequency sensors to prevent Sensor Hub suspension in ambient/screen-off mode
+                val sensor = if (config.type == Sensor.TYPE_STEP_DETECTOR ||
+                                 config.type == Sensor.TYPE_STEP_COUNTER ||
+                                 config.type == Sensor.TYPE_HEART_RATE) {
+                    sensorManager.getDefaultSensor(config.type, true) ?: sensorManager.getDefaultSensor(config.type)
+                } else {
+                    sensorManager.getDefaultSensor(config.type)
+                }
                 if (sensor != null) {
                     val delay = if (config.type == Sensor.TYPE_STEP_DETECTOR || 
                                      config.type == Sensor.TYPE_HEART_RATE ||
