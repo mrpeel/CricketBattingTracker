@@ -1209,11 +1209,11 @@ def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, 
         grav_y = -9.8
         
     # Check conditions
-    gyro_ok = gyro_std < 0.9
-    accel_ok = accel_std < 1.5
-    ori_ok = ori_disp < 1.5
+    gyro_ok = gyro_std < 1.6
+    accel_ok = accel_std < 3.25
+    ori_ok = ori_disp < 3.05
     steps_ok = steps_count == 0
-    grav_ok = grav_y <= -3.5 or grav_y == 0.0
+    grav_ok = grav_y <= -6.0 or grav_y == 0.0
     
     passed = gyro_ok and accel_ok and ori_ok and steps_ok and grav_ok
     status_emoji = "🟢 SUCCESS" if passed else "🔴 FAILED"
@@ -1221,19 +1221,19 @@ def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, 
     print("\n=================== Stance Check Alignment Analysis ===================")
     print(f"Stance Event: '{narrated_text}'")
     print(f"Time:         {audio_t:.1f}s (audio) ➔ Stance aligned at {t_stance:.2f}s sensor (rel)")
-    print(f"  1. Gyro Std:    {gyro_std:.2f} rad/s  (Limit: < 0.9)  ➔ {'PASS' if gyro_ok else 'FAIL'}")
-    print(f"  2. Accel Std:   {accel_std:.2f} m/s²   (Limit: < 1.5)  ➔ {'PASS' if accel_ok else 'FAIL'}")
-    print(f"  3. Ori Disp:    {ori_disp:.2f} deg    (Limit: < 1.5)  ➔ {'PASS' if ori_ok else 'FAIL'}")
+    print(f"  1. Gyro Std:    {gyro_std:.2f} rad/s  (Limit: < 1.6)  ➔ {'PASS' if gyro_ok else 'FAIL'}")
+    print(f"  2. Accel Std:   {accel_std:.2f} m/s²   (Limit: < 3.25) ➔ {'PASS' if accel_ok else 'FAIL'}")
+    print(f"  3. Ori Disp:    {ori_disp:.2f} deg    (Limit: < 3.05) ➔ {'PASS' if ori_ok else 'FAIL'}")
     print(f"  4. Steps:       {steps_count} steps     (Limit: 0)      ➔ {'PASS' if steps_ok else 'FAIL'}")
-    print(f"  5. Gravity Y:   {grav_y:.2f} m/s²  (Limit: <= -3.5)➔ {'PASS' if grav_ok else 'FAIL'}")
+    print(f"  5. Gravity Y:   {grav_y:.2f} m/s²  (Limit: <= -6.0)➔ {'PASS' if grav_ok else 'FAIL'}")
     print(f"STATUS: {status_emoji} ({'All conditions met' if passed else 'Stance lock would fail'})")
     if not passed:
         fails = []
-        if not gyro_ok: fails.append(f"Gyro Std ({gyro_std:.2f} >= 0.9)")
-        if not accel_ok: fails.append(f"Accel Std ({accel_std:.2f} >= 1.5)")
-        if not ori_ok: fails.append(f"Ori Disp ({ori_disp:.2f} >= 1.5)")
+        if not gyro_ok: fails.append(f"Gyro Std ({gyro_std:.2f} >= 1.6)")
+        if not accel_ok: fails.append(f"Accel Std ({accel_std:.2f} >= 3.25)")
+        if not ori_ok: fails.append(f"Ori Disp ({ori_disp:.2f} >= 3.05)")
         if not steps_ok: fails.append(f"Steps count ({steps_count} > 0)")
-        if not grav_ok: fails.append(f"Gravity Y ({grav_y:.2f} > -3.5)")
+        if not grav_ok: fails.append(f"Gravity Y ({grav_y:.2f} > -6.0)")
         print(f"  Failed condition(s): {', '.join(fails)}")
     print("-----------------------------------------------------------------------")
 
