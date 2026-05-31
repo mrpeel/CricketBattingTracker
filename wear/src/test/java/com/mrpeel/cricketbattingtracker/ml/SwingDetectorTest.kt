@@ -232,7 +232,7 @@ class SwingDetectorTest {
 
         // 2. Simulate transient failure / rocking (200ms) - 10 samples
         for (i in 0 until 10) {
-            detector.processGyro(floatArrayOf(3.0f, 0f, 0f), time)
+            detector.processGyro(floatArrayOf(5.0f, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
             detector.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)
@@ -301,9 +301,9 @@ class SwingDetectorTest {
             time += 20_000_000L
         }
 
-        // 2. Simulate longer failure exceeding tolerance (500ms) - 25 samples
-        for (i in 0 until 25) {
-            detector.processGyro(floatArrayOf(3.0f, 0f, 0f), time)
+        // 2. Simulate longer failure exceeding tolerance (1.5s) - 75 samples
+        for (i in 0 until 75) {
+            detector.processGyro(floatArrayOf(5.0f, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
             detector.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)

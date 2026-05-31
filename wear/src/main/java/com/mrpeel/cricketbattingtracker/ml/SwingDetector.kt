@@ -317,19 +317,17 @@ class SwingDetector {
     // ---- Facing-Up detection thresholds (validated against 3-session empirical analysis) ----
     companion object {
         // Condition A: Gyro std-of-magnitude over 1s window — bat must not be swinging
-        // Restored to original 0.9 rad/s (loosened to 1.5 caused walk-arming false positives)
-        const val FACING_UP_GYRO_STD_MAX     = 0.9f   // rad/s
+        // Optimized: 1.6f rad/s (based on grid search analysis)
+        const val FACING_UP_GYRO_STD_MAX     = 1.6f   // rad/s
         // Condition B: Accelerometer std-of-magnitude over 1s window — foot-strike suppressor
-        // Restored to original 1.5 m/s² (loosened to 3.0 was too permissive)
-        const val FACING_UP_ACCEL_STD_MAX    = 1.5f   // m/s²
+        // Optimized: 3.25f m/s² (based on grid search analysis)
+        const val FACING_UP_ACCEL_STD_MAX    = 3.25f  // m/s²
         // Condition C: Mean angular displacement of quaternion over 1s window — bat orientation lock
-        // Compromise: 1.5° (original 0.5° caused recall loss; 3.0° was too loose)
-        const val FACING_UP_ORI_DISP_MAX_DEG = 1.5f   // degrees
+        // Optimized: 3.05° (based on grid search analysis)
+        const val FACING_UP_ORI_DISP_MAX_DEG = 3.05f  // degrees
         // Condition E: Gravity Y arm-extension anchor — requires arm to be extended (not limp/resting)
-        // At guard stance, mean gravity Y = -8.6 m/s² (P50) across 3 sessions; when arm hangs at rest
-        // or is in the lap, Y drifts toward 0. Threshold of -3.5 passes ~85% of guard samples while
-        // blocking ~25% of arm-at-rest samples. Falls back to true if gravity data is unavailable.
-        const val FACING_UP_GRAVITY_Y_MIN    = -3.5f  // m/s²
+        // Optimized: -6.0f m/s² (based on grid search analysis, stricter pose filter)
+        const val FACING_UP_GRAVITY_Y_MIN    = -6.0f  // m/s²
         // Recency gate: a step event within this window breaks the facing-up gate
         // 2.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
         const val STEP_RECENCY_NS            = 2_000_000_000L  // 2.0 seconds
