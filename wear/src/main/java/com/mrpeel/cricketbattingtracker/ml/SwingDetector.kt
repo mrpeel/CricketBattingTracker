@@ -330,8 +330,8 @@ class SwingDetector {
         // Optimized: -3.5f m/s² (Flexible pose threshold)
         const val FACING_UP_GRAVITY_Y_MIN    = -3.5f  // m/s²
         // Recency gate: a step event within this window breaks the facing-up gate
-        // 2.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
-        const val STEP_RECENCY_NS            = 2_000_000_000L  // 2.0 seconds
+        // 1.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
+        const val STEP_RECENCY_NS            = 1_000_000_000L  // 1.0 seconds
         // How long ALL conditions must hold continuously before we're "locked".
         // Increased from 0.8s to 1.2s — harder to spuriously arm during brief still moments.
         const val FACING_UP_MIN_DURATION_NS  = 1_200_000_000L  // 1.2 seconds
@@ -379,7 +379,7 @@ class SwingDetector {
      * this immediately breaks it — you cannot be at guard if you are stepping.
      *
      * The step recency check in handleActivityClassify() uses lastStepTimestampNs
-     * to prevent the gate from opening within 2s of any foot-strike event.
+     * to prevent the gate from opening within 1s of any foot-strike event.
      */
     fun processStep(timestamp: Long) {
         lastStepTimestampNs = timestamp
@@ -415,7 +415,7 @@ class SwingDetector {
      *   A. gyro_std(1s)    < 0.9 rad/s   — bat not swinging
      *   B. accel_std(1s)   < 1.5 m/s²   — no foot-strike shock
      *   C. ori_disp(1s)    < 1.5°        — bat orientation locked at guard angle
-     *   D. no step in last 2.0s          — definitive walking kill switch
+     *   D. no step in last 1.0s          — definitive walking kill switch
      *   E. mean_gravity_y(1s) <= -3.5    — arm extended toward bat (not limp/resting)
      *      Falls back to true if gravity sensor data is unavailable (< 5 samples).
      *
