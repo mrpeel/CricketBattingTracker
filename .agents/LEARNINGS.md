@@ -95,6 +95,18 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Problem**: When the user narrated non-swing events like "no shot" or "leave" (which happen on wayward balls where no swing is played), they were transcribed by Gemini but subsequently discarded in the Python pipeline's mapping loop because they did not match a known shot category. This caused consecutive "facing up" stance checks to appear adjacent in the output JSON.
     *   **The Fix**: Updated the structured parser in `transcribe_audio_gemini` to map "no shot" ➔ "No shot" and "leave" ➔ "Leave". Also updated the hardcoded fallback prompt base to clarify the flow for these non-swing events.
     *   **Result**: Consecutive "facing up" events are now correctly separated by the correct "No shot" or "Leave" events, and successfully aligned using DP sequence alignment to fallback candidates without disrupting the rest of the timeline's alignment.
+*   **Narration Pipeline Refinements (May 31, 2026)**:
+    *   **The Problem**:
+        1. Swaying out of the way ("evade"/"evasion") was missing as a non-swing, causing alignment issues.
+        2. Shot rating "Edge"/"Edged" default-classified to "good" instead of "poor".
+        3. "Guide" and "Glide" were classified as defense/block (normalizing to "DRIVE/DEFENCE") instead of "DEFLECTION/GUIDE".
+        4. "Power shot" default-classified to "Defence/Block" (normalizing to "DRIVE/DEFENCE") instead of "POWER SHOT".
+    *   **The Fix**:
+        1. Added "Evade" shot type mapping and added `"evade"` to all alignment `is_non_swing` checks.
+        2. Added "edge"/"edged" quality mapping to `"poor"`.
+        3. Mapped "guide", "glide", and "steer" to `"Guide"` shot type and updated `normalize_shot_class` to check for `"glide"`.
+        4. Mapped "power" and "loft" to `"Power shot"` in `transcribe_audio_gemini`.
+    *   **Result**: Edge shots are now rated `"poor"`, evades align correctly as non-swing timelines, guides/glides normalize to `"DEFLECTION/GUIDE"`, and power shots now match correctly as `"POWER SHOT"`, raising session accuracy.
 
 
 

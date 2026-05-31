@@ -572,7 +572,7 @@ def transcribe_audio_gemini(audio_path):
             "1. \"Shot [number] [Shot Type] [Rating]\" (for example: \"Shot 1 Cover drive Excellent\" or \"Shot 12 Pull shot Good\").\n"
             "2. \"[Number] [Shot Type] [Rating]\" (for example: \"One, push shot, good\" or \"Twelve, pull shot, excellent\").\n"
             "3. For a normal shot, the expected flow of audio is: \"facing up\" -> gap to play shot -> {shot type} {shot rating}.\n"
-            "4. For balls where no shot is played, the expected flow of audio is: \"facing up\" -> \"no shot\" or \"leave\".\n\n"
+            "4. For balls where no shot is played, the expected flow of audio is: \"facing up\" -> \"no shot\", \"leave\", or \"evade\".\n\n"
             "The audio contains long periods of silence, ball impact noises, and background sounds. Ignore all silence and background noise.\n\n"
             "Search the entire audio file for all spoken narrations matching the pattern.\n"
             "The batsman may refer to the following expected shot types (grouped by biomechanical class):\n"
@@ -580,11 +580,11 @@ def transcribe_audio_gemini(audio_path):
             "- Glance/Flicks: \"Flick Shot\", \"Leg Glance\", \"On-Glance\", \"Traditional Sweep Shot\" (or \"Sweep\")\n"
             "- Cut/Punch: \"Square Cut\", \"Cut\", \"Back-foot Punch\"\n"
             "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
-            "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\"\n"
-            "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\"\n"
-            "- Balls with no shot played: \"No shot\", \"Leave\"\n\n"
+            "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\", \"Guide\"\n"
+            "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\", \"Power shot\"\n"
+            "- Balls with no shot played: \"No shot\", \"Leave\", \"Evade\", \"Evasion\"\n\n"
             "The batsman will rate the shot quality using one of these rating words:\n"
-            "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\"\n\n"
+            "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\", \"Edge\", \"Edged\"\n\n"
             "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
             "Do not skip shots, do not hallucinate repetitive entries in silence, and output only the matching list."
         )
@@ -712,6 +712,12 @@ def transcribe_audio_gemini(audio_path):
             shot_type = "No shot"
         elif "leave" in text_lower:
             shot_type = "Leave"
+        elif "evade" in text_lower or "evasion" in text_lower:
+            shot_type = "Evade"
+        elif "guide" in text_lower or "glide" in text_lower or "steer" in text_lower:
+            shot_type = "Guide"
+        elif "power" in text_lower or "loft" in text_lower:
+            shot_type = "Power shot"
         elif "cover drive" in text_lower:
             shot_type = "Cover drive"
         elif "straight drive" in text_lower:
@@ -747,7 +753,7 @@ def transcribe_audio_gemini(audio_path):
         quality = "good"
         if "excellent" in text_lower or "perfect" in text_lower:
             quality = "excellent"
-        elif "poor" in text_lower or "bad" in text_lower:
+        elif "poor" in text_lower or "bad" in text_lower or "edge" in text_lower or "edged" in text_lower:
             quality = "poor"
         elif "miss" in text_lower or "no" in text_lower:
             quality = "miss"
@@ -952,7 +958,7 @@ def main():
     for i, shot in enumerate(narrations):
         audio_t = shot['timestamp_seconds']
         sensor_narr_t = audio_t + offset
-        is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up"])
+        is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
         
         cands = []
         if is_non_swing:
@@ -1022,8 +1028,8 @@ def main():
             
             # Enforce chronological order with min gap
             # Swing-to-swing gap: 1.5s. Non-swing gap: 0.5s.
-            prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up"])
-            curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up"])
+            prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+            curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
             min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
             
             for k, prev_cand in enumerate(all_candidates[i-1]):
@@ -1256,7 +1262,7 @@ def normalize_shot_class(shot_name):
         return "GLANCE/FLICK"
     if "cut" in s or "punch" in s:
         return "CUT/PUNCH"
-    if "guide" in s or "deflection" in s or "deflect" in s:
+    if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
         return "DEFLECTION/GUIDE"
     if "power" in s or "loft" in s:
         return "POWER SHOT"
