@@ -50,11 +50,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session-2026-05-30_15-04-41)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-05-30_15-04-41`
-*   **Audio File**: `narration_20260530_150437.m4a`
-*   **Status**: Transcribed and aligned using DP sequence alignment. Excluded stance checks from shot counts and exported stance sensor diagnostics.
-*   **Previous Session (session-2026-05-29_12-27-17)**: Fully aligned (69 shots, 92.8% simulated recall).
+## 🔖 Current Session State (session-2026-05-31_10-06-52)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-05-31_10-06-52`
+*   **Audio File**: `narration_20260531_100649.m4a`
+*   **Status**: Fully aligned 5 stance checks and 5 shots sequentially. Stance check diagnostics successfully mapped 4/5 locks as passed, with stance check 4 identified as failed due to pre-swing steps.
+*   **Previous Session (session-2026-05-30_15-04-41)**: Transcribed and aligned using DP sequence alignment.
 
 
 ---
