@@ -206,6 +206,12 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
         *   *Structured Stance Integration*: By making the `shot_number` and `rating` optional in the Pydantic schema, Gemini can return `"Facing up"` stance checks (with `shot_number: null`) and numbered shots together, removing the need for Whisper phonetic pre-mappings.
         *   *Dynamic Prompt Loading*: Storing transcription guidelines in [gemini_narration_prompt.md](file:///Users/neilkloot/Code/CricketBattingTracker/gemini_narration_prompt.md) allows runtime updates to the vocabulary and format.
 
+11. **Narration Pipeline Defence/Block Restoration (May 31, 2026)**:
+    *   **The Problem**: Restoring the Pydantic schema in Gemini audio transcription and removing the default fallback to `"Defence/Block"` for unmatched terms broke defensive/block shot processing. Legitimate defensive shots (like `"forward defensive"`, `"back-foot defensive"`, or `"block"`) were discarded entirely if they did not contain a shot number in the narration, resulting in missing shots and alignment shifts in the final timeline.
+    *   **The Fix**: Added explicit keyword mapping in `transcribe_audio_gemini` for `"defense"`, `"defence"`, `"defensive"`, and `"block"` mapping directly to `"Defence/Block"`. This guarantees that defensive narrations are processed and normalized to `"DRIVE/DEFENCE"` even when they lack a shot number.
+    *   **Result**: Successfully ran the pipeline on `session-2026-05-31_14-12-10`, transcribing and aligning all 78 shots. Defensive blocks are now fully preserved and classified correctly.
+
+
 
 
 
