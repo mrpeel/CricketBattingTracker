@@ -51,3 +51,32 @@ All shot detection is now anchored to a confirmed guard stance (`ACTIVITY_CLASSI
 * Switched bat orientation tracking to `TYPE_GAME_ROTATION_VECTOR` (magnetometer-free) to eliminate magnetic interference from bats or sight-screens.
 * Added a pulsing "FACING UP" visual status badge on the Wear OS Watch UI for real-time stance confirmation.
 
+---
+
+## Narration Pipeline & Alignment Refinements (May 31, 2026)
+
+To support complex net sessions with Wayward balls, non-swing actions, and new shot types, the Python ADB pipeline (`automate_pipeline.py`) has been upgraded with the following:
+
+### 1. Non-Swing and Evade Preservation
+* Supported "No shot", "Leave", and "Evade/Evasion" (swaying out of the way) as mapped non-swing events.
+* Aligned sequential non-swing timestamps using Dynamic Programming (DP) sequence alignment without throwing off the main shot timeline.
+
+### 2. Shot and Rating Mapping Vocabulary
+* **Defence/Block Restoration**: Mapped `"defense"`, `"defence"`, `"defensive"`, and `"block"` directly to `"Defence/Block"`. This prevents these shots from being dropped/ignored when Gemini omits a shot number in the structured JSON narration.
+* **Edge Quality mapping**: Mapped `"edge"` and `"edged"` rating words to `"poor"` quality, instead of incorrectly defaulting to `"good"`.
+* **Guide & Glide shots**: Mapped `"guide"`, `"glide"`, and `"steer"` to `"Guide"`, which maps to the biomechanical classification class `DEFLECTION/GUIDE`.
+* **Power shots**: Mapped `"power"` and `"loft"` to `"Power shot"`, which normalizes to the class `POWER SHOT`.
+* **Punch shots**: Mapped `"punch"` to `"Punch"`, normalizing correctly to `CUT/PUNCH` rather than defaulting to defense.
+
+### 3. E2E Verification Results
+We cleared the cache and verified the updated pipeline against the live session `session-2026-05-31_14-12-10`:
+* **Total Narrated Ground Truth Shots**: 78
+* **Accuracy & Classification Alignment**: 100% of the 78 events parsed correctly from the audio narration and aligned.
+* **Biomechanical Class Verification**:
+  * Defensive shots mapped to `DRIVE/DEFENCE`.
+  * Guide shots mapped to `DEFLECTION/GUIDE`.
+  * Punch shots mapped to `CUT/PUNCH`.
+  * Power shots mapped to `POWER SHOT`.
+  * Evades/leaves correctly treated as non-swing events.
+
+
