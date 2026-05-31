@@ -570,7 +570,9 @@ def transcribe_audio_gemini(audio_path):
             "Analyze the provided audio recording of a cricket batting practice.\n"
             "The batsman narrates his shots after playing them, speaking clearly in one of these formats:\n"
             "1. \"Shot [number] [Shot Type] [Rating]\" (for example: \"Shot 1 Cover drive Excellent\" or \"Shot 12 Pull shot Good\").\n"
-            "2. \"[Number] [Shot Type] [Rating]\" (for example: \"One, push shot, good\" or \"Twelve, pull shot, excellent\").\n\n"
+            "2. \"[Number] [Shot Type] [Rating]\" (for example: \"One, push shot, good\" or \"Twelve, pull shot, excellent\").\n"
+            "3. For a normal shot, the expected flow of audio is: \"facing up\" -> gap to play shot -> {shot type} {shot rating}.\n"
+            "4. For balls where no shot is played, the expected flow of audio is: \"facing up\" -> \"no shot\" or \"leave\".\n\n"
             "The audio contains long periods of silence, ball impact noises, and background sounds. Ignore all silence and background noise.\n\n"
             "Search the entire audio file for all spoken narrations matching the pattern.\n"
             "The batsman may refer to the following expected shot types (grouped by biomechanical class):\n"
@@ -579,7 +581,8 @@ def transcribe_audio_gemini(audio_path):
             "- Cut/Punch: \"Square Cut\", \"Cut\", \"Back-foot Punch\"\n"
             "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
             "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\"\n"
-            "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\"\n\n"
+            "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\"\n"
+            "- Balls with no shot played: \"No shot\", \"Leave\"\n\n"
             "The batsman will rate the shot quality using one of these rating words:\n"
             "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\"\n\n"
             "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
@@ -705,6 +708,10 @@ def transcribe_audio_gemini(audio_path):
         shot_type = None
         if "facing up" in text_lower:
             shot_type = "Facing up"
+        elif "no shot" in text_lower:
+            shot_type = "No shot"
+        elif "leave" in text_lower:
+            shot_type = "Leave"
         elif "cover drive" in text_lower:
             shot_type = "Cover drive"
         elif "straight drive" in text_lower:

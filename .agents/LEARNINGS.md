@@ -91,6 +91,11 @@ This document captures resolved bugs, architectural changes, key logical finding
 *   **Audio Decompression File Size Reduction (May 29, 2026)**:
     *   **The Problem**: The Python pipeline script was always running `afconvert` to decompress the AAC `.m4a` file into an uncompressed `.aiff` file (expanding file sizes by ~6x, e.g. 18MB to 103MB) in order to use the standard Python `aifc` module for 5-tap calibration peak analysis.
     *   **The Fix**: Deferred the AIFF conversion so it only runs if the auto-start metadata timestamp sync is unavailable or fails. Since auto-sync succeeded on today's session, the large AIFF file was never created, saving massive disk space.
+*   **Non-Swing Narration Preservation (May 31, 2026)**:
+    *   **The Problem**: When the user narrated non-swing events like "no shot" or "leave" (which happen on wayward balls where no swing is played), they were transcribed by Gemini but subsequently discarded in the Python pipeline's mapping loop because they did not match a known shot category. This caused consecutive "facing up" stance checks to appear adjacent in the output JSON.
+    *   **The Fix**: Updated the structured parser in `transcribe_audio_gemini` to map "no shot" ➔ "No shot" and "leave" ➔ "Leave". Also updated the hardcoded fallback prompt base to clarify the flow for these non-swing events.
+    *   **Result**: Consecutive "facing up" events are now correctly separated by the correct "No shot" or "Leave" events, and successfully aligned using DP sequence alignment to fallback candidates without disrupting the rest of the timeline's alignment.
+
 
 
 ### 4. ⚠️ CRITICAL: Root Cause of False Positive Shot Detections (May 26, 2026)
