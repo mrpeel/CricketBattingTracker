@@ -546,39 +546,52 @@ def transcribe_audio_gemini(audio_path):
         raise Exception("Gemini audio processing failed.")
         
     from pydantic import BaseModel
-    from typing import List
+    from typing import List, Optional
 
     class NarrationItem(BaseModel):
         timestamp_seconds: float
-        shot_number: int
+        shot_number: Optional[int] = None
         shot_type: str
-        rating: str
+        rating: Optional[str] = None
         narrated_text: str
 
     class NarrationList(BaseModel):
         narrations: List[NarrationItem]
 
     print("🎙️ Preparing prompt with biomechanics constraints...")
-    prompt = (
-        "You are an expert audio transcription assistant.\n"
-        "Analyze the provided audio recording of a cricket batting practice.\n"
-        "The batsman narrates his shots after playing them, speaking clearly in one of these formats:\n"
-        "1. \"Shot [number] [Shot Type] [Rating]\" (for example: \"Shot 1 Cover drive Excellent\" or \"Shot 12 Pull shot Good\").\n"
-        "2. \"[Number] [Shot Type] [Rating]\" (for example: \"One, push shot, good\" or \"Twelve, pull shot, excellent\").\n\n"
-        "The audio contains long periods of silence, ball impact noises, and background sounds. Ignore all silence and background noise.\n\n"
-        "Search the entire audio file for all spoken narrations matching the pattern.\n"
-        "The batsman may refer to the following expected shot types (grouped by biomechanical class):\n"
-        "- Drive/Defence: \"Straight Drive\", \"Cover Drive\", \"Off Drive\", \"On Drive\", \"Forward Defensive\", \"Back-foot Defensive\", \"Push Shot\" (or \"Push\")\n"
-        "- Glance/Flicks: \"Flick Shot\", \"Leg Glance\", \"On-Glance\", \"Traditional Sweep Shot\" (or \"Sweep\")\n"
-        "- Cut/Punch: \"Square Cut\", \"Cut\", \"Back-foot Punch\"\n"
-        "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
-        "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\"\n"
-        "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\"\n\n"
-        "The batsman will rate the shot quality using one of these rating words:\n"
-        "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\"\n\n"
-        "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
-        "Do not skip shots, do not hallucinate repetitive entries in silence, and output only the matching list."
+    prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_narration_prompt.md")
+    if os.path.exists(prompt_path):
+        with open(prompt_path, "r") as f:
+            prompt_base = f.read().strip()
+        print(f"📖 Loaded narration transcription prompt from {prompt_path}")
+    else:
+        prompt_base = (
+            "You are an expert audio transcription assistant.\n"
+            "Analyze the provided audio recording of a cricket batting practice.\n"
+            "The batsman narrates his shots after playing them, speaking clearly in one of these formats:\n"
+            "1. \"Shot [number] [Shot Type] [Rating]\" (for example: \"Shot 1 Cover drive Excellent\" or \"Shot 12 Pull shot Good\").\n"
+            "2. \"[Number] [Shot Type] [Rating]\" (for example: \"One, push shot, good\" or \"Twelve, pull shot, excellent\").\n\n"
+            "The audio contains long periods of silence, ball impact noises, and background sounds. Ignore all silence and background noise.\n\n"
+            "Search the entire audio file for all spoken narrations matching the pattern.\n"
+            "The batsman may refer to the following expected shot types (grouped by biomechanical class):\n"
+            "- Drive/Defence: \"Straight Drive\", \"Cover Drive\", \"Off Drive\", \"On Drive\", \"Forward Defensive\", \"Back-foot Defensive\", \"Push Shot\" (or \"Push\")\n"
+            "- Glance/Flicks: \"Flick Shot\", \"Leg Glance\", \"On-Glance\", \"Traditional Sweep Shot\" (or \"Sweep\")\n"
+            "- Cut/Punch: \"Square Cut\", \"Cut\", \"Back-foot Punch\"\n"
+            "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
+            "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\"\n"
+            "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\"\n\n"
+            "The batsman will rate the shot quality using one of these rating words:\n"
+            "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\"\n\n"
+            "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
+            "Do not skip shots, do not hallucinate repetitive entries in silence, and output only the matching list."
+        )
+    schema_instruction = (
+        "\n\nOutput the result as a JSON object matching the response schema: a list of narration items. "
+        "Each item must contain `timestamp_seconds` (float, e.g. 3.45 or 12.18), `shot_number` (int, or null for stance/admin/non-numbered events), "
+        "`shot_type` (str, e.g. 'Facing up', 'Cover Drive', 'Cut', 'Leg Glance', etc.), `rating` (str, e.g. 'good', 'ok', or null), "
+        "and `narrated_text` (str, the exact transcribed text of the utterance)."
     )
+    prompt = prompt_base + schema_instruction
     
     models_to_try = ['gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash']
     response = None
@@ -620,8 +633,9 @@ def transcribe_audio_gemini(audio_path):
         items = data.get("narrations", [])
         if items:
             for item in items:
+                shot_num_raw = item.get("shot_number")
                 shot_events.append({
-                    "shot_number": int(item.get("shot_number", 0)),
+                    "shot_number": int(shot_num_raw) if shot_num_raw is not None else None,
                     "timestamp_seconds": float(item.get("timestamp_seconds", 0.0)),
                     "texts": [item.get("narrated_text", "")]
                 })
@@ -688,8 +702,10 @@ def transcribe_audio_gemini(audio_path):
         text_lower = full_text.lower()
         
         # Map shot type
-        shot_type = "Defence/Block"
-        if "cover drive" in text_lower:
+        shot_type = None
+        if "facing up" in text_lower:
+            shot_type = "Facing up"
+        elif "cover drive" in text_lower:
             shot_type = "Cover drive"
         elif "straight drive" in text_lower:
             shot_type = "Straight drive"
@@ -713,6 +729,12 @@ def transcribe_audio_gemini(audio_path):
             shot_type = "Push"
         elif "half" in text_lower or "have" in text_lower:
             shot_type = "Off drive"
+            
+        if shot_type is None:
+            if event["shot_number"] is not None:
+                shot_type = "Defence/Block"
+            else:
+                continue
             
         # Map quality
         quality = "good"
