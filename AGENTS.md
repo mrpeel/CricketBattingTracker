@@ -8,7 +8,7 @@ Welcome to the Pitch Analytix Pro (Cricket Batting Tracker) workspace. This file
 
 ## 📂 Memory Layout
 All state and memory documents reside under the `.agents/` folder:
-- **`ACTIVE_CONTEXT.md`**: Contains system objectives, technical approach, active phase objectives, feature backlog catalog, and verification criteria.
+- **`ACTIVE_CONTEXT.md`**: Contains system objectives, technical approach, active phase objectives, feature backlog catalog, and verification criteria.  Only keep the last 5 completed items in the backlog.  Move other items into the project's change_logfile.
 - **`ARCHITECTURE.md`**: Maps the system structure, data flow diagrams, WearOS real-time kinematics state machine, and directory layout.
 - **`LEARNINGS.md`**: Tracks key decisions, bugs resolved, and performance scorecard historical summaries.
 - **`rules/`**: Workspace directives and constraints.
@@ -19,7 +19,8 @@ Before starting any task, the executor must read `AGENTS.md`, `.agents/ACTIVE_CO
 ## Context Management & Token Quota Optimization
 To prevent chat bloat and conserve token quota, you must actively police the conversation history for topic drift:
 
-1. **Detect Topic Shifts**: Before executing a new task or sub-task, analyze if the user's request deviates from the immediate context of the last 2-3 turns.
-2. **Propose Context Pruning**: If a topic shift or task transition is detected, do not immediately ingest the entire chat history. Instead, halt and explicitly ask the user:
+1. **Detect Topic Shifts**: Before executing a new task or sub-task, analyze whether the previous context is likely to be required.  Strive to keep the immediate context to the last 2-3 turns.
+2. **Propose Context Pruning**: If context is not required, do not immediately ingest the entire chat history. Instead, halt and explicitly ask the user:
    > *"I notice we are shifting focus to [New Topic]. Should we prune our short-term chat context to save your token quota? If yes, I will sync current progress to `.agents/rules/ACTIVE_CONTEXT.md` and archive this thread's previous history."*
 3. **Enforce Progressive Disclosure**: When a topic shift is approved, rely strictly on `@mention` files (e.g., `@ACTIVE_CONTEXT.md`, `@LEARNINGS.md`, `@ARCHITECTURE.md`) for baseline project memory rather than reading old chat code blocks.
+

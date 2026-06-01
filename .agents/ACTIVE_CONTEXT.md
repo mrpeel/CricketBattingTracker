@@ -27,7 +27,6 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 | Feature ID | Feature Name | Description | Status | Verification Method |
 |---|---|---|---|---|
-| F-012 | Stance Break Tolerance | 1.2s break-tolerance window handles transient failures (bat rocking) during stance lock | **Completed** | SwingDetectorTest unit tests |
 | B-001 | Pull Shot Precision | Reduce false positive rate on Pull shot classification | Backlog | `SwingDetectorGroundTruthTest` |
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
@@ -36,14 +35,15 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
 | B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
 | F-013 | Full Watch Sensor Stack Logging | Background logging of up to 15 physical/virtual Wear OS sensors when raw logging/diagnostics is enabled | **Completed** | E2E simulation verify 11 CSV files |
+| B-008 | Stance Gate Optimization | Tune thresholds and timings to C: Moderate configuration to eliminate walking break FPs and timeout lockouts | **Completed** | E2E Simulation on session-2026-06-01_12-23-38 |
 
 ---
 
-## 🔖 Current Session State (session-2026-05-31_14-12-10)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-05-31_14-12-10`
-*   **Audio File**: `narration_20260531_141205.m4a`
-*   **Status**: Fully completed implementation of the wake-up step sensors and the hybrid M-of-N stance gate logic (Configuration H9). The timing failure under tighter limits was resolved by expanding the break tolerance window to 1.5s. All 10 Wear OS unit tests passed, and offline simulation confirmed 78.3% recall with 1.68 FPs/min.
-*   **Previous Session (session-2026-05-31_10-06-52)**: Checked stance check alignment, indicating 4/5 locks passed.
+## 🔖 Current Session State (session-2026-06-01_12-23-38)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-01_12-23-38`
+*   **Audio File**: `narration_20260601_122334.m4a`
+*   **Status**: Successfully optimized the stance gate parameters (C: Moderate configuration with 0.8s lock duration, 10.0s backswing timeout, 1.0s step window, and 4-of-4 check). Verified offline simulation yielding 95.6% recall and 0.50 FPs/min. All 10 Wear OS unit tests passed.
+*   **Previous Session (session-2026-05-31_14-12-10)**: Dynamic logging verified; hybrid gate H9 implemented.
 
 
 ---

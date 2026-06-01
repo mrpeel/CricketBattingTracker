@@ -301,17 +301,19 @@ class SwingDetectorTest {
             time += 20_000_000L
         }
 
-        // 2. Simulate longer failure exceeding tolerance (1.5s) - 75 samples
-        for (i in 0 until 75) {
-            detector.processGyro(floatArrayOf(5.0f, 0f, 0f), time)
+        // 2. Simulate longer failure exceeding tolerance (2.0s) - 100 samples
+        // Alternate gyro values to keep standard deviation high (> 1.2 rad/s) so the gate remains broken
+        for (i in 0 until 100) {
+            val gyroVal = if (i % 2 == 0) 5.0f else 0.0f
+            detector.processGyro(floatArrayOf(gyroVal, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
             detector.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)
             time += 20_000_000L
         }
 
-        // 3. Restore quiet stance (800ms) - 40 samples (not enough to lock since it reset completely and only has 800ms < 1.2s)
-        for (i in 0 until 40) {
+        // 3. Restore quiet stance (500ms) - 25 samples (not enough to lock since it reset completely and only has 500ms < 0.8s)
+        for (i in 0 until 25) {
             detector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)

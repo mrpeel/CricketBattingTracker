@@ -319,6 +319,17 @@ CONFIGS = [
         gyro_mandatory=True,
         description="Moderate thresholds, Gyro < 1.2 & steps mandatory + any 1 of remaining 3 (grav -2.5, 1.2s lock)"
     ),
+    ThresholdConfig(
+        name="New Optimized Kotlin",
+        gyro_std_max=1.2,
+        accel_std_max=2.0,
+        ori_disp_max_deg=2.0,
+        grav_y_max=-2.5,
+        step_window_s=1.0,
+        lock_duration_s=0.8,
+        min_motion_conditions=4,
+        description="Updated logic: C: Mod thresholds, 0.8s lock, 1.0s step window, 4-of-4 check"
+    ),
 ]
 
 def load_sensor_data(session_dir):
@@ -492,8 +503,8 @@ def simulate_state_machine(config: ThresholdConfig, df_stats: pd.DataFrame, step
                             
         # 3. FACING_UP_LOCKED state
         elif state == 1:
-            # Timeout (5s)
-            if t - locked_time > 5.0:
+            # Timeout (12s)
+            if t - locked_time > 12.0:
                 state = 0
                 gate_active = False
                 break_start_time = 0.0
@@ -599,7 +610,7 @@ def main():
         session_duration_m = gyro['seconds_elapsed'].max() / 60.0
         
         # Load narrated shots
-        offset = get_offset(session_dir)
+        offset = 0.0
         narr_path = os.path.join(session_dir, "narrations_raw.json")
         with open(narr_path) as f:
             narrations = json.load(f)

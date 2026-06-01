@@ -327,16 +327,16 @@ class SwingDetector {
         // Optimized: 2.0f° (Flexible orientation threshold)
         const val FACING_UP_ORI_DISP_MAX_DEG = 2.0f   // degrees
         // Condition E: Gravity Y arm-extension anchor — requires arm to be extended (not limp/resting)
-        // Optimized: -3.5f m/s² (Flexible pose threshold)
-        const val FACING_UP_GRAVITY_Y_MIN    = -3.5f  // m/s²
+        // Optimized: -2.5f m/s² (Flexible pose threshold)
+        const val FACING_UP_GRAVITY_Y_MIN    = -2.5f  // m/s²
         // Recency gate: a step event within this window breaks the facing-up gate
         // 1.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
         const val STEP_RECENCY_NS            = 1_000_000_000L  // 1.0 seconds
         // How long ALL conditions must hold continuously before we're "locked".
-        // Increased from 0.8s to 1.2s — harder to spuriously arm during brief still moments.
-        const val FACING_UP_MIN_DURATION_NS  = 1_200_000_000L  // 1.2 seconds
+        // Reduced to 0.8s for quicker guard confirmation.
+        const val FACING_UP_MIN_DURATION_NS  = 800_000_000L  // 0.8 seconds
         // How long after facing-up to wait for a backswing before giving up
-        const val BACKSWING_TIMEOUT_NS       = 5_000_000_000L  // 5.0 seconds
+        const val BACKSWING_TIMEOUT_NS       = 10_000_000_000L  // 10.0 seconds
         // Break tolerance window for transient condition failures (e.g. bat rocking)
         const val FACING_UP_BREAK_TOLERANCE_NS = 1_500_000_000L // 1.5 seconds
         // Gyro threshold to declare backswing departure has started
@@ -344,7 +344,7 @@ class SwingDetector {
         // Post-shot recovery guard: no new facing-up arm during this window
         const val POST_SHOT_GUARD_NS         = 2_500_000_000L  // 2.5 seconds
         // Minimum number of flexible conditions required to pass (out of accel, ori, gravity)
-        const val FACING_UP_MIN_FLEXIBLE_CONDITIONS = 1
+        const val FACING_UP_MIN_FLEXIBLE_CONDITIONS = 3
     }
 
     fun processGyro(values: FloatArray, timestamp: Long) {

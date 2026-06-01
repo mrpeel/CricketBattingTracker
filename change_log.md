@@ -19,3 +19,4 @@ This file tracks the historical changes and completed features for Pitch Analyti
 | F-009 | Game Rotation Vector | Switch primary bat orientation quaternion to TYPE_GAME_ROTATION_VECTOR (no magnetometer) | Build passes; next live session |
 | F-010 | Step Detector Integration | TYPE_STEP_DETECTOR feeds a walking kill-switch into the facing-up gate | Build passes; next live session |
 | F-011 | Watch UI Stance Indicator | Pulsing 'Facing Up' badge on Wear OS UI for real-time stance confirmation | Manual stance check on watch screen |
+| F-012 | Stance Break Tolerance | 1.2s break-tolerance window handles transient failures (bat rocking) during stance lock | SwingDetectorTest unit tests |
