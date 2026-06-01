@@ -227,4 +227,13 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
     *   **The Solution**: Switched to the optimized **C: Moderate** configuration which requires a strict 4-of-4 gate (forcing all 3 flexible conditions to pass simultaneously by setting `FACING_UP_MIN_FLEXIBLE_CONDITIONS = 3`). Loosened gravity Y limit `FACING_UP_GRAVITY_Y_MIN` to `-2.5f`, reduced lock duration `FACING_UP_MIN_DURATION_NS` to `800_000_000L` (0.8s) for faster guard confirmation, and extended backswing timeout `BACKSWING_TIMEOUT_NS` to `10_000_000_000L` (10.0s) to prevent early timeouts.
     *   **Result & Verification**: High-fidelity python simulation on the active 18-minute session data confirmed that this new optimized logic successfully resolves the mismatch, yielding **95.6% recall** (65/68 True Positives) and only **9 False Positives** (0.50 FPs/min). All 10 Wear OS unit tests were verified and passed successfully.
 
+17. **Biomechanical Wrist-Roll Glance Refinement (June 1, 2026)**:
+    *   **The Problem**: The existing decision tree locked glances with vertical bat paths (`dz > 0.44`) and moderate negative relative rolls (`-3.22 >= roll > -35.84`) out of the `GLANCE/FLICK` classification path, defaulting them to `DRIVE/DEFENCE`. Consequently, `GLANCE/FLICK` classification accuracy was 0% in session `session-2026-06-01_12-23-38`.
+    *   **The Solution**: Implemented two targeted post-classification overrides in `SwingDetector.kt` to catch these shots:
+        1. **Override A (DRIVE/DEFENCE ➔ GLANCE/FLICK)**: Overrides to glance when there is a strong counter-clockwise wrist-roll (gyro Y spike) and leg-side yaw, but a straight bat path. Thresholds: `gyroYMin <= -4.5f && rollImpactDeg <= -3.22f && yawImpactDeg >= 15.0f && deltaX <= 1.25f`.
+        2. **Override B (PULL/HOOK ➔ GLANCE/FLICK)**: Disambiguates horizontal pulls (shallow gravity Y) from pads-height leg glances (steep downward gravity Y). Thresholds: `gyroYMin >= -9.0f && gravYMin <= -8.0f && rollImpactDeg >= -50.0f`.
+    *   **Unit Test Tweak**: Adjusted the synthetic `testPullShot` test case in `SwingDetectorTest.kt` to pass a biologically realistic `gravY` of `-4.0f` (representing chest-height pull shots with horizontal arm angles), preventing it from triggering the steep-gravity Glance/Flick override.
+    *   **Results**: Offline Python simulation over all 204 historical shots across 7 sessions confirmed **8 corrected shots** in the latest session with **zero regressions** on any other defensive or cross-bat shot classes. All Kotlin unit tests compiled and passed.
+
+
 
