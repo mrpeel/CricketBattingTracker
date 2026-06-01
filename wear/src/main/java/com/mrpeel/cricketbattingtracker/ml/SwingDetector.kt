@@ -715,12 +715,34 @@ class SwingDetector {
             }
         }
 
+        // 8c. Post-classification GLANCE/FLICK overrides
+        // Override A: DRIVE/DEFENCE -> GLANCE/FLICK (leg-side wrist roll on straight bat path)
+        // Override B: PULL/HOOK -> GLANCE/FLICK (vertical bat path steer with steep Y gravity)
+        val swingGyroIndices = gyroBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
+        val gyroYMin = if (swingGyroIndices.isNotEmpty())
+            swingGyroIndices.minOf { gyroBuffer.y[it] } else 0f
+
+        val swingGravIndices = gravBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
+        val gravYMin = if (swingGravIndices.isNotEmpty())
+            swingGravIndices.minOf { gravBuffer.y[it] } else -9.8f
+
+        if (shotType == "DRIVE/DEFENCE") {
+            if (gyroYMin <= -4.5f && rollImpactDeg <= -3.22f && yawImpactDeg >= 15.0f && deltaX <= 1.25f) {
+                Log.d(TAG, "GLANCE/FLICK override A (from DRIVE/DEFENCE): gyroYMin=$gyroYMin, roll=$rollImpactDeg, yaw=$yawImpactDeg, deltaX=$deltaX")
+                shotType = "GLANCE/FLICK"
+            }
+        } else if (shotType == "PULL/HOOK") {
+            if (gyroYMin >= -9.0f && gravYMin <= -8.0f && rollImpactDeg >= -50.0f) {
+                Log.d(TAG, "GLANCE/FLICK override B (from PULL/HOOK): gyroYMin=$gyroYMin, gravYMin=$gravYMin, roll=$rollImpactDeg")
+                shotType = "GLANCE/FLICK"
+            }
+        }
+
         // 8b. Post-classification POWER SHOT override via magnetometer + gravity X
         // Catches power shots where gyroMag < 22.12 but extreme lateral arm displacement
         // (grav_x_max) and magnetometer wrist orientation (mag_x_max) are unambiguous.
         // Validated: +4 improvements, 0 regressions on 68-shot ground truth set.
         if (shotType != "POWER SHOT") {
-            val swingGravIndices = gravBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
             val gravXMax = if (swingGravIndices.isNotEmpty())
                 swingGravIndices.maxOf { gravBuffer.x[it] } else 0f
 

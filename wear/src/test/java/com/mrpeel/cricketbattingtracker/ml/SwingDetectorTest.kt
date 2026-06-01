@@ -143,6 +143,7 @@ class SwingDetectorTest {
             impactGyro = 20f, 
             postGyro = 15f, 
             shock = 60f, 
+            gravY = -4.0f,
             postGyroY = 5f,
             rollImpactDeg = -30f,
             deltaX = 0.5f
