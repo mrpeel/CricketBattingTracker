@@ -113,9 +113,11 @@ Raw logging writes: `WatchAccelerometer.csv`, `WatchGyroscope.csv`, `WatchGravit
 │       ├── services/           # TrackerService (7 sensor streams)
 │       └── MainActivity.kt     # Wear watch UI
 ├── automate_pipeline.py        # Python script for audio-sensor data collection & alignment
-├── batting_top_hand_biomechanics.md  # Reference doc defining stance/walking/running biomechanics
 ├── deploy_physical.sh          # Builds and installs debug APKs to physical watch
-└── testing_guide.md            # Comprehensive instructions for running simulation/live sessions
+├── docs/
+│   ├── batting_top_hand_biomechanics.md  # Reference doc defining stance/walking/running biomechanics
+│   └── testing_guide.md            # Comprehensive instructions for running simulation/live sessions
+└── scratch/                    # Simulation and diagnostic scripts
 ```
 
 ---
@@ -132,4 +134,4 @@ Raw logging writes: `WatchAccelerometer.csv`, `WatchGyroscope.csv`, `WatchGravit
 
 ### 3. Scripts & Reference
 *   **[automate_pipeline.py](file:///Users/neilkloot/Code/CricketBattingTracker/automate_pipeline.py)**: Performs ADB pulls, audio conversions, calibration peak sync, Gemini transcribing, and segment slicing.
-*   **[batting_top_hand_biomechanics.md](file:///Users/neilkloot/Code/CricketBattingTracker/batting_top_hand_biomechanics.md)**: Defines the biomechanical states (Stance/Walk/Run) used to design the facing-up gate thresholds.
+*   **[batting_top_hand_biomechanics.md](file:///Users/neilkloot/Code/CricketBattingTracker/docs/batting_top_hand_biomechanics.md)**: Defines the biomechanical states (Stance/Walk/Run) used to design the facing-up gate thresholds.
