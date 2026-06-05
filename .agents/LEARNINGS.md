@@ -235,5 +235,11 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
     *   **Unit Test Tweak**: Adjusted the synthetic `testPullShot` test case in `SwingDetectorTest.kt` to pass a biologically realistic `gravY` of `-4.0f` (representing chest-height pull shots with horizontal arm angles), preventing it from triggering the steep-gravity Glance/Flick override.
     *   **Results**: Offline Python simulation over all 204 historical shots across 7 sessions confirmed **8 corrected shots** in the latest session with **zero regressions** on any other defensive or cross-bat shot classes. All Kotlin unit tests compiled and passed.
 
+18. **Tighter Glance/Flick Overrides Evaluation and Deferral (June 5, 2026)**:
+    *   **The Investigation**: Ran the simulation across 322 shots from all 5 live watch sessions to evaluate the proposed Glance/Flick override refinements (tighter `gyroYMin <= -6.0f` for Override A, and `-9.0f <= gyroYMin <= -3.0f` for Override B).
+    *   **Findings**: The proposed Variant 6 overrides yielded a net +3 shot improvement (from 85/322 to 88/322 accuracy) with 0 regressions overall. All 3 corrected shots occurred on the June 5 session (`session-2026-06-05_12-29-59`), recovering 2 blocks and 1 pull shot from false Glance/Flick classifications.
+    *   **Decision**: The user noted that these 3 shots were marginal and the current classification is not incorrect. The decision was made to **defer these changes** and wait to collect more data before applying further refinements to the classification or stance gate thresholds.
+
+
 
 

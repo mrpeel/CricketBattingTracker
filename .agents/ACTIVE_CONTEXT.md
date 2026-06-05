@@ -39,11 +39,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session-2026-06-01_12-23-38)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-01_12-23-38`
-*   **Audio File**: `narration_20260601_122334.m4a`
-*   **Status**: Successfully optimized the stance gate parameters (C: Moderate configuration with 0.8s lock duration, 10.0s backswing timeout, 1.0s step window, and 4-of-4 check). Verified offline simulation yielding 95.6% recall and 0.50 FPs/min. All 10 Wear OS unit tests passed.
-*   **Previous Session (session-2026-05-31_14-12-10)**: Dynamic logging verified; hybrid gate H9 implemented.
+## 🔖 Current Session State (session-2026-06-05_12-29-59)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-05_12-29-59`
+*   **Audio File**: `narration_20260605_122958.m4a`
+*   **Status**: Evaluated the proposed k=2 (3-of-4) stance gate and Variant 6 classification overrides on all 5 live sessions (322 shots). Variant 6 yields +3 improvements on today's session (reverting 2 blocks and 1 pull shot from false glances) with 0 regressions. However, because the corrected shots were marginal and the current classifications are acceptable, changes are deferred. Currently deployed codebase remains active; we will collect more data before tuning.
+*   **Previous Session (session-2026-06-01_12-23-38)**: Stance gate optimized to C: Moderate configuration.
 
 
 ---
