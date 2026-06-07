@@ -15,7 +15,6 @@ import glob
 import argparse
 import subprocess
 import wave
-import aifc
 import re
 import numpy as np
 import pandas as pd
@@ -130,65 +129,6 @@ def pull_audio_from_phone(phone_id, dest_dir):
     subprocess.run(["adb", "-s", phone_id, "pull", newest_file, local_path], check=True)
     return local_path
 
-def convert_to_aiff(m4a_path, aiff_path):
-    print("Converting audio to AIFF using afconvert...")
-    cmd = ["afconvert", "-f", "AIFF", "-d", "BEI16@44100", m4a_path, aiff_path]
-    subprocess.run(cmd, check=True)
-
-def load_audio_envelope(aiff_path, target_fps=100):
-    with aifc.open(aiff_path, 'rb') as a:
-        n_channels = a.getnchannels()
-        framerate = a.getframerate()
-        n_frames = a.getnframes()
-        chunk_size = int(framerate / target_fps)
-        
-        envelope = []
-        for _ in range(0, n_frames, chunk_size):
-            frames = a.readframes(chunk_size)
-            if not frames:
-                break
-            arr = np.frombuffer(frames, dtype='>i2')
-            if len(arr) == 0:
-                break
-            if n_channels == 2:
-                arr = arr.reshape(-1, 2)
-                val = np.max(np.abs(arr))
-            else:
-                val = np.max(np.abs(arr))
-            envelope.append(val)
-    return np.array(envelope, dtype=np.float32), float(framerate) / chunk_size
-
-def find_calibration_taps_audio(envelope, fps, duration_limit=2.0, num_taps=5):
-    from scipy.signal import find_peaks
-    # We look for 5 prominent peaks
-    prominence = np.max(envelope) * 0.15
-    peaks, _ = find_peaks(envelope, distance=int(0.12 * fps), prominence=prominence)
-    
-    for i in range(len(peaks) - num_taps + 1):
-        window_peaks = peaks[i : i + num_taps]
-        time_diff = (window_peaks[-1] - window_peaks[0]) / fps
-        if time_diff <= duration_limit:
-            return window_peaks / fps
-    return None
-
-def find_calibration_taps_sensor(gyro_path, duration_limit=2.0, num_taps=5):
-    from scipy.signal import find_peaks
-    if not os.path.exists(gyro_path):
-        return None, None
-        
-    df = pd.read_csv(gyro_path)
-    df['mag'] = np.sqrt(df['x']**2 + df['y']**2 + df['z']**2)
-    
-    prominence = np.max(df['mag']) * 0.15
-    peaks, _ = find_peaks(df['mag'], distance=6, prominence=prominence)
-    
-    for i in range(len(peaks) - num_taps + 1):
-        window_peaks = df.iloc[peaks[i : i + num_taps]]
-        times = window_peaks['seconds_elapsed'].values
-        time_diff = times[-1] - times[0]
-        if time_diff <= duration_limit:
-            return times, window_peaks['time'].values
-    return None, None
 
 def clean_and_normalize(text):
     pre_mappings = {
@@ -559,7 +499,7 @@ def transcribe_audio_gemini(audio_path):
         narrations: List[NarrationItem]
 
     print("🎙️ Preparing prompt with biomechanics constraints...")
-    prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_narration_prompt.md")
+    prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "gemini_narration_prompt.md")
     if os.path.exists(prompt_path):
         with open(prompt_path, "r") as f:
             prompt_base = f.read().strip()
@@ -853,36 +793,12 @@ def main():
                 offset = None
 
         if offset is None:
-            print("🔍 Auto-start sync unavailable. Detecting calibration events (5-tap signature)...")
-            # Convert to AIFF only when needed for peak detection
-            aiff_path = os.path.join(session_dir, "audio_narration.aiff")
-            convert_to_aiff(audio_path, aiff_path)
-            envelope, fps = load_audio_envelope(aiff_path)
-            audio_taps = find_calibration_taps_audio(envelope, fps)
-            
-            gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
-            sensor_taps, _ = find_calibration_taps_sensor(gyro_path)
-            
-            if audio_taps is not None and sensor_taps is not None:
-                # Sync off the first tap
-                offset = sensor_taps[0] - audio_taps[0]
-                print(f"🎯 Auto-calibration successful!")
-                print(f"   Audio taps (sec):  {audio_taps}")
-                print(f"   Sensor taps (sec): {sensor_taps}")
-                print(f"   Calculated Clock Offset: {offset:+.3f}s (Sensor = Audio {offset:+.3f}s)")
-            else:
-                print("⚠️ WARNING: Could not automatically detect the 5-tap calibration sequence.")
-                if audio_taps is None:
-                    print("   - Failed to find 5 peaks in audio.")
-                if sensor_taps is None:
-                    print("   - Failed to find 5 peaks in watch gyroscope.")
-                
-                # Fallback to manual offset input
-                inp = input("Please enter manual clock offset (seconds) or 0 to skip: ").strip()
-                try:
-                    offset = float(inp)
-                except:
-                    offset = 0.0
+            print("⚠️ WARNING: Auto-start synchronization failed or latest_timeline.txt is missing.")
+            inp = input("Please enter manual clock offset (seconds) or 0 to skip: ").strip()
+            try:
+                offset = float(inp)
+            except:
+                offset = 0.0
     else:
         print(f"🎯 Using manual clock offset: {offset:+.3f}s")
         

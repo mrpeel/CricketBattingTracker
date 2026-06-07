@@ -240,6 +240,11 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
     *   **Findings**: The proposed Variant 6 overrides yielded a net +3 shot improvement (from 85/322 to 88/322 accuracy) with 0 regressions overall. All 3 corrected shots occurred on the June 5 session (`session-2026-06-05_12-29-59`), recovering 2 blocks and 1 pull shot from false Glance/Flick classifications.
     *   **Decision**: The user noted that these 3 shots were marginal and the current classification is not incorrect. The decision was made to **defer these changes** and wait to collect more data before applying further refinements to the classification or stance gate thresholds.
 
+19. **5-Tap Calibration & AIFF Audio Conversion Removal (June 7, 2026)**:
+    *   **The Problem**: The automated pipeline fell back to 5-tap peak alignment using AIFF audio envelopes if the watch's `latest_timeline.txt` was not in the session folder. This required importing the `aifc` module, which is deprecated/removed in Python 3.13+, causing the pipeline to crash.
+    *   **The Solution**: Removed all references to 5-tap sensor/audio calibration and AIFF audio conversion. Modified the fallback path to prompt the user directly for a manual offset input (defaulting to `0.0`). The `.m4a` file is uploaded directly to Gemini for transcription.
+    *   **Result**: The pipeline runs successfully without AIFF conversion or `aifc` imports on Python 3.13+.
+
 
 
 
