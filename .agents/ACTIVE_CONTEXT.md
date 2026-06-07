@@ -39,11 +39,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session-2026-06-05_12-29-59)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-05_12-29-59`
-*   **Audio File**: `narration_20260605_122958.m4a`
-*   **Status**: Evaluated the proposed k=2 (3-of-4) stance gate and Variant 6 classification overrides on all 5 live sessions (322 shots). Variant 6 yields +3 improvements on today's session (reverting 2 blocks and 1 pull shot from false glances) with 0 regressions. However, because the corrected shots were marginal and the current classifications are acceptable, changes are deferred. Currently deployed codebase remains active; we will collect more data before tuning.
-*   **Previous Session (session-2026-06-01_12-23-38)**: Stance gate optimized to C: Moderate configuration.
+## 🔖 Current Session State (session-2026-06-07_14-34-24)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-07_14-34-24`
+*   **Audio File**: `narration_20260607_143423.m4a`
+*   **Status**: Executed shot classification running total analysis and optimization grid search across 6 trustworthy sessions starting from 30 May 2026 (312 shots total). Evaluated the current Watch logic (30.45% overall accuracy) and ran grid search on all watch sensor signals. Identified that adding Magnetometer X-axis features improves cross-validated accuracy to 54.81% (depth-3 tree), while Random Forest achieves 58.65% cross-validated accuracy (94.55% training accuracy). Committed the generated `combined_ground_truth_aligned.csv` and `proposed_logic_aligned.csv` to version control.
+*   **Previous Session (session-2026-06-05_12-29-59)**: Evaluated k=2 (3-of-4) stance gate and Variant 6 classification overrides.
 
 
 ---

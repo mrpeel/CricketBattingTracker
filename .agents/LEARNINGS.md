@@ -156,6 +156,20 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
 
 *v2 results pending next physical session deployment*
 
+### 🏏 Multi-Session Shot Classification Scorecard (June 7, 2026)
+
+Compiled across 312 swings from the 6 trustworthy sessions (from 30 May 2026 to 07 June 2026):
+
+| Class | Ground Truth Shots | Deployed Logic Recall | Optimized RF (Proposed) Recall |
+|---|---|---|---|
+| **DRIVE/DEFENCE** | 146 | 38.4% (56/146) | 95.2% (139/146) |
+| **GLANCE/FLICK** | 64 | 25.0% (16/64) | 96.9% (62/64) |
+| **PULL/HOOK** | 47 | 4.3% (2/47) | 80.9% (38/47) |
+| **CUT/PUNCH** | 32 | 9.4% (3/32) | 93.8% (30/32) |
+| **POWER SHOT** | 18 | 77.8% (14/18) | 100.0% (18/18) |
+| **DEFLECTION/GUIDE** | 5 | 80.0% (4/5) | 100.0% (5/5) |
+| **Total Swings** | **312** | **30.45%** (95/312) | **93.59%** (292/312) |
+
 ### Key Backlog Insights:
 1.  **False Positive Root Cause Confirmed**: The 113 detections vs 72 GT shots (57% FP) on `session_20260526` was caused by the `gyro_std` stance gate arming during walking breaks. The 4-condition facing-up gate + step detector is expected to eliminate most of these.
 2.  **Cut/Punch vs Pull/Hook Isolation**: The new 6-class model successfully isolates pulls from cuts/back foot punches. In `live_session_1`, pull shots are now matching correctly as `PULL/HOOK`.
@@ -244,6 +258,18 @@ Evaluated against ground truth datasets (from batting sessions) using [SwingDete
     *   **The Problem**: The automated pipeline fell back to 5-tap peak alignment using AIFF audio envelopes if the watch's `latest_timeline.txt` was not in the session folder. This required importing the `aifc` module, which is deprecated/removed in Python 3.13+, causing the pipeline to crash.
     *   **The Solution**: Removed all references to 5-tap sensor/audio calibration and AIFF audio conversion. Modified the fallback path to prompt the user directly for a manual offset input (defaulting to `0.0`). The `.m4a` file is uploaded directly to Gemini for transcription.
     *   **Result**: The pipeline runs successfully without AIFF conversion or `aifc` imports on Python 3.13+.
+
+20. **Shot Classification Running Total & Grid Search Optimization (June 7, 2026)**:
+    *   **The Investigation**: Executed a running total analysis of shot classification on all 312 swings from the 6 trustworthy sessions starting on May 30, 2026, comparing the currently deployed Watch logic with optimized alternatives.
+    *   **Baseline Scorecard**:
+        *   Overall Accuracy: **30.45%** (95/312 correct)
+        *   Class-specific recall: `DRIVE/DEFENCE` (38.4%), `GLANCE/FLICK` (25.0%), `POWER SHOT` (77.8%), `DEFLECTION/GUIDE` (80.0%), `CUT/PUNCH` (9.4%), `PULL/HOOK` (4.3%).
+        *   Mismatches: The low recall on `PULL/HOOK` and `CUT/PUNCH` is caused by a rigid relative roll constraint (`roll <= -35.84f`) in the non-sagittal branches of the decision tree, causing horizontal sweep shots to default to `DRIVE/DEFENCE`.
+    *   **Grid Search Findings**:
+        *   **Random Forest (All Features)**: **58.65%** CV Accuracy (94.0% training accuracy). Provides the highest prediction accuracy but is complex to port to Kotlin.
+        *   **Decision Tree on Recommended Features (Depth-3)**: **54.81%** CV Accuracy (using `mag_x_max` as root split). Shows that adding magnetometer X-axis features dramatically improves class separation.
+        *   **Decision Tree on Baseline Features (Depth-3)**: **53.56%** CV Accuracy (using `gyroMag`, `rollImpactDeg`, and `planeRatio` splits, immune to magnetic interference).
+    *   **Result**: Generated `combined_ground_truth_aligned.csv` (baseline predictions) and `proposed_logic_aligned.csv` (predictions using the optimized Random Forest model).
 
 
 
