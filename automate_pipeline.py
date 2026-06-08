@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument("--dest", default="/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions", help="Base directory to save pulled logs")
     parser.add_argument("--manual-offset", type=float, help="Override offset detection and specify manual offset in seconds")
     parser.add_argument("--session-dir", help="Path to local pulled session directory (skips ADB watch pull)")
-    parser.add_argument("--local", default="true", help="Use local Whisper instead of Gemini ('true'/'false')")
+    parser.add_argument("--local", default="false", help="Use local Whisper instead of Gemini ('true'/'false')")
     return parser.parse_args()
 
 def check_adb_devices(watch_ip):
@@ -809,7 +809,7 @@ def main():
         with open(narrations_cache_path, "r") as f:
             narrations = json.load(f)
     else:
-        use_local = getattr(args, "local", "true").lower() == "true"
+        use_local = getattr(args, "local", "false").lower() == "true"
         narrations = None
         
         if use_local:
