@@ -31,19 +31,19 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
-| B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
 | B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
 | F-013 | Full Watch Sensor Stack Logging | Background logging of up to 15 physical/virtual Wear OS sensors when raw logging/diagnostics is enabled | **Completed** | E2E simulation verify 11 CSV files |
 | B-008 | Stance Gate Optimization | Tune thresholds and timings to C: Moderate configuration to eliminate walking break FPs and timeout lockouts | **Completed** | E2E Simulation on session-2026-06-01_12-23-38 |
 | B-009 | Random Forest Integration | Integrate scikit-learn Random Forest model into SwingDetector Kotlin logic | **Completed** | Parity test and physical scorecard alignment |
+| B-010 | Clock Offset Optimization | Implement coarse-to-fine clock offset grid search in data collection pipeline | **Completed** | Verification check against all 7 trusted sessions |
 
 ---
 
-## 🔖 Current Session State (session-2026-06-07_14-34-24)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-07_14-34-24`
-*   **Audio File**: `narration_20260607_143423.m4a`
-*   **Status**: Successfully integrated the 10-feature transpiled Random Forest model into SwingDetector Kotlin logic and retired all hardcoded decision tree rules/overrides. Created mathematical parity test and verified 100% mathematical parity. Aligned real-time feature extraction windows with Python training parameters and added magnetometer loading/routing and non-swing event filtering to the GroundTruthTest scorecard harness. Verified that all 11 unit tests pass and physical live session classification accuracy achieves 74%–96%, matching offline expectations.
-*   **Previous Session (session-2026-06-05_12-29-59)**: Evaluated k=2 (3-of-4) stance gate and Variant 6 classification overrides.
+## 🔖 Current Session State (session-2026-06-08_12-22-26)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-06-08_12-22-26`
+*   **Audio File**: `narration_20260608_122220.m4a`
+*   **Status**: Implemented coarse-to-fine clock offset grid search optimization in the data collection pipeline (`automate_pipeline.py`). Successfully ran alignment on all 7 trusted datasets, recovering up to +13 matches per session (total 48 new matches) and improving overall timeline match rate from 69.5% to 83.4%.
+*   **Previous Session (session-2026-06-07_14-34-24)**: Verified Random Forest model integration and 10-feature real-time Kotlin extraction window parity.
 
 
 ---
