@@ -755,53 +755,22 @@ def main():
             print("❌ ERROR: File does not exist.")
             sys.exit(1)
             
-    # 4. Calibration Alignment
-    offset = args.manual_offset
-    if offset is None:
-        # Attempt auto-start time synchronization
-        print("🔍 Attempting auto-start timestamp synchronization...")
-        audio_filename = os.path.basename(audio_path)
-        match = re.search(r"narration_(\d{8})_(\d{6})", audio_filename)
+    # 4. Load Gyroscope sensor file (needed for MMSS conversion and offset alignment)
+    gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
+    accel_path = os.path.join(session_dir, "WatchAccelerometer.csv")
+    gravity_path = os.path.join(session_dir, "WatchGravity.csv")
+    orient_path = os.path.join(session_dir, "WatchOrientation.csv")
+    
+    if not os.path.exists(gyro_path):
+        print("❌ ERROR: Gyroscope sensor file missing from session log.")
+        sys.exit(1)
         
-        watch_start_ms = None
-        timeline_path = os.path.join(session_dir, "latest_timeline.txt")
-        if os.path.exists(timeline_path):
-            try:
-                with open(timeline_path, "r") as f:
-                    for line in f:
-                        if "SYSTEM_START:" in line:
-                            m = re.search(r"Ts=(\d+)", line)
-                            if m:
-                                watch_start_ms = int(m.group(1))
-                                break
-            except Exception as e:
-                print(f"⚠️ Error reading timeline for SYSTEM_START: {e}")
+    df_gyro = pd.read_csv(gyro_path)
+    df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
+    start_time_ns = df_gyro.iloc[0]['time']
+    start_time_ms = int(start_time_ns / 1_000_000)
+    gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
 
-        if match and watch_start_ms is not None:
-            date_str, time_str = match.groups()
-            try:
-                dt = datetime.datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
-                audio_start_epoch = dt.timestamp()
-                watch_start_epoch = watch_start_ms / 1000.0
-                offset = audio_start_epoch - watch_start_epoch
-                print(f"🎯 Auto-start synchronization successful!")
-                print(f"   Audio Start Time:  {dt} (Epoch: {audio_start_epoch:.3f}s)")
-                print(f"   Watch Start Time:  {datetime.datetime.fromtimestamp(watch_start_epoch)} (Epoch: {watch_start_epoch:.3f}s)")
-                print(f"   Calculated Clock Offset: {offset:+.3f}s (Sensor = Audio {offset:+.3f}s)")
-            except Exception as e:
-                print(f"⚠️ Failed to parse auto-start times: {e}")
-                offset = None
-
-        if offset is None:
-            print("⚠️ WARNING: Auto-start synchronization failed or latest_timeline.txt is missing.")
-            inp = input("Please enter manual clock offset (seconds) or 0 to skip: ").strip()
-            try:
-                offset = float(inp)
-            except:
-                offset = 0.0
-    else:
-        print(f"🎯 Using manual clock offset: {offset:+.3f}s")
-        
     # 5. Call local Whisper or Gemini to transcribe & parse shot timings (or load local cache if exists)
     narrations_cache_path = os.path.join(session_dir, "narrations_raw.json")
     if os.path.exists(narrations_cache_path):
@@ -830,22 +799,6 @@ def main():
         # Write raw narrations to session dir
         with open(narrations_cache_path, "w") as f:
             json.dump(narrations, f, indent=2)
-        
-    # 6. Perform alignment with raw sensor logs
-    gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
-    accel_path = os.path.join(session_dir, "WatchAccelerometer.csv")
-    gravity_path = os.path.join(session_dir, "WatchGravity.csv")
-    orient_path = os.path.join(session_dir, "WatchOrientation.csv")
-    
-    if not os.path.exists(gyro_path):
-        print("❌ ERROR: Gyroscope sensor file missing from session log.")
-        sys.exit(1)
-        
-    df_gyro = pd.read_csv(gyro_path)
-    df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
-    start_time_ns = df_gyro.iloc[0]['time']
-    start_time_ms = int(start_time_ns / 1_000_000)
-    gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
 
     # Detect and convert MMSS.mmm timestamps to actual elapsed seconds if needed
     if narrations:
@@ -871,6 +824,246 @@ def main():
                 seconds = ival % 100
                 n['timestamp_seconds'] = float(minutes * 60 + seconds + frac)
 
+    # 6. Clock Offset Calibration Alignment (with automatic grid search)
+    baseline_offset = None
+    audio_filename = os.path.basename(audio_path)
+    match = re.search(r"narration_(\d{8})_(\d{6})", audio_filename)
+    
+    watch_start_ms = None
+    timeline_path = os.path.join(session_dir, "latest_timeline.txt")
+    if os.path.exists(timeline_path):
+        try:
+            with open(timeline_path, "r") as f:
+                for line in f:
+                    if "SYSTEM_START:" in line:
+                        m = re.search(r"Ts=(\d+)", line)
+                        if m:
+                            watch_start_ms = int(m.group(1))
+                            break
+        except Exception as e:
+            print(f"⚠️ Error reading timeline for SYSTEM_START: {e}")
+
+    if match and watch_start_ms is not None:
+        date_str, time_str = match.groups()
+        try:
+            dt = datetime.datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
+            audio_start_epoch = dt.timestamp()
+            watch_start_epoch = watch_start_ms / 1000.0
+            baseline_offset = audio_start_epoch - watch_start_epoch
+            print(f"🎯 Auto-start synchronization: filename baseline offset calculated!")
+            print(f"   Audio Start Time:  {dt} (Epoch: {audio_start_epoch:.3f}s)")
+            print(f"   Watch Start Time:  {datetime.datetime.fromtimestamp(watch_start_epoch)} (Epoch: {watch_start_epoch:.3f}s)")
+            print(f"   Calculated Baseline Clock Offset: {baseline_offset:+.3f}s")
+        except Exception as e:
+            print(f"⚠️ Failed to parse auto-start times: {e}")
+            baseline_offset = None
+
+    # Parse watch detections from timeline for grid search
+    watch_shots = []
+    timeline_start = watch_start_ms if watch_start_ms is not None else start_time_ms
+    if os.path.exists(timeline_path):
+        try:
+            with open(timeline_path, "r") as f:
+                for line in f:
+                    if line.startswith("Shot:"):
+                        m_ts = re.search(r"Ts=(\d+)", line)
+                        m_type = re.search(r"Type=([^,]+)", line)
+                        if m_ts:
+                            watch_shots.append({
+                                'ts': int(m_ts.group(1)),
+                                'type': m_type.group(1) if m_type else "Unknown"
+                            })
+        except Exception as e:
+            print(f"⚠️ Error parsing timeline file for grid search: {e}")
+
+    for shot in watch_shots:
+        shot['rel_time'] = (shot['ts'] - timeline_start) / 1000.0
+    watch_times = np.array([s['rel_time'] for s in watch_shots])
+
+    offset = args.manual_offset
+    if offset is not None:
+        print(f"🎯 Using manual clock offset override: {offset:+.3f}s")
+    else:
+        if len(watch_times) > 0 and narrations:
+            search_center = baseline_offset if baseline_offset is not None else 0.0
+            search_range = 15.0 if baseline_offset is not None else 30.0
+            print(f"🔍 Starting clock offset optimization grid search (center={search_center:+.3f}s, range=\u00b1{search_range}s)...")
+            
+            def evaluate_offset(o):
+                all_candidates = []
+                for i, shot in enumerate(narrations):
+                    audio_t = shot['timestamp_seconds']
+                    sensor_narr_t = audio_t + o
+                    is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                    
+                    cands = []
+                    if is_non_swing:
+                        cands.append({
+                            'time': sensor_narr_t - 2.5,
+                            'mag': 1.0,
+                            'is_fallback': True
+                        })
+                    else:
+                        window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t + 7.0)]
+                        peaks = []
+                        if len(window) > 0:
+                            sorted_samples = window.sort_values(by='mag', ascending=False)
+                            for _, row in sorted_samples.iterrows():
+                                pt = row['seconds_elapsed']
+                                pmag = row['mag']
+                                if pmag < 1.5:
+                                    continue
+                                if not any(abs(pt - p['time']) < 1.0 for p in peaks):
+                                    peaks.append({
+                                        'time': pt,
+                                        'mag': pmag,
+                                        'is_fallback': False
+                                    })
+                                    if len(peaks) >= 5:
+                                        break
+                        cands.extend(peaks)
+                        cands.append({
+                            'time': sensor_narr_t - 2.5,
+                            'mag': 1.0,
+                            'is_fallback': True
+                        })
+                    all_candidates.append(cands)
+                    
+                def calculate_candidate_score(cand, sensor_narr_t):
+                    t = cand['time']
+                    mag = cand['mag']
+                    is_fallback = cand['is_fallback']
+                    if is_fallback:
+                        return -3.0
+                    lag = sensor_narr_t - t
+                    if lag < -7.0:
+                        return -999999.0
+                    elif lag < 0.0:
+                        return np.log(mag) - ((lag - 2.5) ** 2) / 4.5 - 5.0
+                    else:
+                        return np.log(mag) - ((lag - 2.5) ** 2) / 4.5
+
+                # DP Table
+                M = len(narrations)
+                dp = []
+                parent = []
+                
+                first_narr_t = narrations[0]['timestamp_seconds'] + o
+                dp.append([calculate_candidate_score(cand, first_narr_t) for cand in all_candidates[0]])
+                parent.append([-1] * len(all_candidates[0]))
+                
+                for i in range(1, M):
+                    sensor_narr_t = narrations[i]['timestamp_seconds'] + o
+                    dp_i = []
+                    parent_i = []
+                    for j, cand in enumerate(all_candidates[i]):
+                        best_score = -999999.0
+                        best_k = -1
+                        score_j = calculate_candidate_score(cand, sensor_narr_t)
+                        
+                        prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                        curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                        min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
+                        
+                        for k, prev_cand in enumerate(all_candidates[i-1]):
+                            if prev_cand['time'] < cand['time'] - min_gap:
+                                val = dp[i-1][k] + score_j
+                                if val > best_score:
+                                    best_score = val
+                                    best_k = k
+                                    
+                        if best_k == -1:
+                            for k, prev_cand in enumerate(all_candidates[i-1]):
+                                if prev_cand['time'] < cand['time']:
+                                    val = dp[i-1][k] + score_j
+                                    if val > best_score:
+                                        best_score = val
+                                        best_k = k
+                        if best_k == -1:
+                            best_k = 0
+                            best_score = dp[i-1][0] + score_j
+                            
+                        dp_i.append(best_score)
+                        parent_i.append(best_k)
+                    dp.append(dp_i)
+                    parent.append(parent_i)
+                    
+                best_j = int(np.argmax(dp[M-1]))
+                chosen_indices = [best_j]
+                for i in range(M-1, 0, -1):
+                    best_j = parent[i][best_j]
+                    chosen_indices.append(best_j)
+                chosen_indices.reverse()
+                
+                # Calculate detections
+                detected = 0
+                errors = []
+                for i, shot in enumerate(narrations):
+                    if shot['shot_type'] == "Facing up":
+                        continue
+                    chosen_cand = all_candidates[i][chosen_indices[i]]
+                    impact_t = chosen_cand['time']
+                    
+                    if len(watch_times) == 0:
+                        break
+                    diffs = np.abs(watch_times - impact_t)
+                    min_diff = np.min(diffs)
+                    if min_diff <= 3.0:
+                        detected += 1
+                        errors.append(min_diff)
+                        
+                mae = np.mean(errors) if errors else 999.0
+                return detected, mae
+
+            # Coarse search
+            coarse_offsets = np.arange(search_center - search_range, search_center + search_range + 0.1, 0.5)
+            best_matches = -1
+            best_offset = search_center
+            best_mae = 999.0
+            
+            for o in coarse_offsets:
+                det, mae = evaluate_offset(o)
+                if det > best_matches:
+                    best_matches = det
+                    best_offset = o
+                    best_mae = mae
+                elif det == best_matches:
+                    if mae < best_mae:
+                        best_offset = o
+                        best_mae = mae
+                        
+            # Fine search
+            fine_offsets = np.arange(best_offset - 0.6, best_offset + 0.61, 0.05)
+            for o in fine_offsets:
+                det, mae = evaluate_offset(o)
+                if det > best_matches:
+                    best_matches = det
+                    best_offset = o
+                    best_mae = mae
+                elif det == best_matches:
+                    if mae < best_mae:
+                        best_offset = o
+                        best_mae = mae
+                        
+            offset = best_offset
+            print(f"🎯 Clock offset optimized successfully!")
+            if baseline_offset is not None:
+                print(f"   Baseline filename offset: {baseline_offset:+.3f}s")
+            print(f"   Optimized offset:         {offset:+.3f}s")
+            print(f"   Timeline matches:         {best_matches} (MAE: {best_mae:.3f}s)")
+        else:
+            if baseline_offset is not None:
+                offset = baseline_offset
+                print(f"⚠️ Timeline detections or narrations empty. Using baseline offset: {offset:+.3f}s")
+            else:
+                print("⚠️ WARNING: Auto-sync metadata and timeline matches unavailable.")
+                inp = input("Please enter manual clock offset (seconds) or 0 to skip: ").strip()
+                try:
+                    offset = float(inp)
+                except:
+                    offset = 0.0
+
+    # 7. Perform Dynamic Programming Sequence Alignment
     aligned_shots = []
     
     # Build candidate lists
