@@ -1,0 +1,24 @@
+# Root rule: zero or more words/phrases matching our vocabulary or fillers, separated by spaces or punctuation
+root ::= (expression)*
+
+expression ::= (word | punctuation | space)+
+
+word ::= space? (term | filler)
+
+punctuation ::= [.,?!]
+
+space ::= " " | "\n" | "\r" | "\t"
+
+# Core glossary terms (actions, shots, quality, admin)
+term ::= action | shot | quality | admin
+
+action ::= "facing up" | "guard stance"
+
+shot ::= "Straight Drive" | "straight drive" | "Cover Drive" | "cover drive" | "Off Drive" | "off drive" | "On Drive" | "on drive" | "Forward Defensive" | "forward defensive" | "Forward Defense" | "forward defense" | "Back-foot Defensive" | "back-foot defensive" | "Back-foot Defense" | "back-foot defense" | "Flick Shot" | "flick shot" | "Leg Glance" | "leg glance" | "On-Glance" | "on-glance" | "Glance" | "glance" | "Sweep Shot" | "sweep shot" | "Sweep" | "sweep" | "Slog Sweep" | "slog sweep" | "Square Cut" | "square cut" | "Cut" | "cut" | "Back-foot Punch" | "back-foot punch" | "Punch" | "punch" | "Pull Shot" | "pull shot" | "Hook Shot" | "hook shot" | "Late Cut" | "late cut" | "Steer" | "steer" | "Glide" | "glide" | "push" | "Push" | "Slog" | "slog" | "Big hit" | "big hit" | "Hit over cow corner" | "hit over cow corner" | "Hit over cow" | "hit over cow" | "Switch Hit" | "switch hit" | "Reverse Sweep" | "reverse sweep"
+
+quality ::= "Good" | "good" | "great" | "Great" | "middled it" | "nailed it" | "smoked it" | "smashed it" | "excellent" | "Excellent" | "OK" | "ok" | "average" | "Average" | "poor" | "Poor" | "edged" | "edge" | "play and miss" | "miss" | "mishit" | "toed" | "toe" | "hit high on bat" | "hit high"
+
+admin ::= "ball " [0-9]+ | "machine jam" | "round " [0-9]+ | "Gray Nicolls Giant" | "Gray Nicolls" | "Nichs" | "Eye in bat" | "Game day bat" | "Game bat" | "finished"
+
+# Small list of optional English filler words to allow natural speech transition
+filler ::= "all" | "right" | "alright" | "let" | "us" | "let's" | "go" | "afternoon" | "session" | "recording" | "starting" | "now" | "the" | "machine" | "is" | "on" | "nice" | "attempted" | "okay" | "ok" | "a" | "an" | "and" | "then" | "with" | "but" | "for" | "to" | "on" | "off" | "out" | "that" | "was" | "it's" | "really" | "again" | "turning" | "sensors" | "keeper" | "slips" | "boundary" | "i" | "get" | "set" | "up" | "ready" | "completely" | "more" | "of" | "than" | "into" | "ground" | "keeper" | "bowler"

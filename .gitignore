@@ -2,6 +2,8 @@
 .gradle
 /local.properties
 /.idea/
+.env
+
 
 # Build Outputs
 **/build/
@@ -14,6 +16,12 @@ cricket_tracker_database*
 logs/
 latest_timeline.txt
 *.log
+
+# Scratch files
+scratch/
+
+# Python cache
+__pycache__/
 
 # OS-specific
 .DS_Store

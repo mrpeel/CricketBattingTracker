@@ -610,7 +610,7 @@ def main():
         session_duration_m = gyro['seconds_elapsed'].max() / 60.0
         
         # Load narrated shots
-        offset = 0.0
+        offset = get_offset(session_dir)
         narr_path = os.path.join(session_dir, "narrations_raw.json")
         with open(narr_path) as f:
             narrations = json.load(f)
