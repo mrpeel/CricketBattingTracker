@@ -16,7 +16,8 @@ TRUSTWORTHY_SESSIONS = [
     "session-2026-05-31_14-12-10",
     "session-2026-06-01_12-23-38",
     "session-2026-06-05_12-29-59",
-    "session-2026-06-07_14-34-24"
+    "session-2026-06-07_14-34-24",
+    "sessions/session-2026-06-08_12-22-26"
 ]
 
 # ─── Quaternion math (exact port from SwingDetector.kt) ──────────────────────
@@ -321,7 +322,7 @@ def normalize_shot_class(shot_name):
     s = shot_name.lower().strip()
     if "pull" in s or "hook" in s:
         return "PULL/HOOK"
-    if "flick" in s or "glance" in s:
+    if "flick" in s or "glance" in s or "sweep" in s:
         return "GLANCE/FLICK"
     if "cut" in s or "punch" in s:
         return "CUT/PUNCH"

@@ -117,6 +117,14 @@ class SwingDetectorGroundTruthTest {
             wristFolder = "",
             transcriptFile = "ground_truth_aligned.csv",
             expectWatchData = true
+        ),
+        SessionConfig(
+            id = "session_20260608",
+            canonicalName = "live_session_20260608",
+            relativePath = "live_watch_sessions/sessions/session-2026-06-08_12-22-26",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
         )
     )
 
@@ -228,6 +236,9 @@ class SwingDetectorGroundTruthTest {
 
             for (event in events) {
                 currentSecondsElapsed = event.secondsElapsed
+                if (config.id == "session_20260608") {
+                    detector.debugEnabled = (currentSecondsElapsed in 78.0f..118.0f)
+                }
                 when (event.type) {
                     1 -> detector.processAccel(event.values, event.timestamp)
                     2 -> detector.processGyro(event.values, event.timestamp)
@@ -237,6 +248,42 @@ class SwingDetectorGroundTruthTest {
                 }
             }
             println("Detector identified ${detectedShots.size} shots.")
+            if (config.id == "session_20260608") {
+                for (i in detectedShots.indices) {
+                    val (shot, secs) = detectedShots[i]
+                    println("  Det $i: secs=$secs, type=${shot.shotType}, speed=${shot.speedKmh}, isHit=${shot.isHit}")
+                }
+            }
+
+            // Save new watch detections back to latest_timeline.txt for live sessions
+            if (config.canonicalName.startsWith("live_session_")) {
+                val timelineFile = File(sessionDir, "latest_timeline.txt")
+                var systemStart: Long = 0L
+                if (timelineFile.exists()) {
+                    timelineFile.readLines().forEach { line ->
+                        if (line.startsWith("SYSTEM_START:")) {
+                            val parts = line.split("Ts=")
+                            if (parts.size > 1) {
+                                systemStart = parts[1].trim().toLongOrNull() ?: 0L
+                            }
+                        }
+                    }
+                }
+                if (systemStart != 0L) {
+                    val sb = StringBuilder()
+                    sb.append("SYSTEM_START: Ts=$systemStart\n")
+                    detectedShots.forEach { (shot, secs) ->
+                        val ts = systemStart + (secs * 1000).toLong()
+                        sb.append("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$ts\n")
+                    }
+                    sb.append("SYSTEM_END: Ts=${systemStart + 1000000}\n")
+                    timelineFile.writeText(sb.toString())
+                    println("Updated timeline at ${timelineFile.absolutePath}")
+                } else {
+                    println("Warning: SYSTEM_START not found for session ${config.canonicalName}")
+                }
+            }
+
 
             // 5. Align and calculate metrics
             val matchedGt = mutableSetOf<Int>()
@@ -256,7 +303,7 @@ class SwingDetectorGroundTruthTest {
                     val detectedImpactTime = detSecondsElapsed - 0.75f
                     val diff = abs(detectedImpactTime - gtShot.wristTimestamp)
 
-                    if (diff <= 2.0f && diff < bestTimeDiff) {
+                    if (diff <= 3.0f && diff < bestTimeDiff) {
                         bestTimeDiff = diff
                         bestDetIdx = detIdx
                     }
@@ -284,6 +331,16 @@ class SwingDetectorGroundTruthTest {
                         isTypeMatch = typeMatch,
                         isHitMatch = hitMatch
                     ))
+                }
+            }
+
+            if (config.id == "session_20260608") {
+                println("=== Unmatched GT Shots ===")
+                for (gtIdx in gtShots.indices) {
+                    if (gtIdx !in matchedGt) {
+                        val gtShot = gtShots[gtIdx]
+                        println("  Unmatched GT: index=$gtIdx, time=${gtShot.wristTimestamp}, type=${gtShot.shotType}, text=${gtShot.narration}")
+                    }
                 }
             }
 

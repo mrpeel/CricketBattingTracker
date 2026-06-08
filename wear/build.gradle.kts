@@ -24,6 +24,11 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.all {
+            it.testLogging {
+                events("passed", "skipped", "failed", "standardOut", "standardError")
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

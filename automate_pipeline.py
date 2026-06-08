@@ -886,7 +886,7 @@ def main():
     else:
         if len(watch_times) > 0 and narrations:
             search_center = baseline_offset if baseline_offset is not None else 0.0
-            search_range = 15.0 if baseline_offset is not None else 30.0
+            search_range = 60.0
             print(f"🔍 Starting clock offset optimization grid search (center={search_center:+.3f}s, range=\u00b1{search_range}s)...")
             
             def evaluate_offset(o):
@@ -1371,7 +1371,7 @@ def normalize_shot_class(shot_name):
     # Map to the 6 biomechanical classes + Miss + Sweep
     if "pull" in s or "hook" in s:
         return "PULL/HOOK"
-    if "flick" in s or "glance" in s:
+    if "flick" in s or "glance" in s or "sweep" in s:
         return "GLANCE/FLICK"
     if "cut" in s or "punch" in s:
         return "CUT/PUNCH"
@@ -1381,8 +1381,6 @@ def normalize_shot_class(shot_name):
         return "POWER SHOT"
     if "drive" in s or "defence" in s or "defense" in s or "push" in s or "straight" in s or "forward" in s or "block" in s:
         return "DRIVE/DEFENCE"
-    if "sweep" in s:
-        return "Sweep"
     if "miss" in s:
         return "Miss"
         

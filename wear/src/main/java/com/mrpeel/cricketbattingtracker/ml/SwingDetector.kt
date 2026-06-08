@@ -177,6 +177,7 @@ enum class DetectorState {
 
 class SwingDetector {
     private val TAG = "SwingDetector"
+    var debugEnabled: Boolean = false
 
     // 500 samples = 10s of history at 50Hz
     private val gyroBuffer   = RingBuffer(500)
@@ -321,19 +322,19 @@ class SwingDetector {
         // Optimized: 1.2f rad/s (Mandatory stillness)
         const val FACING_UP_GYRO_STD_MAX     = 1.2f   // rad/s
         // Condition B: Accelerometer std-of-magnitude over 1s window — foot-strike suppressor
-        // Optimized: 2.0f m/s² (Flexible motion threshold)
-        const val FACING_UP_ACCEL_STD_MAX    = 2.0f   // m/s²
+        // Optimized: 3.25f m/s² (Flexible motion threshold)
+        const val FACING_UP_ACCEL_STD_MAX    = 3.25f  // m/s²
         // Condition C: Mean angular displacement of quaternion over 1s window — bat orientation lock
-        // Optimized: 2.0f° (Flexible orientation threshold)
-        const val FACING_UP_ORI_DISP_MAX_DEG = 2.0f   // degrees
+        // Optimized: 2.5f° (Flexible orientation threshold)
+        const val FACING_UP_ORI_DISP_MAX_DEG = 2.5f   // degrees
         // Condition E: Gravity Y arm-extension anchor — requires arm to be extended (not limp/resting)
-        // Optimized: -2.5f m/s² (Flexible pose threshold)
-        const val FACING_UP_GRAVITY_Y_MIN    = -2.5f  // m/s²
+        // Optimized: -6.0f m/s² (Flexible pose threshold)
+        const val FACING_UP_GRAVITY_Y_MIN    = -6.0f  // m/s²
         // Recency gate: a step event within this window breaks the facing-up gate
         // 1.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
         const val STEP_RECENCY_NS            = 1_000_000_000L  // 1.0 seconds
         // How long ALL conditions must hold continuously before we're "locked".
-        // Reduced to 0.8s for quicker guard confirmation.
+        // Optimized: 0.8s for robust stance confirmation.
         const val FACING_UP_MIN_DURATION_NS  = 800_000_000L  // 0.8 seconds
         // How long after facing-up to wait for a backswing before giving up
         const val BACKSWING_TIMEOUT_NS       = 10_000_000_000L  // 10.0 seconds
@@ -342,7 +343,8 @@ class SwingDetector {
         // Gyro threshold to declare backswing departure has started
         const val BACKSWING_TRIGGER_RAD_S    = 5.0f
         // Post-shot recovery guard: no new facing-up arm during this window
-        const val POST_SHOT_GUARD_NS         = 2_500_000_000L  // 2.5 seconds
+        // Optimized: 1.5s post-shot guard
+        const val POST_SHOT_GUARD_NS         = 1_500_000_000L  // 1.5 seconds
         // Minimum number of flexible conditions required to pass (out of accel, ori, gravity)
         const val FACING_UP_MIN_FLEXIBLE_CONDITIONS = 3
     }
@@ -462,6 +464,10 @@ class SwingDetector {
         if (armExtended) flexiblePassedCount++
 
         val allConditionsMet = gyroOk && stepsOk && (flexiblePassedCount >= FACING_UP_MIN_FLEXIBLE_CONDITIONS)
+
+        if (debugEnabled) {
+            println("Time: ${timestamp / 1_000_000_000.0f}s | gyroStd=${"%.2f".format(gyroStd)} ($gyroOk) | stepsOk=$stepsOk | accelStd=${"%.2f".format(accelStd)} ($accelOk) | oriDisp=${"%.2f".format(oriDisp)}° ($oriOk) | meanGravY=${"%.2f".format(meanGravY)} ($armExtended) | flexiblePassedCount=$flexiblePassedCount | allConditionsMet=$allConditionsMet | State=$detectorState")
+        }
 
         if (allConditionsMet) {
             if (!facingUpGateActive) {
