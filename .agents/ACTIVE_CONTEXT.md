@@ -5,7 +5,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ---
 
 ## 🎯 System Objectives
-*   **Active Phase**: Shot Detection Reliability — Facing-Up Anchor Implementation
+*   **Active Phase**: Shot Detection Reliability — Random Forest Integration
 *   **High-Level Vision**: Pitch Analytix Pro is a professional-grade cricket training companion utilizing Wear OS IMU sensors, local kinematics heuristics, mobile dashboards, and cloud transcription pipelines.
 *   **"The Digital Pavilion" UI Spec**:
     *   **Background**: `#000000` (True Black for OLED screen battery conservation) / `#001B3D` (Deep Navy accents).
@@ -31,18 +31,18 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
-| B-005 | Companion Recording | Migrate audio recorder & transcription to App UI | Completed | E2E verification |
 | B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
 | B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
 | F-013 | Full Watch Sensor Stack Logging | Background logging of up to 15 physical/virtual Wear OS sensors when raw logging/diagnostics is enabled | **Completed** | E2E simulation verify 11 CSV files |
 | B-008 | Stance Gate Optimization | Tune thresholds and timings to C: Moderate configuration to eliminate walking break FPs and timeout lockouts | **Completed** | E2E Simulation on session-2026-06-01_12-23-38 |
+| B-009 | Random Forest Integration | Integrate scikit-learn Random Forest model into SwingDetector Kotlin logic | **Completed** | Parity test and physical scorecard alignment |
 
 ---
 
 ## 🔖 Current Session State (session-2026-06-07_14-34-24)
 *   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-07_14-34-24`
 *   **Audio File**: `narration_20260607_143423.m4a`
-*   **Status**: Executed shot classification running total analysis and optimization grid search across 6 trustworthy sessions starting from 30 May 2026 (312 shots total). Evaluated the current Watch logic (30.45% overall accuracy) and ran grid search on all watch sensor signals. Identified that adding Magnetometer X-axis features improves cross-validated accuracy to 54.81% (depth-3 tree), while Random Forest achieves 58.65% cross-validated accuracy (94.55% training accuracy). Committed the generated `combined_ground_truth_aligned.csv` and `proposed_logic_aligned.csv` to version control.
+*   **Status**: Successfully integrated the 10-feature transpiled Random Forest model into SwingDetector Kotlin logic and retired all hardcoded decision tree rules/overrides. Created mathematical parity test and resolved live session paths for GroundTruthTest scorecard. Verified that all 11 unit tests pass with 100% mathematical parity and complete state-machine test execution.
 *   **Previous Session (session-2026-06-05_12-29-59)**: Evaluated k=2 (3-of-4) stance gate and Variant 6 classification overrides.
 
 

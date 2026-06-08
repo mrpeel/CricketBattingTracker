@@ -71,17 +71,49 @@ class SwingDetectorGroundTruthTest {
             expectWatchData = false
         ),
         SessionConfig(
-            id = "live_session_1",
-            canonicalName = "live_session_1",
-            relativePath = "live_watch_sessions/session-2026-05-23_15-01-17",
+            id = "session_20260530",
+            canonicalName = "live_session_20260530",
+            relativePath = "live_watch_sessions/session-2026-05-30_15-04-41",
             wristFolder = "",
             transcriptFile = "ground_truth_aligned.csv",
             expectWatchData = true
         ),
         SessionConfig(
-            id = "session_20260529",
-            canonicalName = "session_20260529",
-            relativePath = "live_watch_sessions/sessions/session-2026-05-29_12-27-17",
+            id = "session_20260531_10",
+            canonicalName = "live_session_20260531_10",
+            relativePath = "live_watch_sessions/session-2026-05-31_10-06-52",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
+        ),
+        SessionConfig(
+            id = "session_20260531_14",
+            canonicalName = "live_session_20260531_14",
+            relativePath = "live_watch_sessions/session-2026-05-31_14-12-10",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
+        ),
+        SessionConfig(
+            id = "session_20260601",
+            canonicalName = "live_session_20260601",
+            relativePath = "live_watch_sessions/session-2026-06-01_12-23-38",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
+        ),
+        SessionConfig(
+            id = "session_20260605",
+            canonicalName = "live_session_20260605",
+            relativePath = "live_watch_sessions/session-2026-06-05_12-29-59",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
+        ),
+        SessionConfig(
+            id = "session_20260607",
+            canonicalName = "live_session_20260607",
+            relativePath = "live_watch_sessions/session-2026-06-07_14-34-24",
             wristFolder = "",
             transcriptFile = "ground_truth_aligned.csv",
             expectWatchData = true
@@ -144,7 +176,7 @@ class SwingDetectorGroundTruthTest {
             val sessionDir = if (config.relativePath.startsWith("live_watch_sessions")) {
                 File(baseDir, config.relativePath)
             } else {
-                File(baseDir, "ground_truth/${config.relativePath}")
+                File(baseDir, "old_session_data/${config.relativePath}")
             }
             val wristDir = if (config.wristFolder.isEmpty()) sessionDir else File(sessionDir, config.wristFolder)
             
@@ -306,7 +338,7 @@ class SwingDetectorGroundTruthTest {
     }
 
     private fun writeScorecardReport(results: List<SessionResult>) {
-        val reportFile = File("/Users/neilkloot/.gemini/antigravity/brain/3df82421-1d01-4812-b374-377a669963da/swing_detector_scorecard.md")
+        val reportFile = File("/Users/neilkloot/.gemini/antigravity/brain/2b0e7b71-5668-46cd-a61d-48994a7fdd70/swing_detector_scorecard.md")
         val sb = StringBuilder()
 
         sb.append("# SwingDetector Performance Scorecard\n\n")
@@ -525,7 +557,7 @@ class SwingDetectorGroundTruthTest {
 
             val shots = mutableListOf<GroundTruthShot>()
 
-            if (sessionCanonicalName == "live_session_1" || sessionCanonicalName == "session_20260529") {
+            if (sessionCanonicalName.startsWith("live_session_") || sessionCanonicalName == "session_20260529") {
                 val lines = transcriptFile.readLines()
                 if (lines.isEmpty()) return shots
                 val header = parseCsvLine(lines[0])

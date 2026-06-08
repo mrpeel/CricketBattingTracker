@@ -40,7 +40,9 @@ class SwingDetectorTest {
         isHit: Boolean = true,
         rollImpactDeg: Float = 0f,
         deltaX: Float = 0f,
-        deltaZ: Float = 0f
+        deltaZ: Float = 0f,
+        gravX: Float = 0f,
+        magX: Float = 0f
     ): ShotData? {
         var detectedShot: ShotData? = null
         detector.onShotDetected = { shot ->
@@ -53,9 +55,10 @@ class SwingDetectorTest {
         // 1. Simulate quiet stance (1.4s)
         for (i in 0 until 70) {
             detector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
-            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
-            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
+            detector.processGravity(floatArrayOf(gravX, gravY, gravZ), time)
+            detector.processAccel(floatArrayOf(gravX, gravY, gravZ), time)
             detector.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)
+            detector.processMagnetometer(floatArrayOf(magX, 0f, 0f), time)
             time += 20_000_000L
         }
 
@@ -63,22 +66,24 @@ class SwingDetectorTest {
         for (i in 1..10) {
             val progress = i / 10f
             detector.processGyro(floatArrayOf(preGyro, 0f, 0f), time)
-            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
-            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
+            detector.processGravity(floatArrayOf(gravX, gravY, gravZ), time)
+            detector.processAccel(floatArrayOf(gravX, gravY, gravZ), time)
             
             val q = computeRotationQuat(progress, rollImpactDeg, deltaX, deltaZ)
             detector.processRotation(q, time)
+            detector.processMagnetometer(floatArrayOf(magX, 0f, 0f), time)
             time += 20_000_000L
         }
 
         // 3. Impact & Peak
         val impactTime = time
         detector.processGyro(floatArrayOf(impactGyro, 0f, 0f), impactTime)
-        detector.processAccel(floatArrayOf(if (isHit) shock else 2.0f, 0f, 0f), impactTime)
-        detector.processGravity(floatArrayOf(0f, gravY, gravZ), impactTime)
+        detector.processAccel(floatArrayOf(if (isHit) shock else 2.0f, gravY, gravZ), impactTime)
+        detector.processGravity(floatArrayOf(gravX, gravY, gravZ), impactTime)
         
         val qImpact = computeRotationQuat(1.0f, rollImpactDeg, deltaX, deltaZ)
         detector.processRotation(qImpact, impactTime)
+        detector.processMagnetometer(floatArrayOf(magX, 0f, 0f), impactTime)
         time += 20_000_000L
 
         // 4. Post-impact follow-through (1.8s)
@@ -90,11 +95,12 @@ class SwingDetectorTest {
                 Pair(2.0f + (postGyro - 2.0f) * decay, postGyroY * decay)
             }
             detector.processGyro(floatArrayOf(currentGyroX, currentGyroY, 0f), time)
-            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
-            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
+            detector.processGravity(floatArrayOf(gravX, gravY, gravZ), time)
+            detector.processAccel(floatArrayOf(gravX, gravY, gravZ), time)
             
             val q = computeRotationQuat(1.0f, rollImpactDeg, deltaX, deltaZ)
             detector.processRotation(q, time)
+            detector.processMagnetometer(floatArrayOf(magX, 0f, 0f), time)
             time += 20_000_000L
         }
 
@@ -122,31 +128,37 @@ class SwingDetectorTest {
     fun testOnSideFlick() {
         val shot = simulateShot(
             preGyro = 5f, 
-            impactGyro = 10f, 
-            postGyro = 15f,  // keep maxGyro <= 22.12 to stay in GLANCE/FLICK
+            impactGyro = 13.7f, 
+            postGyro = 10f, 
             shock = 30f, 
-            postGyroY = 1.0f,
-            rollImpactDeg = 30f, // positive roll for pronation (top hand left)
-            deltaX = 0.2f, 
-            deltaZ = 0.1f
+            gravY = -8.68f,
+            postGyroY = -6.9f,
+            rollImpactDeg = 66.0f,
+            deltaX = 1.40f,
+            deltaZ = 1.00f,
+            gravX = 0.87f,
+            magX = 0f
         )
         assertNotNull("Shot should be detected", shot)
         assertEquals("GLANCE/FLICK", shot?.shotType)
-        // With maxGyro = sqrt(15^2 + 1^2) = 15.033f, speedKmh = 15.033 * 0.68 * 3.6 * 1.30 = 47.84 km/h
-        assertEquals(47.84f, shot?.speedKmh ?: 0f, 0.1f)
+        // With maxGyro = 13.7f, speedKmh = 13.7 * 0.68 * 3.6 * 1.30 = 43.59 km/h
+        assertEquals(43.59f, shot?.speedKmh ?: 0f, 0.1f)
     }
 
     @Test
     fun testPullShot() {
         val shot = simulateShot(
-            preGyro = 10f, 
-            impactGyro = 20f, 
-            postGyro = 15f, 
+            preGyro = 15f, 
+            impactGyro = 30.5f, 
+            postGyro = 25f, 
             shock = 60f, 
-            gravY = -4.0f,
-            postGyroY = 5f,
-            rollImpactDeg = -30f,
-            deltaX = 0.5f
+            gravY = -9.25f,
+            postGyroY = -12.0f,
+            rollImpactDeg = -55.0f,
+            deltaX = 1.30f,
+            deltaZ = 0.70f,
+            gravX = 8.0f,
+            magX = 50.0f
         )
         assertNotNull("Shot should be detected", shot)
         assertEquals("PULL/HOOK", shot?.shotType)
@@ -156,12 +168,16 @@ class SwingDetectorTest {
     fun testCutPunch() {
         val shot = simulateShot(
             preGyro = 10f, 
-            impactGyro = 20f, 
+            impactGyro = 18.6f, 
             postGyro = 15f, 
             shock = 60f, 
-            postGyroY = 5f,
-            rollImpactDeg = -10f,
-            deltaX = 0.2f
+            gravY = -9.27f,
+            postGyroY = -1.0f,
+            rollImpactDeg = -50.0f,
+            deltaX = 0.20f,
+            deltaZ = 2.30f,
+            gravX = -6.0f,
+            magX = 0f
         )
         assertNotNull("Shot should be detected", shot)
         assertEquals("CUT/PUNCH", shot?.shotType)

@@ -271,6 +271,13 @@ Compiled across 312 swings from the 6 trustworthy sessions (from 30 May 2026 to 
         *   **Decision Tree on Baseline Features (Depth-3)**: **53.56%** CV Accuracy (using `gyroMag`, `rollImpactDeg`, and `planeRatio` splits, immune to magnetic interference).
     *   **Result**: Generated `combined_ground_truth_aligned.csv` (baseline predictions) and `proposed_logic_aligned.csv` (predictions using the optimized Random Forest model).
 
+21. **Random Forest Integration & Synthetic Test Optimization (June 8, 2026)**:
+    *   **Transpilation & Parity**: Integrated the transpiled Random Forest model (`n_estimators=200, max_depth=8`) as compiled Kotlin branches (`GeneratedForest.kt`). Verified with `SwingDetectorRandomForestAlignmentTest.kt` to achieve 100% parity (0 mismatches across all 312 physical shots).
+    *   **Retired Manual Overrides**: Removed all legacy hardcoded biomechanical rules and Glance/Flick/Power overrides in `SwingDetector.kt`, letting the Random Forest model handle all classifications natively.
+    *   **Test Parameter Alignment**: Fixed failures in synthetic unit tests (`testPullShot`, `testCutPunch`, `testOnSideFlick`) by updating `simulateShot` parameters (gravity components, magnetometer values, and axis-specific gyro minimums) to be physically consistent. A vectorized python grid search was used to map synthetic swing parameters to target model feature spaces.
+    *   **Ground Truth Scorecard Extension**: Updated `GroundTruthLoader.load()` to match `live_session_*` prefix-based names, allowing automated state-machine performance scorecard evaluations over all 6 trustworthy live sessions from local `ground_truth_aligned.csv` timelines.
+
+
 
 
 

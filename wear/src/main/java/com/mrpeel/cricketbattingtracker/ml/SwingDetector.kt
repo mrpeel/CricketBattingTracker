@@ -682,42 +682,10 @@ class SwingDetector {
             if (preMean > 0f) postMax / preMean else 0f
         } else 0f
 
-        // 8. Hybrid Biomechanical-ML Classifier (6 classes)
+        // 8. Random Forest Classifier (Trained on 10 Kotlin-native features)
         val gyroMag    = maxGyro
         val planeRatio = if (deltaZ > 0.0f) (deltaX / deltaZ) else 0.0f
 
-        val getCutPullType = { r: Float, d: Float ->
-            if (r <= -15.0f && d >= 0.30f) "PULL/HOOK" else "CUT/PUNCH"
-        }
-
-        var shotType: String = when {
-            gyroMag > 22.12f -> "POWER SHOT"
-            rollImpactDeg <= -3.22f -> when {
-                deltaZ <= 0.44f -> when {
-                    deltaX <= 0.75f -> if (gyroMag <= 14.11f) "DRIVE/DEFENCE"
-                                      else getCutPullType(rollImpactDeg, deltaX)
-                    else            -> if (deltaX <= 0.97f) "GLANCE/FLICK"
-                                      else getCutPullType(rollImpactDeg, deltaX)
-                }
-                else -> when {
-                    yawImpactDeg <= 6.22f -> if (planeRatio <= 0.67f) "DRIVE/DEFENCE" else "DEFLECTION/GUIDE"
-                    else                  -> if (rollImpactDeg <= -35.84f) getCutPullType(rollImpactDeg, deltaX)
-                                            else "DRIVE/DEFENCE"
-                }
-            }
-            else -> when {
-                planeRatio <= 2.85f -> when {
-                    rollImpactDeg <= 18.16f -> if (rollImpactDeg <= 1.67f) "DRIVE/DEFENCE"
-                                              else getCutPullType(rollImpactDeg, deltaX)
-                    else                    -> if (gyroMag <= 11.72f) "DRIVE/DEFENCE" else "GLANCE/FLICK"
-                }
-                else -> if (yawImpactDeg <= 3.94f) "DRIVE/DEFENCE" else "GLANCE/FLICK"
-            }
-        }
-
-        // 8c. Post-classification GLANCE/FLICK overrides
-        // Override A: DRIVE/DEFENCE -> GLANCE/FLICK (leg-side wrist roll on straight bat path)
-        // Override B: PULL/HOOK -> GLANCE/FLICK (vertical bat path steer with steep Y gravity)
         val swingGyroIndices = gyroBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
         val gyroYMin = if (swingGyroIndices.isNotEmpty())
             swingGyroIndices.minOf { gyroBuffer.y[it] } else 0f
@@ -725,36 +693,27 @@ class SwingDetector {
         val swingGravIndices = gravBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
         val gravYMin = if (swingGravIndices.isNotEmpty())
             swingGravIndices.minOf { gravBuffer.y[it] } else -9.8f
+        val gravXMax = if (swingGravIndices.isNotEmpty())
+            swingGravIndices.maxOf { gravBuffer.x[it] } else 0f
 
-        if (shotType == "DRIVE/DEFENCE") {
-            if (gyroYMin <= -4.5f && rollImpactDeg <= -3.22f && yawImpactDeg >= 15.0f && deltaX <= 1.25f) {
-                Log.d(TAG, "GLANCE/FLICK override A (from DRIVE/DEFENCE): gyroYMin=$gyroYMin, roll=$rollImpactDeg, yaw=$yawImpactDeg, deltaX=$deltaX")
-                shotType = "GLANCE/FLICK"
-            }
-        } else if (shotType == "PULL/HOOK") {
-            if (gyroYMin >= -9.0f && gravYMin <= -8.0f && rollImpactDeg >= -50.0f) {
-                Log.d(TAG, "GLANCE/FLICK override B (from PULL/HOOK): gyroYMin=$gyroYMin, gravYMin=$gravYMin, roll=$rollImpactDeg")
-                shotType = "GLANCE/FLICK"
-            }
-        }
+        val swingMagIndices = magBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
+        val magXMax = if (swingMagIndices.isNotEmpty())
+            swingMagIndices.maxOf { magBuffer.x[it] } else 0f
 
-        // 8b. Post-classification POWER SHOT override via magnetometer + gravity X
-        // Catches power shots where gyroMag < 22.12 but extreme lateral arm displacement
-        // (grav_x_max) and magnetometer wrist orientation (mag_x_max) are unambiguous.
-        // Validated: +4 improvements, 0 regressions on 68-shot ground truth set.
-        if (shotType != "POWER SHOT") {
-            val gravXMax = if (swingGravIndices.isNotEmpty())
-                swingGravIndices.maxOf { gravBuffer.x[it] } else 0f
+        val features = SwingFeatures(
+            gyroMag = gyroMag,
+            rollImpactDeg = rollImpactDeg,
+            yawImpactDeg = yawImpactDeg,
+            deltaX = deltaX,
+            deltaZ = deltaZ,
+            planeRatio = planeRatio,
+            gyro_y_min = gyroYMin,
+            grav_x_max = gravXMax,
+            grav_y_min = gravYMin,
+            mag_x_max = magXMax
+        )
 
-            val swingMagIndices = magBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
-            val magXMax = if (swingMagIndices.isNotEmpty())
-                swingMagIndices.maxOf { magBuffer.x[it] } else 0f
-
-            if (gravXMax > 7.0f && magXMax > 40.0f) {
-                Log.d(TAG, "POWER SHOT override: gravXMax=$gravXMax, magXMax=$magXMax")
-                shotType = "POWER SHOT"
-            }
-        }
+        val shotType = GeneratedForest.predict(features)
 
         Log.d(TAG, "EVAL: Type=$shotType, MaxG=$gyroMag, Snap=$snapRatio, " +
                    "Roll=$rollImpactDeg, Yaw=$yawImpactDeg, DX=$deltaX, DZ=$deltaZ, Ratio=$planeRatio")
