@@ -283,6 +283,12 @@ Compiled across 312 swings from the 6 trustworthy sessions (from 30 May 2026 to 
     *   **The Solution**: Modified `SwingDetectorGroundTruthTest.kt` to load magnetometer CSV files if present, add them to the chronological event stream, and route them to `processMagnetometer()`. Aligned the feature calculation windows in `SwingDetector.kt` to `[contactTime - 800ms, contactTime + 300ms]` for all 10 features. Additionally filtered out non-swing events (like `Facing up` and `No shot`) from the ground truth shots list in the test harness to prevent them from stealing matches from actual swing events.
     *   **Result**: Real-time evaluation classification accuracy on physical live sessions jumped from baseline levels (e.g. 18%-38%) to **74%-96%** (e.g. 96% on `live_session_20260601`, 86% on `live_session_20260605`, and 74% on `live_session_20260607`), closely matching offline expectations.
 
+23. **Default Transcription Mode Set to Gemini API (June 8, 2026)**:
+    *   **The Problem**: The ADB automation pipeline script defaulted to `--local true` (running local Whisper), which generated python import errors and fallback warnings (`No module named 'whisper'`) in environments lacking the local Whisper/PyTorch stack.
+    *   **The Solution**: Switched the default value of `--local` to `"false"` in [automate_pipeline.py](file:///Users/neilkloot/Code/CricketBattingTracker/automate_pipeline.py) parser and fallback logic.
+    *   **Result**: The script defaults directly to the highly accurate and structured Gemini API (`gemini-3.5-flash`) transcription path without trying to load local Whisper, resolving the console error and fallback warning.
+
+
 
 
 
