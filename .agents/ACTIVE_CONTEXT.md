@@ -42,7 +42,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ## 🔖 Current Session State (session-2026-06-07_14-34-24)
 *   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-07_14-34-24`
 *   **Audio File**: `narration_20260607_143423.m4a`
-*   **Status**: Successfully integrated the 10-feature transpiled Random Forest model into SwingDetector Kotlin logic and retired all hardcoded decision tree rules/overrides. Created mathematical parity test and resolved live session paths for GroundTruthTest scorecard. Verified that all 11 unit tests pass with 100% mathematical parity and complete state-machine test execution.
+*   **Status**: Successfully integrated the 10-feature transpiled Random Forest model into SwingDetector Kotlin logic and retired all hardcoded decision tree rules/overrides. Created mathematical parity test and verified 100% mathematical parity. Aligned real-time feature extraction windows with Python training parameters and added magnetometer loading/routing and non-swing event filtering to the GroundTruthTest scorecard harness. Verified that all 11 unit tests pass and physical live session classification accuracy achieves 74%–96%, matching offline expectations.
 *   **Previous Session (session-2026-06-05_12-29-59)**: Evaluated k=2 (3-of-4) stance gate and Variant 6 classification overrides.
 
 
