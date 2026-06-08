@@ -184,12 +184,20 @@ class SwingDetectorGroundTruthTest {
             val gyroFile = File(wristDir, "WatchGyroscope.csv").takeIf { it.exists() } ?: File(wristDir, "Gyroscope.csv")
             val gravFile = File(wristDir, "WatchGravity.csv").takeIf { it.exists() } ?: File(wristDir, "Gravity.csv")
             val orientFile = File(wristDir, "WatchGameOrientation.csv").takeIf { it.exists() } ?: File(wristDir, "WatchOrientation.csv").takeIf { it.exists() } ?: File(wristDir, "Orientation.csv")
+            val magFile = File(wristDir, "WatchMagnetometer.csv").takeIf { it.exists() }
+                ?: File(wristDir, "WatchMagnetometerUncalibrated.csv").takeIf { it.exists() }
+                ?: File(wristDir, "Magnetometer.csv").takeIf { it.exists() }
 
             println("Sensor files: ")
             println("  Accel:  ${accelFile.absolutePath}")
             println("  Gyro:   ${gyroFile.absolutePath}")
             println("  Grav:   ${gravFile.absolutePath}")
             println("  Orient: ${orientFile.absolutePath}")
+            if (magFile != null) {
+                println("  Mag:    ${magFile.absolutePath}")
+            } else {
+                println("  Mag:    (Not found)")
+            }
 
             // 2. Load ground truth shots for this session
             val transcriptFile = File(sessionDir, config.transcriptFile)
@@ -203,6 +211,9 @@ class SwingDetectorGroundTruthTest {
             events.addAll(SensorCsvReader(gyroFile, 2).readEvents())
             events.addAll(SensorCsvReader(gravFile, 3).readEvents())
             events.addAll(SensorCsvReader(orientFile, 4).readEvents())
+            if (magFile != null) {
+                events.addAll(SensorCsvReader(magFile, 5).readEvents())
+            }
             events.sort()
             println("Sorted ${events.size} raw sensor events.")
 
@@ -222,6 +233,7 @@ class SwingDetectorGroundTruthTest {
                     2 -> detector.processGyro(event.values, event.timestamp)
                     3 -> detector.processGravity(event.values, event.timestamp)
                     4 -> detector.processRotation(event.values, event.timestamp)
+                    5 -> detector.processMagnetometer(event.values, event.timestamp)
                 }
             }
             println("Detector identified ${detectedShots.size} shots.")
@@ -285,7 +297,10 @@ class SwingDetectorGroundTruthTest {
 
             val classifiableMatches = matches.filter {
                 val gtClean = it.gtShot.shotType.trim().uppercase()
-                gtClean != "UNKNOWN" && gtClean != "MISS"
+                gtClean != "UNKNOWN" && gtClean != "MISS" &&
+                gtClean != "FACING UP" && gtClean != "NO SHOT" &&
+                gtClean != "LEAVE" && gtClean != "EVADE" &&
+                gtClean != "EVASION" && gtClean != "NON-SWING"
             }
             val classificationAccuracy = if (classifiableMatches.isNotEmpty()) {
                 classifiableMatches.count { it.isTypeMatch }.toFloat() / classifiableMatches.size
@@ -571,6 +586,12 @@ class SwingDetectorGroundTruthTest {
                     val parts = parseCsvLine(line)
                     if (parts.size <= maxOf(typeIdx, timeIdx, narrationIdx)) continue
                     val shotType = parts[typeIdx].trim()
+                    val shotTypeUpper = shotType.uppercase()
+                    if (shotTypeUpper == "FACING UP" || shotTypeUpper == "NO SHOT" || 
+                        shotTypeUpper == "LEAVE" || shotTypeUpper == "EVADE" || 
+                        shotTypeUpper == "EVASION" || shotTypeUpper == "NON-SWING") {
+                        continue
+                    }
                     val timestamp = parts[timeIdx].toFloatOrNull() ?: 0f
                     val narration = parts[narrationIdx].trim()
                     

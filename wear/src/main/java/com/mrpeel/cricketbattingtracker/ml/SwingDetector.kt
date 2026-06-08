@@ -645,7 +645,10 @@ class SwingDetector {
         averageQuats(finalStanceIndices, qStance)
         conjugateQuat(qStance, qStanceInv)
 
-        val swingOriIndices = rotationBuffer.getRange(startBatSwingTime, contactTime)
+        val swingStartForFeats = contactTime - 800_000_000L
+        val swingEndForFeats = contactTime + 300_000_000L
+
+        val swingOriIndices = rotationBuffer.getRange(swingStartForFeats, swingEndForFeats)
         var deltaX = 0f; var deltaZ = 0f
         if (swingOriIndices.size >= 2) {
             var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE
@@ -686,17 +689,17 @@ class SwingDetector {
         val gyroMag    = maxGyro
         val planeRatio = if (deltaZ > 0.0f) (deltaX / deltaZ) else 0.0f
 
-        val swingGyroIndices = gyroBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
+        val swingGyroIndices = gyroBuffer.getRange(swingStartForFeats, swingEndForFeats)
         val gyroYMin = if (swingGyroIndices.isNotEmpty())
             swingGyroIndices.minOf { gyroBuffer.y[it] } else 0f
 
-        val swingGravIndices = gravBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
+        val swingGravIndices = gravBuffer.getRange(swingStartForFeats, swingEndForFeats)
         val gravYMin = if (swingGravIndices.isNotEmpty())
             swingGravIndices.minOf { gravBuffer.y[it] } else -9.8f
         val gravXMax = if (swingGravIndices.isNotEmpty())
             swingGravIndices.maxOf { gravBuffer.x[it] } else 0f
 
-        val swingMagIndices = magBuffer.getRange(startBatSwingTime, contactTime + 300_000_000L)
+        val swingMagIndices = magBuffer.getRange(swingStartForFeats, swingEndForFeats)
         val magXMax = if (swingMagIndices.isNotEmpty())
             swingMagIndices.maxOf { magBuffer.x[it] } else 0f
 
