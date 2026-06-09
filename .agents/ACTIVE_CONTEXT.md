@@ -42,8 +42,8 @@ This file defines the system objectives, feature backlog catalog, active technic
 ## 🔖 Current Session State (session-2026-06-09_12-16-49)
 *   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-09_12-16-49`
 *   **Audio File**: `narration_20260609_121645.m4a`
-*   **Status**: Relocated adversarial analysis scripts to `pipelines/` permanent directory. Restructured clock offset verification to sweep and align all 8 sessions independently down to the millisecond, and updated classification scorecard reporting to compile aggregate classifier metrics across all sessions. All 12 unit tests pass successfully.
-*   **Previous Session (session-2026-06-08_12-22-26)**: Completed stance gate re-optimization and global parameter tuning. Average recall across 7 live sessions: **95.0%**, total FPs: **106** (down 26%).
+*   **Status**: Retrained Random Forest model on the updated 443 swing dataset across all 8 aligned sessions, transpiled to GeneratedForest.kt, verified 100% parity (0 mismatches), and generated updated aggregate scorecard reports. All 12 unit tests pass successfully.
+*   **Previous Session (session-2026-06-08_12-22-26)**: Completed stance gate re-optimization and global parameter tuning. Average recall across 7 live sessions: **95.0%**, total FPs: **106** (down 26%). Overall classification accuracy across active watch sessions is **77.5%**.
 
 
 ---

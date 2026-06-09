@@ -17,9 +17,6 @@ logs/
 latest_timeline.txt
 *.log
 
-# Scratch files
-scratch/
-
 # Python cache
 __pycache__/
 

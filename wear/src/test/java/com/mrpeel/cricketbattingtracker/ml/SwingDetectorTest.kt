@@ -173,9 +173,9 @@ class SwingDetectorTest {
             shock = 60f, 
             gravY = -9.0f,
             postGyroY = -5.7f,
-            rollImpactDeg = -30.0f,
-            deltaX = 1.45f,
-            deltaZ = 0.80f,
+            rollImpactDeg = -23.0f,
+            deltaX = 0.60f,
+            deltaZ = 0.30f,
             gravX = 7.0f,
             magX = 0f
         )

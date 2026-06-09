@@ -51,7 +51,7 @@ def main():
     with open(OUTPUT_KOTLIN, 'w') as f:
         # Write file header
         f.write("// Generated Random Forest Classifier for Cricket Batting Tracker\n")
-        f.write("// Trained on 312 swings across 6 trustworthy sessions\n")
+        f.write(f"// Trained on {len(df_swings)} swings across {df_swings['session_id'].nunique()} trustworthy sessions\n")
         f.write("package com.mrpeel.cricketbattingtracker.ml\n\n")
         
         # Write data class
