@@ -121,7 +121,15 @@ class SwingDetectorGroundTruthTest {
         SessionConfig(
             id = "session_20260608",
             canonicalName = "live_session_20260608",
-            relativePath = "live_watch_sessions/sessions/session-2026-06-08_12-22-26",
+            relativePath = "live_watch_sessions/session-2026-06-08_12-22-26",
+            wristFolder = "",
+            transcriptFile = "ground_truth_aligned.csv",
+            expectWatchData = true
+        ),
+        SessionConfig(
+            id = "session_20260609",
+            canonicalName = "live_session_20260609",
+            relativePath = "live_watch_sessions/session-2026-06-09_12-16-49",
             wristFolder = "",
             transcriptFile = "ground_truth_aligned.csv",
             expectWatchData = true

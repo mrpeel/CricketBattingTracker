@@ -17,7 +17,8 @@ TRUSTWORTHY_SESSIONS = [
     "session-2026-06-01_12-23-38",
     "session-2026-06-05_12-29-59",
     "session-2026-06-07_14-34-24",
-    "sessions/session-2026-06-08_12-22-26"
+    "session-2026-06-08_12-22-26",
+    "session-2026-06-09_12-16-49"
 ]
 
 # ─── Quaternion math (exact port from SwingDetector.kt) ──────────────────────

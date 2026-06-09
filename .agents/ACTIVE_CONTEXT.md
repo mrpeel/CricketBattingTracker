@@ -31,19 +31,19 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
-| B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
-| F-013 | Full Watch Sensor Stack Logging | Background logging of up to 15 physical/virtual Wear OS sensors when raw logging/diagnostics is enabled | **Completed** | E2E simulation verify 11 CSV files |
 | B-008 | Stance Gate Optimization | Tune thresholds and timings to C: Moderate configuration to eliminate walking break FPs and timeout lockouts | **Completed** | E2E Simulation on session-2026-06-01_12-23-38 |
 | B-009 | Random Forest Integration | Integrate scikit-learn Random Forest model into SwingDetector Kotlin logic | **Completed** | Parity test and physical scorecard alignment |
 | B-010 | Clock Offset Optimization | Implement coarse-to-fine clock offset grid search in data collection pipeline | **Completed** | Verification check against all 7 trusted sessions |
+| B-011 | Stance Gate Re-Optimization | Re-align all 7 sessions & grid-search optimal stance gate thresholds after sync fix. accel_std→3.25, ori_disp→2.5°, grav_y→-6.0, post_shot_guard→1.5s | **Completed** | 12/12 unit tests green, 95% avg recall, 26% FP reduction |
+| B-012 | Adversarial Analysis Pipeline | Build a set of Python scripts to adversarially challenge clock offset, stance gate, and shot detection on raw logs | **Completed** | Run on June 9 session generating last_session_analysis_update.md |
 
 ---
 
-## 🔖 Current Session State (session-2026-06-08_12-22-26)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/sessions/session-2026-06-08_12-22-26`
-*   **Audio File**: `narration_20260608_122220.m4a`
-*   **Status**: Implemented coarse-to-fine clock offset grid search optimization in the data collection pipeline (`automate_pipeline.py`). Successfully ran alignment on all 7 trusted datasets, recovering up to +13 matches per session (total 48 new matches) and improving overall timeline match rate from 69.5% to 83.4%.
-*   **Previous Session (session-2026-06-07_14-34-24)**: Verified Random Forest model integration and 10-feature real-time Kotlin extraction window parity.
+## 🔖 Current Session State (session-2026-06-09_12-16-49)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-09_12-16-49`
+*   **Audio File**: `narration_20260609_121645.m4a`
+*   **Status**: Completed adversarial post-session analysis on June 9 session using 14 logged watch sensors, proving clock offset is optimal (matches: 63/126, MAE: 0.87s), verifying stance gate parameters (Recall: 63.5%, FPs: 2.21/min), and evaluating shot triggers. All 12 unit tests pass successfully.
+*   **Previous Session (session-2026-06-08_12-22-26)**: Completed stance gate re-optimization and global parameter tuning. Average recall across 7 live sessions: **95.0%**, total FPs: **106** (down 26%).
 
 
 ---
