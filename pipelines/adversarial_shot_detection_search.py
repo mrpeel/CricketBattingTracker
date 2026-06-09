@@ -70,7 +70,6 @@ def load_shot_times(session_dir):
     with open(narrations_path, "r") as f:
         narrations = json.load(f)
         
-    # MMSS conversion
     if os.path.exists(gyro_path) and narrations:
         df_gyro = pd.read_csv(gyro_path)
         gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
@@ -108,9 +107,6 @@ def load_shot_times(session_dir):
 def calculate_snr(df_gyro, df_accel, df_linacc, df_mag, shots):
     snr_results = {}
     
-    # Define swing vs stance window offsets
-    # Swing: [T_impact - 0.8s, T_impact + 0.3s]
-    # Stance: [T_impact - 3.5s, T_impact - 1.5s]
     sensors = {
         'Gyroscope': (df_gyro, 'mag'),
         'Accelerometer': (df_accel, 'mag'),
@@ -129,9 +125,7 @@ def calculate_snr(df_gyro, df_accel, df_linacc, df_mag, shots):
         
         for shot in shots:
             t = shot['time']
-            # Swing slice
             sw_idx = (t_arr >= t - 0.8) & (t_arr <= t + 0.3)
-            # Stance slice
             st_idx = (t_arr >= t - 3.5) & (t_arr <= t - 1.5)
             
             if sw_idx.any() and st_idx.any():
@@ -151,7 +145,6 @@ def calculate_snr(df_gyro, df_accel, df_linacc, df_mag, shots):
     return snr_results
 
 def simulate_with_config(df_gyro, df_accel, df_grav, df_orient, df_steps, shots, config):
-    # State machine simulation
     STATE_ACTIVITY_CLASSIFY = 0
     STATE_FACING_UP_LOCKED = 1
     STATE_MEASURING_ARC = 2
@@ -166,18 +159,16 @@ def simulate_with_config(df_gyro, df_accel, df_grav, df_orient, df_steps, shots,
     
     detected_shots = []
     
-    # Config parameters
     gyro_std_max = 1.2
     accel_std_max = 3.25
     ori_disp_max = 2.5
     grav_y_min = -6.0
     min_flexible = 3
     
-    step_recency_ns = 1000000000 # 1s
-    facing_up_min_duration_ns = 800000000 # 0.8s
-    facing_up_break_tolerance_ns = 1500000000 # 1.5s
+    step_recency_ns = 1000000000
+    facing_up_min_duration_ns = 800000000
+    facing_up_break_tolerance_ns = 1500000000
     
-    # Variable parameters to search
     backswing_trigger_rad_s = config['trigger_threshold']
     backswing_timeout_ns = int(config['timeout_seconds'] * 1e9)
     post_shot_guard_ns = int(config['post_shot_guard_seconds'] * 1e9)
@@ -254,7 +245,6 @@ def simulate_with_config(df_gyro, df_accel, df_grav, df_orient, df_steps, shots,
     mean_grav_y_arr = precomputed['mean_grav_y']
     step_age_arr = precomputed['step_age']
     
-    # Forensic logs to analyze missed shots
     forensics = []
     
     for i in range(n_samples):
@@ -337,36 +327,27 @@ def simulate_with_config(df_gyro, df_accel, df_grav, df_orient, df_steps, shots,
                 facing_up_gate_active = False
                 facing_up_break_start = 0
 
-    # Forensics for each ground truth shot
-    # Check if a GT shot matches any detected shot
     gt_times = [s['time'] for s in shots]
     for gt_idx, gt in enumerate(shots):
         gt_t = gt['time']
         matched = False
         reason = "Unknown"
         
-        # Check if matched
         for det in detected_shots:
             if abs(det['time'] - 0.75 - gt_t) < 3.0:
                 matched = True
                 break
                 
         if not matched:
-            # Let's inspect what happened in the state machine at gt_t
-            # Find closest gyro sample index to gt_t
             closest_idx = np.argmin(np.abs(gyro_sec - gt_t))
-            # Let's inspect the state of the detector in a window before the shot
-            # [gt_t - 4.0, gt_t]
             win_start = gt_t - 4.0
             win_end = gt_t
             win_idx = (gyro_sec >= win_start) & (gyro_sec <= win_end)
             
-            # Check if any step event occurred in [gt_t - 4.0, gt_t]
             step_in_win = step_t[(step_t >= win_start) & (step_t <= win_end)]
             if len(step_in_win) > 0:
                 reason = f"Step detector fired at {step_in_win[0]:.2f}s, breaking stance gate"
             else:
-                # Check if gyro_std was too high
                 mean_gyro_std = np.mean(gyro_std_arr[win_idx]) if win_idx.any() else 0.0
                 mean_accel_std = np.mean(accel_std_arr[win_idx]) if win_idx.any() else 0.0
                 if mean_gyro_std > gyro_std_max:
@@ -386,56 +367,6 @@ def simulate_with_config(df_gyro, df_accel, df_grav, df_orient, df_steps, shots,
             
     return detected_shots, forensics
 
-def run_classification_parity(features_csv, detected_shots, df_gyro, df_accel, df_grav, df_orient, session_dir):
-    # Train the exact Random Forest parity model
-    if not os.path.exists(features_csv):
-        return {"status": "error", "message": "combined_features.csv not found for RF parity"}
-        
-    df_feats = pd.read_csv(features_csv)
-    df_swings = df_feats[df_feats['normalized_gt'] != 'NON-SWING'].copy()
-    
-    features = [
-        'gyroMag', 'rollImpactDeg', 'yawImpactDeg', 'deltaX', 'deltaZ', 'planeRatio',
-        'gyro_y_min', 'grav_x_max', 'grav_y_min', 'mag_x_max'
-    ]
-    
-    X = df_swings[features].fillna(df_swings[features].median())
-    y = df_swings['normalized_gt'].values
-    
-    le = LabelEncoder()
-    y_enc = le.fit_transform(y)
-    
-    rf = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=8,
-        class_weight='balanced_subsample',
-        random_state=42,
-        n_jobs=-1
-    )
-    rf.fit(X, y_enc)
-    
-    # For each detected shot, extract the 10 features exactly as in SwingDetector.kt
-    # Let's write the feature extraction logic
-    extracted_features = []
-    
-    # We need to find stance exit time and contact time
-    # For simplicity, we can load ground_truth_aligned.csv to match predictions
-    gt_aligned_path = os.path.join(session_dir, "ground_truth_aligned.csv")
-    if not os.path.exists(gt_aligned_path):
-        return {"status": "error", "message": "ground_truth_aligned.csv not found"}
-        
-    df_gt = pd.read_csv(gt_aligned_path)
-    df_gt_swings = df_gt[df_gt['shot_type'] != 'Facing up']
-    
-    # Match detected shots with ground truth to get predictions
-    y_true = []
-    y_pred = []
-    
-    # We will use the already generated scorecard predictions or evaluate here
-    # Since SwingDetectorGroundTruthTest runs the Random Forest model and writes predictions,
-    # let's look at the classification accuracy in the scorecard report or computed dynamically.
-    pass
-
 def main():
     args = parse_args()
     
@@ -445,15 +376,11 @@ def main():
     
     print(f"Loaded {len(shots)} swing-type shots. Clock offset: {offset:+.3f}s")
     
-    # 1. Multi-Sensor Swing SNR
     print("\nCalculating Swing SNR across all motion sensors...")
     snr_res = calculate_snr(df_gyro, df_accel, df_linacc, df_mag, shots)
     for name, stats in snr_res.items():
         print(f"  {name:<15}: Swing Peak={stats['avg_swing_peak']:5.2f} | Stance Baseline={stats['avg_stance_baseline']:5.2f} | SNR={stats['snr']:5.2f}x")
         
-    # 2. Grid Search triggers
-    # Trigger threshold search space: 2.0 to 8.0 rad/s
-    # Contact wait search space: 0.5s to 1.0s
     print("\nGrid searching shot detection trigger parameters...")
     configs = []
     for th in [3.0, 5.0, 7.0]:
@@ -466,7 +393,7 @@ def main():
             }
             det, _ = simulate_with_config(df_gyro, df_accel, df_grav, df_orient, df_steps, shots, cfg)
             det_secs = [d['time'] for d in det]
-            rec, fp, fp_min, f1 = evaluate_detections = evaluate_detections_metrics(det_secs, [s['time'] for s in shots], df_gyro['seconds_elapsed'].max())
+            rec, fp, fp_min, f1 = evaluate_detections_metrics(det_secs, [s['time'] for s in shots], df_gyro['seconds_elapsed'].max())
             configs.append((th, cw, rec, fp, fp_min, f1))
             
     configs.sort(key=lambda x: -x[5])
@@ -474,7 +401,6 @@ def main():
     for i, c in enumerate(configs[:3]):
         print(f"  {i+1}. Threshold={c[0]:.1f} rad/s, ContactWait={c[1]:.2f}s -> Recall={c[2]:.1%}, FPs={c[3]} ({c[4]:.2f} FP/min), F1={c[5]:.3f}")
 
-    # 3. Forensics on Missed Shots
     default_cfg = {
         'trigger_threshold': 5.0,
         'timeout_seconds': 10.0,
@@ -497,7 +423,7 @@ def evaluate_detections_metrics(detected_secs, gt_times, session_duration):
                 continue
             diff = abs(det_sec - 0.75 - gt_t)
             if diff < best_diff:
-                best_diff = diff
+                diff = diff
                 best_det_idx = det_idx
         if best_diff <= 3.0:
             tp += 1

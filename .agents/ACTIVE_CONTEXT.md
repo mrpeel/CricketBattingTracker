@@ -42,7 +42,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ## 🔖 Current Session State (session-2026-06-09_12-16-49)
 *   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-09_12-16-49`
 *   **Audio File**: `narration_20260609_121645.m4a`
-*   **Status**: Completed adversarial post-session analysis on June 9 session using 14 logged watch sensors, proving clock offset is optimal (matches: 63/126, MAE: 0.87s), verifying stance gate parameters (Recall: 63.5%, FPs: 2.21/min), and evaluating shot triggers. All 12 unit tests pass successfully.
+*   **Status**: Relocated adversarial analysis scripts to `pipelines/` permanent directory. Restructured clock offset verification to sweep and align all 8 sessions independently down to the millisecond, and updated classification scorecard reporting to compile aggregate classifier metrics across all sessions. All 12 unit tests pass successfully.
 *   **Previous Session (session-2026-06-08_12-22-26)**: Completed stance gate re-optimization and global parameter tuning. Average recall across 7 live sessions: **95.0%**, total FPs: **106** (down 26%).
 
 

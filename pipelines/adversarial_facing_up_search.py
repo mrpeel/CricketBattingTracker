@@ -15,7 +15,6 @@ def parse_args():
     return parser.parse_args()
 
 def load_all_sessions(sessions_base):
-    # Find all session directories at the top level
     sessions = []
     for d in sorted(os.listdir(sessions_base)):
         full_path = os.path.join(sessions_base, d)
@@ -63,7 +62,6 @@ def load_shot_times(session_dir):
     with open(narrations_path, "r") as f:
         narrations = json.load(f)
     
-    # MMSS conversion
     if os.path.exists(gyro_path) and narrations:
         df_gyro = pd.read_csv(gyro_path)
         gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
@@ -146,7 +144,6 @@ def compute_quat_features(df, prefix=""):
     return feats
 
 def extract_all_features_for_session(session_dir):
-    # Load all motion-relevant CSVs
     files = {
         'WatchAccelerometer': ('accel', ['x', 'y', 'z']),
         'WatchGyroscope': ('gyro', ['x', 'y', 'z']),
@@ -161,7 +158,6 @@ def extract_all_features_for_session(session_dir):
     
     feats_dfs = []
     
-    # Load base gyro first to get standard time grid
     gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
     if not os.path.exists(gyro_path):
         return None, None
@@ -171,7 +167,6 @@ def extract_all_features_for_session(session_dir):
     gyro_feats = compute_rolling_features(df_gyro, ['x', 'y', 'z', 'mag'], prefix='gyro')
     feats_dfs.append(gyro_feats)
     
-    # Process other numerical sensors
     for name, (prefix, cols) in files.items():
         if name == 'WatchGyroscope':
             continue
@@ -186,7 +181,6 @@ def extract_all_features_for_session(session_dir):
             df_feats = compute_rolling_features(df, cur_cols, prefix=prefix)
             feats_dfs.append(df_feats)
             
-    # Process quaternions
     quats = {
         'WatchGameOrientation': 'game_ori',
         'WatchGeomagneticOrientation': 'geomag_ori',
@@ -199,8 +193,6 @@ def extract_all_features_for_session(session_dir):
             df_feats = compute_quat_features(df, prefix=prefix)
             feats_dfs.append(df_feats)
             
-    # Merge all dataframes on seconds_elapsed (using merge_asof or interpolate)
-    # We will align everything to df_gyro's seconds_elapsed at 100ms grid
     max_t = df_gyro['seconds_elapsed'].max()
     time_grid = np.arange(2.0, max_t - 2.0, 0.1)
     grid_df = pd.DataFrame({'seconds_elapsed': time_grid})
@@ -209,7 +201,6 @@ def extract_all_features_for_session(session_dir):
     for f_df in feats_dfs:
         merged_df = pd.merge_asof(merged_df, f_df, on='seconds_elapsed', direction='nearest')
         
-    # Steps
     steps_path = os.path.join(session_dir, "WatchSteps.csv")
     if os.path.exists(steps_path):
         df_steps = pd.read_csv(steps_path)
@@ -217,7 +208,6 @@ def extract_all_features_for_session(session_dir):
     else:
         step_times = np.array([])
         
-    # Compute step age for the grid
     step_ages = []
     for t in time_grid:
         if len(step_times) > 0:
@@ -233,9 +223,6 @@ def extract_all_features_for_session(session_dir):
     return merged_df, df_gyro
 
 def build_labeled_dataset(merged_df, shot_times):
-    # Labeling logic
-    # 1: stance (3.5s to 1.5s before a shot)
-    # 0: rest/walking (>8s away from any shot)
     labels = []
     indices_to_keep = []
     
@@ -264,7 +251,6 @@ def rank_features(df):
     X = df[feature_cols].fillna(0.0)
     y = df['label']
     
-    # Train Random Forest to get importances
     rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     rf.fit(X, y)
     
@@ -273,7 +259,6 @@ def rank_features(df):
     return ranking
 
 def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_disp_max, grav_y_min, min_flexible):
-    # This runs the Kotlin-matched stance gate simulation
     gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
     accel_path = os.path.join(session_dir, "WatchAccelerometer.csv")
     gravity_path = os.path.join(session_dir, "WatchGravity.csv")
@@ -320,24 +305,20 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
     
     for i in range(n_samples):
         t = gyro_t[i]
-        # Gyro std (1.0s window)
         g_start = t - 1.0
         g_start_idx = np.searchsorted(gyro_t, g_start)
         g_end_idx = i + 1
         precomputed['gyro_std'][i] = np.std(gyro_mag[g_start_idx:g_end_idx]) if (g_end_idx - g_start_idx) >= 2 else 0.0
         
-        # Accel std (1.0s window)
         a_start_idx = np.searchsorted(accel_t, g_start)
         a_end_idx = np.searchsorted(accel_t, t, side='right')
         precomputed['accel_std'][i] = np.std(accel_mag[a_start_idx:a_end_idx]) if (a_end_idx - a_start_idx) >= 2 else 0.0
         
-        # Mean gravity Y
         gr_start_idx = np.searchsorted(grav_t, g_start)
         gr_end_idx = np.searchsorted(grav_t, t, side='right')
         y_gr = grav_y[gr_start_idx:gr_end_idx]
         precomputed['mean_grav_y'][i] = np.mean(y_gr) if len(y_gr) >= 5 else 0.0
         
-        # Ori disp (500ms window)
         o_start = t - 0.5
         o_start_idx = np.searchsorted(orient_t, o_start)
         o_end_idx = np.searchsorted(orient_t, t, side='right')
@@ -354,17 +335,15 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
         else:
             precomputed['ori_disp'][i] = 999.0
             
-        # Step age
         if len(step_t) > 0:
             step_idx = np.searchsorted(step_t, t, side='right')
             if step_idx > 0:
-                precomputed['step_age'][i] = (t - step_t[step_idx - 1]) * 1e9 # ns
+                precomputed['step_age'][i] = (t - step_t[step_idx - 1]) * 1e9
             else:
                 precomputed['step_age'][i] = 999999.0 * 1e9
         else:
             precomputed['step_age'][i] = 999999.0 * 1e9
             
-    # Now run state machine simulation
     STATE_ACTIVITY_CLASSIFY = 0
     STATE_FACING_UP_LOCKED = 1
     STATE_MEASURING_ARC = 2
@@ -385,12 +364,12 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
     mean_grav_y_arr = precomputed['mean_grav_y']
     step_age_arr = precomputed['step_age']
     
-    step_recency_ns = 1000000000 # 1.0s
-    facing_up_min_duration_ns = 800000000 # 0.8s
-    facing_up_break_tolerance_ns = 1500000000 # 1.5s
-    backswing_timeout_ns = 10000000000 # 10.0s
+    step_recency_ns = 1000000000
+    facing_up_min_duration_ns = 800000000
+    facing_up_break_tolerance_ns = 1500000000
+    backswing_timeout_ns = 10000000000
     backswing_trigger_rad_s = 5.0
-    post_shot_guard_ns = 1500000000 # 1.5s
+    post_shot_guard_ns = 1500000000
     
     for i in range(n_samples):
         t_ns = int(gyro_t[i] * 1e9)
@@ -517,7 +496,6 @@ def main():
     for i, (feat, imp) in enumerate(ranking[:30]):
         print(f"  {i+1:2d}. {feat:<50} : {imp:.4f}")
         
-    # Standard deployed settings
     curr_gyro = 1.2
     curr_accel = 3.25
     curr_ori = 2.5
@@ -529,9 +507,6 @@ def main():
     recall, fp, fp_min, f1 = evaluate_detections(det_shots, shot_times, duration)
     print(f"Current Gate -> Recall: {recall:.2%}, FPs: {fp} ({fp_min:.2f} FP/min), F1: {f1:.3f}")
     
-    # We will grid-search standard stance gate thresholds to see if improvements can be found
-    # across the target session, then validate on historical sessions.
-    # To do this quickly, we define candidate parameters:
     gyro_grids = [0.9, 1.2, 1.5]
     accel_grids = [2.0, 3.25, 4.0]
     ori_grids = [2.0, 2.5, 3.0]
@@ -549,14 +524,11 @@ def main():
                         rec, f_p, fp_m, f1_score = evaluate_detections(det, shot_times, dur)
                         candidates.append((g_std, a_std, o_disp, gr_y, mf, rec, f_p, fp_m, f1_score))
                         
-    # Sort candidates by F1-score (descending) and FP (ascending)
     candidates.sort(key=lambda x: (-x[8], x[6]))
     print("Top 5 Alternative Gate Configs (Latest Session):")
     for i, c in enumerate(candidates[:5]):
         print(f"  {i+1}. GyroStd={c[0]:.2f}, AccelStd={c[1]:.2f}, OriDisp={c[2]:.2f}, GravY={c[3]:.1f}, MinFlex={c[4]} -> Recall={c[5]:.1%}, FPs={c[6]} ({c[7]:.2f} FP/min), F1={c[8]:.3f}")
 
-    # Cross-session validation
-    # Let's load historical sessions and run cross-session evaluation on the top candidates
     all_sessions = load_all_sessions(args.sessions_base)
     print(f"\nPerforming cross-session validation across {len(all_sessions)} sessions...")
     
@@ -569,7 +541,6 @@ def main():
         
     print(f"Loaded {len(session_data)} historical sessions for validation.")
     
-    # We validate the current deployed vs top 3 candidates
     top_configs = [(curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex)] + [c[:5] for c in candidates[:3]]
     configs_metrics = []
     

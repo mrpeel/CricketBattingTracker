@@ -10,7 +10,8 @@ import pandas as pd
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--session-dir", required=True, help="Path to the session directory")
+    parser.add_argument("--session-dir", help="Path to the session directory")
+    parser.add_argument("--sessions-base", default="/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions", help="Base directory containing all sessions")
     return parser.parse_args()
 
 def load_session_data(session_dir):
@@ -36,7 +37,7 @@ def load_session_data(session_dir):
     with open(narrations_path, "r") as f:
         narrations = json.load(f)
 
-    # Detect if MMSS format
+    # Detect if MMSS format and convert to seconds
     if narrations:
         is_mmss = True
         for n in narrations:
@@ -86,12 +87,12 @@ def load_session_data(session_dir):
                 row = df_shots_only.iloc[0]
                 current_offset = row['sensor_narr_time_seconds'] - row['audio_time_seconds']
         except Exception as e:
-            print(f"Warning: Could not parse current offset from ground_truth_aligned.csv: {e}")
+            pass
 
     return df_gyro, narrations, watch_start_ms, watch_shots, current_offset, gyro_duration
 
 def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, current_offset, gyro_duration, search_center=0.0):
-    timeline_start = watch_start_ms if watch_start_ms is not None else df_gyro.iloc[0]['time'] # fallback
+    timeline_start = watch_start_ms if watch_start_ms is not None else df_gyro.iloc[0]['time']
     for shot in watch_shots:
         shot['rel_time'] = (shot['ts'] - timeline_start) / 1000.0
     watch_times = np.array([s['rel_time'] for s in watch_shots])
@@ -101,21 +102,6 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
             "status": "error",
             "message": "No watch detections or narrations available for alignment."
         }
-
-    # Extract gyro peaks for candidate scoring
-    # This exactly mimics the candidate selection logic in automate_pipeline.py
-    all_candidates_precomputed = []
-    for i, shot in enumerate(narrations):
-        audio_t = shot['timestamp_seconds']
-        is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
-        
-        # We precompute candidates *around* a window that is offset-dependent.
-        # But wait! In automate_pipeline.py, candidates are built as:
-        # window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t + 7.0)]
-        # This means the candidate time list depends on the offset 'o'!
-        # So we must dynamically build candidates for each offset, OR precompute gyro peaks globally and filter.
-        # To ensure 100% fidelity with automate_pipeline.py, we evaluate using the dynamic window approach.
-        pass
 
     def evaluate_offset(o):
         all_candidates = []
@@ -240,12 +226,9 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
         mae = np.mean(errors) if errors else 999.0
         return detected, mae, matched_details
 
-    # Let's perform a fine-grained sweep from search_center - 30 to search_center + 30 at 0.1s increments first,
-    # then zoom in around peaks at 0.01s increments to find local maxima landscape.
-    coarse_range = 30.0
-    sweep_offsets = np.arange(search_center - coarse_range, search_center + coarse_range + 0.01, 0.1)
-    
-    print(f"Sweep range: [{search_center - coarse_range:.1f}s, {search_center + coarse_range:.1f}s] with {len(sweep_offsets)} steps...")
+    # Coarse search: ±15.0s range at 0.5s increments (60 evaluations)
+    coarse_range = 15.0
+    sweep_offsets = np.arange(search_center - coarse_range, search_center + coarse_range + 0.01, 0.5)
     
     results = []
     best_matches = -1
@@ -263,7 +246,7 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
             best_offset = o
             best_mae = mae
 
-    # Zoom sweep around the best offset at 0.01s increments
+    # Fine search: ±0.5s range around the best coarse offset at 0.01s increments (100 evaluations)
     fine_range = 0.5
     fine_sweep_offsets = np.arange(best_offset - fine_range, best_offset + fine_range + 0.001, 0.01)
     
@@ -279,7 +262,6 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
             best_offset = o
             best_mae = mae
 
-    # Sort results
     all_sweep = sorted(list(set([(r[0], r[1], r[2]) for r in results] + [(fr[0], fr[1], fr[2]) for fr in fine_results])), key=lambda x: x[0])
 
     # Find local peaks
@@ -292,17 +274,14 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
         curr_mae = all_sweep[i][2]
         next_mae = all_sweep[i+1][2]
         
-        # A peak is where matches are higher, or matches are equal but MAE is lower
         if curr_m > prev_m and curr_m > next_m:
             peaks.append(all_sweep[i])
         elif curr_m == prev_m and curr_m == next_m:
             if curr_mae < prev_mae and curr_mae < next_mae:
                 peaks.append(all_sweep[i])
 
-    # If no clear peak, sort by matches and take top
     peaks = sorted(peaks, key=lambda x: (-x[1], x[2]))
     
-    # Get current offset evaluation
     curr_matches, curr_mae, curr_details = -1, 999.0, []
     if current_offset is not None:
         curr_matches, curr_mae, curr_details = evaluate_offset(current_offset)
@@ -319,25 +298,50 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
         "all_sweep": all_sweep
     }
 
-def main():
-    args = parse_args()
+def verify_session_clock(session_dir):
     try:
-        df_gyro, narrations, watch_start_ms, watch_shots, current_offset, gyro_duration = load_session_data(args.session_dir)
+        df_gyro, narrations, watch_start_ms, watch_shots, current_offset, gyro_duration = load_session_data(session_dir)
         center = current_offset if current_offset is not None else 0.0
         res = run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, current_offset, gyro_duration, center)
-        
         if res['status'] == 'success':
-            print(f"Current Offset: {res['current_offset']}s -> Matches: {res['current_matches']}, MAE: {res['current_mae']:.3f}s")
-            print(f"Best Offset Found: {res['best_offset']:.3f}s -> Matches: {res['best_matches']}, MAE: {res['best_mae']:.3f}s")
-            print("Top Peaks:")
-            for p in res['peaks']:
-                print(f"  Offset: {p[0]:.3f}s, Matches: {p[1]}, MAE: {p[2]:.3f}s")
-        else:
-            print(f"Error: {res['message']}")
+            swing_narrations = [n for n in narrations if n['shot_type'] != "Facing up"]
+            res['total_narrated'] = len(swing_narrations)
+        return res
     except Exception as e:
-        print(f"Exception: {e}")
-        import traceback
-        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
+
+def main():
+    args = parse_args()
+    if args.session_dir:
+        # Run for single session
+        session_dir = args.session_dir
+        print(f"Running clock offset sweep for session: {os.path.basename(session_dir)}")
+        try:
+            res = verify_session_clock(session_dir)
+            if res['status'] == 'success':
+                print(f"Current Offset: {res['current_offset']}s -> Matches: {res['current_matches']}, MAE: {res['current_mae']:.3f}s")
+                print(f"Best Offset Found: {res['best_offset']:.3f}s -> Matches: {res['best_matches']}, MAE: {res['best_mae']:.3f}s")
+                print("Top Peaks:")
+                for p in res['peaks']:
+                    print(f"  Offset: {p[0]:.3f}s, Matches: {p[1]}, MAE: {p[2]:.3f}s")
+            else:
+                print(f"Error: {res['message']}")
+        except Exception as e:
+            print(f"Exception: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        # Run for all sessions
+        sessions = [os.path.join(args.sessions_base, d) for d in sorted(os.listdir(args.sessions_base)) 
+                    if d.startswith("session-") and os.path.isdir(os.path.join(args.sessions_base, d))]
+        print(f"Running clock offset verification across all {len(sessions)} sessions...")
+        for s_dir in sessions:
+            res = verify_session_clock(s_dir)
+            s_name = os.path.basename(s_dir)
+            if res['status'] == 'success':
+                print(f"Session {s_name}: Best Offset = {res['best_offset']:.3f}s, Matches = {res['best_matches']}, MAE = {res['best_mae']*1000:.1f}ms (Current = {res['current_offset']}s)")
+            else:
+                print(f"Session {s_name}: Error: {res['message']}")
 
 if __name__ == "__main__":
     main()
