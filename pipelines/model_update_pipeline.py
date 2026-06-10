@@ -21,22 +21,50 @@ def find_scorecard_file():
             return paths[0][0]
     return None
 
-def parse_scorecard(filepath):
+def normalize_shot_class(shot_name):
+    if not shot_name:
+        return "Unknown"
+    s = shot_name.lower().strip()
+    if "pull" in s or "hook" in s:
+        return "PULL/HOOK"
+    if "flick" in s or "glance" in s or "sweep" in s:
+        return "GLANCE/FLICK"
+    if "cut" in s or "punch" in s:
+        return "CUT/PUNCH"
+    if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
+        return "DEFLECTION/GUIDE"
+    if "power" in s or "loft" in s:
+        return "POWER SHOT"
+    if any(t in s for t in ["drive", "defence", "defense", "push", "straight", "forward", "block"]):
+        return "DRIVE/DEFENCE"
+    return "Unknown"
+
+def get_grouped_stats(filepath):
     if not filepath or not os.path.exists(filepath):
-        return {}
-    
-    results = {}
-    with open(filepath, 'r') as f:
-        lines = f.readlines()
+        return None
         
+    with open(filepath, 'r') as f:
+        content = f.read()
+        
+    # 1. Parse overall session stats (Facing Up / Shot Detection)
+    # We sum TP, FP, FN, GT, Detected across active-watch sessions
+    total_gt = 0
+    total_detected = 0
+    total_tp = 0
+    total_fp = 0
+    total_fn = 0
+    
+    lines = content.split('\n')
     table_started = False
+    overview_rows = []
+    
     for line in lines:
         if "Session | Ground Truth" in line:
             table_started = True
             continue
         if table_started:
             if not line.strip().startswith('|'):
-                if results:
+                if overview_rows:
                     break
                 continue
             if '---|---|' in line:
@@ -45,35 +73,103 @@ def parse_scorecard(filepath):
             if len(parts) < 11:
                 continue
             session_name = parts[0]
+            if session_name in ["Short off side", "full_length"]:
+                continue
+            
             try:
                 gt = int(parts[1])
                 det = int(parts[2])
                 tp = int(parts[3])
                 fp = int(parts[4])
                 fn = int(parts[5])
-                precision = float(parts[6])
-                recall = float(parts[7])
-                f1 = float(parts[8])
-                class_acc = float(parts[9])
-                hit_miss = float(parts[10])
-                speed_mae = parts[11]
             except ValueError:
                 continue
                 
-            results[session_name] = {
-                "gt": gt,
-                "detected": det,
-                "tp": tp,
-                "fp": fp,
-                "fn": fn,
-                "precision": precision,
-                "recall": recall,
-                "f1": f1,
-                "class_accuracy": class_acc,
-                "hit_miss_agreement": hit_miss,
-                "speed_mae": speed_mae
-            }
-    return results
+            total_gt += gt
+            total_detected += det
+            total_tp += tp
+            total_fp += fp
+            total_fn += fn
+            overview_rows.append(session_name)
+            
+    # Calculate overall detection stats
+    precision = total_tp / total_detected if total_detected > 0 else 0.0
+    recall = total_tp / total_gt if total_gt > 0 else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    
+    # 2. Parse per-class classification accuracy from the Match Breakdown tables
+    sessions_sections = content.split("### Session: ")
+    
+    class_gt = {
+        "PULL/HOOK": 0,
+        "CUT/PUNCH": 0,
+        "GLANCE/FLICK": 0,
+        "POWER SHOT": 0,
+        "DEFLECTION/GUIDE": 0,
+        "DRIVE/DEFENCE": 0
+    }
+    class_correct = class_gt.copy()
+    
+    for section in sessions_sections[1:]:
+        sec_lines = section.split('\n')
+        session_name = sec_lines[0].strip()
+        
+        # Skip sessions with no watch data
+        if "Active Watch Data: No" in section:
+            continue
+            
+        # Find Match Breakdown table
+        in_table = False
+        for line in sec_lines:
+            if "GT Index | GT Timestamp" in line:
+                in_table = True
+                continue
+            if in_table:
+                if not line.strip().startswith('|'):
+                    in_table = False
+                    continue
+                if '---|---|' in line:
+                    continue
+                parts = [p.strip() for p in line.split('|')[1:-1]]
+                if len(parts) < 8:
+                    continue
+                
+                gt_shot_type = parts[2]
+                is_match = (parts[4] == "✅")
+                
+                gt_clean = gt_shot_type.strip().upper()
+                if gt_clean in ["UNKNOWN", "MISS", "FACING UP", "NO SHOT", "LEAVE", "EVADE", "EVASION", "NON-SWING"]:
+                    continue
+                    
+                norm_class = normalize_shot_class(gt_shot_type)
+                if norm_class in class_gt:
+                    class_gt[norm_class] += 1
+                    if is_match:
+                        class_correct[norm_class] += 1
+                        
+    class_accuracies = {}
+    for cat in class_gt:
+        gt_count = class_gt[cat]
+        correct = class_correct[cat]
+        acc = correct / gt_count if gt_count > 0 else 0.0
+        class_accuracies[cat] = {
+            "gt": gt_count,
+            "correct": correct,
+            "accuracy": acc
+        }
+        
+    return {
+        "detection": {
+            "gt": total_gt,
+            "detected": total_detected,
+            "tp": total_tp,
+            "fp": total_fp,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1
+        },
+        "classes": class_accuracies
+    }
 
 def run_script(script_path):
     print(f"⏳ Running script: {script_path}...")
@@ -108,9 +204,9 @@ def run_gradle_tests():
 
 def format_diff(before, after, is_percent=False):
     diff = after - before
-    b_val = f"{before:.0%}" if is_percent else f"{before:.2f}"
-    a_val = f"{after:.0%}" if is_percent else f"{after:.2f}"
-    d_val = f"{diff:+.0%}" if is_percent else f"{diff:+.2f}"
+    b_val = f"{before:.1%}" if is_percent else f"{before:.2f}"
+    a_val = f"{after:.1%}" if is_percent else f"{after:.2f}"
+    d_val = f"{diff:+.1%}" if is_percent else f"{diff:+.2f}"
     
     if diff > 0.005:
         return f"{b_val} ➔ **{a_val}** ({d_val}) 🟢"
@@ -132,7 +228,7 @@ def main():
             sys.exit(1)
             
     print(f"📋 Found baseline scorecard at: {scorecard_path}")
-    before_stats = parse_scorecard(scorecard_path)
+    before_stats = get_grouped_stats(scorecard_path)
     
     # 2. Compile dataset
     run_script(os.path.join(ROOT_DIR, "scratch/compile_dataset.py"))
@@ -146,7 +242,7 @@ def main():
     # 5. Parse updated scorecard
     new_scorecard_path = find_scorecard_file()
     print(f"📋 Found updated scorecard at: {new_scorecard_path}")
-    after_stats = parse_scorecard(new_scorecard_path)
+    after_stats = get_grouped_stats(new_scorecard_path)
     
     # 6. Generate comparison markdown report
     report_path = os.path.join(ROOT_DIR, "model_update_analysis.md")
@@ -157,26 +253,34 @@ def main():
         f.write(f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         
         f.write("## Executive Summary\n")
-        f.write("This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` Random Forest shot classifier **before** and **after** retraining on the updated aligned dataset.\n\n")
+        f.write("This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.\n\n")
         
-        f.write("### Comparison Table\n\n")
-        f.write("| Session / Shot Category | GT | Precision (Before ➔ After) | Recall (Before ➔ After) | F1 Score (Before ➔ After) | Class Accuracy (Before ➔ After) | Hit/Miss Agr (Before ➔ After) |\n")
-        f.write("|---|---|---|---|---|---|---|\n")
+        f.write("## 1. Facing Up / Shot Detection Performance\n")
+        f.write("Below are the overall shot detection metrics aggregated across all active watch sessions:\n\n")
         
-        # Sort keys to ensure chronological/logical ordering
-        categories = list(before_stats.keys())
-        for cat in categories:
-            b = before_stats.get(cat)
-            a = after_stats.get(cat)
-            if not b or not a:
-                continue
-            
-            f.write(f"| {cat} | {b['gt']} | ")
-            f.write(f"{format_diff(b['precision'], a['precision'])} | ")
-            f.write(f"{format_diff(b['recall'], a['recall'])} | ")
-            f.write(f"{format_diff(b['f1'], a['f1'])} | ")
-            f.write(f"{format_diff(b['class_accuracy'], a['class_accuracy'])} | ")
-            f.write(f"{format_diff(b['hit_miss_agreement'], a['hit_miss_agreement'])} |\n")
+        b_det = before_stats["detection"]
+        a_det = after_stats["detection"]
+        
+        f.write("| Metric | Before | After | Change |\n")
+        f.write("|---|---|---|---|\n")
+        f.write(f"| **Total Ground Truth Shots** | {b_det['gt']} | {a_det['gt']} | {a_det['gt'] - b_det['gt']:+d} |\n")
+        f.write(f"| **Total Detected Shots** | {b_det['detected']} | {a_det['detected']} | {a_det['detected'] - b_det['detected']:+d} |\n")
+        f.write(f"| **True Positives (Matches)** | {b_det['tp']} | {a_det['tp']} | {a_det['tp'] - b_det['tp']:+d} |\n")
+        f.write(f"| **False Positives** | {b_det['fp']} | {a_det['fp']} | {a_det['fp'] - b_det['fp']:+d} |\n")
+        f.write(f"| **Precision** | {format_diff(b_det['precision'], a_det['precision'])} | | |\n")
+        f.write(f"| **Recall (Accuracy)** | {format_diff(b_det['recall'], a_det['recall'])} | | |\n")
+        f.write(f"| **F1 Score** | {format_diff(b_det['f1'], a_det['f1'])} | | |\n")
+        
+        f.write("\n## 2. Shot Type Classification Accuracy\n")
+        f.write("Below is the classification accuracy comparison for each normalized shot type category, compiled from the match logs across all sessions:\n\n")
+        
+        f.write("| Shot Type | Ground Truth Count | Accuracy (Before ➔ After) |\n")
+        f.write("|---|---|---|\n")
+        
+        for cat in sorted(before_stats["classes"].keys()):
+            b_class = before_stats["classes"][cat]
+            a_class = after_stats["classes"][cat]
+            f.write(f"| {cat} | {b_class['gt']} | {format_diff(b_class['accuracy'], a_class['accuracy'], is_percent=True)} |\n")
             
         f.write("\n## Legend\n")
         f.write("- 🟢: Significant performance improvement (> +0.005)\n")
