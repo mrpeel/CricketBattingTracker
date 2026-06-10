@@ -1,0 +1,129 @@
+
+##########################################################################################
+  AUGMENTED SHOT CLASSIFICATION SIMULATION
+  Session: session-2026-06-01_12-23-38
+##########################################################################################
+
+  Total shots: 68
+  Classes: DRIVE/DEFENCE, GLANCE/FLICK
+  Distribution: Counter({'DRIVE/DEFENCE': 43, 'GLANCE/FLICK': 25})
+
+==========================================================================================
+  OVERALL ACCURACY COMPARISON
+==========================================================================================
+
+  Classifier                      Correct   Accuracy    Delta
+  ────────────────────────────── ──────── ────────── ────────
+  CURRENT (baseline)                24/68      35.3%      +0
+  V1: Conservative override         21/68      30.9%      -3 ⚠
+  V2: Moderate in-tree              22/68      32.4%      -2 ⚠
+  V3: Full in-tree                  22/68      32.4%      -2 ⚠
+  V4: Strict override               23/68      33.8%      -1 ⚠
+  V5: Relaxed override              19/68      27.9%      -5 ⚠
+  V6: Wide override                 19/68      27.9%      -5 ⚠
+
+==========================================================================================
+  PER-CLASS ACCURACY (correct/total)
+==========================================================================================
+
+  Class                CURRENT (b           V1           V2           V3           V4           V5           V6
+  ────────────────── ──────────── ──────────── ──────────── ──────────── ──────────── ──────────── ────────────
+  DRIVE/DEFENCE       24/43       21/43 (-3)  22/43 (-2)  22/43 (-2)  23/43 (-1)   8/43 (-16)   8/43 (-16)
+  GLANCE/FLICK         0/25        0/25        0/25        0/25        0/25       11/25 (+11)  11/25 (+11)
+
+==========================================================================================
+  REGRESSION ANALYSIS (vs CURRENT baseline)
+==========================================================================================
+
+  ── V1: Conservative override ──
+  Improvements: 0  |  Regressions: 3  |  Net: -3
+    REGRESSED:
+      #16  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+      #24  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now POWER SHOT
+      #37  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+
+  ── V2: Moderate in-tree ──
+  Improvements: 0  |  Regressions: 2  |  Net: -2
+    REGRESSED:
+      #24  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now POWER SHOT
+      #37  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+
+  ── V3: Full in-tree ──
+  Improvements: 0  |  Regressions: 2  |  Net: -2
+    REGRESSED:
+      #24  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now POWER SHOT
+      #37  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+
+  ── V4: Strict override ──
+  Improvements: 0  |  Regressions: 1  |  Net: -1
+    REGRESSED:
+      #24  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now POWER SHOT
+
+  ── V5: Relaxed override ──
+  Improvements: 11  |  Regressions: 16  |  Net: -5
+    IMPROVED:
+      #3   Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #46  Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #47  Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #48  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #57  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #59  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #61  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #65  Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #66  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #67  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #68  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+    REGRESSED:
+      #1   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #4   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #5   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #6   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #9   Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #11  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #16  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+      #18  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #20  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #21  Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #24  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now POWER SHOT
+      #26  Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #31  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #37  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+      #41  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #42  Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+
+  ── V6: Wide override ──
+  Improvements: 11  |  Regressions: 16  |  Net: -5
+    IMPROVED:
+      #3   Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #46  Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #47  Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #48  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #57  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #59  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #61  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #65  Flick                GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #66  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #67  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+      #68  Leg glance           GT=GLANCE/FLICK       was DRIVE/DEFENCE      now GLANCE/FLICK
+    REGRESSED:
+      #1   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #4   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #5   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #6   Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #9   Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #11  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #16  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+      #18  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #20  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #21  Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #24  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now POWER SHOT
+      #26  Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #31  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #37  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now DEFLECTION/GUIDE
+      #41  Defence/Block        GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+      #42  Straight drive       GT=DRIVE/DEFENCE      was DRIVE/DEFENCE      now GLANCE/FLICK
+
+##########################################################################################
+  SIMULATION COMPLETE
+##########################################################################################
+
