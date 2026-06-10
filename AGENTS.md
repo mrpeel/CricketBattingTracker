@@ -10,7 +10,7 @@ Welcome to the Pitch Analytix Pro (Cricket Batting Tracker) workspace. This file
 All state and memory documents reside under the `.agents/` folder:
 - **`ACTIVE_CONTEXT.md`**: Contains system objectives, technical approach, active phase objectives, feature backlog catalog, and verification criteria.  Only keep the last 5 completed items in the backlog.  Move other items into the project's change_logfile.
 - **`ARCHITECTURE.md`**: Maps the system structure, data flow diagrams, WearOS real-time kinematics state machine, and directory layout.
-- **`LEARNINGS.md`**: Tracks key decisions, bugs resolved, and performance scorecard historical summaries.
+- **`LEARNINGS.md`**: Tracks key decisions, bugs resolved, and performance scorecard historical summaries. Only keep the last 5-7 active learning entries (under 15KB). Move older entries to `.agents/archive/LEARNINGS_ARCHIVE.md` to conserve token quota.
 - **`rules/`**: Workspace directives and constraints.
   - **`operating_protocol.md`**: The step-by-step execution protocol (CLARIFY, PLAN, EXECUTE, VERIFY, COMMIT) and stateless operations rules.
 
