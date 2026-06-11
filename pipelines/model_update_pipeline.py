@@ -182,12 +182,15 @@ def run_script(script_path):
     print(f"✅ Script {script_path} completed successfully.")
     return res.stdout
 
-def run_gradle_tests():
-    print("⏳ Running Wear OS Gradle unit tests...")
+def run_gradle_tests(only_scorecard=False):
+    test_cmd = "./gradlew :wear:test"
+    if only_scorecard:
+        test_cmd = "./gradlew :wear:testDebugUnitTest --tests com.mrpeel.cricketbattingtracker.ml.SwingDetectorGroundTruthTest"
+    print(f"⏳ Running Gradle command: {test_cmd}...")
     env = os.environ.copy()
     env["JAVA_HOME"] = "/Users/neilkloot/.jdk/jdk-17/"
     res = subprocess.run(
-        "./gradlew :wear:test",
+        test_cmd,
         shell=True,
         capture_output=True,
         text=True,
@@ -217,31 +220,35 @@ def format_diff(before, after, is_percent=False):
 
 def main():
     print("============================================================")
-    # 1. Locate and parse baseline scorecard
-    scorecard_path = find_scorecard_file()
-    if not scorecard_path:
-        print("⚠️ swing_detector_scorecard.md not found. Generating baseline first...")
-        run_gradle_tests()
-        scorecard_path = find_scorecard_file()
-        if not scorecard_path:
-            print("❌ ERROR: Could not locate scorecard even after running tests.")
-            sys.exit(1)
-            
-    print(f"📋 Found baseline scorecard at: {scorecard_path}")
-    before_stats = get_grouped_stats(scorecard_path)
-    
-    # 2. Compile dataset
+    # 1. Compile updated dataset (including all sessions, new and old)
     run_script(os.path.join(ROOT_DIR, "scratch/compile_dataset.py"))
     
-    # 3. Retrain model and transpile
+    # 2. Run Wear OS unit tests to evaluate the existing model against the updated dataset
+    print("⏳ Evaluating existing model against the updated dataset...")
+    run_gradle_tests(only_scorecard=True)
+    
+    scorecard_path = find_scorecard_file()
+    if not scorecard_path:
+        print("❌ ERROR: Could not locate scorecard after initial evaluation.")
+        sys.exit(1)
+        
+    print(f"📋 Parsed baseline scorecard for existing model: {scorecard_path}")
+    before_stats = get_grouped_stats(scorecard_path)
+    
+    # 3. Retrain model and transpile to overwrite GeneratedForest.kt
     run_script(os.path.join(ROOT_DIR, "scratch/generate_kotlin_forest.py"))
     
-    # 4. Run tests to evaluate new model and update scorecard
+    # 4. Run Wear OS unit tests to evaluate the new model against the updated dataset
+    print("⏳ Evaluating new model against the updated dataset...")
     run_gradle_tests()
     
     # 5. Parse updated scorecard
     new_scorecard_path = find_scorecard_file()
-    print(f"📋 Found updated scorecard at: {new_scorecard_path}")
+    if not new_scorecard_path:
+        print("❌ ERROR: Could not locate scorecard after new model evaluation.")
+        sys.exit(1)
+        
+    print(f"📋 Parsed scorecard for new model: {new_scorecard_path}")
     after_stats = get_grouped_stats(new_scorecard_path)
     
     # 6. Generate comparison markdown report
