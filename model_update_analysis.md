@@ -1,6 +1,6 @@
 # Model Update & Retraining Performance Analysis
 
-**Generated:** 2026-06-10 19:25:46
+**Generated:** 2026-06-12 05:53:26
 
 ## Executive Summary
 This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.
@@ -23,12 +23,12 @@ Below is the classification accuracy comparison for each normalized shot type ca
 
 | Shot Type | Ground Truth Count | Accuracy (Before ➔ After) |
 |---|---|---|
-| CUT/PUNCH | 30 | 73.3% ➔ 73.3% (0.00) ⚪ |
+| CUT/PUNCH | 30 | 76.7% ➔ **73.3%** (-3.3%) 🔴 |
 | DEFLECTION/GUIDE | 5 | 0.0% ➔ 0.0% (0.00) ⚪ |
-| DRIVE/DEFENCE | 208 | 86.5% ➔ 86.5% (0.00) ⚪ |
-| GLANCE/FLICK | 155 | 80.6% ➔ 80.6% (0.00) ⚪ |
-| POWER SHOT | 19 | 57.9% ➔ 57.9% (0.00) ⚪ |
-| PULL/HOOK | 69 | 60.9% ➔ 60.9% (0.00) ⚪ |
+| DRIVE/DEFENCE | 208 | 87.5% ➔ **86.5%** (-1.0%) 🔴 |
+| GLANCE/FLICK | 155 | 79.4% ➔ **80.6%** (+1.3%) 🟢 |
+| POWER SHOT | 19 | 47.4% ➔ **57.9%** (+10.5%) 🟢 |
+| PULL/HOOK | 69 | 62.3% ➔ **60.9%** (-1.4%) 🔴 |
 
 ## Legend
 - 🟢: Significant performance improvement (> +0.005)

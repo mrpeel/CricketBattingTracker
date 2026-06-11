@@ -40,3 +40,9 @@ This document captures resolved bugs, architectural changes, key logical finding
 29. **Retraining and Scorecard Comparison Pipeline (June 10, 2026)**:
     *   **The Approach**: Created a new automated pipeline `pipelines/model_update_pipeline.py` to streamline model updates. It captures current (before) metrics from the active `swing_detector_scorecard.md`, executes compilation and retraining, triggers Wear OS unit tests to update the scorecard, parses the new (after) scorecard, and compiles a comparison report `model_update_analysis.md`.
     *   **Result**: The pipeline successfully executes end-to-end, producing side-by-side category and session comparisons, ensuring that model updates are validated against the complete history of shots.
+
+30. **Verification of Pipeline Behavior & Determinism (June 12, 2026)**:
+    *   **The Problem**: Running the model update pipeline twice in a row resulted in `0.00` changes in `model_update_analysis.md`, leading to concerns that the pipeline was not functioning properly.
+    *   **The Finding**: Retraining the Random Forest model on the same `combined_features.csv` dataset using a fixed `random_state=42` is completely deterministic. It produces identical decision trees, which results in identical scorecards. The pipeline compares the on-disk scorecard (which has already been updated to the latest model) with the new scorecard, yielding zero difference.
+    *   **Verification**: Verified pipeline operation by temporarily changing `random_state` to `100`. This shifted the decision boundaries, which correctly triggered a failure in `SwingDetectorTest.kt` (`testCutPunch`) and aborted the pipeline execution before updating the scorecard. This confirmed that the compilation, retraining, Kotlin tree generation, and test guardrails are all functional. Reverting back to `42` restores the passing codebase.
+

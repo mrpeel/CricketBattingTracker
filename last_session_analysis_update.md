@@ -1,11 +1,11 @@
 # Adversarial Post-Session Analysis Report
 
-**Generated:** 2026-06-09 20:03:04
-**Target Session Directory:** `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-09_12-16-49`
-**Target Session Name:** `session-2026-06-09_12-16-49`
+**Generated:** 2026-06-11 15:12:16
+**Target Session Directory:** `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-11_12-27-53`
+**Target Session Name:** `session-2026-06-11_12-27-53`
 
 ## Executive Summary
-- **Independent Clock Alignment:** verified that all 8 available sessions are aligned independently down to the millisecond.
+- **Independent Clock Alignment:** verified that all 9 available sessions are aligned independently down to the millisecond.
 - **Facing-Up Gate:** The current hybrid 4-condition stance gate performs with high accuracy on the target session, but alternative configurations might offer minor false positive reductions.
 - **Random Forest Parity:** Compiled classifier metrics across all sessions from the performance scorecard, demonstrating high classification accuracy.
 
@@ -25,89 +25,92 @@ Below is the verification table showing the optimal, millisecond-level independe
 | `session-2026-06-07_14-34-24` | `5.134s` | `5.154s` | `60` | `817.4ms` |
 | `session-2026-06-08_12-22-26` | `4.817s` | `4.817s` | `53` | `866.2ms` |
 | `session-2026-06-09_12-16-49` | `4.912s` | `4.912s` | `63` | `870.1ms` |
+| `session-2026-06-11_12-27-53` | `4.744s` | `4.744s` | `58` | `935.9ms` |
 
 ## 2. Facing-Up Detection Analysis
-### Current Gate Performance (Target Session): Recall=63.5% | FP=28 (2.21 FP/min) | F1=0.611
+### Current Gate Performance (Target Session): Recall=54.4% | FP=54 (3.22 FP/min) | F1=0.437
 
 #### Top 15 Feature Importances (All Physical & Virtual Sensors):
 | Rank | Feature Name | Mutual Info / Gini Importance |
 |---|---|---|
-| 1 | `linacc_mag_max_2.0s` | 0.0507 |
-| 2 | `accel_mag_range_2.0s` | 0.0422 |
-| 3 | `linacc_y_range_2.0s` | 0.0289 |
-| 4 | `linacc_mag_std_2.0s` | 0.0288 |
-| 5 | `linacc_z_range_2.0s` | 0.0260 |
-| 6 | `accel_y_range_2.0s` | 0.0227 |
-| 7 | `accel_x_min_2.0s` | 0.0219 |
-| 8 | `linacc_x_range_2.0s` | 0.0194 |
-| 9 | `baro_pressure_max_2.0s` | 0.0191 |
-| 10 | `linacc_z_max_2.0s` | 0.0186 |
-| 11 | `linacc_x_min_2.0s` | 0.0167 |
-| 12 | `accel_z_range_2.0s` | 0.0150 |
-| 13 | `gyrouncal_mag_range_2.0s` | 0.0147 |
-| 14 | `baro_pressure_range_2.0s` | 0.0142 |
-| 15 | `gyro_y_min_2.0s` | 0.0125 |
+| 1 | `linacc_z_range_2.0s` | 0.0662 |
+| 2 | `linacc_mag_max_2.0s` | 0.0639 |
+| 3 | `linacc_mag_std_2.0s` | 0.0380 |
+| 4 | `linacc_mag_range_2.0s` | 0.0283 |
+| 5 | `accel_x_max_2.0s` | 0.0272 |
+| 6 | `baro_pressure_range_2.0s` | 0.0269 |
+| 7 | `accel_mag_range_2.0s` | 0.0257 |
+| 8 | `gyro_mag_max_2.0s` | 0.0247 |
+| 9 | `gyrouncal_mag_std_2.0s` | 0.0233 |
+| 10 | `linacc_x_range_2.0s` | 0.0217 |
+| 11 | `linacc_z_min_2.0s` | 0.0204 |
+| 12 | `accel_z_range_2.0s` | 0.0197 |
+| 13 | `gyrouncal_mag_range_2.0s` | 0.0189 |
+| 14 | `linacc_z_max_2.0s` | 0.0185 |
+| 15 | `ori_ori_disp_max_2.0s` | 0.0177 |
 
 #### Alternative Stance Gate Configurations (Grid Search):
 | Config | Gyro Std Max | Accel Std Max | Ori Disp Max | Grav Y Min | Min Flex | Recall | FP | FP/Min | F1 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | 0.90 | 2.00 | 2.00 | -7.0 | 3 | 63.5% | 23 | 1.81 | 0.635 |
-| 2 | 0.90 | 2.00 | 2.00 | -4.0 | 3 | 63.5% | 24 | 1.89 | 0.630 |
-| 3 | 0.90 | 2.00 | 2.00 | -6.0 | 3 | 63.5% | 24 | 1.89 | 0.630 |
-| 4 | 0.90 | 2.00 | 2.50 | -6.0 | 3 | 63.5% | 24 | 1.89 | 0.630 |
-| 5 | 0.90 | 2.00 | 2.50 | -7.0 | 3 | 63.5% | 24 | 1.89 | 0.630 |
+| 1 | 1.20 | 2.00 | 2.00 | -6.0 | 3 | 52.6% | 41 | 2.45 | 0.469 |
+| 2 | 1.20 | 2.00 | 2.00 | -7.0 | 3 | 52.6% | 41 | 2.45 | 0.469 |
+| 3 | 1.50 | 2.00 | 2.00 | -6.0 | 3 | 52.6% | 41 | 2.45 | 0.469 |
+| 4 | 1.50 | 2.00 | 2.00 | -7.0 | 3 | 52.6% | 41 | 2.45 | 0.469 |
+| 5 | 0.90 | 2.00 | 3.00 | -6.0 | 3 | 52.6% | 42 | 2.51 | 0.465 |
 
 #### Cross-Session Validation Summary:
 | Configuration Label | Avg Recall | Total FPs | Avg F1 |
 |---|---|---|---|
-| Current Deployed (Gyro=1.20, Accel=3.25) | 64.01% | 234 | 0.606 |
-| Candidate 1 (Gyro=0.90, Accel=2.00) | 58.53% | 166 | 0.605 |
-| Candidate 2 (Gyro=0.90, Accel=2.00) | 59.33% | 184 | 0.602 |
-| Candidate 3 (Gyro=0.90, Accel=2.00) | 58.98% | 173 | 0.605 |
+| Current Deployed (Gyro=1.20, Accel=3.25) | 62.94% | 288 | 0.588 |
+| Candidate 1 (Gyro=1.20, Accel=2.00) | 58.93% | 220 | 0.592 |
+| Candidate 2 (Gyro=1.20, Accel=2.00) | 58.40% | 213 | 0.592 |
+| Candidate 3 (Gyro=1.50, Accel=2.00) | 58.93% | 220 | 0.592 |
 
 ## 3. Shot Detection Analysis
 ### Multi-Sensor Swing Signal-to-Noise Ratio (SNR):
 | Sensor Stream | Swing Peak | Stance Baseline | SNR Ratio |
 |---|---|---|---|
-| Gyroscope | 3.65 | 2.90 | 1.26x |
-| Accelerometer | 18.85 | 13.30 | 1.42x |
-| LinearAccel | 11.79 | 8.42 | 1.40x |
-| Magnetometer | 58.79 | 57.33 | 1.03x |
+| Gyroscope | 3.87 | 3.15 | 1.23x |
+| Accelerometer | 16.11 | 13.94 | 1.16x |
+| LinearAccel | 11.25 | 8.61 | 1.31x |
+| Magnetometer | 58.96 | 57.20 | 1.03x |
 
 #### Alternative Trigger Configurations:
 | Threshold (rad/s) | Contact Wait (s) | Recall | FP | FP/Min | F1 |
 |---|---|---|---|---|---|
-| 3.0 | 0.50 | 0.0% | 69 | 5.44 | 0.000 |
-| 3.0 | 0.75 | 0.0% | 69 | 5.44 | 0.000 |
-| 3.0 | 1.00 | 0.0% | 69 | 5.44 | 0.000 |
-| 5.0 | 0.50 | 0.0% | 62 | 4.89 | 0.000 |
-| 5.0 | 0.75 | 0.0% | 62 | 4.89 | 0.000 |
+| 3.0 | 0.50 | 0.0% | 97 | 5.79 | 0.000 |
+| 3.0 | 0.75 | 0.0% | 97 | 5.79 | 0.000 |
+| 3.0 | 1.00 | 0.0% | 97 | 5.79 | 0.000 |
+| 5.0 | 0.50 | 0.0% | 76 | 4.53 | 0.000 |
+| 5.0 | 0.75 | 0.0% | 76 | 4.53 | 0.000 |
 
 #### Missed Shot Forensic Diagnostics (Target Session):
 | Shot # | Narration Text | Target Time | Miss Diagnosis / Reason |
 |---|---|---|---|
-| 4 | "Forward defense, miss" | 93.91s | Gyro std-of-mag too high (1.36 > 1.2), bat was not still |
-| 5 | "Cover drive, good" | 105.91s | Gyro std-of-mag too high (1.68 > 1.2), bat was not still |
-| 6 | "Forward defense, poor" | 114.91s | Gyro std-of-mag too high (1.46 > 1.2), bat was not still |
-| 8 | "Forward defense, ok" | 131.91s | Gyro std-of-mag too high (1.61 > 1.2), bat was not still |
-| 10 | "Forward defense, edge" | 146.91s | Gyro std-of-mag too high (1.50 > 1.2), bat was not still |
-| 11 | "Straight drive, ok" | 158.91s | Gyro std-of-mag too high (1.80 > 1.2), bat was not still |
-| 13 | "Off drive, ok" | 175.91s | Gyro std-of-mag too high (2.27 > 1.2), bat was not still |
-| 14 | "Cover drive, poor" | 184.91s | Gyro std-of-mag too high (1.82 > 1.2), bat was not still |
-| 15 | "Forward defense, ok" | 193.91s | Accel std-of-mag too high (3.71 > 3.25), too much motion/shock |
-| 20 | "Forward push, ok" | 228.91s | Gyro std-of-mag too high (1.95 > 1.2), bat was not still |
-| 22 | "Forward defense, good" | 324.91s | Gyro std-of-mag too high (1.52 > 1.2), bat was not still |
-| 26 | "Forward defense, poor" | 365.91s | Gyro std-of-mag too high (1.31 > 1.2), bat was not still |
-| 29 | "Forward defense, miss" | 388.91s | Accel std-of-mag too high (3.28 > 3.25), too much motion/shock |
-| 36 | "On drive, poor" | 445.91s | Gyro std-of-mag too high (1.77 > 1.2), bat was not still |
-| 37 | "Forward defense, good" | 453.91s | Gyro std-of-mag too high (1.65 > 1.2), bat was not still |
-| 38 | "Cover drive, poor" | 462.91s | Gyro std-of-mag too high (1.44 > 1.2), bat was not still |
-| 41 | "Straight drive, miss" | 487.91s | Gyro std-of-mag too high (1.40 > 1.2), bat was not still |
-| 45 | "Straight drive, miss" | 583.91s | Gyro std-of-mag too high (1.66 > 1.2), bat was not still |
-| 46 | "Straight drive, ok" | 591.91s | Gyro std-of-mag too high (1.36 > 1.2), bat was not still |
-| 56 | "Shit... On drive, good" | 681.91s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
-| 59 | "On drive, good" | 706.91s | Gyro std-of-mag too high (1.49 > 1.2), bat was not still |
-| 63 | "Forward defense, miss" | 742.91s | Gyro std-of-mag too high (1.54 > 1.2), bat was not still |
+| 1 | "Back foot punch, OK" | 74.04s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 2 | "Back foot punch, miss" | 82.04s | Accel std-of-mag too high (4.01 > 3.25), too much motion/shock |
+| 9 | "Cut shot, miss" | 153.04s | Gyro std-of-mag too high (1.96 > 1.2), bat was not still |
+| 10 | "Back foot punch, OK" | 160.04s | Gyro std-of-mag too high (1.79 > 1.2), bat was not still |
+| 11 | "Cut shot, good" | 169.04s | Gyro std-of-mag too high (2.15 > 1.2), bat was not still |
+| 12 | "Cut shot, OK" | 178.04s | Gyro std-of-mag too high (1.66 > 1.2), bat was not still |
+| 13 | "Cut shot, good" | 188.14s | Gyro std-of-mag too high (1.86 > 1.2), bat was not still |
+| 14 | "Cut shot, OK" | 197.04s | Gyro std-of-mag too high (1.93 > 1.2), bat was not still |
+| 18 | "Back foot punch, poor" | 224.04s | Gyro std-of-mag too high (1.99 > 1.2), bat was not still |
+| 19 | "Back foot punch, OK" | 231.04s | Gyro std-of-mag too high (1.56 > 1.2), bat was not still |
+| 20 | "Cut shot, OK" | 238.04s | Gyro std-of-mag too high (2.09 > 1.2), bat was not still |
+| 21 | "Back foot punch, OK" | 249.04s | Gyro std-of-mag too high (1.41 > 1.2), bat was not still |
+| 22 | "Cut shot, OK" | 258.04s | Gyro std-of-mag too high (2.02 > 1.2), bat was not still |
+| 24 | "Cut shot, OK" | 274.04s | Gyro std-of-mag too high (1.79 > 1.2), bat was not still |
+| 25 | "Back foot punch, good" | 283.04s | Gyro std-of-mag too high (1.48 > 1.2), bat was not still |
+| 28 | "Cut shot, poor" | 311.04s | Gyro std-of-mag too high (2.14 > 1.2), bat was not still |
+| 29 | "Back foot punch, good" | 318.04s | Gyro std-of-mag too high (1.92 > 1.2), bat was not still |
+| 31 | "Pull shot, poor" | 698.04s | Gyro std-of-mag too high (2.12 > 1.2), bat was not still |
+| 39 | "Back foot defense, good" | 783.04s | Gyro std-of-mag too high (1.89 > 1.2), bat was not still |
+| 40 | "Back foot defense, good" | 792.04s | Gyro std-of-mag too high (1.57 > 1.2), bat was not still |
+| 42 | "Back foot defense, good" | 812.04s | Gyro std-of-mag too high (1.67 > 1.2), bat was not still |
+| 45 | "Cover drive, OK" | 857.04s | Gyro std-of-mag too high (1.79 > 1.2), bat was not still |
+| 49 | "Back foot punch, good" | 896.04s | Gyro std-of-mag too high (2.02 > 1.2), bat was not still |
+| 57 | "Back foot defense, good" | 979.04s | Gyro std-of-mag too high (1.76 > 1.2), bat was not still |
 
 #### Random Forest Classification Parity (Aggregated Over All Available Sessions):
 Below is the classification performance overview compiled from the Kotlin ML scorecard report (`swing_detector_scorecard.md`):
