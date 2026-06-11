@@ -1,6 +1,6 @@
 # Loading and Analysing Batting Session Data
  
-This document outlines the complete session lifecycle and machine learning pipeline for the **Pitch Analytix Pro (Cricket Batting Tracker)**. It explains how raw smartwatch sensor streams and mobile voice recordings are pulled, aligned, compiled, and used to optimize the real-time kinematics state machine and Random Forest shot classifier.
+This document outlines the complete session lifecycle and machine learning pipeline for the **Pitch Analytix Pro (Cricket Batting Tracker)**. It explains how raw smartwatch sensor streams and mobile voice recordings are pulled, aligned, compiled, and used to optimize the real-time kinematics state machine, Random Forest shot classifier, and adversarial evaluation scripts.
 
 ---
 
@@ -16,9 +16,11 @@ graph TD
     D -->|Time Peak Sync| E[ground_truth_aligned.csv]
     E -->|Segment Slicing| F[6s Segment CSVs]
     F -->|Compile| G[combined_features.csv]
-    G -->|Grid Search| H[optimize_stance_gate.py]
-    G -->|Grid Search| I[optimize_classifier.py]
-    I -->|Transpile| J[GeneratedForest.kt]
+    G -->|Adversarial Sweeps| K[adversarial_analysis.py]
+    K -->|Analysis Output| L[last_session_analysis_update.md]
+    G -->|Retrain & Compare| M[model_update_pipeline.py]
+    M -->|Evaluation Scorecard| N[model_update_analysis.md]
+    M -->|Transpile| J[GeneratedForest.kt]
 ```
 
 ---
@@ -43,7 +45,7 @@ Run the automation pipeline script from your Mac terminal to pull the files and 
 ./automate_pipeline.py --watch-ip <watch_ip_address>
 ```
 *   **Clock Offset Alignment**: The pipeline automatically reads the phone audio narration's filename timestamp (e.g. `narration_20260607_143423.m4a`) and aligns it with the watch timeline's `SYSTEM_START` epoch timestamp.
-*   **Fallback**: If network metadata is missing, it falls back to matching a 5-tap gypsum/audio peak signature (5 quick taps on the bat handle within 2.0s) to calculate the precise clock offset.
+*   **Coarse-to-Fine Grid Search**: A coarse-to-fine mathematical grid search evaluates candidates over a $\pm 15.0$s window at `0.05`s increments, running sequence alignment to determine the optimal millisecond-level alignment offset.
 
 ---
 
@@ -66,16 +68,16 @@ Once the raw files are pulled to your Mac, the pipeline script executes immediat
 
 To train a robust machine learning model, single-session files are compiled into a unified dataset. **Only sessions starting from May 30, 2026, are trusted** (earlier sessions lacked proper narration sync and contain simulated data).
 
-Compile features and alignments across the 6 trusted sessions:
+Compile features and alignments across the 8 trusted sessions:
 ```bash
 python3 scratch/compile_dataset.py
 ```
 
 *   **How it works**:
-    The script scans the 6 trusted directories, loads the sensor CSVs, rotates raw coordinates relative to the confirmed rest stance quaternion (`qStance`), and extracts the 10 critical classification features:
+    The script scans the 8 trusted directories, loads the sensor CSVs, rotates raw coordinates relative to the confirmed rest stance quaternion (`qStance`), and extracts the 10 critical classification features:
     `gyroMag`, `rollImpactDeg`, `yawImpactDeg`, `deltaX`, `deltaZ`, `planeRatio`, `gyro_y_min`, `grav_x_max`, `grav_y_min`, `mag_x_max`.
 *   **Outputs Generated**:
-    - `combined_features.csv`: A dataset of 312 swings, containing the 10-feature vector and the ground truth class (`normalized_gt`).
+    - `combined_features.csv`: A dataset of 443 swings, containing the 10-feature vector and the ground truth class (`normalized_gt`).
     - `combined_ground_truth_aligned.csv`: A compiled list of all physical swings and their timestamps.
 
 ---
@@ -100,13 +102,13 @@ python3 scratch/optimize_stance_gate.py
     - `step_detector_recency` (step detector lockouts)
 *   **Configurations Evaluated**:
     - **Steps Only**: High false alarms (3.24 FPs/min).
-    - **M3: Moderate** (Mandatory steps/gyro stillness, 3 of 3 flexible gates): Recovers 68.1% of match-play shots with low false triggers (1.68 FPs/min).
+    - **C: Moderate** (Gyro stillness, 3 of 3 flexible gates): Recovers 95.0% of match-play shots with low false triggers (0.50 FPs/min).
 
 ---
 
 ## 5. Running the Shot Classification Optimizer
 
-With a compiled 312-swing dataset, you can optimize the biomechanical shot classifier to distinguish the 6 classes (`DRIVE/DEFENCE`, `GLANCE/FLICK`, `PULL/HOOK`, `CUT/PUNCH`, `POWER SHOT`, `DEFLECTION/GUIDE`).
+With a compiled 443-swing dataset, you can optimize the biomechanical shot classifier to distinguish the 6 classes (`DRIVE/DEFENCE`, `GLANCE/FLICK`, `PULL/HOOK`, `CUT/PUNCH`, `POWER SHOT`, `DEFLECTION/GUIDE`).
 
 ### Step 1: Run Grid Search
 ```bash
@@ -130,3 +132,37 @@ Execute the Kotlin test suite to evaluate the transpiled model on continuous sen
 JAVA_HOME=/Users/neilkloot/.jdk/jdk-17 ./gradlew :wear:testDebugUnitTest --rerun-tasks
 ```
 This writes the final performance metrics to `swing_detector_scorecard.md`, verifying real-world classification accuracy is above **74%–96%** per session.
+
+---
+
+## 6. Running the Adversarial Post-Session Analysis Pipeline
+
+An adversarial orchestrator script executes deep sanity checks on raw log files immediately after a session to challenge the timing, stance-gate, and trigger parameters:
+```bash
+python3 pipelines/adversarial_analysis.py
+```
+
+*   **How it works**:
+    The orchestrator runs three independent verification scripts:
+    1.  `adversarial_clock_verify.py`: Sweeps clock offsets for all 8 sessions independently to verify millisecond-level precision.
+    2.  `adversarial_facing_up_search.py`: Sweeps the 162 stance-gate configurations to test the optimality of deployed thresholds.
+    3.  `adversarial_shot_detection_search.py`: Measures sensor stream Signal-to-Noise Ratio (SNR) and diagnoses missed shots.
+*   **Outputs Generated**:
+    - `last_session_analysis_update.md`: A markdown report outlining the optimal alignment parameters, feature importances, and detailed missed shot forensics.
+
+---
+
+## 7. Model Retraining and Performance Comparison Pipeline
+
+To quickly retrain the classifier on new data and measure the exact impact of the update, use the model update pipeline:
+```bash
+python3 pipelines/model_update_pipeline.py
+```
+
+*   **How it works**:
+    1.  Parses the active `swing_detector_scorecard.md` to load the current baseline performance metrics.
+    2.  Invokes `compile_dataset.py` and `generate_kotlin_forest.py` to retrain and transpile the updated model.
+    3.  Triggers the Wear OS Gradle test suite to update the scorecard using the new `GeneratedForest.kt` logic.
+    4.  Parses the new scorecard and generates a side-by-side comparison report.
+*   **Outputs Generated**:
+    - `model_update_analysis.md`: A markdown report displaying the side-by-side performance delta for shot detection and shot classification accuracy grouped by category.
