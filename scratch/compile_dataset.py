@@ -10,16 +10,15 @@ from scipy.stats import skew as scipy_skew
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 NON_SWING_TYPES = {'facing up', 'no shot', 'leave', 'evade', 'evasion'}
 
-TRUSTWORTHY_SESSIONS = [
-    "session-2026-05-30_15-04-41",
-    "session-2026-05-31_10-06-52",
-    "session-2026-05-31_14-12-10",
-    "session-2026-06-01_12-23-38",
-    "session-2026-06-05_12-29-59",
-    "session-2026-06-07_14-34-24",
-    "session-2026-06-08_12-22-26",
-    "session-2026-06-09_12-16-49"
-]
+# Dynamically list all session directories in live_watch_sessions
+base_live_dir = os.path.join(BASE_DIR, "live_watch_sessions")
+if os.path.exists(base_live_dir):
+    TRUSTWORTHY_SESSIONS = sorted([
+        d for d in os.listdir(base_live_dir)
+        if d.startswith("session-") and os.path.isdir(os.path.join(base_live_dir, d))
+    ])
+else:
+    TRUSTWORTHY_SESSIONS = []
 
 # ─── Quaternion math (exact port from SwingDetector.kt) ──────────────────────
 def multiply_quats(q1, q2):

@@ -21,120 +21,87 @@ class SwingDetectorGroundTruthTest {
         val expectWatchData: Boolean
     )
 
-    val sessions = listOf(
-        SessionConfig(
+    val sessions: List<SessionConfig> = run {
+        val list = mutableListOf<SessionConfig>()
+        list.add(SessionConfig(
             id = "pull_shots",
             canonicalName = "Pull shots",
             relativePath = "2026_05_02/Pull shots",
             wristFolder = "Wrist_pull_shots-2026-05-02_02-15-11",
             transcriptFile = "pull_shots_full_transcript.csv",
             expectWatchData = true
-        ),
-        SessionConfig(
+        ))
+        list.add(SessionConfig(
             id = "cover_drives",
             canonicalName = "Cover drives",
             relativePath = "2026_05_02/Cover drives ",
             wristFolder = "Wrist_cover_drives-2026-05-02_02-40-41",
             transcriptFile = "cover_drives_transcript.csv",
             expectWatchData = true
-        ),
-        SessionConfig(
+        ))
+        list.add(SessionConfig(
             id = "on_drives",
             canonicalName = "On drives and flick shots",
             relativePath = "2026_05_02/On drives and flick shots",
             wristFolder = "Wrist_on_drives_and_flick_shots-2026-05-02_02-30-57",
             transcriptFile = "on_drives_flick_shots_full_transcript.csv",
             expectWatchData = true
-        ),
-        SessionConfig(
+        ))
+        list.add(SessionConfig(
             id = "short_off_side",
             canonicalName = "Short off side",
             relativePath = "2026_05_02/Short off side",
             wristFolder = "Wrist_short_off_side-2026-05-02_02-50-26",
             transcriptFile = "short_offside_full_transcript.csv",
             expectWatchData = false
-        ),
-        SessionConfig(
+        ))
+        list.add(SessionConfig(
             id = "full_toss",
             canonicalName = "full_toss",
             relativePath = "2026_05_10/full_toss",
             wristFolder = "Wrist_-_full_toss-2026-05-10_05-28-06",
             transcriptFile = "full_toss_practice_transcript.csv",
             expectWatchData = true
-        ),
-        SessionConfig(
+        ))
+        list.add(SessionConfig(
             id = "full_length",
             canonicalName = "full_length",
             relativePath = "2026_05_10/full_length",
             wristFolder = "Wrist_-_full_length_middle_stump-2026-05-10_05-37-44",
             transcriptFile = "full_length_middle_stump_transcript.csv",
             expectWatchData = false
-        ),
-        SessionConfig(
-            id = "session_20260530",
-            canonicalName = "live_session_20260530",
-            relativePath = "live_watch_sessions/session-2026-05-30_15-04-41",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        ),
-        SessionConfig(
-            id = "session_20260531_10",
-            canonicalName = "live_session_20260531_10",
-            relativePath = "live_watch_sessions/session-2026-05-31_10-06-52",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        ),
-        SessionConfig(
-            id = "session_20260531_14",
-            canonicalName = "live_session_20260531_14",
-            relativePath = "live_watch_sessions/session-2026-05-31_14-12-10",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        ),
-        SessionConfig(
-            id = "session_20260601",
-            canonicalName = "live_session_20260601",
-            relativePath = "live_watch_sessions/session-2026-06-01_12-23-38",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        ),
-        SessionConfig(
-            id = "session_20260605",
-            canonicalName = "live_session_20260605",
-            relativePath = "live_watch_sessions/session-2026-06-05_12-29-59",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        ),
-        SessionConfig(
-            id = "session_20260607",
-            canonicalName = "live_session_20260607",
-            relativePath = "live_watch_sessions/session-2026-06-07_14-34-24",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        ),
-        SessionConfig(
-            id = "session_20260608",
-            canonicalName = "live_session_20260608",
-            relativePath = "live_watch_sessions/session-2026-06-08_12-22-26",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        ),
-        SessionConfig(
-            id = "session_20260609",
-            canonicalName = "live_session_20260609",
-            relativePath = "live_watch_sessions/session-2026-06-09_12-16-49",
-            wristFolder = "",
-            transcriptFile = "ground_truth_aligned.csv",
-            expectWatchData = true
-        )
-    )
+        ))
+
+        val liveDir = File(baseDir, "live_watch_sessions")
+        if (liveDir.exists() && liveDir.isDirectory) {
+            val sessionDirs = liveDir.listFiles { file -> 
+                file.isDirectory && file.name.startsWith("session-") 
+            }?.sortedBy { it.name }
+            
+            sessionDirs?.forEach { dir ->
+                val dirName = dir.name
+                val datePart = dirName.substringAfter("session-").substringBefore("_").replace("-", "")
+                val timePart = dirName.substringAfter("_").substringBefore("-")
+                
+                val datePrefix = dirName.substringBefore("_")
+                val siblingCount = sessionDirs.count { it.name.substringBefore("_") == datePrefix }
+                
+                val suffix = if (siblingCount > 1) "_$timePart" else ""
+                val idStr = "session_$datePart$suffix"
+                val canonical = "live_session_$datePart$suffix"
+                
+                list.add(SessionConfig(
+                    id = idStr,
+                    canonicalName = canonical,
+                    relativePath = "live_watch_sessions/$dirName",
+                    wristFolder = "",
+                    transcriptFile = "ground_truth_aligned.csv",
+                    expectWatchData = true
+                ))
+            }
+        }
+        list.toList()
+    }
 
     data class GroundTruthShot(
         val session: String,
