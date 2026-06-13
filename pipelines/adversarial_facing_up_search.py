@@ -94,8 +94,8 @@ def load_shot_times(session_dir):
 
 def compute_rolling_features(df, value_cols, windows=[0.5, 1.0, 2.0], prefix=""):
     df = df.sort_values('seconds_elapsed')
-    feats = pd.DataFrame(index=df.index)
-    feats['seconds_elapsed'] = df['seconds_elapsed']
+    feats_dict = {}
+    feats_dict['seconds_elapsed'] = df['seconds_elapsed']
     
     dt_idx = pd.to_timedelta(df['seconds_elapsed'], unit='s')
     df_temp = df.copy()
@@ -110,12 +110,13 @@ def compute_rolling_features(df, value_cols, windows=[0.5, 1.0, 2.0], prefix="")
         rrange = rmax - rmin
         
         for col in value_cols:
-            feats[f"{prefix}_{col}_mean_{w}s"] = mean[col].values
-            feats[f"{prefix}_{col}_std_{w}s"] = std[col].values
-            feats[f"{prefix}_{col}_min_{w}s"] = rmin[col].values
-            feats[f"{prefix}_{col}_max_{w}s"] = rmax[col].values
-            feats[f"{prefix}_{col}_range_{w}s"] = rrange[col].values
+            feats_dict[f"{prefix}_{col}_mean_{w}s"] = mean[col].values
+            feats_dict[f"{prefix}_{col}_std_{w}s"] = std[col].values
+            feats_dict[f"{prefix}_{col}_min_{w}s"] = rmin[col].values
+            feats_dict[f"{prefix}_{col}_max_{w}s"] = rmax[col].values
+            feats_dict[f"{prefix}_{col}_range_{w}s"] = rrange[col].values
             
+    feats = pd.DataFrame(feats_dict, index=df.index)
     return feats
 
 def compute_quat_features(df, prefix=""):
@@ -133,14 +134,15 @@ def compute_quat_features(df, prefix=""):
     df_temp = pd.DataFrame(index=pd.to_timedelta(df['seconds_elapsed'], unit='s'))
     df_temp['angle_disp'] = angles
     
-    feats = pd.DataFrame(index=df.index)
-    feats['seconds_elapsed'] = df['seconds_elapsed']
+    feats_dict = {}
+    feats_dict['seconds_elapsed'] = df['seconds_elapsed']
     
     for w in [0.5, 1.0, 2.0]:
         roll = df_temp['angle_disp'].rolling(window=f'{int(w*1000)}ms', min_periods=2)
-        feats[f"{prefix}_ori_disp_mean_{w}s"] = roll.mean().values
-        feats[f"{prefix}_ori_disp_max_{w}s"] = roll.max().values
+        feats_dict[f"{prefix}_ori_disp_mean_{w}s"] = roll.mean().values
+        feats_dict[f"{prefix}_ori_disp_max_{w}s"] = roll.max().values
         
+    feats = pd.DataFrame(feats_dict, index=df.index)
     return feats
 
 def extract_all_features_for_session(session_dir):

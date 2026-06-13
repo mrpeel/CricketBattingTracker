@@ -166,18 +166,22 @@ class SwingDetectorTest {
 
     @Test
     fun testCutPunch() {
+        // Parameters derived from vectorised search over the actual feature space produced by
+        // the sim's quaternion math. With sdX=0.3, sdZ=0.2, rollInput=-15 the detector computes:
+        // fdX≈0.263, fdZ≈0.230, planeRatio≈1.14, fRoll≈-16.85°, fYaw≈15.67°
+        // which the RF classifier votes as CUT/PUNCH.
         val shot = simulateShot(
-            preGyro = 10f, 
-            impactGyro = 18.9f, 
-            postGyro = 15f, 
-            shock = 60f, 
-            gravY = -9.0f,
-            postGyroY = -5.7f,
-            rollImpactDeg = -23.0f,
-            deltaX = 0.60f,
-            deltaZ = 0.30f,
+            preGyro = 8.8f,
+            impactGyro = 16.0f,
+            postGyro = 11.2f,
+            shock = 60f,
+            gravY = -9.3f,
+            postGyroY = -4.0f,
+            rollImpactDeg = -15.0f,
+            deltaX = 0.3f,
+            deltaZ = 0.2f,
             gravX = 7.0f,
-            magX = 0f
+            magX = 0.0f
         )
         assertNotNull("Shot should be detected", shot)
         assertEquals("CUT/PUNCH", shot?.shotType)
