@@ -31,6 +31,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-002 | Cover Drive Recall | Improve recall of Cover Drive shots | Backlog | `SwingDetectorGroundTruthTest` |
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
+| B-013 | Power Shot Precision | Reduce POWER SHOT → PULL/HOOK misclassification. Session-2026-06-15 was ~90% power shots and scored only 40% accuracy, exposing severe underrepresentation of this class in training data. Retrain after collecting more power shot sessions. | Backlog | `SwingDetectorGroundTruthTest` |
 | B-008 | Stance Gate Optimization | Tune thresholds and timings to C: Moderate configuration to eliminate walking break FPs and timeout lockouts | **Completed** | E2E Simulation on session-2026-06-01_12-23-38 |
 | B-009 | Random Forest Integration | Integrate scikit-learn Random Forest model into SwingDetector Kotlin logic | **Completed** | Parity test and physical scorecard alignment |
 | B-010 | Clock Offset Optimization | Implement coarse-to-fine clock offset grid search in data collection pipeline | **Completed** | Verification check against all 7 trusted sessions |
@@ -39,11 +40,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session-2026-06-09_12-16-49)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-09_12-16-49`
-*   **Audio File**: `narration_20260609_121645.m4a`
-*   **Status**: Created `model_update_pipeline.py` to automate retraining, transpilation, unit testing, and scorecard comparison (`model_update_analysis.md`). Retrained Random Forest model on the 443 swing dataset across all 8 aligned sessions; all 12 Wear OS tests pass successfully.
-*   **Previous Session (session-2026-06-08_12-22-26)**: Completed stance gate re-optimization and global parameter tuning. Average recall across 7 live sessions: **95.0%**, total FPs: **106** (down 26%). Overall classification accuracy across active watch sessions is **77.5%**.
+## 🔖 Current Session State (session-2026-06-15_12-21-37)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-15_12-21-37`
+*   **Audio File**: `narration_20260615_122132.m4a`
+*   **Status**: Re-transcribed with `gemini-3.5-flash` using new `--force-retranscribe` flag. 65 segments aligned and saved. Session accuracy: **40.0%** (26/65 correct) — near-exclusively power shots causing heavy POWER SHOT → PULL/HOOK confusion. B-013 raised. Pipeline guard changes committed.
+*   **Previous Session (session-2026-06-09_12-16-49)**: Retrained RF model on 443 swings across 8 sessions. All 12 Wear OS unit tests pass. Overall classification accuracy: **77.5%**.
 
 
 ---

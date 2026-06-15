@@ -27,6 +27,15 @@ def parse_args():
     parser.add_argument("--manual-offset", type=float, help="Override offset detection and specify manual offset in seconds")
     parser.add_argument("--session-dir", help="Path to local pulled session directory (skips ADB watch pull)")
     parser.add_argument("--local", default="false", help="Use local Whisper instead of Gemini ('true'/'false')")
+    parser.add_argument(
+        "--model", default="gemini-3.5-flash",
+        help="Gemini model to use for transcription (default: gemini-3.5-flash). "
+             "The pipeline will NOT fall back to other models — if this model is unavailable it halts."
+    )
+    parser.add_argument(
+        "--force-retranscribe", action="store_true",
+        help="Delete any existing narrations_raw.json cache and re-run transcription from scratch."
+    )
     return parser.parse_args()
 
 def check_adb_devices(watch_ip):
@@ -452,11 +461,21 @@ def transcribe_audio_local(audio_path):
         
     return formatted_shots
 
-def transcribe_audio_gemini(audio_path):
+def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
+    """Transcribe audio using Gemini. Only the preferred_model is tried.
+    If it is unavailable (quota / 429 / 503), one retry after 30 s is attempted.
+    If both attempts fail the function raises GeminiUnavailableError so the
+    caller can halt cleanly with resume instructions."""
     from google import genai
     from google.genai import types
     import re
-    
+
+    class GeminiUnavailableError(RuntimeError):
+        pass
+
+    # Normalise model name (strip 'models/' prefix if present)
+    model_name = preferred_model.removeprefix("models/")
+
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -470,21 +489,30 @@ def transcribe_audio_gemini(audio_path):
         print("❌ ERROR: GEMINI_API_KEY environment variable is not set.")
         print("Please export it in your shell: export GEMINI_API_KEY='your_api_key'")
         sys.exit(1)
-        
+
     client = genai.Client(api_key=api_key)
-    
+
+    # Verify that the requested model is actually available before uploading audio
+    available = [m.name.removeprefix("models/") for m in client.models.list()]
+    if model_name not in available:
+        raise RuntimeError(
+            f"❌ Model '{model_name}' is not available in your account.\n"
+            f"   Available flash/pro models: {[m for m in available if 'flash' in m or 'pro' in m]}\n"
+            f"   Re-run with --model <available-model> once it becomes accessible."
+        )
+
     print(f"📤 Uploading {os.path.basename(audio_path)} to Gemini...")
     uploaded_file = client.files.upload(file=audio_path)
     print(f"File uploaded successfully. Storage URI: {uploaded_file.name}")
-    
+
     print("Waiting for Gemini to process the audio file...")
     while uploaded_file.state.name == "PROCESSING":
         time.sleep(2)
         uploaded_file = client.files.get(name=uploaded_file.name)
-        
+
     if uploaded_file.state.name == "FAILED":
         raise Exception("Gemini audio processing failed.")
-        
+
     from pydantic import BaseModel
     from typing import List, Optional
 
@@ -535,13 +563,14 @@ def transcribe_audio_gemini(audio_path):
         "and `narrated_text` (str, the exact transcribed text of the utterance)."
     )
     prompt = prompt_base + schema_instruction
-    
-    models_to_try = ['gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash']
+
+    # --- Single-model strict call with one retry on quota/availability errors ---
+    RETRY_WAIT_SECONDS = 30
     response = None
     last_err = None
-    for model_name in models_to_try:
+    for attempt in range(1, 3):  # attempt 1, then attempt 2 after a wait
         try:
-            print(f"🎙️ Requesting structured transcription from {model_name}...")
+            print(f"🎙️ Requesting structured transcription from {model_name} (attempt {attempt}/2)...")
             response = client.models.generate_content(
                 model=model_name,
                 contents=[uploaded_file, prompt],
@@ -550,14 +579,34 @@ def transcribe_audio_gemini(audio_path):
                     response_schema=NarrationList,
                 ),
             )
-            print(f"✅ Success with {model_name}!")
+            print(f"✅ Transcription succeeded with {model_name}.")
             break
         except Exception as e:
-            print(f"⚠️ {model_name} failed: {e}")
             last_err = e
-            
+            err_str = str(e).lower()
+            is_quota_err = any(k in err_str for k in ["429", "503", "quota", "unavailable", "overloaded", "resource exhausted"])
+            if is_quota_err and attempt == 1:
+                print(f"⚠️  {model_name} unavailable (attempt {attempt}): {e}")
+                print(f"   ⏳ Waiting {RETRY_WAIT_SECONDS}s before retrying...")
+                time.sleep(RETRY_WAIT_SECONDS)
+            else:
+                # Non-quota error, or second attempt also failed — halt immediately
+                break
+
     if response is None:
-        raise Exception(f"All Gemini models failed. Last error: {last_err}")
+        session_dir_hint = os.path.dirname(audio_path)
+        raise RuntimeError(
+            f"\n❌ TRANSCRIPTION FAILED — model '{model_name}' is unavailable or returned an error.\n"
+            f"   Last error: {last_err}\n\n"
+            f"   ℹ️  The pipeline has NOT fallen back to a different model.\n"
+            f"   ℹ️  Your session data is safe. To resume once the model is available:\n"
+            f"\n"
+            f"   python3 automate_pipeline.py \\\n"
+            f"     --session-dir \"{session_dir_hint}\" \\\n"
+            f"     --audio \"{audio_path}\" \\\n"
+            f"     --force-retranscribe \\\n"
+            f"     --model {model_name}\n"
+        )
     
     # Delete file from Cloud Storage
     try:
@@ -773,6 +822,12 @@ def main():
 
     # 5. Call local Whisper or Gemini to transcribe & parse shot timings (or load local cache if exists)
     narrations_cache_path = os.path.join(session_dir, "narrations_raw.json")
+
+    # --force-retranscribe: delete stale cache so transcription always re-runs
+    if getattr(args, "force_retranscribe", False) and os.path.exists(narrations_cache_path):
+        print(f"🗑️  --force-retranscribe set: deleting existing cache {narrations_cache_path}")
+        os.remove(narrations_cache_path)
+
     if os.path.exists(narrations_cache_path):
         print(f"📖 Loading cached transcriptions from {narrations_cache_path}...")
         with open(narrations_cache_path, "r") as f:
@@ -780,22 +835,27 @@ def main():
     else:
         use_local = getattr(args, "local", "false").lower() == "true"
         narrations = None
-        
+
         if use_local:
             try:
                 narrations = transcribe_audio_local(audio_path)
                 print(f"Successfully transcribed {len(narrations)} narrations locally via Whisper.")
             except Exception as e:
                 print(f"⚠️ Local Whisper transcription failed: {e}. Falling back to Gemini...")
-                
+
         if narrations is None:
+            preferred_model = getattr(args, "model", "gemini-3.5-flash")
             try:
-                narrations = transcribe_audio_gemini(audio_path)
-                print(f"Successfully transcribed {len(narrations)} narrations via Gemini.")
-            except Exception as e:
-                print(f"❌ Gemini transcription failed: {e}")
+                narrations = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
+                print(f"Successfully transcribed {len(narrations)} narrations via Gemini ({preferred_model}).")
+            except RuntimeError as e:
+                # RuntimeError from our guard includes full resume instructions
+                print(e)
                 sys.exit(1)
-            
+            except Exception as e:
+                print(f"❌ Gemini transcription failed unexpectedly: {e}")
+                sys.exit(1)
+
         # Write raw narrations to session dir
         with open(narrations_cache_path, "w") as f:
             json.dump(narrations, f, indent=2)
