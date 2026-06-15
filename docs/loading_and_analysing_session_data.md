@@ -62,6 +62,31 @@ Once the raw files are pulled to your Mac, the pipeline script executes immediat
    - `segments/`: A folder containing 6-second sliced CSV files (3s before, 3s after impact) for every shot. These slices are used directly for feature engineering.
    - **Session Scorecard**: The terminal prints immediate metrics: True Positives (TP), False Positives (FP), Recall, and Classification Accuracy.
 
+### 🔄 Gemini Transcription Failures & Resuming
+
+If Gemini transcription fails (e.g. due to model unavailability or API errors) or if the pipeline fails after transcription has completed, you can resume without starting from scratch.
+
+#### Case 1: Transcription Fails (Model Unavailable / API Error)
+The pipeline will halt and output the exact resume command. To retry transcription using a specific model without repeating previous steps:
+```bash
+python3 automate_pipeline.py \
+  --session-dir "<path-to-session-dir>" \
+  --audio "<path-to-session-dir>/narration_*.m4a" \
+  --force-retranscribe \
+  --model gemini-3.5-flash
+```
+*   **The `--model` Flag**: Defaults to `gemini-3.5-flash`. The pipeline will not silently fall back to older/weaker models if the specified model is unavailable.
+*   **The `--force-retranscribe` Flag**: Forces the pipeline to re-upload the audio file and query the Gemini API again, bypassing any cached transcription files.
+
+#### Case 2: Pipeline Fails After Transcription (e.g., Alignment Step)
+If the transcription completed successfully and generated `narrations_raw.json` but a downstream step failed, you can run the command **without** `--force-retranscribe`:
+```bash
+python3 automate_pipeline.py \
+  --session-dir "<path-to-session-dir>" \
+  --audio "<path-to-session-dir>/narration_*.m4a"
+```
+The script will automatically detect and load the cached `narrations_raw.json` from the session directory, skipping the Gemini API call entirely.
+
 ---
 
 ## 3. Running the Combined Multi-Session Analysis
