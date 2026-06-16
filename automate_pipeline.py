@@ -461,6 +461,39 @@ def transcribe_audio_local(audio_path):
         
     return formatted_shots
 
+
+class ProgressSpinner:
+    def __init__(self, message):
+        self.message = message
+        import threading
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self._spin)
+
+    def _spin(self):
+        import time
+        import sys
+        start_time = time.time()
+        spinner = ['|', '/', '-', '\\']
+        idx = 0
+        while not self.stop_event.is_set():
+            elapsed = int(time.time() - start_time)
+            sys.stdout.write(f"\r{self.message} [{spinner[idx % 4]}] {elapsed}s elapsed...")
+            sys.stdout.flush()
+            idx += 1
+            time.sleep(0.5)
+        # Clear the line when done
+        sys.stdout.write("\r" + " " * (len(self.message) + 30) + "\r")
+        sys.stdout.flush()
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop_event.set()
+        self.thread.join()
+
+
 def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     """Transcribe audio using Gemini. Only the preferred_model is tried.
     If it is unavailable (quota / 429 / 503), one retry after 30 s is attempted.
@@ -570,15 +603,16 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     last_err = None
     for attempt in range(1, 3):  # attempt 1, then attempt 2 after a wait
         try:
-            print(f"🎙️ Requesting structured transcription from {model_name} (attempt {attempt}/2)...")
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[uploaded_file, prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=NarrationList,
-                ),
-            )
+            msg = f"🎙️ Requesting structured transcription from {model_name} (attempt {attempt}/2)"
+            with ProgressSpinner(msg):
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[uploaded_file, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=NarrationList,
+                    ),
+                )
             print(f"✅ Transcription succeeded with {model_name}.")
             break
         except Exception as e:

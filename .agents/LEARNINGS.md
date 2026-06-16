@@ -67,6 +67,13 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Solution**: Removed the trailing `/.` from `watch_path` and pointed the destination to `dest_dir` directly. This allows ADB to pull the entire directory natively under the destination directory without encountering syntax problems.
     *   **Result**: Session data pulls successfully from the Wear OS watch.
 
+36. **Long Gemini Transcription UX Improvements (June 16, 2026)**:
+    *   **The Problem**: The pipeline appeared to hang or do nothing during the Gemini audio transcription step (`Requesting structured transcription...`).
+    *   **The Finding**: Transcribing long batting audio narrations (~17.5MB) and parsing them into a structured Pydantic JSON schema takes the Gemini API up to 5 minutes (measured at 283 seconds for the June 16 session). The blocking HTTP call offered no feedback, leading to the false impression of a program hang.
+    *   **The Solution**: Implemented a `ProgressSpinner` class using a Python daemon thread. It runs during the blocking `generate_content` call and prints real-time elapsed seconds and a dynamic spinner.
+    *   **Result**: Active feedback is displayed on stdout, showing the user that processing is progressing and preventing premature cancellation.
+
+
 
 
 
