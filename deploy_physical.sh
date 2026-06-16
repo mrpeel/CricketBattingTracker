@@ -61,12 +61,17 @@ echo "📦 Building Release APKs (this may take a minute)..."
 export JAVA_HOME="$HOME/.jdk/jdk-17"
 export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew assembleDebug --no-daemon
-
 # 3. Deploy to Watch
 if [ "$WATCH_FOUND" = true ]; then
     echo ""
     echo "⌚ Deploying to Watch ($WATCH_ID)..."
-    adb -s $WATCH_ID install -r wear/build/outputs/apk/debug/wear-debug.apk
+    # Push to temp directory first to avoid streamed install timeouts over slow wireless adb connections
+    echo "   -> Pushing APK to watch temp storage..."
+    adb -s $WATCH_ID push wear/build/outputs/apk/debug/wear-debug.apk /data/local/tmp/wear-debug.apk
+    echo "   -> Installing APK on watch..."
+    adb -s $WATCH_ID shell pm install -r /data/local/tmp/wear-debug.apk
+    # Clean up temp file
+    adb -s $WATCH_ID shell rm /data/local/tmp/wear-debug.apk
     
     # Grant necessary permissions
     echo "🔑 Granting Watch Permissions..."

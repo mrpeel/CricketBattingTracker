@@ -57,6 +57,12 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Key Insight — Resume Pattern**: The pipeline already saved `narrations_raw.json` immediately after successful transcription. This means the pipeline can always be resumed from the alignment step by re-running with just `--session-dir` and `--audio` (no `--force-retranscribe`). The `--force-retranscribe` flag is only needed when the *existing* cache is known to be bad.
     *   **Session-2026-06-15 Accuracy**: 40.0% overall (26/65 correct). Heavy POWER SHOT → PULL/HOOK confusion — this session was almost exclusively power shots, which are underrepresented in training data. Flagged as B-013 backlog item.
 
+34. **Resolving Watch Streamed Install Timeout (June 16, 2026)**:
+    *   **The Problem**: The watch debug APK has grown to **56MB** (mainly due to large Compiled DEX files containing the 200 transpiled Random Forest trees in `GeneratedForest.kt` without debug minification). When attempting to deploy to a physical watch over a slow wireless ADB link (typically 0.4 MB/s), the default `adb install` command uses streamed installation which frequently halts/hangs or times out when the watch screen dims.
+    *   **The Solution**: Modified [deploy_physical.sh](file:///Users/neilkloot/Code/CricketBattingTracker/deploy_physical.sh) to push the APK to the watch's internal temporary storage first using `adb push` (which is highly resilient and doesn't timeout) and then trigger local package manager installation using `adb shell pm install -r /data/local/tmp/wear-debug.apk`. The temporary file is cleaned up after successful installation.
+    *   **Result**: Deployment executes reliably even over slow Wi-Fi links, avoiding the "Performing Streamed Install" hang.
+
+
 
 
 
