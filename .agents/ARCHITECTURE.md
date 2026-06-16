@@ -10,7 +10,7 @@ This document maps directories, API structures, database schemas, and data flow 
 graph TD
     subgraph Wear OS Watch
         A[TrackerService — 7 sensor streams] --> B[SwingDetector — 4-State Machine]
-        B --> C[Hybrid Biomechanical Classifier]
+        B --> C[Transpiled Random Forest — GeneratedForest.kt]
         A --> D[Raw CSV Logging — 7 files]
         C --> E[DataSyncManager]
     end
@@ -126,7 +126,7 @@ Raw logging writes: `WatchAccelerometer.csv`, `WatchGyroscope.csv`, `WatchGravit
 
 ### 1. Watch App (`:wear`)
 *   **[TrackerService.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/services/TrackerService.kt)**: Manages 7 sensor listeners (`TYPE_ACCELEROMETER`, `TYPE_GYROSCOPE`, `TYPE_GRAVITY`, `TYPE_ROTATION_VECTOR`, `TYPE_GAME_ROTATION_VECTOR`, `TYPE_STEP_DETECTOR`, `TYPE_HEART_RATE`), background wake locks, raw CSV formatting, step timeline logging, and event dispatch.
-*   **[SwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingDetector.kt)**: 4-state machine (`ACTIVITY_CLASSIFY → FACING_UP_LOCKED → MEASURING_ARC → CONTACT_WAIT`). Holds kinematics state, rotates vectors relative to confirmed stance quaternion, classifies hit/miss, calculates metrics (speeds and ratings), and runs the hybrid biomechanical decision tree. Exposes `processStep()` for step detector events.
+*   **[SwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingDetector.kt)**: 4-state machine (`ACTIVITY_CLASSIFY → FACING_UP_LOCKED → MEASURING_ARC → CONTACT_WAIT`). Holds kinematics state, rotates vectors relative to confirmed stance quaternion, classifies hit/miss, calculates metrics (speeds and ratings), and runs the compact flat-array transpiled Random Forest classifier (`GeneratedForest.kt`). Exposes `processStep()` for step detector events.
 
 ### 2. Phone App (`:app`)
 *   **[DataSyncListenerService.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/DataSyncListenerService.kt)**: Listens for incoming timeline strings via Google Play Services Wearable APIs, parses and stores events in Room DB.
