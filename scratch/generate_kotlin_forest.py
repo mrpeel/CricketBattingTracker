@@ -33,32 +33,143 @@ def main():
     
     print(f"Class names matching LabelEncoder order: {class_names}")
     
-    # Train the Random Forest
-    rf = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=8,
-        class_weight='balanced_subsample',
-        random_state=42,
-        n_jobs=-1
-    )
-    rf.fit(X, y_enc)
+    # Grid Search configurations to compare size/accuracy
+    from sklearn.model_selection import cross_val_score, StratifiedKFold
     
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    configs = [
+        {"n_estimators": 200, "max_depth": 8},
+        {"n_estimators": 100, "max_depth": 7},
+        {"n_estimators": 50, "max_depth": 6},
+        {"n_estimators": 30, "max_depth": 6},
+    ]
+    
+    results = []
+    baseline_cv_acc = 0.0
+    
+    for config in configs:
+        model = RandomForestClassifier(
+            n_estimators=config["n_estimators"],
+            max_depth=config["max_depth"],
+            class_weight='balanced_subsample',
+            random_state=42,
+            n_jobs=-1
+        )
+        scores = cross_val_score(model, X, y_enc, cv=cv, scoring='accuracy')
+        mean_score = np.mean(scores)
+        
+        # Fit to count nodes
+        model.fit(X, y_enc)
+        total_nodes = sum(t.tree_.node_count for t in model.estimators_)
+        
+        results.append({
+            "config": config,
+            "cv_acc": mean_score,
+            "nodes": total_nodes,
+            "model": model
+        })
+        
+        if config["n_estimators"] == 200 and config["max_depth"] == 8:
+            baseline_cv_acc = mean_score
+            
+    print("\nModel Variants Evaluation:")
+    for r in results:
+        print(f" - {r['config']}: CV Accuracy = {r['cv_acc']:.4f}, Total Nodes = {r['nodes']}")
+        
+    # Select smallest where CV accuracy drop is within 0.5% (0.005)
+    allowed_min_acc = baseline_cv_acc - 0.005
+    selected_r = None
+    for r in sorted(results, key=lambda x: x["nodes"]):
+        if r["cv_acc"] >= allowed_min_acc:
+            selected_r = r
+            break
+            
+    if selected_r is None:
+        selected_r = results[0]
+        
+    print(f"\nSelected Config: {selected_r['config']} (CV Accuracy: {selected_r['cv_acc']:.4f}, Nodes: {selected_r['nodes']})")
+    rf = selected_r["model"]
+    
+    # DFS tree serialization
+    nodes = []
+    leaf_probs = []
+    tree_offsets = []
+    
+    for tree_idx, estimator in enumerate(rf.estimators_):
+        tree = estimator.tree_
+        tree_offsets.append(len(nodes))
+        
+        def build_node(node_id):
+            curr_idx = len(nodes)
+            nodes.append(None) # placeholder
+            
+            if tree.children_left[node_id] == -1: # Leaf
+                val = tree.value[node_id][0]
+                prob = val / val.sum()
+                prob_idx = len(leaf_probs) // 6
+                leaf_probs.extend(prob.tolist())
+                
+                nodes[curr_idx] = {
+                    'feature': -1,
+                    'threshold': 0.0,
+                    'left_child': prob_idx,
+                    'right_child': 0
+                }
+            else:
+                feat = tree.feature[node_id]
+                thresh = tree.threshold[node_id]
+                left_node_id = tree.children_left[node_id]
+                right_node_id = tree.children_right[node_id]
+                
+                # Recurse
+                left_child_idx = build_node(left_node_id)
+                right_child_idx = build_node(right_node_id)
+                
+                nodes[curr_idx] = {
+                    'feature': feat,
+                    'threshold': thresh,
+                    'left_child': left_child_idx,
+                    'right_child': right_child_idx
+                }
+            return curr_idx
+            
+        build_node(0)
+
+    # Encode arrays as big-endian hex strings
+    import struct
+    
+    feature_indices_hex = "".join(f"{n['feature'] & 0xFF:02x}" for n in nodes)
+    thresholds_hex = "".join(struct.pack('>f', n['threshold']).hex() for n in nodes)
+    left_children_hex = "".join(struct.pack('>i', n['left_child']).hex() for n in nodes)
+    right_children_hex = "".join(struct.pack('>i', n['right_child']).hex() for n in nodes)
+    tree_offsets_hex = "".join(struct.pack('>i', o).hex() for o in tree_offsets)
+    leaf_probabilities_hex = "".join(struct.pack('>f', p).hex() for p in leaf_probs)
+
+    def to_kotlin_string_array(hex_str, chunk_char_limit=16000):
+        chunks = [hex_str[i:i+chunk_char_limit] for i in range(0, len(hex_str), chunk_char_limit)]
+        formatted_chunks = []
+        for chunk in chunks:
+            sublines = [f'            "{chunk[j:j+100]}"' for j in range(0, len(chunk), 100)]
+            formatted_chunks.append("(\n" + " +\n".join(sublines) + "\n        )")
+        return "arrayOf(\n        " + ",\n        ".join(formatted_chunks) + "\n    )"
+
     # Transpile the forest to Kotlin
     print(f"Generating Kotlin Random Forest in {OUTPUT_KOTLIN}...")
-    
     os.makedirs(os.path.dirname(OUTPUT_KOTLIN), exist_ok=True)
     
     with open(OUTPUT_KOTLIN, 'w') as f:
         # Write file header
         f.write("// Generated Random Forest Classifier for Cricket Batting Tracker\n")
         f.write(f"// Trained on {len(df_swings)} swings across {df_swings['session_id'].nunique()} trustworthy sessions\n")
+        f.write(f"// Selected hyperparameter configuration: {selected_r['config']}\n")
         f.write("package com.mrpeel.cricketbattingtracker.ml\n\n")
+        f.write("import java.nio.ByteBuffer\n")
+        f.write("import java.nio.ByteOrder\n\n")
         
         # Write data class
         f.write("data class SwingFeatures(\n")
         for feat in features:
             f.write(f"    val {feat}: Float,\n")
-        # Remove trailing comma / close class
         f.seek(f.tell() - 2)
         f.write("\n)\n\n")
         
@@ -69,12 +180,51 @@ def main():
             f.write(f"        \"{name}\",\n")
         f.write("    )\n\n")
         
+        f.write(f"    const val NUM_TREES = {rf.n_estimators}\n\n")
+        
+        # Write Hex string constants
+        f.write("    private val FEATURE_INDICES_HEX = " + to_kotlin_string_array(feature_indices_hex) + "\n\n")
+        f.write("    private val THRESHOLDS_HEX = " + to_kotlin_string_array(thresholds_hex) + "\n\n")
+        f.write("    private val LEFT_CHILDREN_HEX = " + to_kotlin_string_array(left_children_hex) + "\n\n")
+        f.write("    private val RIGHT_CHILDREN_HEX = " + to_kotlin_string_array(right_children_hex) + "\n\n")
+        f.write("    private val TREE_OFFSETS_HEX = " + to_kotlin_string_array(tree_offsets_hex) + "\n\n")
+        f.write("    private val LEAF_PROBABILITIES_HEX = " + to_kotlin_string_array(leaf_probabilities_hex) + "\n\n")
+        
+        # Write decoded flat arrays (initialized once during class loading)
+        f.write("    private val FEATURE_INDICES = decodeHexToByteArray(FEATURE_INDICES_HEX)\n")
+        f.write("    private val THRESHOLDS = decodeHexToFloatArray(THRESHOLDS_HEX)\n")
+        f.write("    private val LEFT_CHILDREN = decodeHexToIntArray(LEFT_CHILDREN_HEX)\n")
+        f.write("    private val RIGHT_CHILDREN = decodeHexToIntArray(RIGHT_CHILDREN_HEX)\n")
+        f.write("    private val TREE_OFFSETS = decodeHexToIntArray(TREE_OFFSETS_HEX)\n")
+        f.write("    private val LEAF_PROBABILITIES = decodeHexToFloatArray(LEAF_PROBABILITIES_HEX)\n\n")
+        
         # Write main predict method
         f.write("    fun predict(f: SwingFeatures): String {\n")
-        f.write("        val votes = FloatArray(6)\n\n")
-        for i in range(rf.n_estimators):
-            f.write(f"        predictTree{i}(f, votes)\n")
-        f.write("\n")
+        f.write("        val votes = FloatArray(6)\n")
+        f.write("        val features = floatArrayOf(\n")
+        f.write("            f.gyroMag, f.rollImpactDeg, f.yawImpactDeg, f.deltaX, f.deltaZ, f.planeRatio,\n")
+        f.write("            f.gyro_y_min, f.grav_x_max, f.grav_y_min, f.mag_x_max\n")
+        f.write("        )\n\n")
+        f.write("        for (t in 0 until NUM_TREES) {\n")
+        f.write("            var nodeIdx = TREE_OFFSETS[t]\n")
+        f.write("            while (true) {\n")
+        f.write("                val feat = FEATURE_INDICES[nodeIdx].toInt()\n")
+        f.write("                if (feat == -1 || feat == 255) {\n") # handle unsigned/signed byte conversion
+        f.write("                    val probIdx = LEFT_CHILDREN[nodeIdx] * 6\n")
+        f.write("                    for (c in 0 until 6) {\n")
+        f.write("                        votes[c] += LEAF_PROBABILITIES[probIdx + c]\n")
+        f.write("                    }\n")
+        f.write("                    break\n")
+        f.write("                }\n")
+        f.write("                val valToCompare = features[feat]\n")
+        f.write("                val threshold = THRESHOLDS[nodeIdx]\n")
+        f.write("                nodeIdx = if (valToCompare <= threshold) {\n")
+        f.write("                    LEFT_CHILDREN[nodeIdx]\n")
+        f.write("                } else {\n")
+        f.write("                    RIGHT_CHILDREN[nodeIdx]\n")
+        f.write("                }\n")
+        f.write("            }\n")
+        f.write("        }\n\n")
         f.write("        var maxVal = -1f\n")
         f.write("        var maxIdx = 0\n")
         f.write("        for (i in 0 until 6) {\n")
@@ -86,36 +236,42 @@ def main():
         f.write("        return CLASSES[maxIdx]\n")
         f.write("    }\n\n")
         
-        # Write tree prediction helper methods
-        for tree_idx, estimator in enumerate(rf.estimators_):
-            tree = estimator.tree_
-            f.write(f"    private fun predictTree{tree_idx}(f: SwingFeatures, votes: FloatArray) {{\n")
-            
-            def recurse(node, depth):
-                indent = "    " * (depth + 1)
-                if tree.children_left[node] == -1:  # Leaf node
-                    val = tree.value[node][0]
-                    prob = val / val.sum()
-                    leaf_lines = []
-                    for class_idx, p in enumerate(prob):
-                        if p > 1e-6:
-                            leaf_lines.append(f"{indent}votes[{class_idx}] += {p:.6f}f")
-                    return "\n".join(leaf_lines)
-                else:
-                    feat_idx = tree.feature[node]
-                    thresh = tree.threshold[node]
-                    feat_name = features[feat_idx]
-                    left_code = recurse(tree.children_left[node], depth + 1)
-                    right_code = recurse(tree.children_right[node], depth + 1)
-                    return (f"{indent}if (f.{feat_name} <= {thresh:.6f}f) {{\n"
-                            f"{left_code}\n"
-                            f"{indent}}} else {{\n"
-                            f"{right_code}\n"
-                            f"{indent}}}")
-            
-            f.write(recurse(0, 1))
-            f.write("\n    }\n\n")
-            
+        # Write hex decoding helpers
+        f.write("    private fun decodeHexToByteArray(hexStrings: Array<String>): ByteArray {\n")
+        f.write("        val totalLength = hexStrings.sumOf { it.length } / 2\n")
+        f.write("        val result = ByteArray(totalLength)\n")
+        f.write("        var outIdx = 0\n")
+        f.write("        for (s in hexStrings) {\n")
+        f.write("            var i = 0\n")
+        f.write("            while (i < s.length) {\n")
+        f.write("                val high = Character.digit(s[i], 16)\n")
+        f.write("                val low = Character.digit(s[i + 1], 16)\n")
+        f.write("                result[outIdx++] = ((high shl 4) or low).toByte()\n")
+        f.write("                i += 2\n")
+        f.write("            }\n")
+        f.write("        }\n")
+        f.write("        return result\n")
+        f.write("    }\n\n")
+        
+        f.write("    private fun decodeHexToFloatArray(hexStrings: Array<String>): FloatArray {\n")
+        f.write("        val bytes = decodeHexToByteArray(hexStrings)\n")
+        f.write("        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)\n")
+        f.write("        val result = FloatArray(bytes.size / 4)\n")
+        f.write("        for (i in result.indices) {\n")
+        f.write("            result[i] = buffer.float\n")
+        f.write("        }\n")
+        f.write("        return result\n")
+        f.write("    }\n\n")
+        
+        f.write("    private fun decodeHexToIntArray(hexStrings: Array<String>): IntArray {\n")
+        f.write("        val bytes = decodeHexToByteArray(hexStrings)\n")
+        f.write("        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)\n")
+        f.write("        val result = IntArray(bytes.size / 4)\n")
+        f.write("        for (i in result.indices) {\n")
+        f.write("            result[i] = buffer.int\n")
+        f.write("        }\n")
+        f.write("        return result\n")
+        f.write("    }\n")
         f.write("}\n")
         
     print("✅ Successfully generated GeneratedForest.kt")

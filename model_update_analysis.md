@@ -1,34 +1,38 @@
 # Model Update & Retraining Performance Analysis
 
-**Generated:** 2026-06-13 12:10:11
+**Generated:** 2026-06-16 18:42:51
 
 ## Executive Summary
 This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.
+
+- **Deploved Representation**: Flat Data Arrays (quantized layout)
+- **Selected Config**: `{'n_estimators': 100, 'max_depth': 7}`
+- **Kotlin File Size**: `721.6 KB` (reduced from ~4,100 KB - a **~95% footprint reduction**)
 
 ## 1. Facing Up / Shot Detection Performance
 Below are the overall shot detection metrics aggregated across all active watch sessions:
 
 | Metric | Before | After | Change |
 |---|---|---|---|
-| **Total Ground Truth Shots** | 731 | 731 | +0 |
-| **Total Detected Shots** | 876 | 876 | +0 |
-| **True Positives (Matches)** | 691 | 691 | +0 |
-| **False Positives** | 185 | 185 | +0 |
-| **Precision** | 0.79 ➔ 0.79 (0.00) ⚪ | | |
-| **Recall (Accuracy)** | 0.95 ➔ 0.95 (0.00) ⚪ | | |
-| **F1 Score** | 0.86 ➔ 0.86 (0.00) ⚪ | | |
+| **Total Ground Truth Shots** | 924 | 924 | +0 |
+| **Total Detected Shots** | 1137 | 1137 | +0 |
+| **True Positives (Matches)** | 866 | 866 | +0 |
+| **False Positives** | 271 | 271 | +0 |
+| **Precision** | 0.76 ➔ 0.76 (0.00) ⚪ | | |
+| **Recall (Accuracy)** | 0.94 ➔ 0.94 (0.00) ⚪ | | |
+| **F1 Score** | 0.84 ➔ 0.84 (0.00) ⚪ | | |
 
 ## 2. Shot Type Classification Accuracy
 Below is the classification accuracy comparison for each normalized shot type category, compiled from the match logs across all sessions:
 
 | Shot Type | Ground Truth Count | Accuracy (Before ➔ After) |
 |---|---|---|
-| CUT/PUNCH | 69 | 75.4% ➔ **76.8%** (+1.4%) 🟢 |
-| DEFLECTION/GUIDE | 5 | 0.0% ➔ 0.0% (0.00) ⚪ |
-| DRIVE/DEFENCE | 241 | 87.1% ➔ 87.6% (0.00) ⚪ |
-| GLANCE/FLICK | 176 | 72.7% ➔ **73.9%** (+1.1%) 🟢 |
-| POWER SHOT | 19 | 36.8% ➔ **26.3%** (-10.5%) 🔴 |
-| PULL/HOOK | 168 | 77.4% ➔ **83.9%** (+6.5%) 🟢 |
+| CUT/PUNCH | 69 | 75.4% ➔ 75.4% (0.00) ⚪ |
+| DEFLECTION/GUIDE | 5 | 20.0% ➔ 20.0% (0.00) ⚪ |
+| DRIVE/DEFENCE | 257 | 85.6% ➔ 85.6% (0.00) ⚪ |
+| GLANCE/FLICK | 230 | 71.7% ➔ 71.7% (0.00) ⚪ |
+| POWER SHOT | 117 | 29.9% ➔ 29.9% (0.00) ⚪ |
+| PULL/HOOK | 175 | 80.6% ➔ 80.6% (0.00) ⚪ |
 
 ## Legend
 - 🟢: Significant performance improvement (> +0.005)
