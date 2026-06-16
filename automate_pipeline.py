@@ -77,8 +77,8 @@ def pull_latest_watch_session(watch_ip, dest_dir):
     os.makedirs(local_session_dir, exist_ok=True)
     
     print(f"📥 Pulling files for {latest_session} to {local_session_dir}...")
-    watch_path = f"/storage/emulated/0/Android/data/com.mrpeel.cricketbattingtracker/files/sessions/{latest_session}/."
-    subprocess.run(["adb", "-s", watch_ip, "pull", watch_path, local_session_dir], check=True)
+    watch_path = f"/storage/emulated/0/Android/data/com.mrpeel.cricketbattingtracker/files/sessions/{latest_session}"
+    subprocess.run(["adb", "-s", watch_ip, "pull", watch_path, dest_dir], check=True)
     
     # Pull latest timeline
     timeline_local = os.path.join(local_session_dir, "latest_timeline.txt")

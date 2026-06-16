@@ -62,6 +62,12 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Solution**: Modified [deploy_physical.sh](file:///Users/neilkloot/Code/CricketBattingTracker/deploy_physical.sh) to push the APK to the watch's internal temporary storage first using `adb push` (which is highly resilient and doesn't timeout) and then trigger local package manager installation using `adb shell pm install -r /data/local/tmp/wear-debug.apk`. The temporary file is cleaned up after successful installation.
     *   **Result**: Deployment executes reliably even over slow Wi-Fi links, avoiding the "Performing Streamed Install" hang.
 
+35. **Fixing ADB Pull "Invalid Argument" Error (June 16, 2026)**:
+    *   **The Problem**: In `automate_pipeline.py`, the remote watch path was specified with a trailing `/.` (e.g. `/path/to/session/.`). On modern versions of ADB and certain watch platforms, resolving a path with `/./` results in an `Invalid argument` error during copy operations.
+    *   **The Solution**: Removed the trailing `/.` from `watch_path` and pointed the destination to `dest_dir` directly. This allows ADB to pull the entire directory natively under the destination directory without encountering syntax problems.
+    *   **Result**: Session data pulls successfully from the Wear OS watch.
+
+
 
 
 
