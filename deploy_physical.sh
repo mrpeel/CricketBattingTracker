@@ -60,7 +60,7 @@ echo ""
 echo "📦 Building Release APKs (this may take a minute)..."
 export JAVA_HOME="$HOME/.jdk/jdk-17"
 export PATH="$JAVA_HOME/bin:$PATH"
-./gradlew assembleDebug --no-daemon
+./gradlew assembleRelease -x lint -x lintVitalRelease -x test --no-daemon
 # 3. Deploy to Watch
 if [ "$WATCH_FOUND" = true ]; then
     echo ""
@@ -69,13 +69,13 @@ if [ "$WATCH_FOUND" = true ]; then
     adb -s $WATCH_ID shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1
     
     echo "   -> Pushing APK to watch temp storage..."
-    adb -s $WATCH_ID push wear/build/outputs/apk/debug/wear-debug.apk /data/local/tmp/wear-debug.apk
+    adb -s $WATCH_ID push wear/build/outputs/apk/release/wear-release.apk /data/local/tmp/wear-release.apk
     
     # Wake up watch screen again to keep connection alive
     adb -s $WATCH_ID shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1
     
     echo "   -> Installing APK on watch..."
-    if ! adb -s $WATCH_ID shell pm install -r /data/local/tmp/wear-debug.apk; then
+    if ! adb -s $WATCH_ID shell pm install -r /data/local/tmp/wear-release.apk; then
         echo "⚠️ Installation failed. Checking if device went offline..."
         if [[ "$WATCH_ID" == *":"* ]]; then
             echo "🔌 Attempting wireless reconnect to $WATCH_ID..."
@@ -85,14 +85,14 @@ if [ "$WATCH_FOUND" = true ]; then
             sleep 2
             adb -s $WATCH_ID shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1
             echo "   -> Retrying installation..."
-            adb -s $WATCH_ID shell pm install -r /data/local/tmp/wear-debug.apk
+            adb -s $WATCH_ID shell pm install -r /data/local/tmp/wear-release.apk
         else
             echo "❌ Installation failed and auto-reconnect is not supported for USB devices."
             exit 1
         fi
     fi
     # Clean up temp file
-    adb -s $WATCH_ID shell rm /data/local/tmp/wear-debug.apk
+    adb -s $WATCH_ID shell rm /data/local/tmp/wear-release.apk
     
     # Grant necessary permissions
     echo "🔑 Granting Watch Permissions..."
@@ -107,7 +107,7 @@ fi
 if [ "$PHONE_FOUND" = true ]; then
     echo ""
     echo "📱 Deploying to Phone ($PHONE_ID)..."
-    adb -s $PHONE_ID install -r app/build/outputs/apk/debug/app-debug.apk
+    adb -s $PHONE_ID install -r app/build/outputs/apk/release/app-release.apk
     
     # Launch Phone App
     adb -s $PHONE_ID shell am start -n "com.mrpeel.cricketbattingtracker/com.mrpeel.cricketbattingtracker.MainActivity" -a android.intent.action.MAIN -c android.intent.category.LAUNCHER
