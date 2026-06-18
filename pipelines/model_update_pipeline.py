@@ -179,6 +179,7 @@ def run_script(script_path):
         print(res.stderr)
         print(res.stdout)
         raise RuntimeError(f"Script {script_path} failed.")
+    print(res.stdout)
     print(f"✅ Script {script_path} completed successfully.")
     return res.stdout
 
