@@ -73,6 +73,14 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Solution**: Implemented a `ProgressSpinner` class using a Python daemon thread. It runs during the blocking `generate_content` call and prints real-time elapsed seconds and a dynamic spinner.
     *   **Result**: Active feedback is displayed on stdout, showing the user that processing is progressing and preventing premature cancellation.
 
+37. **Self-Healing Watch Wireless Deployment (June 18, 2026)**:
+    *   **The Problem**: During physical watch deployment via `deploy_physical.sh`, compiling and pushing the unminified **debug** target (which remains 58MB) over wireless ADB can take up to 60+ seconds. During this heavy Wi-Fi data transfer, if the watch screen dims or goes to sleep, the watch drops Wi-Fi or goes offline, crashing the subsequent local installation command with `adb: device offline`.
+    *   **The Solution**: Modified [deploy_physical.sh](file:///Users/neilkloot/Code/CricketBattingTracker/deploy_physical.sh) to:
+      1. Issue `input keyevent KEYCODE_WAKEUP` to wake the watch screen immediately before pushing the APK and again right before running `pm install`, keeping the Wi-Fi card awake.
+      2. Implement a self-healing reconnect loop: if `pm install` fails, the script detects if the target is a wireless device, runs `adb disconnect` and `adb connect` to cycle the link, wakes the screen, and retries the installation automatically.
+    *   **Result**: Deployment completes robustly even if transient wireless drops occur during large APK transfers.
+
+
 
 
 
