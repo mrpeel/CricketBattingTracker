@@ -260,7 +260,8 @@ def rank_features(df):
     ranking = sorted(zip(feature_cols, importances), key=lambda x: x[1], reverse=True)
     return ranking
 
-def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_disp_max, grav_y_min, min_flexible):
+def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_disp_max, grav_y_min, min_flexible,
+                                  gyro_mandatory=True, step_mandatory=True, step_recency_s=1.0):
     gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
     accel_path = os.path.join(session_dir, "WatchAccelerometer.csv")
     gravity_path = os.path.join(session_dir, "WatchGravity.csv")
@@ -366,7 +367,7 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
     mean_grav_y_arr = precomputed['mean_grav_y']
     step_age_arr = precomputed['step_age']
     
-    step_recency_ns = 1000000000
+    step_recency_ns = int(step_recency_s * 1e9)
     facing_up_min_duration_ns = 800000000
     facing_up_break_tolerance_ns = 1500000000
     backswing_timeout_ns = 10000000000
@@ -388,8 +389,23 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
             ori_ok = ori_disp_arr[i] < ori_disp_max
             arm_extended = (mean_grav_y_arr[i] == 0.0 or mean_grav_y_arr[i] <= grav_y_min)
             
-            flexible_passed = int(accel_ok) + int(ori_ok) + int(arm_extended)
-            all_conditions_met = gyro_ok and steps_ok and (flexible_passed >= min_flexible)
+            # Dynamic mandatory/flexible routing
+            flex_conds = []
+            if not gyro_mandatory:
+                flex_conds.append(gyro_ok)
+            if not step_mandatory:
+                flex_conds.append(steps_ok)
+            flex_conds.extend([accel_ok, ori_ok, arm_extended])
+            
+            flexible_passed = sum(int(cond) for cond in flex_conds)
+            
+            all_mandatory_passed = True
+            if gyro_mandatory and not gyro_ok:
+                all_mandatory_passed = False
+            if step_mandatory and not steps_ok:
+                all_mandatory_passed = False
+                
+            all_conditions_met = all_mandatory_passed and (flexible_passed >= min_flexible)
             
             if all_conditions_met:
                 if not facing_up_gate_active:
@@ -510,26 +526,38 @@ def main():
     print(f"Current Gate -> Recall: {recall:.2%}, FPs: {fp} ({fp_min:.2f} FP/min), F1: {f1:.3f}")
     
     gyro_grids = [0.9, 1.2, 1.5]
-    accel_grids = [2.0, 3.25, 4.0]
+    accel_grids = [3.25, 4.0]
     ori_grids = [2.0, 2.5, 3.0]
-    grav_y_grids = [-4.0, -6.0, -7.0]
+    grav_y_grids = [-6.0, -7.0]
     min_flex_grids = [2, 3]
     
-    print("\nGrid searching alternative gate thresholds on the latest session...")
+    # Structural variables to sweep
+    gyro_mandatory_options = [True, False]
+    step_mandatory_options = [True, False]
+    step_recency_options = [0.5, 1.0, 2.0, 3.0]
+    
+    print("\nGrid searching alternative gate structures and thresholds on the latest session...")
     candidates = []
     for g_std in gyro_grids:
         for a_std in accel_grids:
             for o_disp in ori_grids:
                 for gr_y in grav_y_grids:
                     for mf in min_flex_grids:
-                        det, dur = simulate_detector_for_session(args.session_dir, g_std, a_std, o_disp, gr_y, mf)
-                        rec, f_p, fp_m, f1_score = evaluate_detections(det, shot_times, dur)
-                        candidates.append((g_std, a_std, o_disp, gr_y, mf, rec, f_p, fp_m, f1_score))
+                        for g_mand in gyro_mandatory_options:
+                            for s_mand in step_mandatory_options:
+                                for s_rec in step_recency_options:
+                                    det, dur = simulate_detector_for_session(
+                                        args.session_dir, g_std, a_std, o_disp, gr_y, mf,
+                                        gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec
+                                    )
+                                    rec, f_p, fp_m, f1_score = evaluate_detections(det, shot_times, dur)
+                                    candidates.append((g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, rec, f_p, fp_m, f1_score))
                         
-    candidates.sort(key=lambda x: (-x[8], x[6]))
+    candidates.sort(key=lambda x: (-x[11], x[9]))
     print("Top 5 Alternative Gate Configs (Latest Session):")
     for i, c in enumerate(candidates[:5]):
-        print(f"  {i+1}. GyroStd={c[0]:.2f}, AccelStd={c[1]:.2f}, OriDisp={c[2]:.2f}, GravY={c[3]:.1f}, MinFlex={c[4]} -> Recall={c[5]:.1%}, FPs={c[6]} ({c[7]:.2f} FP/min), F1={c[8]:.3f}")
+        print(f"  {i+1}. GyroStd={c[0]:.2f}, AccelStd={c[1]:.2f}, OriDisp={c[2]:.2f}, GravY={c[3]:.1f}, MinFlex={c[4]}, "
+              f"GyroMand={c[5]}, StepMand={c[6]}, StepRec={c[7]}s -> Recall={c[8]:.1%}, FPs={c[9]} ({c[10]:.2f} FP/min), F1={c[11]:.3f}")
 
     all_sessions = load_all_sessions(args.sessions_base)
     print(f"\nPerforming cross-session validation across {len(all_sessions)} sessions...")
@@ -543,14 +571,17 @@ def main():
         
     print(f"Loaded {len(session_data)} historical sessions for validation.")
     
-    top_configs = [(curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex)] + [c[:5] for c in candidates[:3]]
+    top_configs = [(curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex, True, True, 1.0)] + [c[:8] for c in candidates[:3]]
     configs_metrics = []
     
     for cfg in top_configs:
-        g_std, a_std, o_disp, gr_y, mf = cfg
+        g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec = cfg
         recalls, fps, f1s = [], [], []
         for s_path, s_shots in session_data:
-            det, dur = simulate_detector_for_session(s_path, g_std, a_std, o_disp, gr_y, mf)
+            det, dur = simulate_detector_for_session(
+                s_path, g_std, a_std, o_disp, gr_y, mf,
+                gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec
+            )
             rec, f_p, fp_m, f1_score = evaluate_detections(det, s_shots, dur)
             recalls.append(rec)
             fps.append(f_p)
@@ -566,7 +597,7 @@ def main():
     for i, res in enumerate(configs_metrics):
         cfg = res['config']
         label = "Current Deployed" if i == 0 else f"Candidate {i}"
-        print(f"  {label:<18}: GyroStd={cfg[0]:.2f}, AccelStd={cfg[1]:.2f}, OriDisp={cfg[2]:.2f}, GravY={cfg[3]:.1f}, MinFlex={cfg[4]}")
+        print(f"  {label:<18}: GyroStd={cfg[0]:.2f}, AccelStd={cfg[1]:.2f}, OriDisp={cfg[2]:.2f}, GravY={cfg[3]:.1f}, MinFlex={cfg[4]}, GyroMand={cfg[5]}, StepMand={cfg[6]}, StepRec={cfg[7]}s")
         print(f"    Avg Recall: {res['mean_recall']:.2%}, Total FPs: {res['total_fps']}, Avg F1: {res['mean_f1']:.3f}")
 
 if __name__ == "__main__":
