@@ -41,11 +41,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session-2026-06-15_12-21-37)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-15_12-21-37`
-*   **Audio File**: `narration_20260615_122132.m4a`
-*   **Status**: Re-transcribed with `gemini-3.5-flash` using new `--force-retranscribe` flag. 65 segments aligned and saved. Session accuracy: **40.0%** (26/65 correct) — near-exclusively power shots causing heavy POWER SHOT → PULL/HOOK confusion. B-013 raised. Pipeline guard changes committed.
-*   **Previous Session (session-2026-06-09_12-16-49)**: Retrained RF model on 443 swings across 8 sessions. All 12 Wear OS unit tests pass. Overall classification accuracy: **77.5%**.
+## 🔖 Current Session State (session-2026-06-19_12-25-55)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-19_12-25-55`
+*   **Audio File**: `narration_20260619_122546.m4a`
+*   **Status**: Re-transcribed with new phonetic correction guards. All instances of "touch shot" correctly transcribed/mapped to "Cut shot" / "CUT/PUNCH". Session accuracy: **44.8%** (30/67 matching).
+*   **Previous Session (session-2026-06-15_12-21-37)**: Accuracy 40.0% (mostly power shots, confused as PULL/HOOK).
 
 
 ---

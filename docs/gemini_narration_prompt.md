@@ -64,4 +64,9 @@ Admin phrases:
  * Jam
  * Starting
 
+## Phonetic Corrections:
+* **CRITICAL**: The batter will never narrate "touch shot" or "touch". If you hear "touch shot" or "touch", this is a phonetic mishearing of **"cut shot"** or **"cut"**. Always transcribe it as **"Cut"** or **"Square Cut"** depending on context.
+* If you hear "division" or "defensive", ensure it maps to one of the defensive categories (e.g. "Forward Defensive" or "Back-foot Defensive").
+* If you hear "EB giant", this is a mishearing of "Facing up" or metadata phrase. Ensure it matches expected terms.
+
   

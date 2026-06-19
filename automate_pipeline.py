@@ -586,6 +586,10 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             "- Balls with no shot played: \"No shot\", \"Leave\", \"Evade\", \"Evasion\"\n\n"
             "The batsman will rate the shot quality using one of these rating words:\n"
             "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\", \"Edge\", \"Edged\"\n\n"
+            "## Phonetic Corrections:\n"
+            "- **CRITICAL**: The batter will never narrate \"touch shot\" or \"touch\". If you hear \"touch shot\" or \"touch\", this is a phonetic mishearing of \"cut shot\" or \"cut\". Always transcribe it as \"Cut\" or \"Square Cut\" depending on context.\n"
+            "- If you hear \"division\" or \"defensive\", ensure it maps to one of the defensive categories (e.g. \"Forward Defensive\" or \"Back-foot Defensive\").\n"
+            "- If you hear \"EB giant\", this is a mishearing of \"Facing up\" or metadata phrase. Ensure it matches expected terms.\n\n"
             "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
             "Do not skip shots, do not hallucinate repetitive entries in silence, and output only the matching list."
         )
@@ -727,6 +731,12 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         full_text = " ".join(event["texts"])
         text_lower = full_text.lower()
         
+        # Phonetic correction post-processing fallback
+        if "touch shot" in text_lower:
+            text_lower = text_lower.replace("touch shot", "cut shot")
+        if "touch" in text_lower:
+            text_lower = text_lower.replace("touch", "cut")
+            
         # Map shot type
         shot_type = None
         if "facing up" in text_lower:

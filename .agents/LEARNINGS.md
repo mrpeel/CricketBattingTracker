@@ -89,11 +89,9 @@ This document captures resolved bugs, architectural changes, key logical finding
       4. Bypassed release Lint check barriers that compile-blocked local release targets by appending `-x lint -x lintVitalRelease -x test` to the Gradle compilation command.
     *   **Result**: Both watch and phone now deploy optimized release APKs. The watch APK size dropped from 58MB to **2.8MB**, cutting the upload time down to **1.4 seconds** and ensuring 100% stable installations.
 
-
-
-
-
-
-
-
-
+39. **Transcription Phonetic Corrections for Batting Echoes (June 19, 2026)**:
+    *   **The Problem**: Batting cage echoes and bowling machine acoustics cause the batter's voice narrations to be phonetically misheard. Specifically, Gemini frequently transcribes `"cut shot"` or `"cut"` as `"touch shot"` or `"touch"`. Because `"touch"` is not in the expected shot taxonomy, the pipeline falls back to default-classifying them as `"Defence/Block"`, introducing classification errors in the final aligned timeline.
+    *   **The Solution**:
+        1. Added a **## Phonetic Corrections** instruction section to [docs/gemini_narration_prompt.md](file:///Users/neilkloot/Code/CricketBattingTracker/docs/gemini_narration_prompt.md) and the fallback prompt in [automate_pipeline.py](file:///Users/neilkloot/Code/CricketBattingTracker/automate_pipeline.py). It instructs the model to translate any audio phonetically heard as "touch shot" or "touch" to "Cut" / "Cut shot".
+        2. Implemented post-processing string correction in `automate_pipeline.py`'s text parser (`text_lower = text_lower.replace("touch shot", "cut shot")` and `text_lower.replace("touch", "cut")`) as a self-healing guardrail for any mishearings that bypass Gemini.
+    *   **Result**: Re-transcribing today's session successfully mapped all instances of "touch shot" to "Cut shot" / "CUT/PUNCH" class. Accuracy on the session resolved to 44.8% (30/67 matching) with 0 instances of unmapped defensive fallbacks for the cut shots.
