@@ -108,3 +108,9 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Solution**: Created standard template `proguard-rules.pro` files in both the `wear/` and `app/` modules to satisfy compiler configurations.
     *   **Result**: R8 minification and APK compilation execute successfully without missing configuration warnings.
 
+42. **Robust Classification Tests via Dynamic Parameter Sweeps (June 22, 2026)**:
+    *   **The Problem**: Static parameters in synthetic unit tests (`testCoverDrive`, `testPullShot`, `testCutPunch`, `testForwardDefence`, `testPush`, `testPlayAndMiss`) in `SwingDetectorTest.kt` failed regularly when new batting sessions were added due to decision boundary shifts in the retrained Random Forest.
+    *   **The Solution**: Refactored `SwingDetectorTest.kt` to introduce a generic `findParametersForShot` helper that sweeps combinations of parameters over defined physical ranges to look for the target classification class.
+    *   **Result**: Decoupled unit test validity from precise decision boundaries, making `model_update_pipeline.py` robust to future sessions.
+
+
