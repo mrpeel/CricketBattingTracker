@@ -102,3 +102,9 @@ This document captures resolved bugs, architectural changes, key logical finding
         1. Refactored `testOnSideFlick` in [SwingDetectorTest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/test/java/com/mrpeel/cricketbattingtracker/ml/SwingDetectorTest.kt) to perform a dynamic, self-healing grid search of physical motion profiles (roll angles, delta displacements, gravity axis components). If the default parameters fail, the test automatically simulates realistic adjacent variations until it finds a profile that predicts the target class, decoupling test validity from classifier boundaries.
         2. Refactored [adversarial_facing_up_search.py](file:///Users/neilkloot/Code/CricketBattingTracker/pipelines/adversarial_facing_up_search.py) and [adversarial_analysis.py](file:///Users/neilkloot/Code/CricketBattingTracker/pipelines/adversarial_analysis.py) to support sweeping structural rules (e.g. evaluating stance gate options where Gyro or Steps are optional/flexible, and testing step recency filter durations in `[0.5s, 1.0s, 2.0s, 3.0s]`).
     *   **Result**: The model update pipeline compiles successfully, outputting updated Kotlin decision arrays. Structural sweeps proved that keeping Gyro and Steps as mandatory filters is mathematically optimal to suppress false positive classifications.
+
+41. **Resolving Missing ProGuard Rules Files (June 22, 2026)**:
+    *   **The Problem**: Minification configuration (`minifyReleaseWithR8`) in `wear/build.gradle.kts` and `app/build.gradle.kts` looked for `proguard-rules.pro` files which did not exist, leading to R8 execution warnings/errors.
+    *   **The Solution**: Created standard template `proguard-rules.pro` files in both the `wear/` and `app/` modules to satisfy compiler configurations.
+    *   **Result**: R8 minification and APK compilation execute successfully without missing configuration warnings.
+
