@@ -7,3 +7,5 @@ This file archives completed catalog items from `ACTIVE_CONTEXT.md` to conserve 
 | B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
 | B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
 | F-013 | Full Watch Sensor Stack Logging | Background logging of up to 15 physical/virtual Wear OS sensors when raw logging/diagnostics is enabled | **Completed** | E2E simulation verify 11 CSV files |
+| B-008 | Stance Gate Optimization | Tune thresholds and timings to C: Moderate configuration to eliminate walking break FPs and timeout lockouts | **Completed** | E2E Simulation on session-2026-06-01_12-23-38 |
+| B-009 | Random Forest Integration | Integrate scikit-learn Random Forest model into SwingDetector Kotlin logic | **Completed** | Parity test and physical scorecard alignment |

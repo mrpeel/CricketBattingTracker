@@ -367,9 +367,19 @@ def transcribe_audio_local(audio_path):
 
     formatted_shots = []
     last_num = 0
+    current_bat = None
     for ev in raw_events:
         num = ev["shot_number"]
+        txt_lower = ev["text"].lower()
         
+        # Determine bat for this event
+        if any(w in txt_lower for w in ["giant", "nicolls", "nichs"]):
+            current_bat = "Gray Nicolls Giant"
+        elif "eye in" in txt_lower:
+            current_bat = "Eye In"
+        elif any(w in txt_lower for w in ["game bat", "game day bat", "normal game bat"]):
+            current_bat = "Game bat"
+            
         if num is not None:
             if num <= last_num:
                 # Ignore sequence numbers that jump backwards (phonetic slips or setup talk)
@@ -456,6 +466,7 @@ def transcribe_audio_local(audio_path):
             "shot_number": num,
             "shot_type": s_type,
             "quality": quality,
+            "bat": current_bat,
             "narrated_text": ev["text"]
         })
         
@@ -554,6 +565,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         shot_number: Optional[int] = None
         shot_type: str
         rating: Optional[str] = None
+        bat: Optional[str] = None
         narrated_text: str
 
     class NarrationList(BaseModel):
@@ -584,6 +596,10 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\", \"Guide\"\n"
             "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\", \"Power shot\"\n"
             "- Balls with no shot played: \"No shot\", \"Leave\", \"Evade\", \"Evasion\"\n\n"
+            "The batter uses three types of bats and narrates when he changes or selects them:\n"
+            "- 'Gray Nicolls Giant' (or 'Giant', heavy bat)\n"
+            "- 'Eye in bat' (or 'Eye In', thin light bat)\n"
+            "- 'Game bat' (or 'Game day bat', normal bat)\n\n"
             "The batsman will rate the shot quality using one of these rating words:\n"
             "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\", \"Edge\", \"Edged\"\n\n"
             "## Phonetic Corrections:\n"
@@ -597,7 +613,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         "\n\nOutput the result as a JSON object matching the response schema: a list of narration items. "
         "Each item must contain `timestamp_seconds` (float, e.g. 3.45 or 12.18), `shot_number` (int, or null for stance/admin/non-numbered events), "
         "`shot_type` (str, e.g. 'Facing up', 'Cover Drive', 'Cut', 'Leg Glance', etc.), `rating` (str, e.g. 'good', 'ok', or null), "
-        "and `narrated_text` (str, the exact transcribed text of the utterance)."
+        "`bat` (str, e.g. 'Gray Nicolls Giant', 'Eye In', 'Game bat', or null), and `narrated_text` (str, the exact transcribed text of the utterance)."
     )
     prompt = prompt_base + schema_instruction
 
@@ -667,7 +683,8 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
                 shot_events.append({
                     "shot_number": int(shot_num_raw) if shot_num_raw is not None else None,
                     "timestamp_seconds": float(item.get("timestamp_seconds", 0.0)),
-                    "texts": [item.get("narrated_text", "")]
+                    "texts": [item.get("narrated_text", "")],
+                    "bat": item.get("bat")
                 })
             parsed_structured = True
             print(f"✅ Successfully parsed {len(shot_events)} shots via Pydantic response_schema.")
@@ -713,7 +730,8 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
                 current_shot = {
                     "shot_number": shot_num,
                     "timestamp_seconds": time_sec,
-                    "texts": [text]
+                    "texts": [text],
+                    "bat": None
                 }
             else:
                 if current_shot:
@@ -726,7 +744,11 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         if current_shot:
             shot_events.append(current_shot)
         
+    return format_gemini_shots(shot_events)
+
+def format_gemini_shots(shot_events):
     formatted_shots = []
+    current_bat = None
     for event in shot_events:
         full_text = " ".join(event["texts"])
         text_lower = full_text.lower()
@@ -737,6 +759,25 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         if "touch" in text_lower:
             text_lower = text_lower.replace("touch", "cut")
             
+        # Determine bat for this event
+        event_bat = event.get("bat")
+        if event_bat:
+            event_bat_lower = event_bat.lower()
+            if "giant" in event_bat_lower or "nicolls" in event_bat_lower or "nichs" in event_bat_lower:
+                current_bat = "Gray Nicolls Giant"
+            elif "eye in" in event_bat_lower:
+                current_bat = "Eye In"
+            elif "game" in event_bat_lower:
+                current_bat = "Game bat"
+        else:
+            # Fallback to checking text_lower
+            if any(w in text_lower for w in ["giant", "nicolls", "nichs"]):
+                current_bat = "Gray Nicolls Giant"
+            elif "eye in" in text_lower:
+                current_bat = "Eye In"
+            elif any(w in text_lower for w in ["game bat", "game day bat", "normal game bat"]):
+                current_bat = "Game bat"
+                
         # Map shot type
         shot_type = None
         if "facing up" in text_lower:
@@ -802,6 +843,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             "shot_number": event["shot_number"],
             "shot_type": shot_type,
             "quality": quality,
+            "bat": current_bat,
             "narrated_text": full_text
         })
         
