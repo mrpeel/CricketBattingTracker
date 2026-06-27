@@ -133,7 +133,7 @@ python3 scratch/optimize_stance_gate.py
 
 ## 5. Running the Shot Classification Optimizer
 
-With a compiled 443-swing dataset, you can optimize the biomechanical shot classifier to distinguish the 6 classes (`DRIVE/DEFENCE`, `GLANCE/FLICK`, `PULL/HOOK`, `CUT/PUNCH`, `POWER SHOT`, `DEFLECTION/GUIDE`).
+With a compiled 443-swing dataset, you can optimize the biomechanical shot classifier to distinguish the 6 classes (`DRIVE/DEFENCE`, `GLANCE/FLICK/SWEEP`, `PULL/HOOK`, `CUT/PUNCH`, `POWER SHOT`, `DEFLECTION/GUIDE`).
 
 ### Step 1: Run Grid Search
 ```bash

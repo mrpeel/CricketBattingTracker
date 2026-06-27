@@ -730,7 +730,7 @@ class SwingDetector {
         // 9. Speed
         val multiplier = when (shotType) {
             "DRIVE/DEFENCE", "DEFLECTION/GUIDE" -> 1.45f
-            "GLANCE/FLICK", "CUT/PUNCH", "PULL/HOOK" -> 1.30f
+            "GLANCE/FLICK/SWEEP", "CUT/PUNCH", "PULL/HOOK" -> 1.30f
             "POWER SHOT" -> 1.40f
             else -> 1.30f
         }

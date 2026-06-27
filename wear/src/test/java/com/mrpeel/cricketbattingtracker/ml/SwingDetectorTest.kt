@@ -243,9 +243,9 @@ class SwingDetectorTest {
                                 time += 20_000_000L
                             }
                             
-                            if (shotTmp != null && shotTmp?.shotType == "GLANCE/FLICK") {
+                            if (shotTmp != null && shotTmp?.shotType == "GLANCE/FLICK/SWEEP") {
                                 foundShot = shotTmp
-                                System.out.println("✅ Found valid GLANCE/FLICK test parameters: roll=$roll, dx=$dx, dz=$dz, pgy=$pgy, gx=$gx")
+                                System.out.println("✅ Found valid GLANCE/FLICK/SWEEP test parameters: roll=$roll, dx=$dx, dz=$dz, pgy=$pgy, gx=$gx")
                                 break@outer
                             }
                         }
@@ -255,7 +255,7 @@ class SwingDetectorTest {
         }
         
         assertNotNull("Shot should be detected", foundShot)
-        assertEquals("GLANCE/FLICK", foundShot?.shotType)
+        assertEquals("GLANCE/FLICK/SWEEP", foundShot?.shotType)
     }
 
     @Test

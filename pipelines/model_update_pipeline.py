@@ -28,7 +28,7 @@ def normalize_shot_class(shot_name):
     if "pull" in s or "hook" in s:
         return "PULL/HOOK"
     if "flick" in s or "glance" in s or "sweep" in s:
-        return "GLANCE/FLICK"
+        return "GLANCE/FLICK/SWEEP"
     if "cut" in s or "punch" in s:
         return "CUT/PUNCH"
     if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
@@ -103,7 +103,7 @@ def get_grouped_stats(filepath):
     class_gt = {
         "PULL/HOOK": 0,
         "CUT/PUNCH": 0,
-        "GLANCE/FLICK": 0,
+        "GLANCE/FLICK/SWEEP": 0,
         "POWER SHOT": 0,
         "DEFLECTION/GUIDE": 0,
         "DRIVE/DEFENCE": 0
