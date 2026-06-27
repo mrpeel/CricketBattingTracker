@@ -14,7 +14,11 @@ data class ShotData(
     val backliftAngle: Float,
     val followThroughAngle: Float,
     val shotType: String,
-    val wristRollDeg: Float = 0f
+    val wristRollDeg: Float = 0f,
+    val bladeAngle: Float = 0f,
+    val bladeClass: String = "N/A",
+    val launchAngle: Float = 0f,
+    val launchClass: String = "N/A"
 )
 
 object SessionManager {

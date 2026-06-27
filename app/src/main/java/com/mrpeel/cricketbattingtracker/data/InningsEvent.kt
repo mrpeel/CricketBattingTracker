@@ -22,7 +22,11 @@ data class InningsEvent(
     val backliftAngle: Float? = null,
     val followThroughAngle: Float? = null,
     val wristRollDeg: Float? = null,    // wrist rotation during follow-through
-    val location: String? = null        // reverse-geocoded street/suburb combo
+    val location: String? = null,       // reverse-geocoded street/suburb combo
+    val bladeAngle: Float? = null,
+    val bladeClass: String? = null,
+    val launchAngle: Float? = null,
+    val launchClass: String? = null
 )
 
 @Entity(tableName = "heart_rate_events")

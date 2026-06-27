@@ -727,10 +727,58 @@ class SwingDetector {
         Log.d(TAG, "EVAL: Type=$shotType, MaxG=$gyroMag, Snap=$snapRatio, " +
                    "Roll=$rollImpactDeg, Yaw=$yawImpactDeg, DX=$deltaX, DZ=$deltaZ, Ratio=$planeRatio")
 
+        // Compute Blade and Launch Angles
+        val isHorizontalBat = shotType == "CUT/PUNCH" || shotType == "PULL/HOOK" || shotType == "SWEEP"
+        val targetYaw = when (shotType) {
+            "CUT/PUNCH" -> 40f
+            "PULL/HOOK" -> 55f
+            "SWEEP" -> 65f
+            "GLANCE/FLICK" -> 75f
+            else -> 0f
+        }
+
+        var bladeAngle = 0f
+        var bladeClass = "N/A"
+        var launchAngle = 0f
+        var launchClass = "N/A"
+
+        if (impactOriIdx != -1) {
+            val vFaceRel = FloatArray(3)
+            val localX = floatArrayOf(1f, 0f, 0f)
+            rotateVector(qRel, localX, vFaceRel)
+            
+            val yawFaceRel = atan2(vFaceRel[1], vFaceRel[0]) * 57.295779513f
+            var bAngle = yawFaceRel - targetYaw
+            bAngle = ((bAngle + 180f) % 360f + 360f) % 360f - 180f
+            bladeAngle = bAngle
+            
+            bladeClass = when {
+                bladeAngle <= -15f -> "OPEN"
+                bladeAngle >= 15f -> "CLOSED"
+                else -> "FULL_FACE"
+            }
+
+            launchAngle = if (isHorizontalBat) {
+                rollImpactDeg
+            } else {
+                val vFaceWorld = FloatArray(3)
+                rotateVector(qCurr, localX, vFaceWorld)
+                -asin(vFaceWorld[2].coerceIn(-1f, 1f)) * 57.295779513f
+            }
+            
+            launchClass = when {
+                launchAngle < -45f -> "HIGH_LOFT"
+                launchAngle < -35f -> "POWER_ZONE"
+                launchAngle < -15f -> "LOFTED"
+                launchAngle < 0f -> "FLAT"
+                else -> "INTO_GROUND"
+            }
+        }
+
         // 9. Speed
         val multiplier = when (shotType) {
             "DRIVE/DEFENCE", "DEFLECTION/GUIDE" -> 1.45f
-            "GLANCE/FLICK/SWEEP", "CUT/PUNCH", "PULL/HOOK" -> 1.30f
+            "GLANCE/FLICK", "SWEEP", "CUT/PUNCH", "PULL/HOOK" -> 1.30f
             "POWER SHOT" -> 1.40f
             else -> 1.30f
         }
@@ -760,7 +808,11 @@ class SwingDetector {
             backliftAngle      = backliftAngle,
             followThroughAngle = followThroughAngle,
             shotType           = shotType,
-            wristRollDeg       = wristRollDeg
+            wristRollDeg       = wristRollDeg,
+            bladeAngle         = bladeAngle,
+            bladeClass         = bladeClass,
+            launchAngle        = launchAngle,
+            launchClass        = launchClass
         ))
     }
 }

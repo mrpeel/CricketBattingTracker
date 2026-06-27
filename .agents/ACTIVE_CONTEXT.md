@@ -32,11 +32,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
 | B-013 | Power Shot Precision | Reduce POWER SHOT → PULL/HOOK misclassification. Session-2026-06-15 was ~90% power shots and scored only 40% accuracy, exposing severe underrepresentation of this class in training data. Retrain after collecting more power shot sessions. | Backlog | `SwingDetectorGroundTruthTest` |
-| B-010 | Clock Offset Optimization | Implement coarse-to-fine clock offset grid search in data collection pipeline | **Completed** | Verification check against all 7 trusted sessions |
 | B-011 | Stance Gate Re-Optimization | Re-align all 7 sessions & grid-search optimal stance gate thresholds after sync fix. accel_std→3.25, ori_disp→2.5°, grav_y→-6.0, post_shot_guard→1.5s | **Completed** | 12/12 unit tests green, 95% avg recall, 26% FP reduction |
 | B-012 | Adversarial Analysis Pipeline | Build a set of Python scripts to adversarially challenge clock offset, stance gate, and shot detection on raw logs | **Completed** | Run on June 9 session generating last_session_analysis_update.md |
 | B-014 | Classifier Size Optimization | Compress Random Forest model using flat array representations and automated variant pruning to reduce Watch APK size to 2.8MB | **Completed** | Parity tests & APK size verification |
 | B-015 | Bat Type Extraction | Add bat type (Gray Nicolls Giant, Eye In, Game bat) extraction and stateful forward-filling to narration pipeline | **Completed** | Run `scratch/validate_bat_parsing.py` |
+| B-016 | Blade & Launch Angles | Implement mathematical calculation of blade (face normal) angle and launch (loft/grounded) angle in Python and real-time WearOS Kotlin, persisting and rendering them on the Android app dashboard | **Completed** | Real-time calculations matching python prototype, passing unit tests, verified database and dashboard integration |
 
 ---
 

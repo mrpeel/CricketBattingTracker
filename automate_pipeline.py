@@ -1377,6 +1377,12 @@ def main():
         df_orient = pd.read_csv(orient_path)
         print("📖 Loaded WatchOrientation.csv for bat orientation (fallback)")
         
+    print("📈 Computing Blade and Launch angles at impact...")
+    df_aligned = add_angle_stats_to_aligned_shots(df_aligned, df_orient)
+    # Overwrite the CSV with new columns
+    df_aligned.to_csv(aligned_csv_path, index=False)
+    print(f"✅ Updated aligned file with angle stats: {aligned_csv_path}")
+        
     steps_path = os.path.join(session_dir, "WatchSteps.csv")
     if os.path.exists(steps_path):
         df_steps = pd.read_csv(steps_path)
@@ -1509,16 +1515,173 @@ def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, 
         print(f"  Failed condition(s): {', '.join(fails)}")
     print("-----------------------------------------------------------------------")
 
+def add_angle_stats_to_aligned_shots(df_aligned, df_orient):
+    def multiply_quats(q1, q2):
+        x1, y1, z1, w1 = q1
+        x2, y2, z2, w2 = q2
+        return np.array([
+            w1*x2 + x1*w2 + y1*z2 - z1*y2,
+            w1*y2 - x1*z2 + y1*w2 + z1*x2,
+            w1*z2 + x1*y2 - y1*x2 + z1*w2,
+            w1*w2 - x1*x2 - y1*y2 - z1*z2,
+        ])
+
+    def conjugate_quat(q):
+        return np.array([-q[0], -q[1], -q[2], q[3]])
+
+    def rotate_vector(q, v):
+        qx, qy, qz, qw = q
+        vx, vy, vz = v
+        tx = 2.0 * (qy*vz - qz*vy)
+        ty = 2.0 * (qz*vx - qx*vz)
+        tz = 2.0 * (qx*vy - qy*vx)
+        return np.array([
+            vx + qw*tx + (qy*tz - qz*ty),
+            vy + qw*ty + (qz*tx - qx*tz),
+            vz + qw*tz + (qx*ty - qy*tx),
+        ])
+
+    def calc_relative_roll(q):
+        x, y, z, w = q
+        return np.degrees(np.arctan2(2.0 * (w*y + x*z), 1.0 - 2.0 * (y*y + z*z)))
+
+    def classify_blade(angle):
+        if angle <= -15.0: return "OPEN"
+        if angle >= 15.0: return "CLOSED"
+        return "FULL_FACE"
+
+    def classify_launch(angle):
+        if angle < -45.0: return "HIGH_LOFT"
+        if angle < -35.0: return "POWER_ZONE"
+        if angle < -15.0: return "LOFTED"
+        if angle < 0.0: return "FLAT"
+        return "INTO_GROUND"
+
+    canonical_targets = {
+        "COVER_DRIVE": -45.0,
+        "STRAIGHT_DRIVE": 0.0,
+        "ON_DRIVE": 15.0,
+        "DEFENCE/BLOCK": 0.0,
+        "CUT/PUNCH": 40.0,
+        "GLANCE/FLICK": 75.0,
+        "PULL/HOOK": 55.0,
+        "SWEEP": 65.0,
+    }
+
+    blade_angles = []
+    blade_classes = []
+    launch_angles = []
+    launch_classes = []
+
+    for idx, row in df_aligned.iterrows():
+        shot_type = row['shot_type']
+        t_shot = row['impact_time_seconds']
+        shot_class = normalize_shot_class(shot_type)
+        
+        # Check for non-swing types
+        is_non_swing = shot_class == "Unknown" or shot_type.lower().strip() in ["facing up", "no shot", "leave", "evade", "evasion"]
+        if is_non_swing or df_orient is None or len(df_orient) == 0:
+            blade_angles.append(np.nan)
+            blade_classes.append("N/A")
+            launch_angles.append(np.nan)
+            launch_classes.append("N/A")
+            continue
+
+        # 1. Get stance quat
+        stance_ori = df_orient[(df_orient['seconds_elapsed'] >= t_shot - 2.5) & 
+                               (df_orient['seconds_elapsed'] <= t_shot - 1.5)]
+        if len(stance_ori) < 2:
+            stance_ori = df_orient[(df_orient['seconds_elapsed'] >= t_shot - 3.5) & 
+                                   (df_orient['seconds_elapsed'] <= t_shot - 1.5)]
+
+        if len(stance_ori) >= 2:
+            q0 = np.array([stance_ori.iloc[0]['qx'], stance_ori.iloc[0]['qy'], stance_ori.iloc[0]['qz'], stance_ori.iloc[0]['qw']])
+            s = q0.copy()
+            for i in range(1, len(stance_ori)):
+                row_ori = stance_ori.iloc[i]
+                qi = np.array([row_ori['qx'], row_ori['qy'], row_ori['qz'], row_ori['qw']])
+                dot = np.dot(q0, qi)
+                sign = 1.0 if dot >= 0 else -1.0
+                s += sign * qi
+            q_stance = s / np.linalg.norm(s)
+        else:
+            q_stance = np.array([0.0, 0.0, 0.0, 1.0])
+
+        q_stance_inv = conjugate_quat(q_stance)
+
+        # 2. Get impact quat
+        impact_ori = df_orient.iloc[(df_orient['seconds_elapsed'] - t_shot).abs().argsort()[:1]]
+        if len(impact_ori) > 0:
+            row_impact = impact_ori.iloc[0]
+            q_impact = np.array([row_impact['qx'], row_impact['qy'], row_impact['qz'], row_impact['qw']])
+        else:
+            q_impact = np.array([0.0, 0.0, 0.0, 1.0])
+
+        # Relative rotation
+        q_rel = multiply_quats(q_stance_inv, q_impact)
+
+        # Relative roll
+        roll_impact = calc_relative_roll(q_rel)
+
+        # Target reference yaw
+        target_yaw = canonical_targets.get(shot_class, 0.0)
+        is_horizontal_bat = shot_class in ["CUT/PUNCH", "PULL/HOOK", "SWEEP"]
+        if is_horizontal_bat:
+            if shot_class == "CUT/PUNCH":
+                target_yaw = 40.0
+            elif shot_class == "PULL/HOOK":
+                target_yaw = 55.0
+            elif shot_class == "SWEEP":
+                target_yaw = 65.0
+        else:
+            if "cover drive" in shot_type.lower():
+                target_yaw = -45.0
+            elif "straight drive" in shot_type.lower():
+                target_yaw = 0.0
+            elif "on drive" in shot_type.lower():
+                target_yaw = 15.0
+
+        # Relative face normal vector (local X rotated by q_rel)
+        v_face_rel = rotate_vector(q_rel, np.array([1.0, 0.0, 0.0]))
+        # Horizontal angle of the bat face relative to the stance setup
+        yaw_face_rel = np.degrees(np.arctan2(v_face_rel[1], v_face_rel[0]))
+        
+        # Blade angle is deviation
+        b_angle = yaw_face_rel - target_yaw
+        # Normalize to -180 to 180 to avoid wrap-around anomalies
+        b_angle = (b_angle + 180) % 360 - 180
+        
+        blade_angles.append(round(b_angle, 1))
+        blade_classes.append(classify_blade(b_angle))
+
+        # Launch Angle
+        if is_horizontal_bat:
+            l_angle = roll_impact
+        else:
+            v_face_world = rotate_vector(q_impact, np.array([1.0, 0.0, 0.0]))
+            l_angle = -np.degrees(np.arcsin(v_face_world[2]))
+            
+        launch_angles.append(round(l_angle, 1))
+        launch_classes.append(classify_launch(l_angle))
+
+    df_aligned['blade_angle_deg'] = blade_angles
+    df_aligned['blade_class'] = blade_classes
+    df_aligned['launch_angle_deg'] = launch_angles
+    df_aligned['launch_class'] = launch_classes
+    return df_aligned
+
 def normalize_shot_class(shot_name):
+
     if not shot_name:
         return "Unknown"
     s = shot_name.lower().strip()
     
-    # Map to the 6 biomechanical classes + Miss + Sweep
-    if "pull" in s or "hook" in s:
-        return "PULL/HOOK"
-    if "flick" in s or "glance" in s or "sweep" in s:
-        return "GLANCE/FLICK/SWEEP"
+    # Map to biomechanical classes. SWEEP is horizontal-bat; GLANCE/FLICK are vertical-bat.
+    # Must be checked before the combined rule to keep them distinct.
+    if "sweep" in s:
+        return "SWEEP"
+    if "flick" in s or "glance" in s:
+        return "GLANCE/FLICK"
     if "cut" in s or "punch" in s:
         return "CUT/PUNCH"
     if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:

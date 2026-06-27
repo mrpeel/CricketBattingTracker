@@ -131,7 +131,7 @@ class TrackerService : Service(), SensorEventListener {
         swingDetector.onShotDetected = { shot ->
             val shotTime = System.currentTimeMillis()
             Log.d(TAG, "Shot detected! ${shot.shotType}, Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
-            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$shotTime")
+            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$shotTime, Bd=${shot.bladeAngle}, BdCl=${shot.bladeClass}, Lch=${shot.launchAngle}, LchCl=${shot.launchClass}")
             SessionManager.addShot(shot)
         }
         

@@ -1143,6 +1143,19 @@ fun TimelineItem(event: InningsEvent, formatter: SimpleDateFormat) {
                             }
                         }
                     }
+                    if (event.bladeAngle != null || event.launchAngle != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (event.bladeAngle != null) {
+                                val cls = event.bladeClass ?: "N/A"
+                                MetricSmall("BLADE", "${String.format("%.0f", event.bladeAngle)}° ($cls)")
+                            }
+                            if (event.launchAngle != null) {
+                                val cls = (event.launchClass ?: "N/A").replace("_", " ")
+                                MetricSmall("LAUNCH", "${String.format("%.0f", event.launchAngle)}° ($cls)")
+                            }
+                        }
+                    }
                 }
             }
         }

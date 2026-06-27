@@ -243,9 +243,9 @@ class SwingDetectorTest {
                                 time += 20_000_000L
                             }
                             
-                            if (shotTmp != null && shotTmp?.shotType == "GLANCE/FLICK/SWEEP") {
+                            if (shotTmp != null && shotTmp?.shotType == "GLANCE/FLICK") {
                                 foundShot = shotTmp
-                                System.out.println("✅ Found valid GLANCE/FLICK/SWEEP test parameters: roll=$roll, dx=$dx, dz=$dz, pgy=$pgy, gx=$gx")
+                                System.out.println("✅ Found valid GLANCE/FLICK test parameters: roll=$roll, dx=$dx, dz=$dz, pgy=$pgy, gx=$gx")
                                 break@outer
                             }
                         }
@@ -255,7 +255,7 @@ class SwingDetectorTest {
         }
         
         assertNotNull("Shot should be detected", foundShot)
-        assertEquals("GLANCE/FLICK/SWEEP", foundShot?.shotType)
+        assertEquals("GLANCE/FLICK", foundShot?.shotType)
     }
 
     @Test
@@ -488,5 +488,35 @@ class SwingDetectorTest {
         }
 
         assertNull("Shot should NOT be detected because break-tolerance expired and stance did not lock", detectedShot)
+    }
+
+    @Test
+    fun testBladeAndLaunchAngles() {
+        val shot = findParametersForShot(
+            targetShotType = "DRIVE/DEFENCE",
+            rollRanges = floatArrayOf(-10f, 0f, 10f),
+            dxRanges = floatArrayOf(0.01f, 0.05f, 0.1f),
+            dzRanges = floatArrayOf(0.1f, 0.2f, 0.3f),
+            gravYRanges = floatArrayOf(-9.0f, -8.5f, -9.5f)
+        )
+        assertNotNull("DRIVE/DEFENCE Shot should be detected", shot)
+        assertTrue("Launch class should be valid", 
+            shot?.launchClass == "INTO_GROUND" || shot?.launchClass == "FLAT" || shot?.launchClass == "LOFTED"
+        )
+        assertTrue("Blade class should be valid", 
+            shot?.bladeClass == "FULL_FACE" || shot?.bladeClass == "OPEN" || shot?.bladeClass == "CLOSED"
+        )
+
+        val pullShot = findParametersForShot(
+            targetShotType = "PULL/HOOK",
+            rollRanges = floatArrayOf(-30f),
+            dxRanges = floatArrayOf(1.2f),
+            dzRanges = floatArrayOf(0.7f),
+            gravYRanges = floatArrayOf(-9.0f)
+        )
+        if (pullShot != null) {
+            assertEquals(-30f, pullShot.launchAngle, 1.0f)
+            assertEquals("LOFTED", pullShot.launchClass)
+        }
     }
 }

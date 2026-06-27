@@ -252,11 +252,15 @@ class DataSyncListenerService : WearableListenerService() {
                     var blAngle: Float? = null
                     var ftAngle: Float? = null
                     var wristRollDeg: Float? = null
+                    var bladeAngle: Float? = null
+                    var bladeClass: String? = null
+                    var launchAngle: Float? = null
+                    var launchClass: String? = null
                     var desc = eventString
                     var shotTimestamp: Long? = null
 
                     try {
-                        val regex = Regex("Type=([^,]+), Spd=([0-9.]+), Hit=(true|false), Acc=([0-9.]+), SS=([A-Za-z/]+), Eff=([0-9.]+), BL=([0-9.-]+), FT=([0-9.-]+)(?:,\\s*ItMs=([0-9]+))?(?:,\\s*Wr=([0-9.-]+))?(?:,\\s*Ts=([0-9]+))?")
+                        val regex = Regex("Type=([^,]+), Spd=([0-9.]+), Hit=(true|false), Acc=([0-9.]+), SS=([A-Za-z/]+), Eff=([0-9.]+), BL=([0-9.-]+), FT=([0-9.-]+)(?:,\\s*ItMs=([0-9]+))?(?:,\\s*Wr=([0-9.-]+))?(?:,\\s*Ts=([0-9]+))?(?:,\\s*Bd=([0-9.-]+))?(?:,\\s*BdCl=([A-Za-z_/]+))?(?:,\\s*Lch=([0-9.-]+))?(?:,\\s*LchCl=([A-Za-z_/]+))?")
                         val match = regex.find(eventString)
                         if (match != null) {
                             shotType = match.groupValues[1]
@@ -270,6 +274,10 @@ class DataSyncListenerService : WearableListenerService() {
                             impactTimeMs = match.groupValues[9].toLongOrNull()
                             wristRollDeg = match.groupValues[10].toFloatOrNull()
                             shotTimestamp = match.groupValues.getOrNull(11)?.toLongOrNull()
+                            bladeAngle = match.groupValues.getOrNull(12)?.toFloatOrNull()
+                            bladeClass = match.groupValues.getOrNull(13)?.takeIf { it.isNotBlank() && it != "null" }
+                            launchAngle = match.groupValues.getOrNull(14)?.toFloatOrNull()
+                            launchClass = match.groupValues.getOrNull(15)?.takeIf { it.isNotBlank() && it != "null" }
                             desc = if (isHit) "$shotType ($sweetSpot)" else "Play and Miss"
                             
                             shotCount++
@@ -298,7 +306,11 @@ class DataSyncListenerService : WearableListenerService() {
                         backliftAngle = blAngle,
                         followThroughAngle = ftAngle,
                         wristRollDeg = wristRollDeg,
-                        location = resolvedLocation
+                        location = resolvedLocation,
+                        bladeAngle = bladeAngle,
+                        bladeClass = bladeClass,
+                        launchAngle = launchAngle,
+                        launchClass = launchClass
                     )
                     dao.insertEvent(dbEvent)
                 } else if (eventString.startsWith("HR:")) {
