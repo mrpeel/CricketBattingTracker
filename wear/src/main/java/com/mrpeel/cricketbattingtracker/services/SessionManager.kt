@@ -25,6 +25,13 @@ object SessionManager {
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
 
+    private val _isVideoMode = MutableStateFlow(false)
+    val isVideoMode: StateFlow<Boolean> = _isVideoMode.asStateFlow()
+
+    fun setVideoMode(active: Boolean) {
+        _isVideoMode.value = active
+    }
+
     private val _isFacingUp = MutableStateFlow(false)
     val isFacingUp: StateFlow<Boolean> = _isFacingUp.asStateFlow()
 
@@ -122,5 +129,6 @@ object SessionManager {
         allSpeeds.clear()
         _isTracking.value = false
         _isFacingUp.value = false
+        _isVideoMode.value = false
     }
 }

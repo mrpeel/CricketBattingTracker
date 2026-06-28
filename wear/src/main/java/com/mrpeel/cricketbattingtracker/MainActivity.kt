@@ -15,6 +15,7 @@ import com.mrpeel.cricketbattingtracker.ui.screens.SessionSummaryScreen
 import com.mrpeel.cricketbattingtracker.ui.screens.StartSessionScreen
 import com.mrpeel.cricketbattingtracker.ui.screens.SessionActionsScreen
 import com.mrpeel.cricketbattingtracker.ui.screens.DiscardConfirmationScreen
+import com.mrpeel.cricketbattingtracker.ui.screens.DataRecordingScreen
 import com.mrpeel.cricketbattingtracker.ui.theme.PavilionTheme
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -101,6 +102,7 @@ class MainActivity : ComponentActivity() {
                 
                 // Collect states from SessionManager securely
                 val isTracking = SessionManager.isTracking.collectAsState()
+                val isVideoMode = SessionManager.isVideoMode.collectAsState()
                 val shotCount = SessionManager.shotCount.collectAsState()
                 val avgSpeed = SessionManager.avgSpeed.collectAsState()
                 val maxSpeed = SessionManager.maxSpeed.collectAsState()
@@ -118,16 +120,18 @@ class MainActivity : ComponentActivity() {
                 val lastWristRollDeg = SessionManager.lastWristRollDeg.collectAsState()
 
                 // Automatically navigate based on tracking state
-                LaunchedEffect(isTracking.value) {
+                LaunchedEffect(isTracking.value, isVideoMode.value) {
                     if (isTracking.value) {
+                        val dest = if (isVideoMode.value) "data_recording" else "summary"
                         if (navController.currentDestination?.route == "start") {
-                            navController.navigate("summary") {
+                            navController.navigate(dest) {
                                 popUpTo("start") { inclusive = true }
                             }
                         }
                     } else {
                         val currentRoute = navController.currentDestination?.route
-                        if (currentRoute == "summary" || currentRoute == "actions" || currentRoute == "confirm_discard") {
+                        if (currentRoute == "summary" || currentRoute == "actions" ||
+                            currentRoute == "confirm_discard" || currentRoute == "data_recording") {
                             navController.navigate("start") {
                                 popUpTo("start") { inclusive = true }
                             }
@@ -198,6 +202,15 @@ class MainActivity : ComponentActivity() {
                                 navController.navigate("summary") {
                                     popUpTo("summary") { inclusive = true }
                                 }
+                            }
+                        )
+                    }
+
+                    composable("data_recording") {
+                        DataRecordingScreen(
+                            onStopClick = {
+                                // Stop is handled from the phone; this is a no-op placeholder
+                                // kept in case we wire up a watch-side stop in future
                             }
                         )
                     }

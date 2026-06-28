@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
 
     <application
         android:allowBackup="true"
@@ -64,6 +66,10 @@
 
         <service android:name=".services.AudioRecordService"
                  android:foregroundServiceType="microphone"
+                 android:exported="false" />
+
+        <service android:name=".services.VideoRecordService"
+                 android:foregroundServiceType="camera|microphone"
                  android:exported="false" />
     </application>
 </manifest>

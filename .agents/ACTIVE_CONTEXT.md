@@ -37,6 +37,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-014 | Classifier Size Optimization | Compress Random Forest model using flat array representations and automated variant pruning to reduce Watch APK size to 2.8MB | **Completed** | Parity tests & APK size verification |
 | B-015 | Bat Type Extraction | Add bat type (Gray Nicolls Giant, Eye In, Game bat) extraction and stateful forward-filling to narration pipeline | **Completed** | Run `scratch/validate_bat_parsing.py` |
 | B-016 | Blade & Launch Angles | Implement mathematical calculation of blade (face normal) angle and launch (loft/grounded) angle in Python and real-time WearOS Kotlin, persisting and rendering them on the Android app dashboard | **Completed** | Real-time calculations matching python prototype, passing unit tests, verified database and dashboard integration |
+| B-017 | Video Session foundations | Implement 120fps video capture + passive watch sensor recording and ADB sync pull utility | **Completed** | Manual E2E on phone + watch; `video_analysis_poc.py` execution |
 
 ---
 

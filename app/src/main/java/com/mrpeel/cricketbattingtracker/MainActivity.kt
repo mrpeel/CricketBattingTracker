@@ -67,6 +67,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val requestCameraPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val cameraGranted = permissions[android.Manifest.permission.CAMERA] ?: false
+        val audioGranted  = permissions[android.Manifest.permission.RECORD_AUDIO] ?: false
+        if (cameraGranted && audioGranted) {
+            android.util.Log.d("MainActivity", "Camera+audio permissions granted — starting video recording")
+            com.mrpeel.cricketbattingtracker.services.VideoRecordManager.startRecording(this)
+        } else {
+            android.util.Log.w("MainActivity", "Camera/audio permission denied for video recording")
+            Toast.makeText(this, "Camera and microphone permissions required for video recording", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private val requestAudioPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -523,6 +537,14 @@ class MainActivity : ComponentActivity() {
                                             }
                                             requestAudioPermissionLauncher.launch(permissions)
                                         },
+                                        onRequestVideoPermission = {
+                                            requestCameraPermissionLauncher.launch(
+                                                arrayOf(
+                                                    android.Manifest.permission.CAMERA,
+                                                    android.Manifest.permission.RECORD_AUDIO
+                                                )
+                                            )
+                                        },
                                         context = context
                                     )
                                     2 -> HistoryScreen(allSessions) { session ->
@@ -905,12 +927,50 @@ fun RecordScreen(
     maxAmplitude: Float,
     recordingsList: List<java.io.File>,
     onRequestPermission: () -> Unit,
+    onRequestVideoPermission: () -> Unit,
     context: android.content.Context
 ) {
+    var showVideoRecord by remember { mutableStateOf(false) }
+    val isVideoRecording by com.mrpeel.cricketbattingtracker.services.VideoRecordManager.isRecording.collectAsState()
+    val videoElapsed    by com.mrpeel.cricketbattingtracker.services.VideoRecordManager.elapsedSeconds.collectAsState()
+
+    if (showVideoRecord || isVideoRecording) {
+        VideoRecordScreen(
+            isRecording    = isVideoRecording,
+            elapsedSeconds = videoElapsed,
+            onStartClick   = {
+                val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.CAMERA
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.RECORD_AUDIO
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (hasCamera && hasAudio) {
+                    com.mrpeel.cricketbattingtracker.services.VideoRecordManager.startRecording(context)
+                } else {
+                    onRequestVideoPermission()
+                }
+            },
+            onSaveClick    = {
+                com.mrpeel.cricketbattingtracker.services.VideoRecordManager.stopAndSave(context)
+                showVideoRecord = false
+            },
+            onCancelClick  = {
+                if (isVideoRecording) {
+                    com.mrpeel.cricketbattingtracker.services.VideoRecordManager.discard(context)
+                }
+                showVideoRecord = false
+            },
+            context = context
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 8.dp)
+            .padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         SessionControlPanel(
             isRecording = isRecording,
@@ -920,6 +980,227 @@ fun RecordScreen(
             onRequestPermission = onRequestPermission,
             context = context
         )
+
+        // ── Video Record Card ────────────────────────────────────────────────
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clickable { showVideoRecord = true },
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "🎥 VIDEO ANALYSIS",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.secondary,
+                        letterSpacing = 1.5.sp
+                    )
+                    Text(
+                        "Record Video Session",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "120fps video + watch sensor capture for ground truth analysis.",
+                        fontSize = 11.sp,
+                        color = Color.Gray,
+                        lineHeight = 15.sp
+                    )
+                }
+                Text("›", fontSize = 24.sp, color = Color.Gray, modifier = Modifier.padding(start = 12.dp))
+            }
+        }
+    }
+}
+
+// ── Video Record Screen ─────────────────────────────────────────────────────────
+@Composable
+fun VideoRecordScreen(
+    isRecording: Boolean,
+    elapsedSeconds: Long,
+    onStartClick: () -> Unit,
+    onSaveClick: () -> Unit,
+    onCancelClick: () -> Unit,
+    context: android.content.Context
+) {
+    val neonGreen = Color(0xFF58FF63)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF000C1B))
+    ) {
+        if (!isRecording) {
+            // ── Phase 1: Camera Preview ──────────────────────────────────────
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Camera preview fills most of the screen
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { ctx ->
+                            val previewView = androidx.camera.view.PreviewView(ctx).apply {
+                                implementationMode = androidx.camera.view.PreviewView.ImplementationMode.PERFORMANCE
+                            }
+                            // Bind camera preview
+                            val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(ctx)
+                            val lifecycleOwner = ctx as? androidx.lifecycle.LifecycleOwner
+                            cameraProviderFuture.addListener({
+                                try {
+                                    val cameraProvider = cameraProviderFuture.get()
+                                    val preview = androidx.camera.core.Preview.Builder().build().also {
+                                        it.setSurfaceProvider(previewView.surfaceProvider)
+                                    }
+                                    cameraProvider.unbindAll()
+                                    if (lifecycleOwner != null) {
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,
+                                            preview
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("VideoRecordScreen", "Preview bind failed: ${e.message}")
+                                }
+                            }, androidx.core.content.ContextCompat.getMainExecutor(ctx))
+                            previewView
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Overlay: position guide
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopCenter)
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally,
+                               modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                "🎥  VIDEO ANALYSIS MODE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = neonGreen,
+                                letterSpacing = 1.5.sp
+                            )
+                            Text(
+                                "Position camera at 45° to batting crease, then tap Start.",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.8f),
+                                lineHeight = 15.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                // Bottom controls
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onCancelClick,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Text("CANCEL", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = onStartClick,
+                        modifier = Modifier.weight(1.5f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = neonGreen)
+                    ) {
+                        Text("START", fontWeight = FontWeight.Black, fontSize = 13.sp,
+                             color = Color(0xFF000C1B), letterSpacing = 1.sp)
+                    }
+                }
+            }
+        } else {
+            // ── Phase 2: Recording Status ────────────────────────────────────
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                val infiniteTransition = rememberInfiniteTransition(label = "rec_pulse")
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.3f, targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(700, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ), label = "alpha"
+                )
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(modifier = Modifier.size(12.dp).clip(CircleShape)
+                        .background(Color(0xFFFF5252).copy(alpha = pulseAlpha)))
+                    Text("RECORDING", fontSize = 12.sp, fontWeight = FontWeight.Black,
+                         color = Color(0xFFFF5252), letterSpacing = 2.sp)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val mins = elapsedSeconds / 60
+                val secs = elapsedSeconds % 60
+                Text(
+                    String.format(Locale.US, "%02d:%02d", mins, secs),
+                    fontSize = 52.sp, fontWeight = FontWeight.Black, color = Color.White,
+                    letterSpacing = 2.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("120fps video + watch sensors active", fontSize = 11.sp, color = Color.Gray)
+
+                Spacer(modifier = Modifier.height(40.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onCancelClick,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Text("DISCARD", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                    Button(
+                        onClick = onSaveClick,
+                        modifier = Modifier.weight(1.5f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = neonGreen)
+                    ) {
+                        Text("CLOSE & SAVE", fontWeight = FontWeight.Black, fontSize = 11.sp,
+                             color = Color(0xFF000C1B), letterSpacing = 0.5.sp)
+                    }
+                }
+            }
+        }
     }
 }
 

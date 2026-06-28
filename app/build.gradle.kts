@@ -57,4 +57,12 @@ dependencies {
 
     // Health Connect
     implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+
+    // CameraX — video recording
+    val cameraxVersion = "1.3.4"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-video:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
 }
