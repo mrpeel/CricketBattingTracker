@@ -27,12 +27,16 @@ def normalize_shot_class(shot_name):
     s = shot_name.lower().strip()
     if "pull" in s or "hook" in s:
         return "PULL/HOOK"
-    if "flick" in s or "glance" in s or "sweep" in s:
-        return "GLANCE/FLICK/SWEEP"
+    if "sweep" in s:
+        return "SWEEP"
+    if "flick" in s or "glance" in s:
+        return "GLANCE/FLICK"
     if "cut" in s or "punch" in s:
         return "CUT/PUNCH"
     if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
         return "DEFLECTION/GUIDE"
+    if "power drive" in s or "power hit" in s:
+        return "POWER DRIVE"
     if "power" in s or "loft" in s:
         return "POWER SHOT"
     if any(t in s for t in ["drive", "defence", "defense", "push", "straight", "forward", "block"]):
@@ -103,7 +107,8 @@ def get_grouped_stats(filepath):
     class_gt = {
         "PULL/HOOK": 0,
         "CUT/PUNCH": 0,
-        "GLANCE/FLICK/SWEEP": 0,
+        "GLANCE/FLICK": 0,
+        "SWEEP": 0,
         "POWER SHOT": 0,
         "DEFLECTION/GUIDE": 0,
         "DRIVE/DEFENCE": 0

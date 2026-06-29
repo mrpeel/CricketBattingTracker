@@ -60,6 +60,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         2. Uncovered a secondary pipeline issue: coarse-grained transcription timestamps from Gemini caused negative lag alignment penalties, mismatching the alignment window to stationary stance/wiggles, resulting in zero-energy training samples for power shots.
     *   **Result**: Identified that (a) grounded power hits must be narrated biomechanically (e.g. as pull/drive/flick) to prevent training noise, and (b) pipeline transcription should be run with `--local` to use high-precision Whisper timestamps, avoiding negative lag alignment penalties.
 
+47. **Whisper-Gemini Hybrid Transcriber & POWER DRIVE Class Separation (June 29, 2026)**:
+    *   **The Problem**: Coarse Gemini timestamps led to timecode drift, but switching to Whisper caused severe repetition hallucinations ("Power shot Edge") due to continuous bowling machine hum. Additionally, grounded power hits needed separation from lofted power shots to prevent model corruption.
+    *   **The Solution**:
+        1. Implemented a Whisper-Gemini Hybrid Transcriber in [automate_pipeline.py](file:///Users/neilkloot/Code/CricketBattingTracker/automate_pipeline.py) using Whisper segment bounds as anchors for the Gemini structured LLM transcription.
+        2. Set `condition_on_previous_text=False` in Whisper to break repetition loops over bowling machine hum, and added python post-processing rules to map phonetic mishearings (e.g. "now I hit", "how we hit", "how are you") to `"Power drive"`.
+        3. Configured `compile_dataset.py` to extract `POWER DRIVE` as an independent class if `grav_x_max <= 5.5 m/s²`, and added quality control filters to ignore misaligned stationary wiggles (`gyroMag < 9.0 rad/s`).
+    *   **Result**: The new 8-class Random Forest model achieved a record cross-validation accuracy of **79.2%**. WearOS unit tests and parity alignment tests passed with 0 mismatches. Alignment precision on today's session increased from 0.47 to 0.64 with only 3 undetected shots remaining.
+
+
 
 
 

@@ -197,7 +197,7 @@ def transcribe_audio_local(audio_path):
     model = whisper.load_model("base")
     
     print(f"🎙️ Transcribing {os.path.basename(audio_path)} locally...")
-    result = model.transcribe(audio_path, verbose=False)
+    result = model.transcribe(audio_path, verbose=False, condition_on_previous_text=False)
     
     segments = result.get("segments", [])
     print(f"✅ Generated {len(segments)} transcription segments locally.")
@@ -505,6 +505,33 @@ class ProgressSpinner:
         self.thread.join()
 
 
+def get_whisper_segments_hybrid(audio_path):
+    try:
+        import whisper
+        import json
+        print(f"🎙️ Running local Whisper 'base' model to detect precise speech timestamps...")
+        model = whisper.load_model("base")
+        result = model.transcribe(audio_path, verbose=False, condition_on_previous_text=False)
+        segments = result.get("segments", [])
+        
+        whisper_data = []
+        for idx, s in enumerate(segments):
+            text = s["text"].strip()
+            if not text:
+                continue
+            whisper_data.append({
+                "segment_index": idx,
+                "start_seconds": round(s["start"], 3),
+                "end_seconds": round(s["end"], 3),
+                "whisper_raw_text": text
+            })
+        print(f"✅ Local Whisper detected {len(whisper_data)} speech segments.")
+        return whisper_data
+    except Exception as e:
+        print(f"⚠️ Warning: Could not run local Whisper for hybrid segment detection: {e}")
+        return None
+
+
 def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     """Transcribe audio using Gemini. Only the preferred_model is tried.
     If it is unavailable (quota / 429 / 503), one retry after 30 s is attempted.
@@ -513,6 +540,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     from google import genai
     from google.genai import types
     import re
+    import json
 
     class GeminiUnavailableError(RuntimeError):
         pass
@@ -544,6 +572,9 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             f"   Available flash/pro models: {[m for m in available if 'flash' in m or 'pro' in m]}\n"
             f"   Re-run with --model <available-model> once it becomes accessible."
         )
+
+    # Run local Whisper first to get speech segments for hybrid timestamp alignment
+    whisper_segments = get_whisper_segments_hybrid(audio_path)
 
     print(f"📤 Uploading {os.path.basename(audio_path)} to Gemini...")
     uploaded_file = client.files.upload(file=audio_path)
@@ -595,6 +626,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
             "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\", \"Guide\"\n"
             "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\", \"Power shot\"\n"
+            "- Power Drive: \"Power drive\"\n"
             "- Balls with no shot played: \"No shot\", \"Leave\", \"Evade\", \"Evasion\"\n\n"
             "The batter uses three types of bats and narrates when he changes or selects them:\n"
             "- 'Gray Nicolls Giant' (or 'Giant', heavy bat)\n"
@@ -604,6 +636,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\", \"Edge\", \"Edged\"\n\n"
             "## Phonetic Corrections:\n"
             "- **CRITICAL**: The batter will never narrate \"touch shot\" or \"touch\". If you hear \"touch shot\" or \"touch\", this is a phonetic mishearing of \"cut shot\" or \"cut\". Always transcribe it as \"Cut\" or \"Square Cut\" depending on context.\n"
+            "- **CRITICAL**: If you see or hear \"how are you\", \"how are you?\", \"how are you good\", or similar in the Whisper text, this is a phonetic mishearing of \"Power drive\". Always transcribe it as \"Power drive\" (e.g. \"Power drive Good\" or \"Power drive Okay\").\n"
             "- If you hear \"division\" or \"defensive\", ensure it maps to one of the defensive categories (e.g. \"Forward Defensive\" or \"Back-foot Defensive\").\n"
             "- If you hear \"EB giant\", this is a mishearing of \"Facing up\" or metadata phrase. Ensure it matches expected terms.\n\n"
             "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
@@ -615,7 +648,22 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         "`shot_type` (str, e.g. 'Facing up', 'Cover Drive', 'Cut', 'Leg Glance', etc.), `rating` (str, e.g. 'good', 'ok', or null), "
         "`bat` (str, e.g. 'Gray Nicolls Giant', 'Eye In', 'Game bat', or null), and `narrated_text` (str, the exact transcribed text of the utterance)."
     )
-    prompt = prompt_base + schema_instruction
+
+    if whisper_segments:
+        whisper_json_str = json.dumps(whisper_segments, indent=2)
+        hybrid_instruction = (
+            "\n\n## Local Speech Segment Anchor Guidance (CRITICAL):\n"
+            "We ran local Whisper and detected the following speech segments. You MUST use these timestamps as anchors. "
+            "For each item in your output list, you MUST match it to one of these segments and set `timestamp_seconds` "
+            "exactly to the `start_seconds` of that segment. Correct any phonetic or spelling mistakes in `whisper_raw_text` "
+            "based on the expected cricket terminology (e.g. mapping 'touch shot' -> 'cut shot', 'leg lands' -> 'leg glance', "
+            "'our drive' -> 'on drive', 'power drive' -> 'power drive', etc.). If a segment is just background noise or static "
+            "with no actual shot or stance narration, you can omit it. Do not invent any shots or timestamps that are not in this list.\n\n"
+            f"Whisper Speech Segments:\n{whisper_json_str}"
+        )
+        prompt = prompt_base + hybrid_instruction + schema_instruction
+    else:
+        prompt = prompt_base + schema_instruction
 
     # --- Single-model strict call with one retry on quota/availability errors ---
     RETRY_WAIT_SECONDS = 30
@@ -759,6 +807,13 @@ def format_gemini_shots(shot_events):
         if "touch" in text_lower:
             text_lower = text_lower.replace("touch", "cut")
             
+        # Map Whisper mishearings of "Power hit" (e.g. "Now I hit", "Now hit", "How I hit", "How we hit", "How're you")
+        # and bowling machine hum hallucinations to "power drive"
+        if any(w in text_lower for w in ["now i hit", "now hit", "how i hit", "how we hit", "how to hit", "how we got", "now we hit"]):
+            text_lower = "power drive"
+        elif "how" in text_lower and any(w in text_lower for w in ["you", "are", "okay", "good"]):
+            text_lower = "power drive"
+            
         # Determine bat for this event
         event_bat = event.get("bat")
         if event_bat:
@@ -790,6 +845,8 @@ def format_gemini_shots(shot_events):
             shot_type = "Evade"
         elif "guide" in text_lower or "glide" in text_lower or "steer" in text_lower:
             shot_type = "Guide"
+        elif "power drive" in text_lower:
+            shot_type = "Power drive"
         elif "power" in text_lower or "loft" in text_lower:
             shot_type = "Power shot"
         elif "cover drive" in text_lower:

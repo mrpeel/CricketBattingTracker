@@ -285,7 +285,7 @@ def classify_current(f):
             if dx <= 0.75:
                 base = "DRIVE/DEFENCE" if gyroMag <= 14.11 else get_cut_pull_type(roll, dx)
             else:
-                base = "GLANCE/FLICK/SWEEP" if dx <= 0.97 else get_cut_pull_type(roll, dx)
+                base = "GLANCE/FLICK" if dx <= 0.97 else get_cut_pull_type(roll, dx)
         else:
             if yaw <= 6.22:
                 base = "DRIVE/DEFENCE" if ratio <= 0.67 else "DEFLECTION/GUIDE"
@@ -296,17 +296,17 @@ def classify_current(f):
             if roll <= 18.16:
                 base = "DRIVE/DEFENCE" if roll <= 1.67 else get_cut_pull_type(roll, dx)
             else:
-                base = "DRIVE/DEFENCE" if gyroMag <= 11.72 else "GLANCE/FLICK/SWEEP"
+                base = "DRIVE/DEFENCE" if gyroMag <= 11.72 else "GLANCE/FLICK"
         else:
-            base = "DRIVE/DEFENCE" if yaw <= 3.94 else "GLANCE/FLICK/SWEEP"
+            base = "DRIVE/DEFENCE" if yaw <= 3.94 else "GLANCE/FLICK"
 
     # Post-classification Glance/Flick overrides
     if base == "DRIVE/DEFENCE":
         if f['gyro_y_min'] <= -4.5 and f['rollImpactDeg'] <= -3.22 and f['yawImpactDeg'] >= 15.0 and f['deltaX'] <= 1.25:
-            base = "GLANCE/FLICK/SWEEP"
+            base = "GLANCE/FLICK"
     elif base == "PULL/HOOK":
         if f['gyro_y_min'] >= -9.0 and f['grav_y_min'] <= -8.0 and f['rollImpactDeg'] >= -50.0:
-            base = "GLANCE/FLICK/SWEEP"
+            base = "GLANCE/FLICK"
 
     # Post-classification Power Shot override
     if base != "POWER SHOT":
@@ -322,17 +322,22 @@ def normalize_shot_class(shot_name):
     s = shot_name.lower().strip()
     if "pull" in s or "hook" in s:
         return "PULL/HOOK"
-    if "flick" in s or "glance" in s or "sweep" in s:
-        return "GLANCE/FLICK/SWEEP"
+    if "sweep" in s:
+        return "SWEEP"
+    if "flick" in s or "glance" in s:
+        return "GLANCE/FLICK"
     if "cut" in s or "punch" in s:
         return "CUT/PUNCH"
     if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
         return "DEFLECTION/GUIDE"
+    if "power drive" in s or "power hit" in s:
+        return "POWER DRIVE"
     if "power" in s or "loft" in s:
         return "POWER SHOT"
     if any(t in s for t in ["drive", "defence", "defense", "push", "straight", "forward", "block"]):
         return "DRIVE/DEFENCE"
     return "Unknown"
+
 
 # ─── Date Parsing ────────────────────────────────────────────────────────────
 def parse_session_date(session_id):
@@ -400,6 +405,19 @@ def main():
             # Extract features for this shot
             t_impact = float(row["impact_time_seconds"])
             feats = extract_shot_features(sensors, t_impact)
+            
+            # Quality control: filter out misaligned wiggles
+            g_mag = feats.get('gyroMag', 0.0)
+            if normalized_gt in ["POWER SHOT", "POWER DRIVE", "PULL/HOOK", "SWEEP", "CUT/PUNCH", "GLANCE/FLICK"]:
+                if g_mag < 9.0:
+                    continue
+            else:
+                if g_mag < 4.0:
+                    continue
+            
+            # Biomechanical split: POWER SHOT -> POWER DRIVE if grav_x_max <= 5.5
+            if normalized_gt == "POWER SHOT" and feats.get('grav_x_max', 0.0) <= 5.5:
+                normalized_gt = "POWER DRIVE"
             
             # Predict using currently active logic
             pred = classify_current(feats)

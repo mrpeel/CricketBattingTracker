@@ -90,6 +90,8 @@ def main():
     print(f"\nSelected Config: {selected_r['config']} (CV Accuracy: {selected_r['cv_acc']:.4f}, Nodes: {selected_r['nodes']})")
     rf = selected_r["model"]
     
+    num_classes = len(class_names)
+    
     # DFS tree serialization
     nodes = []
     leaf_probs = []
@@ -106,7 +108,7 @@ def main():
             if tree.children_left[node_id] == -1: # Leaf
                 val = tree.value[node_id][0]
                 prob = val / val.sum()
-                prob_idx = len(leaf_probs) // 6
+                prob_idx = len(leaf_probs) // num_classes
                 leaf_probs.extend(prob.tolist())
                 
                 nodes[curr_idx] = {
@@ -200,7 +202,7 @@ def main():
         
         # Write main predict method
         f.write("    fun predict(f: SwingFeatures): String {\n")
-        f.write("        val votes = FloatArray(6)\n")
+        f.write(f"        val votes = FloatArray({num_classes})\n")
         f.write("        val features = floatArrayOf(\n")
         f.write("            f.gyroMag, f.rollImpactDeg, f.yawImpactDeg, f.deltaX, f.deltaZ, f.planeRatio,\n")
         f.write("            f.gyro_y_min, f.grav_x_max, f.grav_y_min, f.mag_x_max\n")
@@ -210,8 +212,8 @@ def main():
         f.write("            while (true) {\n")
         f.write("                val feat = FEATURE_INDICES[nodeIdx].toInt()\n")
         f.write("                if (feat == -1 || feat == 255) {\n") # handle unsigned/signed byte conversion
-        f.write("                    val probIdx = LEFT_CHILDREN[nodeIdx] * 6\n")
-        f.write("                    for (c in 0 until 6) {\n")
+        f.write(f"                    val probIdx = LEFT_CHILDREN[nodeIdx] * {num_classes}\n")
+        f.write(f"                    for (c in 0 until {num_classes}) {{\n")
         f.write("                        votes[c] += LEAF_PROBABILITIES[probIdx + c]\n")
         f.write("                    }\n")
         f.write("                    break\n")
@@ -227,7 +229,7 @@ def main():
         f.write("        }\n\n")
         f.write("        var maxVal = -1f\n")
         f.write("        var maxIdx = 0\n")
-        f.write("        for (i in 0 until 6) {\n")
+        f.write(f"        for (i in 0 until {num_classes}) {{\n")
         f.write("            if (votes[i] > maxVal) {\n")
         f.write("                maxVal = votes[i]\n")
         f.write("                maxIdx = i\n")

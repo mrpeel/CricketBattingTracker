@@ -32,20 +32,18 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
 | B-013 | Power Shot Precision | Reduce POWER SHOT → PULL/HOOK misclassification. Session-2026-06-15 was ~90% power shots and scored only 40% accuracy, exposing severe underrepresentation of this class in training data. Retrain after collecting more power shot sessions. | Backlog | `SwingDetectorGroundTruthTest` |
-| B-011 | Stance Gate Re-Optimization | Re-align all 7 sessions & grid-search optimal stance gate thresholds after sync fix. accel_std→3.25, ori_disp→2.5°, grav_y→-6.0, post_shot_guard→1.5s | **Completed** | 12/12 unit tests green, 95% avg recall, 26% FP reduction |
-| B-012 | Adversarial Analysis Pipeline | Build a set of Python scripts to adversarially challenge clock offset, stance gate, and shot detection on raw logs | **Completed** | Run on June 9 session generating last_session_analysis_update.md |
 | B-014 | Classifier Size Optimization | Compress Random Forest model using flat array representations and automated variant pruning to reduce Watch APK size to 2.8MB | **Completed** | Parity tests & APK size verification |
 | B-015 | Bat Type Extraction | Add bat type (Gray Nicolls Giant, Eye In, Game bat) extraction and stateful forward-filling to narration pipeline | **Completed** | Run `scratch/validate_bat_parsing.py` |
 | B-016 | Blade & Launch Angles | Implement mathematical calculation of blade (face normal) angle and launch (loft/grounded) angle in Python and real-time WearOS Kotlin, persisting and rendering them on the Android app dashboard | **Completed** | Real-time calculations matching python prototype, passing unit tests, verified database and dashboard integration |
 | B-017 | Video Session foundations | Implement 120fps video capture + passive watch sensor recording and ADB sync pull utility | **Completed** | Manual E2E on phone + watch; `video_analysis_poc.py` execution |
+| B-018 | Hybrid Transcriber & POWER DRIVE | Implement hybrid transcription to eliminate clock drift, disable Whisper text conditioning to prevent hallucinations, split POWER DRIVE from POWER SHOT, and filter out low-energy wiggles | **Completed** | Parity check and WearOS tests successful, cross-validation accuracy at 79.2% |
 
 ---
 
-## 🔖 Current Session State (session-2026-06-19_12-25-55)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-19_12-25-55`
-*   **Audio File**: `narration_20260619_122546.m4a`
-*   **Status**: Re-transcribed with new phonetic correction guards. All instances of "touch shot" correctly transcribed/mapped to "Cut shot" / "CUT/PUNCH". Session accuracy: **44.8%** (30/67 matching).
-*   **Previous Session (session-2026-06-15_12-21-37)**: Accuracy 40.0% (mostly power shots, confused as PULL/HOOK).
+## 🔖 Current Session State (session-2026-06-29_12-21-45)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-29_12-21-45`
+*   **Audio File**: `narration_20260629_122136.m4a`
+*   **Status**: Transcribed using the Whisper-Gemini Hybrid Transcriber. Disabling Whisper previous text conditioning resolved repetition loop hallucinations. Correctly aligned 62 shots. Retrained Random Forest model accuracy is at **79.2%**. Today's session precision: **0.64**, recall: **0.73**, F1: **0.69**.
 
 
 ---
