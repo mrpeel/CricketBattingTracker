@@ -485,7 +485,7 @@ class SwingDetectorGroundTruthTest {
             "CUT/PUNCH" -> gtClean.contains("CUT") || gtClean.contains("PUNCH")
             "PULL/HOOK" -> gtClean.contains("PULL") || gtClean.contains("HOOK")
             "DEFLECTION/GUIDE" -> gtClean.contains("GUIDE") || gtClean.contains("STEER") || gtClean.contains("GLIDE") || gtClean.contains("LATE CUT") || gtClean.contains("UPPER CUT")
-            "POWER SHOT" -> gtClean.contains("POWER") || gtClean.contains("SLOG") || gtClean.contains("LOFT")
+            "SLOG" -> gtClean.contains("POWER") || gtClean.contains("SLOG") || gtClean.contains("LOFT")
             "POWER DRIVE" -> gtClean.contains("POWER") || gtClean.contains("SLOG") || gtClean.contains("LOFT")
             else -> false
         }

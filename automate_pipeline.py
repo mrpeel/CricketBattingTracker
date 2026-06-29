@@ -648,7 +648,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             "- Cut/Punch: \"Square Cut\", \"Cut\", \"Back-foot Punch\"\n"
             "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
             "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\", \"Guide\"\n"
-            "- Power Shot: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\", \"Power shot\"\n"
+            "- Slog: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\", \"Slog\", \"Power shot\"\n"
             "- Power Drive: \"Power drive\"\n"
             "- Balls with no shot played: \"No shot\", \"Leave\", \"Evade\", \"Evasion\"\n\n"
             "The batter uses three types of bats and narrates when he changes or selects them:\n"
@@ -870,8 +870,8 @@ def format_gemini_shots(shot_events):
             shot_type = "Guide"
         elif "power drive" in text_lower:
             shot_type = "Power drive"
-        elif "power" in text_lower or "loft" in text_lower:
-            shot_type = "Power shot"
+        elif "slog" in text_lower or "power shot" in text_lower or "power hit" in text_lower or "loft" in text_lower:
+            shot_type = "Slog"
         elif "cover drive" in text_lower:
             shot_type = "Cover drive"
         elif "straight drive" in text_lower:
@@ -1766,8 +1766,10 @@ def normalize_shot_class(shot_name):
         return "CUT/PUNCH"
     if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
         return "DEFLECTION/GUIDE"
-    if "power" in s or "loft" in s:
-        return "POWER SHOT"
+    if "power drive" in s:
+        return "POWER DRIVE"
+    if "slog" in s or "power shot" in s or "power hit" in s or "loft" in s:
+        return "SLOG"
     if "drive" in s or "defence" in s or "defense" in s or "push" in s or "straight" in s or "forward" in s or "block" in s:
         return "DRIVE/DEFENCE"
     if "miss" in s:

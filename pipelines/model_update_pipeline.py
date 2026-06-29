@@ -35,10 +35,10 @@ def normalize_shot_class(shot_name):
         return "CUT/PUNCH"
     if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
         return "DEFLECTION/GUIDE"
-    if "power drive" in s or "power hit" in s:
+    if "power drive" in s:
         return "POWER DRIVE"
-    if "power" in s or "loft" in s:
-        return "POWER SHOT"
+    if "slog" in s or "power shot" in s or "power hit" in s or "loft" in s:
+        return "SLOG"
     if any(t in s for t in ["drive", "defence", "defense", "push", "straight", "forward", "block"]):
         return "DRIVE/DEFENCE"
     return "Unknown"
@@ -109,7 +109,8 @@ def get_grouped_stats(filepath):
         "CUT/PUNCH": 0,
         "GLANCE/FLICK": 0,
         "SWEEP": 0,
-        "POWER SHOT": 0,
+        "POWER DRIVE": 0,
+        "SLOG": 0,
         "DEFLECTION/GUIDE": 0,
         "DRIVE/DEFENCE": 0
     }

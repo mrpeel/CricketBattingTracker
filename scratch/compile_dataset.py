@@ -279,7 +279,7 @@ def classify_current(f):
     
     # Base decision tree
     if gyroMag > 22.12:
-        base = "POWER SHOT"
+        base = "SLOG"
     elif roll <= -3.22:
         if dz <= 0.44:
             if dx <= 0.75:
@@ -309,9 +309,9 @@ def classify_current(f):
             base = "GLANCE/FLICK"
 
     # Post-classification Power Shot override
-    if base != "POWER SHOT":
+    if base != "SLOG":
         if f['grav_x_max'] > 7.0 and f['mag_x_max'] > 40.0:
-            base = "POWER SHOT"
+            base = "SLOG"
 
     return base
 
@@ -330,10 +330,10 @@ def normalize_shot_class(shot_name):
         return "CUT/PUNCH"
     if "guide" in s or "glide" in s or "deflection" in s or "deflect" in s:
         return "DEFLECTION/GUIDE"
-    if "power drive" in s or "power hit" in s:
+    if "power drive" in s:
         return "POWER DRIVE"
-    if "power" in s or "loft" in s:
-        return "POWER SHOT"
+    if "slog" in s or "power shot" in s or "power hit" in s or "loft" in s:
+        return "SLOG"
     if any(t in s for t in ["drive", "defence", "defense", "push", "straight", "forward", "block"]):
         return "DRIVE/DEFENCE"
     return "Unknown"
@@ -408,15 +408,15 @@ def main():
             
             # Quality control: filter out misaligned wiggles
             g_mag = feats.get('gyroMag', 0.0)
-            if normalized_gt in ["POWER SHOT", "POWER DRIVE", "PULL/HOOK", "SWEEP", "CUT/PUNCH", "GLANCE/FLICK"]:
+            if normalized_gt in ["SLOG", "POWER DRIVE", "PULL/HOOK", "SWEEP", "CUT/PUNCH", "GLANCE/FLICK"]:
                 if g_mag < 9.0:
                     continue
             else:
                 if g_mag < 4.0:
                     continue
             
-            # Biomechanical split: POWER SHOT -> POWER DRIVE if grav_x_max <= 5.5
-            if normalized_gt == "POWER SHOT" and feats.get('grav_x_max', 0.0) <= 5.5:
+            # Biomechanical split: SLOG -> POWER DRIVE if grav_x_max <= 5.5
+            if normalized_gt == "SLOG" and feats.get('grav_x_max', 0.0) <= 5.5:
                 normalized_gt = "POWER DRIVE"
             
             # Predict using currently active logic

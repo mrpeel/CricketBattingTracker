@@ -780,7 +780,7 @@ class SwingDetector {
         val multiplier = when (shotType) {
             "DRIVE/DEFENCE", "DEFLECTION/GUIDE" -> 1.45f
             "GLANCE/FLICK", "SWEEP", "CUT/PUNCH", "PULL/HOOK" -> 1.30f
-            "POWER SHOT", "POWER DRIVE" -> 1.40f
+            "SLOG", "POWER DRIVE" -> 1.40f
             else -> 1.30f
         }
         val finalSpeedKmh = maxGyro * 0.68f * 3.6f * multiplier

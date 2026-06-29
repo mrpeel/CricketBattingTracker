@@ -35,7 +35,7 @@ Shot types:
   * Flick Shot
   * Leg Glance
   * On-Glance
-  * Power shot
+  * Slog
   * Power drive
 
 Shot ratings:
