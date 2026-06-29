@@ -53,6 +53,14 @@ This document captures resolved bugs, architectural changes, key logical finding
         4. Rendered the calculated `BLADE` and `LAUNCH` metrics dynamically in the phone app's Compose dashboard item cards.
     *   **Result**: The implementation works natively on both the pipeline and WearOS/Android apps, backed by a comprehensive unit test suite (`testBladeAndLaunchAngles`).
 
+46. **Power Shot Biomechanical Misalignment & Clock Alignment Drift (June 29, 2026)**:
+    *   **The Problem**: The model showed very low classification accuracy for "Power Shots" in some sessions (e.g. session-2026-06-29_12-21-45), often misclassifying them as `PULL/HOOK` or `DRIVE/DEFENCE`.
+    *   **The Solution**:
+        1. Analyzed physical data and validated that grounded power hits (very hard shots kept along the ground to mid-on/mid-wicket) lack the lofted power shot biomechanical signatures (positive roll at impact and high overhead `grav_x_max` displacement). Instead, they naturally exhibit negative roll (forearm pronation to close the face) and low gravity X displacement, matching `PULL/HOOK` or `DRIVE/DEFENCE` kinematics.
+        2. Uncovered a secondary pipeline issue: coarse-grained transcription timestamps from Gemini caused negative lag alignment penalties, mismatching the alignment window to stationary stance/wiggles, resulting in zero-energy training samples for power shots.
+    *   **Result**: Identified that (a) grounded power hits must be narrated biomechanically (e.g. as pull/drive/flick) to prevent training noise, and (b) pipeline transcription should be run with `--local` to use high-precision Whisper timestamps, avoiding negative lag alignment penalties.
+
+
 
 
 
