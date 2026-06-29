@@ -509,6 +509,7 @@ def get_whisper_segments_hybrid(audio_path):
     try:
         import whisper
         import json
+        import re
         print(f"🎙️ Running local Whisper 'base' model to detect precise speech timestamps...")
         model = whisper.load_model("base")
         result = model.transcribe(audio_path, verbose=False, condition_on_previous_text=False)
@@ -519,13 +520,35 @@ def get_whisper_segments_hybrid(audio_path):
             text = s["text"].strip()
             if not text:
                 continue
-            whisper_data.append({
-                "segment_index": idx,
-                "start_seconds": round(s["start"], 3),
-                "end_seconds": round(s["end"], 3),
-                "whisper_raw_text": text
-            })
-        print(f"✅ Local Whisper detected {len(whisper_data)} speech segments.")
+                
+            start = s["start"]
+            end = s["end"]
+            duration = end - start
+            
+            # Split long segments on punctuation if they contain multiple phrases
+            parts = re.split(r'[.!?]+', text)
+            phrases = [p.strip() for p in parts if p.strip()]
+            
+            if len(phrases) > 1 and duration > 4.0:
+                step = duration / len(phrases)
+                for sub_idx, phrase in enumerate(phrases):
+                    p_start = start + sub_idx * step
+                    p_end = start + (sub_idx + 1) * step
+                    whisper_data.append({
+                        "segment_index": len(whisper_data),
+                        "start_seconds": round(p_start, 3),
+                        "end_seconds": round(p_end, 3),
+                        "whisper_raw_text": phrase
+                    })
+            else:
+                whisper_data.append({
+                    "segment_index": len(whisper_data),
+                    "start_seconds": round(start, 3),
+                    "end_seconds": round(end, 3),
+                    "whisper_raw_text": text
+                })
+                
+        print(f"✅ Local Whisper detected {len(whisper_data)} speech segments (after split post-processing).")
         return whisper_data
     except Exception as e:
         print(f"⚠️ Warning: Could not run local Whisper for hybrid segment detection: {e}")
