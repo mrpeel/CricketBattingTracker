@@ -24,3 +24,6 @@ To prevent chat bloat and conserve token quota, you must actively police the con
    > *"I notice we are shifting focus to [New Topic]. Should we prune our short-term chat context to save your token quota? If yes, I will sync current progress to `.agents/rules/ACTIVE_CONTEXT.md` and archive this thread's previous history."*
 3. **Enforce Progressive Disclosure**: When a topic shift is approved, rely strictly on `@mention` files (e.g., `@ACTIVE_CONTEXT.md`, `@LEARNINGS.md`, `@ARCHITECTURE.md`) for baseline project memory rather than reading old chat code blocks.
 
+## 🚫 Strictly Forbidden Tools
+- **DO NOT USE WHISPER AI**: Local Whisper models (like Whisper `base` or `tiny`) are strictly forbidden for audio narration transcription. They are highly fragile under continuous background noise (such as bowling machine hum), leading to hallucinated repetition loops and missing anchors. Gemini's direct audio transcription must always be used instead, with systematic clock drift resolved mathematically at the sensor alignment layer (e.g. using 2D Joint Offset and Linear Drift Rate Optimization).
+

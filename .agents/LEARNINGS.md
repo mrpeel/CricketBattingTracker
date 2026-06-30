@@ -44,6 +44,7 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Result**: The new 8-class Random Forest model achieved a record cross-validation accuracy of **79.2%**. WearOS unit tests and parity alignment tests passed with 0 mismatches. Alignment precision on today's session increased from 0.47 to 0.64 with only 3 undetected shots remaining.
 
 49. **Reverting to Direct Gemini & 2D Alignment (June 30, 2026)**:
+    *   **CRITICAL DIRECTIVE: NEVER USE WHISPER AI FOR THIS PROJECT.** Local Whisper is completely unable to handle continuous bowling machine hum, leading to silent drops and repeat-hallucination loops.
     *   **The Problem**: Local Whisper was extremely fragile under loud bowling machine hum, leading to incorrect and missing segment anchors. Gemini's direct audio transcription was highly accurate but suffered from cumulative clock drift relative to WearOS sensors over long sessions.
     *   **The Solution**:
         1. Ripped out Whisper completely from `automate_pipeline.py` to restore Gemini's direct audio transcription.
