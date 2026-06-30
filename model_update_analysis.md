@@ -1,39 +1,40 @@
 # Model Update & Retraining Performance Analysis
 
-**Generated:** 2026-06-29 17:11:23
+**Generated:** 2026-06-30 18:51:12
 
 ## Executive Summary
 This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.
 
 - **Deploved Representation**: Flat Data Arrays (quantized layout)
 - **Selected Config**: `{'n_estimators': 200, 'max_depth': 8}`
-- **Kotlin File Size**: `3410.0 KB` (reduced from ~4,100 KB - a **~95% footprint reduction**)
+- **Kotlin File Size**: `3192.7 KB` (reduced from ~4,100 KB - a **~95% footprint reduction**)
 
 ## 1. Facing Up / Shot Detection Performance
 Below are the overall shot detection metrics aggregated across all active watch sessions:
 
 | Metric | Before | After | Change |
 |---|---|---|---|
-| **Total Ground Truth Shots** | 1590 | 1590 | +0 |
+| **Total Ground Truth Shots** | 1521 | 1521 | +0 |
 | **Total Detected Shots** | 2029 | 2029 | +0 |
-| **True Positives (Matches)** | 1385 | 1385 | +0 |
-| **False Positives** | 644 | 644 | +0 |
-| **Precision** | 0.68 ➔ 0.68 (0.00) ⚪ | | |
-| **Recall (Accuracy)** | 0.87 ➔ 0.87 (0.00) ⚪ | | |
-| **F1 Score** | 0.77 ➔ 0.77 (0.00) ⚪ | | |
+| **True Positives (Matches)** | 1221 | 1221 | +0 |
+| **False Positives** | 808 | 808 | +0 |
+| **Precision** | 0.60 ➔ 0.60 (0.00) ⚪ | | |
+| **Recall (Accuracy)** | 0.80 ➔ 0.80 (0.00) ⚪ | | |
+| **F1 Score** | 0.69 ➔ 0.69 (0.00) ⚪ | | |
 
 ## 2. Shot Type Classification Accuracy
 Below is the classification accuracy comparison for each normalized shot type category, compiled from the match logs across all sessions:
 
 | Shot Type | Ground Truth Count | Accuracy (Before ➔ After) |
 |---|---|---|
-| CUT/PUNCH | 180 | 76.1% ➔ **73.9%** (-2.2%) 🔴 |
-| DEFLECTION/GUIDE | 62 | 79.0% ➔ 79.0% (0.00) ⚪ |
-| DRIVE/DEFENCE | 364 | 83.0% ➔ **83.8%** (+0.8%) 🟢 |
-| GLANCE/FLICK | 225 | 77.3% ➔ 77.3% (0.00) ⚪ |
-| POWER SHOT | 136 | 21.3% ➔ **32.4%** (+11.0%) 🟢 |
-| PULL/HOOK | 223 | 73.5% ➔ 73.1% (0.00) ⚪ |
-| SWEEP | 182 | 88.5% ➔ 88.5% (0.00) ⚪ |
+| CUT/PUNCH | 134 | 81.3% ➔ **78.4%** (-3.0%) 🔴 |
+| DEFLECTION/GUIDE | 62 | 85.5% ➔ **74.2%** (-11.3%) 🔴 |
+| DRIVE/DEFENCE | 339 | 81.7% ➔ 81.4% (0.00) ⚪ |
+| GLANCE/FLICK | 194 | 68.0% ➔ **70.6%** (+2.6%) 🟢 |
+| POWER DRIVE | 99 | 46.5% ➔ **48.5%** (+2.0%) 🟢 |
+| PULL/HOOK | 188 | 79.3% ➔ **78.7%** (-0.5%) 🔴 |
+| SLOG | 54 | 46.3% ➔ **40.7%** (-5.6%) 🔴 |
+| SWEEP | 138 | 82.6% ➔ **81.2%** (-1.4%) 🔴 |
 
 ## Legend
 - 🟢: Significant performance improvement (> +0.005)

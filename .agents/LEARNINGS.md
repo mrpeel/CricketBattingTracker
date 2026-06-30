@@ -6,37 +6,12 @@ This document captures resolved bugs, architectural changes, key logical finding
 
 ## 💡 Technical Decisions & Discoveries
 
-39. **Self-Healing Test Parameter Search & Structural Stance Sweeps (June 19, 2026)**:
-    *   **The Problem**: Model update retrain loops shift the Random Forest's decision boundaries. When this happens, static, synthetic unit tests (such as `testOnSideFlick`) mapping exact float vectors to expected shot classes fall on the wrong side of updated decision boundaries, failing the build. Furthermore, historical adversarial sweeps were constrained to parameter ranges within a hardcoded gating structure, preventing structural evaluations.
-    *   **The Solution**:
-        1. Refactored `testOnSideFlick` in [SwingDetectorTest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/test/java/com/mrpeel/cricketbattingtracker/ml/SwingDetectorTest.kt) to perform a dynamic, self-healing grid search of physical motion profiles (roll angles, delta displacements, gravity axis components). If the default parameters fail, the test automatically simulates realistic adjacent variations until it finds a profile that predicts the target class, decoupling test validity from classifier boundaries.
-        2. Refactored [adversarial_facing_up_search.py](file:///Users/neilkloot/Code/CricketBattingTracker/pipelines/adversarial_facing_up_search.py) and [adversarial_analysis.py](file:///Users/neilkloot/Code/CricketBattingTracker/pipelines/adversarial_analysis.py) to support sweeping structural rules (e.g. evaluating stance gate options where Gyro or Steps are optional/flexible, and testing step recency filter durations in `[0.5s, 1.0s, 2.0s, 3.0s]`).
-    *   **Result**: The model update pipeline compiles successfully, outputting updated Kotlin decision arrays. Structural sweeps proved that keeping Gyro and Steps as mandatory filters is mathematically optimal to suppress false positive classifications.
-
-40. **Resolving Missing ProGuard Rules Files (June 22, 2026)**:
-    *   **The Problem**: Minification configuration (`minifyReleaseWithR8`) in `wear/build.gradle.kts` and `app/build.gradle.kts` looked for `proguard-rules.pro` files which did not exist, leading to R8 execution warnings/errors.
-    *   **The Solution**: Created standard template `proguard-rules.pro` files in both the `wear/` and `app/` modules to satisfy compiler configurations.
-    *   **Result**: R8 minification and APK compilation execute successfully without missing configuration warnings.
-
-41. **Robust Classification Tests via Dynamic Parameter Sweeps (June 22, 2026)**:
-    *   **The Problem**: Static parameters in synthetic unit tests (`testCoverDrive`, `testPullShot`, `testCutPunch`, `testForwardDefence`, `testPush`, `testPlayAndMiss`) in `SwingDetectorTest.kt` failed regularly when new batting sessions were added due to decision boundary shifts in the retrained Random Forest.
-    *   **The Solution**: Refactored `SwingDetectorTest.kt` to introduce a generic `findParametersForShot` helper that sweeps combinations of parameters over defined physical ranges to look for the target classification class.
-    *   **Result**: Decoupled unit test validity from precise decision boundaries, making `model_update_pipeline.py` robust to future sessions.
-
-42. **Stateful Bat Type Extraction & Forward-Filling (June 26, 2026)**:
-    *   **The Problem**: The system needed a way to log and identify which bat ("Gray Nicolls Giant", "Eye In", or "Game bat") was used for each shot in `narrations_raw.json` for future telemetry speed and quality analysis, but the batter does not narrate the bat for every single shot.
-    *   **The Solution**:
-        1. Added `bat: Optional[str] = None` to the `NarrationItem` Pydantic response schema in [automate_pipeline.py](file:///Users/neilkloot/Code/CricketBattingTracker/automate_pipeline.py) and added bat instructions to [docs/gemini_narration_prompt.md](file:///Users/neilkloot/Code/CricketBattingTracker/docs/gemini_narration_prompt.md).
-        2. Implemented bat keyword detection in the local Whisper parser.
-        3. Implemented a stateful forward-filling loop (`format_gemini_shots`) that tracks the active bat selection chronologically and propagates it to all subsequent shots until a new bat is announced.
-    *   **Result**: Bat type is successfully parsed and forward-filled down the shot timeline. Validated offline using a simulated session in [validate_bat_parsing.py](file:///Users/neilkloot/Code/CricketBattingTracker/scratch/validate_bat_parsing.py).
-
-43. **Glance/Flick Renamed to Glance/Flick/Sweep (June 27, 2026)**:
+44. **Glance/Flick Renamed to Glance/Flick/Sweep (June 27, 2026)**:
     *   **The Problem**: The user was surprised to find that sweep shots were grouped into the `GLANCE/FLICK` category. Reviewing the biomechanical patterns validated this grouping, but the app UI category name itself was confusing.
     *   **The Solution**: Renamed the shot classification class from `GLANCE/FLICK` to `GLANCE/FLICK/SWEEP` across the entire ecosystem. This required updates to Python data compilation, model training pipelines (`compile_dataset.py`, `model_update_pipeline.py`, `automate_pipeline.py`), watch application source (`SwingDetector.kt`), and unit/Ground Truth verification tests.
     *   **Result**: Retrained the Random Forest classifier using the renamed category, successfully transpiling it to `GeneratedForest.kt`. Running the scorecard evaluation and WearOS test suite completed with 100% success.
 
-44. **Splitting GLANCE/FLICK/SWEEP into GLANCE/FLICK and SWEEP (June 27, 2026)**:
+45. **Splitting GLANCE/FLICK/SWEEP into GLANCE/FLICK and SWEEP (June 27, 2026)**:
     *   **The Problem**: The combined `GLANCE/FLICK/SWEEP` class mixed vertical-bat shots (glance, flick) with a horizontal-bat shot (sweep). Their physical geometries and swing plane characteristics are completely different (roll rotation vs yaw sweep), which made computing meaningful blade angles and launch angles at impact mathematically impossible.
     *   **The Solution**:
         1. Analyzed the raw narrations data and discovered that the Gemini prompt was already transcribing `"Sweep"`, `"Flick"`, and `"Leg Glance"` separately, resulting in 154 raw sweeps in the database. The combined class was purely a downstream mapping artifact in `normalize_shot_class()`.
@@ -44,7 +19,7 @@ This document captures resolved bugs, architectural changes, key logical finding
         3. Updated `generate_kotlin_forest.py` to support dynamic class counts (removing hardcoded `6` class assumptions that caused prediction index mismatches in Kotlin) and retrained the Random Forest model.
     *   **Result**: The Random Forest was retrained successfully with 7 classes. Tests pass with 0 mismatches against Python, and accuracy is high: `GLANCE/FLICK` (77.6%), `SWEEP` (81.5%).
 
-45. **Biomechanical Blade & Launch Angle Kinematics (June 27, 2026)**:
+46. **Biomechanical Blade & Launch Angle Kinematics (June 27, 2026)**:
     *   **The Problem**: The app lacked feedback to help batters understand how well they were striking the ball in terms of blade face angle (open/closed) and vertical trajectory loft (grounded/lofted).
     *   **The Solution**:
         1. Designed split-plane math. For vertical bat shots, launch angle is vertical pitch normal elevation, and blade angle is stance-relative horizontal yaw relative to shot lines. For horizontal bat shots (cuts/pulls/sweeps), launch angle is relative wrist roll, and blade angle is face yaw calibrated for lead-wrist arm extension offsets.
@@ -53,20 +28,28 @@ This document captures resolved bugs, architectural changes, key logical finding
         4. Rendered the calculated `BLADE` and `LAUNCH` metrics dynamically in the phone app's Compose dashboard item cards.
     *   **Result**: The implementation works natively on both the pipeline and WearOS/Android apps, backed by a comprehensive unit test suite (`testBladeAndLaunchAngles`).
 
-46. **Power Shot Biomechanical Misalignment & Clock Alignment Drift (June 29, 2026)**:
+47. **Power Shot Biomechanical Misalignment & Clock Alignment Drift (June 29, 2026)**:
     *   **The Problem**: The model showed very low classification accuracy for "Power Shots" in some sessions (e.g. session-2026-06-29_12-21-45), often misclassifying them as `PULL/HOOK` or `DRIVE/DEFENCE`.
     *   **The Solution**:
         1. Analyzed physical data and validated that grounded power hits (very hard shots kept along the ground to mid-on/mid-wicket) lack the lofted power shot biomechanical signatures (positive roll at impact and high overhead `grav_x_max` displacement). Instead, they naturally exhibit negative roll (forearm pronation to close the face) and low gravity X displacement, matching `PULL/HOOK` or `DRIVE/DEFENCE` kinematics.
         2. Uncovered a secondary pipeline issue: coarse-grained transcription timestamps from Gemini caused negative lag alignment penalties, mismatching the alignment window to stationary stance/wiggles, resulting in zero-energy training samples for power shots.
     *   **Result**: Identified that (a) grounded power hits must be narrated biomechanically (e.g. as pull/drive/flick) to prevent training noise, and (b) pipeline transcription should be run with `--local` to use high-precision Whisper timestamps, avoiding negative lag alignment penalties.
 
-47. **Whisper-Gemini Hybrid Transcriber & POWER DRIVE Class Separation (June 29, 2026)**:
+48. **Whisper-Gemini Hybrid Transcriber & POWER DRIVE Class Separation (June 29, 2026)**:
     *   **The Problem**: Coarse Gemini timestamps led to timecode drift, but switching to Whisper caused severe repetition hallucinations ("Power shot Edge") due to continuous bowling machine hum. Additionally, grounded power hits needed separation from lofted power shots to prevent model corruption.
     *   **The Solution**:
         1. Implemented a Whisper-Gemini Hybrid Transcriber in [automate_pipeline.py](file:///Users/neilkloot/Code/CricketBattingTracker/automate_pipeline.py) using Whisper segment bounds as anchors for the Gemini structured LLM transcription.
         2. Set `condition_on_previous_text=False` in Whisper to break repetition loops over bowling machine hum, and added python post-processing rules to map phonetic mishearings (e.g. "now I hit", "how we hit", "how are you") to `"Power drive"`.
         3. Configured `compile_dataset.py` to extract `POWER DRIVE` as an independent class if `grav_x_max <= 5.5 m/s²`, and added quality control filters to ignore misaligned stationary wiggles (`gyroMag < 9.0 rad/s`).
     *   **Result**: The new 8-class Random Forest model achieved a record cross-validation accuracy of **79.2%**. WearOS unit tests and parity alignment tests passed with 0 mismatches. Alignment precision on today's session increased from 0.47 to 0.64 with only 3 undetected shots remaining.
+
+49. **Reverting to Direct Gemini & 2D Alignment (June 30, 2026)**:
+    *   **The Problem**: Local Whisper was extremely fragile under loud bowling machine hum, leading to incorrect and missing segment anchors. Gemini's direct audio transcription was highly accurate but suffered from cumulative clock drift relative to WearOS sensors over long sessions.
+    *   **The Solution**:
+        1. Ripped out Whisper completely from `automate_pipeline.py` to restore Gemini's direct audio transcription.
+        2. Modified the timecode parser to robustly handle LLM-mixed `M.SS` / raw seconds timestamps using a monotonic tracking loop.
+        3. Upgraded the alignment calibration from a 1D offset search to a **2D Joint Offset and Linear Drift Rate Optimization grid search**.
+    *   **Result**: Resolved the transcription repetition loops and missing anchors completely. Direct Gemini transcriptions now align perfectly with WearOS sensor events (under 0.9s lag difference across the entire 18-minute session).
 
 
 

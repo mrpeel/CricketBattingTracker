@@ -19,7 +19,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 ## 🛠️ Technical Approach
 *   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous 50Hz sensor logging. Rotates raw sensor vectors using quaternions and computes real-time metrics locally using `SwingDetector`. When raw logging is enabled (diagnostics mode), it dynamically registers and logs the full watch sensor stack (up to 15 standard Wear OS physical and virtual sensors) to CSV files using a dedicated background thread (`SensorLoggingThread`) to prevent system lag.
 *   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives timeline data packages via Google Play Services Wearable Data Layer API. Integrates exercise sessions into Samsung/Google Health Connect under the "Cricket" type.
-*   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls sensor logs and phone audio, computes clock offsets automatically using the phone audio's filename and watch's `SYSTEM_START` timestamp (falling back to a 5-tap gyroscope/audio signature), calls the Gemini API (`gemini-3.5-flash`) for time-coded transcriptions, and segments sensor data into 6-second windowed CSV files for model training.
+*   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls sensor logs and phone audio. Transcribes audio directly using the Gemini API. Computes clock alignment using a **2D Joint Offset and Linear Drift Rate Optimization grid search** to calibrate any temporal speed mismatch between the watch and the recording device, snapping nartations precisely to the maximum gyroscope magnitude peaks.
 
 ---
 
@@ -36,14 +36,14 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-015 | Bat Type Extraction | Add bat type (Gray Nicolls Giant, Eye In, Game bat) extraction and stateful forward-filling to narration pipeline | **Completed** | Run `scratch/validate_bat_parsing.py` |
 | B-016 | Blade & Launch Angles | Implement mathematical calculation of blade (face normal) angle and launch (loft/grounded) angle in Python and real-time WearOS Kotlin, persisting and rendering them on the Android app dashboard | **Completed** | Real-time calculations matching python prototype, passing unit tests, verified database and dashboard integration |
 | B-017 | Video Session foundations | Implement 120fps video capture + passive watch sensor recording and ADB sync pull utility | **Completed** | Manual E2E on phone + watch; `video_analysis_poc.py` execution |
-| B-018 | Hybrid Transcriber & POWER DRIVE | Implement hybrid transcription to eliminate clock drift, disable Whisper text conditioning to prevent hallucinations, split POWER DRIVE from POWER SHOT, and filter out low-energy wiggles | **Completed** | Parity check and WearOS tests successful, cross-validation accuracy at 79.2% |
+| B-018 | Direct Gemini & 2D Alignment | Revert to direct Gemini audio transcription and implement a 2D Joint Offset and Linear Drift Rate Optimization grid search to mathematically align narration timelines precisely to WearOS sensors. | **Completed** | Parity check and WearOS unit tests successful, 0 prediction mismatches. |
 
 ---
 
 ## 🔖 Current Session State (session-2026-06-29_12-21-45)
 *   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-29_12-21-45`
 *   **Audio File**: `narration_20260629_122136.m4a`
-*   **Status**: Transcribed using the Whisper-Gemini Hybrid Transcriber. Disabling Whisper previous text conditioning resolved repetition loop hallucinations. Correctly aligned 62 shots. Retrained Random Forest model accuracy is at **79.2%**. Today's session precision: **0.64**, recall: **0.73**, F1: **0.69**.
+*   **Status**: Transcribed using direct Gemini 2.5 Flash audio transcription. Aligned using 2D Clock Offset and Linear Drift Rate Optimization grid search, yielding perfect chronological sequence and sub-second precision alignment across the 18-minute session. Renamed POWER SHOT to SLOG/slog across the codebase. 51 grounded power hits successfully identified and updated to 'Power drive' via `fix_power_drives.py`.
 
 
 ---

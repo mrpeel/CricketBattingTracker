@@ -505,54 +505,7 @@ class ProgressSpinner:
         self.thread.join()
 
 
-def get_whisper_segments_hybrid(audio_path):
-    try:
-        import whisper
-        import json
-        import re
-        print(f"🎙️ Running local Whisper 'base' model to detect precise speech timestamps...")
-        model = whisper.load_model("base")
-        result = model.transcribe(audio_path, verbose=False, condition_on_previous_text=False)
-        segments = result.get("segments", [])
-        
-        whisper_data = []
-        for idx, s in enumerate(segments):
-            text = s["text"].strip()
-            if not text:
-                continue
-                
-            start = s["start"]
-            end = s["end"]
-            duration = end - start
-            
-            # Split long segments on punctuation if they contain multiple phrases
-            parts = re.split(r'[.!?]+', text)
-            phrases = [p.strip() for p in parts if p.strip()]
-            
-            if len(phrases) > 1 and duration > 4.0:
-                step = duration / len(phrases)
-                for sub_idx, phrase in enumerate(phrases):
-                    p_start = start + sub_idx * step
-                    p_end = start + (sub_idx + 1) * step
-                    whisper_data.append({
-                        "segment_index": len(whisper_data),
-                        "start_seconds": round(p_start, 3),
-                        "end_seconds": round(p_end, 3),
-                        "whisper_raw_text": phrase
-                    })
-            else:
-                whisper_data.append({
-                    "segment_index": len(whisper_data),
-                    "start_seconds": round(start, 3),
-                    "end_seconds": round(end, 3),
-                    "whisper_raw_text": text
-                })
-                
-        print(f"✅ Local Whisper detected {len(whisper_data)} speech segments (after split post-processing).")
-        return whisper_data
-    except Exception as e:
-        print(f"⚠️ Warning: Could not run local Whisper for hybrid segment detection: {e}")
-        return None
+
 
 
 def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
@@ -596,8 +549,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             f"   Re-run with --model <available-model> once it becomes accessible."
         )
 
-    # Run local Whisper first to get speech segments for hybrid timestamp alignment
-    whisper_segments = get_whisper_segments_hybrid(audio_path)
+    whisper_segments = None
 
     print(f"📤 Uploading {os.path.basename(audio_path)} to Gemini...")
     uploaded_file = client.files.upload(file=audio_path)
@@ -672,21 +624,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         "`bat` (str, e.g. 'Gray Nicolls Giant', 'Eye In', 'Game bat', or null), and `narrated_text` (str, the exact transcribed text of the utterance)."
     )
 
-    if whisper_segments:
-        whisper_json_str = json.dumps(whisper_segments, indent=2)
-        hybrid_instruction = (
-            "\n\n## Local Speech Segment Anchor Guidance (CRITICAL):\n"
-            "We ran local Whisper and detected the following speech segments. You MUST use these timestamps as anchors. "
-            "For each item in your output list, you MUST match it to one of these segments and set `timestamp_seconds` "
-            "exactly to the `start_seconds` of that segment. Correct any phonetic or spelling mistakes in `whisper_raw_text` "
-            "based on the expected cricket terminology (e.g. mapping 'touch shot' -> 'cut shot', 'leg lands' -> 'leg glance', "
-            "'our drive' -> 'on drive', 'power drive' -> 'power drive', etc.). If a segment is just background noise or static "
-            "with no actual shot or stance narration, you can omit it. Do not invent any shots or timestamps that are not in this list.\n\n"
-            f"Whisper Speech Segments:\n{whisper_json_str}"
-        )
-        prompt = prompt_base + hybrid_instruction + schema_instruction
-    else:
-        prompt = prompt_base + schema_instruction
+    prompt = prompt_base + schema_instruction
 
     # --- Single-model strict call with one retry on quota/availability errors ---
     RETRY_WAIT_SECONDS = 30
@@ -1026,29 +964,30 @@ def main():
         with open(narrations_cache_path, "w") as f:
             json.dump(narrations, f, indent=2)
 
-    # Detect and convert MMSS.mmm timestamps to actual elapsed seconds if needed
+    # Detect and convert mixed M.SS / raw seconds timestamps to actual elapsed seconds
     if narrations:
-        is_mmss = True
-        for n in narrations:
-            t = n['timestamp_seconds']
-            sec_part = int(t) % 100
-            if sec_part >= 60:
-                is_mmss = False
+        has_drops = False
+        for i in range(1, len(narrations)):
+            if narrations[i]['timestamp_seconds'] < narrations[i-1]['timestamp_seconds']:
+                has_drops = True
                 break
                 
-        max_t = max(n['timestamp_seconds'] for n in narrations)
-        if max_t > gyro_duration:
-            is_mmss = True
-            
-        if is_mmss:
-            print("💡 Detected that Gemini timestamps are in MMSS.mmm format. Converting to actual elapsed seconds...")
+        is_m_ss = has_drops
+        if is_m_ss:
+            print("💡 Detected mixed M.SS / raw seconds format. Converting to elapsed seconds...")
+            last_elapsed = 0.0
             for n in narrations:
                 t = n['timestamp_seconds']
-                ival = int(t)
-                frac = t - ival
-                minutes = ival // 100
-                seconds = ival % 100
-                n['timestamp_seconds'] = float(minutes * 60 + seconds + frac)
+                if t < last_elapsed or (int(t) > 0 and int(t) <= 15 and t < 60.0):
+                    minutes = int(t)
+                    seconds_frac = round((t - minutes) * 100, 3)
+                    elapsed = minutes * 60 + seconds_frac
+                    if elapsed < last_elapsed:
+                        elapsed = last_elapsed + 0.1
+                else:
+                    elapsed = t
+                n['timestamp_seconds'] = elapsed
+                last_elapsed = elapsed
 
     # 6. Clock Offset Calibration Alignment (with automatic grid search)
     baseline_offset = None
@@ -1107,19 +1046,21 @@ def main():
     watch_times = np.array([s['rel_time'] for s in watch_shots])
 
     offset = args.manual_offset
+    drift_rate = 0.0
+    
     if offset is not None:
         print(f"🎯 Using manual clock offset override: {offset:+.3f}s")
     else:
         if len(watch_times) > 0 and narrations:
             search_center = baseline_offset if baseline_offset is not None else 0.0
             search_range = 60.0
-            print(f"🔍 Starting clock offset optimization grid search (center={search_center:+.3f}s, range=\u00b1{search_range}s)...")
+            print(f"🔍 Starting clock offset and drift optimization grid search (center={search_center:+.3f}s, range=\u00b1{search_range}s)...")
             
-            def evaluate_offset(o):
+            def evaluate_offset_and_drift(o, d):
                 all_candidates = []
                 for i, shot in enumerate(narrations):
                     audio_t = shot['timestamp_seconds']
-                    sensor_narr_t = audio_t + o
+                    sensor_narr_t = audio_t * (1 + d) + o
                     is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
                     
                     cands = []
@@ -1174,12 +1115,12 @@ def main():
                 dp = []
                 parent = []
                 
-                first_narr_t = narrations[0]['timestamp_seconds'] + o
+                first_narr_t = narrations[0]['timestamp_seconds'] * (1 + d) + o
                 dp.append([calculate_candidate_score(cand, first_narr_t) for cand in all_candidates[0]])
                 parent.append([-1] * len(all_candidates[0]))
                 
                 for i in range(1, M):
-                    sensor_narr_t = narrations[i]['timestamp_seconds'] + o
+                    sensor_narr_t = narrations[i]['timestamp_seconds'] * (1 + d) + o
                     dp_i = []
                     parent_i = []
                     for j, cand in enumerate(all_candidates[i]):
@@ -1242,40 +1183,51 @@ def main():
                 return detected, mae
 
             # Coarse search
-            coarse_offsets = np.arange(search_center - search_range, search_center + search_range + 0.1, 0.5)
+            coarse_offsets = np.arange(search_center - search_range, search_center + search_range + 0.1, 1.0)
+            coarse_drifts = np.arange(-0.008, 0.0081, 0.001)
             best_matches = -1
             best_offset = search_center
+            best_drift = 0.0
             best_mae = 999.0
             
-            for o in coarse_offsets:
-                det, mae = evaluate_offset(o)
-                if det > best_matches:
-                    best_matches = det
-                    best_offset = o
-                    best_mae = mae
-                elif det == best_matches:
-                    if mae < best_mae:
+            for d in coarse_drifts:
+                for o in coarse_offsets:
+                    det, mae = evaluate_offset_and_drift(o, d)
+                    if det > best_matches:
+                        best_matches = det
                         best_offset = o
+                        best_drift = d
                         best_mae = mae
-                        
+                    elif det == best_matches:
+                        if mae < best_mae:
+                            best_offset = o
+                            best_drift = d
+                            best_mae = mae
+                            
             # Fine search
-            fine_offsets = np.arange(best_offset - 0.6, best_offset + 0.61, 0.05)
-            for o in fine_offsets:
-                det, mae = evaluate_offset(o)
-                if det > best_matches:
-                    best_matches = det
-                    best_offset = o
-                    best_mae = mae
-                elif det == best_matches:
-                    if mae < best_mae:
+            fine_offsets = np.arange(best_offset - 1.2, best_offset + 1.21, 0.1)
+            fine_drifts = np.arange(best_drift - 0.001, best_drift + 0.0011, 0.0002)
+            for d in fine_drifts:
+                for o in fine_offsets:
+                    det, mae = evaluate_offset_and_drift(o, d)
+                    if det > best_matches:
+                        best_matches = det
                         best_offset = o
+                        best_drift = d
                         best_mae = mae
-                        
+                    elif det == best_matches:
+                        if mae < best_mae:
+                            best_offset = o
+                            best_drift = d
+                            best_mae = mae
+                            
             offset = best_offset
-            print(f"🎯 Clock offset optimized successfully!")
+            drift_rate = best_drift
+            print(f"🎯 Clock offset and drift optimized successfully!")
             if baseline_offset is not None:
                 print(f"   Baseline filename offset: {baseline_offset:+.3f}s")
             print(f"   Optimized offset:         {offset:+.3f}s")
+            print(f"   Optimized drift rate:     {drift_rate:+.6f} ({drift_rate * 100:.3f}% speed correction)")
             print(f"   Timeline matches:         {best_matches} (MAE: {best_mae:.3f}s)")
         else:
             if baseline_offset is not None:
@@ -1296,7 +1248,7 @@ def main():
     all_candidates = []
     for i, shot in enumerate(narrations):
         audio_t = shot['timestamp_seconds']
-        sensor_narr_t = audio_t + offset
+        sensor_narr_t = audio_t * (1 + drift_rate) + offset
         is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
         
         cands = []
@@ -1352,12 +1304,12 @@ def main():
     parent = []
     
     # Initialize first step
-    first_narr_t = narrations[0]['timestamp_seconds'] + offset
+    first_narr_t = narrations[0]['timestamp_seconds'] * (1 + drift_rate) + offset
     dp.append([calculate_candidate_score(cand, first_narr_t) for cand in all_candidates[0]])
     parent.append([-1] * len(all_candidates[0]))
     
     for i in range(1, M):
-        sensor_narr_t = narrations[i]['timestamp_seconds'] + offset
+        sensor_narr_t = narrations[i]['timestamp_seconds'] * (1 + drift_rate) + offset
         dp_i = []
         parent_i = []
         for j, cand in enumerate(all_candidates[i]):
@@ -1407,7 +1359,7 @@ def main():
     print("\nAligning spoken narrations with physical movements...")
     for i, shot in enumerate(narrations):
         audio_t = shot['timestamp_seconds']
-        sensor_narr_t = audio_t + offset
+        sensor_narr_t = audio_t * (1 + drift_rate) + offset
         chosen_cand = all_candidates[i][chosen_indices[i]]
         impact_t = chosen_cand['time']
         
