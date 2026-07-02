@@ -698,8 +698,40 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             parsed_structured = True
             print(f"✅ Successfully parsed {len(shot_events)} shots via Pydantic response_schema.")
     except Exception as e:
-        print(f"⚠️ Failed to parse structured JSON ({e}). Falling back to line-by-line regex...")
-        
+        print(f"⚠️ Failed to parse structured JSON ({e}). Attempting robust regex recovery...")
+        try:
+            blocks = re.findall(r'\{[^{}]+\}', text_transcript)
+            items = []
+            for b in blocks:
+                if "timestamp_seconds" in b and "shot_type" in b:
+                    t_match = re.search(r'"timestamp_seconds"\s*:\s*([\d\.]+)', b)
+                    n_match = re.search(r'"shot_number"\s*:\s*(\d+)', b)
+                    st_match = re.search(r'"shot_type"\s*:\s*"([^"]*)"', b)
+                    bat_match = re.search(r'"bat"\s*:\s*"([^"]*)"', b)
+                    txt_match = re.search(r'"narrated_text"\s*:\s*"([^"]*)"', b)
+                    
+                    if t_match and st_match:
+                        items.append({
+                            "timestamp_seconds": float(t_match.group(1)),
+                            "shot_number": int(n_match.group(1)) if n_match else None,
+                            "shot_type": st_match.group(1),
+                            "bat": bat_match.group(1) if bat_match else None,
+                            "narrated_text": txt_match.group(1) if txt_match else ""
+                        })
+            if items:
+                for item in items:
+                    shot_num_raw = item.get("shot_number")
+                    shot_events.append({
+                        "shot_number": int(shot_num_raw) if shot_num_raw is not None else None,
+                        "timestamp_seconds": float(item.get("timestamp_seconds", 0.0)),
+                        "texts": [item.get("narrated_text", "")],
+                        "bat": item.get("bat")
+                    })
+                parsed_structured = True
+                print(f"✅ Successfully recovered {len(shot_events)} shots via robust regex object parser.")
+        except Exception as recovery_err:
+            print(f"❌ Robust recovery parser also failed: {recovery_err}")
+            
     if not parsed_structured:
         # Fallback to legacy regex parsing
         def extract_time_and_text(line):
