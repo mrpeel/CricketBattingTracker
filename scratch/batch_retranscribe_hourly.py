@@ -6,6 +6,7 @@ import sys
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions"
 PIPELINE_SCRIPT = "/Users/neilkloot/Code/CricketBattingTracker/automate_pipeline.py"
 WAIT_TIME_SECONDS = 3600 # 1 hour
+MODEL_NAME = "gemini-2.5-flash"
 
 def main():
     if not os.path.exists(BASE_DIR):
@@ -44,12 +45,10 @@ def main():
         print("\n🎉 All previous sessions already have valid narrations_raw.json. Nothing to do!")
         sys.exit(0)
         
-    print(f"\n⏳ Total sessions to process: {len(sessions_to_process)}")
+    print(f"\n⏳ Total sessions left to process: {len(sessions_to_process)}")
     print(f"⏳ Total wait time will be approximately {len(sessions_to_process) - 1} hours.")
     
     print("\nStarting batch re-transcription process...")
-    
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"]
     
     for idx, session in enumerate(sessions_to_process):
         session_dir = os.path.join(BASE_DIR, session)
@@ -67,31 +66,24 @@ def main():
             
         print(f"\n🚀 [{idx+1}/{len(sessions_to_process)}] Processing: {session}")
         print(f"   Audio: {os.path.basename(audio_file)}")
+        print(f"   Model: {MODEL_NAME}")
         
-        success = False
+        cmd = [
+            "python3", PIPELINE_SCRIPT,
+            "--audio", audio_file,
+            "--session-dir", session_dir,
+            "--force-retranscribe",
+            "--model", MODEL_NAME
+        ]
+        
         start_time = time.time()
-        
-        for model in models_to_try:
-            print(f"   Trying model: {model}...")
-            cmd = [
-                "python3", PIPELINE_SCRIPT,
-                "--audio", audio_file,
-                "--session-dir", session_dir,
-                "--force-retranscribe",
-                "--model", model
-            ]
-            
-            try:
-                subprocess.run(cmd, check=True)
-                print(f"✅ Finished re-transcribing {session} using {model}")
-                success = True
-                break
-            except subprocess.CalledProcessError as e:
-                print(f"⚠️  Failed to process {session} with {model}: {e}")
-                print("   Rotating to next model...")
-                
-        if not success:
-            print(f"❌ Failed to process {session} with all attempted models.")
+        try:
+            subprocess.run(cmd, check=True)
+            print(f"✅ Finished re-transcribing {session}")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to process {session} with {MODEL_NAME}: {e}")
+            print("🛑 Stopping batch run immediately on failure to prevent empty narration cache files.")
+            sys.exit(1)
             
         if idx < len(sessions_to_process) - 1:
             print(f"⏳ Session processed in {time.time() - start_time:.1f}s.")
