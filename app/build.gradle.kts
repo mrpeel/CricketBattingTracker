@@ -65,4 +65,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-video:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
+    
+    // Resolve CameraX ListenableFuture classpath compilation errors
+    implementation("com.google.guava:guava:31.1-android")
 }

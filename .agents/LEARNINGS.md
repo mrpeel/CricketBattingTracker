@@ -52,6 +52,17 @@ This document captures resolved bugs, architectural changes, key logical finding
         3. Upgraded the alignment calibration from a 1D offset search to a **2D Joint Offset and Linear Drift Rate Optimization grid search**.
     *   **Result**: Resolved the transcription repetition loops and missing anchors completely. Direct Gemini transcriptions now align perfectly with WearOS sensor events (under 0.9s lag difference across the entire 18-minute session).
 
+50. **Improved Phone UI Session Details & Dependency Fix (July 2, 2026)**:
+    *   **The Problem**: The details page for post-session analytics suffered from vertical bloat and lacked critical aggregation statistics (Avg Bat Speed, Max Efficiency) and detailed breakdowns (shot type summaries). It also lacked the option to toggle between absolute clock time and relative session duration. Additionally, adding CameraX dependencies caused a Kotlin build conflict with Guava/ListenableFuture on macOS.
+    *   **The Solution**:
+        1. Refactored the details screen to use a single parent `LazyColumn` for seamless scrolling and jump-to-shot auto-scrolling animations.
+        2. Redesigned the cards to be highly compact, grouping speed, efficiency, reaction, blade, and launch metrics horizontally in a single row, and removing unnecessary wrist and finish angles.
+        3. Added a dynamic Composable table of shot types played, with max/avg metrics, avg face, avg launch, and colored indicator dots.
+        4. Implemented dynamic toggling between absolute clock time and relative session time (offset since the first event of the session) globally and by card-tapping.
+        5. Resolved the CameraX build conflict by explicitly adding the `com.google.guava:guava:31.1-android` dependency to resolve classpath exclusions.
+    *   **Result**: Tested and compiled successfully. All tests pass with no compilation errors.
+
+
 
 
 

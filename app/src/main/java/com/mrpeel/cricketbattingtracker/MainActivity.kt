@@ -43,11 +43,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
 import android.content.Context
 import androidx.compose.animation.core.*
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 
 class MainActivity : ComponentActivity() {
 
@@ -376,6 +380,25 @@ class MainActivity : ComponentActivity() {
                         val suburb = if (rawLocation.contains(",")) rawLocation.substringAfter(",").trim() else rawLocation.trim()
                         val subtitleText = if (startFormatted.isNotEmpty()) "$startFormatted • $suburb" else "INNINGS #${selectedSessionId}"
 
+                        var displaySessionTime by remember { mutableStateOf(false) }
+                        var highlightedEventId by remember { mutableStateOf<Int?>(null) }
+                        val listState = rememberLazyListState()
+                        val coroutineScope = rememberCoroutineScope()
+                        
+                        val sessionStartTimestamp = remember(timeline) {
+                            timeline.minOfOrNull { it.timestamp } ?: 0L
+                        }
+                        val shotEvents = remember(timeline) {
+                            timeline.filter { it.batSpeed != null }
+                        }
+                        val timelineShots = remember(timeline) {
+                            timeline.filter { it.description != "Session Started" && it.description != "Session Ended" }
+                        }
+                        val reversedTimelineShots = remember(timelineShots) {
+                            timelineShots.reversed()
+                        }
+                        val formatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+
                         Column(modifier = Modifier.fillMaxSize()) {
                             TopBar(
                                 title = "SESSION DETAILS",
@@ -385,16 +408,88 @@ class MainActivity : ComponentActivity() {
                                 initials = initials,
                                 onProfileClick = { showProfileDialog = true }
                             )
-                            DashboardSummary(timeline)
-                            Text(
-                                "SESSION TIMELINE",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                letterSpacing = 2.sp
-                            )
-                            TimelineList(timeline)
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 24.dp)
+                            ) {
+                                // 1. Summary Dashboard Metrics (Grid)
+                                item {
+                                    DashboardSummary(
+                                        events = timeline,
+                                        onNavigateToShot = { targetEvent ->
+                                            val indexInTimeline = reversedTimelineShots.indexOf(targetEvent)
+                                            if (indexInTimeline != -1) {
+                                                highlightedEventId = targetEvent.id
+                                                coroutineScope.launch {
+                                                    // Offset: DashboardSummary is item 0, ShotTypeSummary is item 1, Section Header is item 2
+                                                    listState.animateScrollToItem(indexInTimeline + 3)
+                                                    // Flash highlight for 1.5s
+                                                    kotlinx.coroutines.delay(1500)
+                                                    if (highlightedEventId == targetEvent.id) {
+                                                        highlightedEventId = null
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+
+                                // 2. Shot Type Summary Table
+                                item {
+                                    ShotTypeSummary(events = timeline)
+                                }
+
+                                // 3. Section Header with time toggle
+                                item {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "SESSION TIMELINE",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                                            letterSpacing = 2.sp
+                                        )
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .clickable { displaySessionTime = !displaySessionTime }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (displaySessionTime) "⏱️ SESSION TIME" else "🕒 CLOCK TIME",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // 4. Shot Card Timeline Items
+                                items(reversedTimelineShots) { event ->
+                                    val shotIndex = shotEvents.indexOf(event)
+                                    val shotNumber = if (shotIndex != -1) shotIndex + 1 else null
+                                    TimelineItem(
+                                        event = event,
+                                        formatter = formatter,
+                                        shotNumber = shotNumber,
+                                        displaySessionTime = displaySessionTime,
+                                        sessionStartTimestamp = sessionStartTimestamp,
+                                        isHighlighted = event.id == highlightedEventId,
+                                        onTimeToggle = { displaySessionTime = !displaySessionTime }
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp).padding(horizontal = 16.dp))
+                                }
+                            }
                         }
                     } else {
                         // ── MAIN APP with 3-TAB NAVIGATION ─────────────────────────────
@@ -643,10 +738,24 @@ fun TopBar(title: String, subtitle: String, showBack: Boolean, onBack: () -> Uni
 }
 
 @Composable
-fun DashboardSummary(events: List<InningsEvent>) {
-    val maxBatSpeed = events.mapNotNull { it.batSpeed }.maxOrNull() ?: 0f
-    val avgEfficiency = events.mapNotNull { it.efficiency }.average().let { if (it.isNaN()) 0.0 else it }
-    val shotCount = events.count { it.description.contains("Shot") || it.shotType != null }
+fun DashboardSummary(
+    events: List<InningsEvent>,
+    onNavigateToShot: (InningsEvent) -> Unit
+) {
+    val shotEvents = remember(events) { events.filter { it.batSpeed != null } }
+    val maxSpeedEvent = remember(shotEvents) { shotEvents.maxByOrNull { it.batSpeed ?: 0f } }
+    val maxSpeedShotNumber = remember(shotEvents, maxSpeedEvent) { maxSpeedEvent?.let { shotEvents.indexOf(it) + 1 } }
+    val maxSpeedShotType = maxSpeedEvent?.shotType ?: ""
+
+    val maxEffEvent = remember(shotEvents) { shotEvents.maxByOrNull { it.efficiency ?: 0f } }
+    val maxEffShotNumber = remember(shotEvents, maxEffEvent) { maxEffEvent?.let { shotEvents.indexOf(it) + 1 } }
+    val maxEffShotType = maxEffEvent?.shotType ?: ""
+
+    val maxBatSpeed = maxSpeedEvent?.batSpeed ?: 0f
+    val maxEfficiency = maxEffEvent?.efficiency ?: 0f
+    val avgBatSpeed = remember(shotEvents) { shotEvents.mapNotNull { it.batSpeed }.average().let { if (it.isNaN()) 0.0 else it } }
+    val avgEfficiency = remember(shotEvents) { shotEvents.mapNotNull { it.efficiency }.average().let { if (it.isNaN()) 0.0 else it } }
+    val shotCount = shotEvents.size
 
     val minTime = events.minOfOrNull { it.timestamp } ?: 0L
     val maxTime = events.maxOfOrNull { it.timestamp } ?: 0L
@@ -656,47 +765,275 @@ fun DashboardSummary(events: List<InningsEvent>) {
     val secs = totalSecs % 60
     
     val durationVal = String.format(java.util.Locale.US, "%d:%02d", mins, secs)
-    val durationUnit = "MM:SS"
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SummaryCard("MAX SPEED", "${maxBatSpeed.toInt()}", "KM/H", Modifier.weight(1f))
-            SummaryCard("AVG EFF", "${avgEfficiency.toInt()}", "%", Modifier.weight(1f))
+            SummaryCard(
+                title = "MAX SPEED",
+                value = "${maxBatSpeed.toInt()} km/h",
+                subtext = if (maxSpeedShotNumber != null) "#$maxSpeedShotNumber $maxSpeedShotType" else "N/A",
+                onClick = { maxSpeedEvent?.let { onNavigateToShot(it) } },
+                modifier = Modifier.weight(1f)
+            )
+            SummaryCard(
+                title = "MAX EFFICIENCY",
+                value = "${maxEfficiency.toInt()}%",
+                subtext = if (maxEffShotNumber != null) "#$maxEffShotNumber $maxEffShotType" else "N/A",
+                onClick = { maxEffEvent?.let { onNavigateToShot(it) } },
+                modifier = Modifier.weight(1f)
+            )
+            SummaryCard(
+                title = "AVG BAT SPEED",
+                value = "${avgBatSpeed.toInt()} km/h",
+                subtext = "Session Average",
+                onClick = null,
+                modifier = Modifier.weight(1f)
+            )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SummaryCard("SHOTS", "$shotCount", "COUNT", Modifier.weight(1f))
-            SummaryCard("DURATION", durationVal, durationUnit, Modifier.weight(1f))
+            SummaryCard(
+                title = "AVG EFFICIENCY",
+                value = "${avgEfficiency.toInt()}%",
+                subtext = "Session Average",
+                onClick = null,
+                modifier = Modifier.weight(1f)
+            )
+            SummaryCard(
+                title = "SHOTS",
+                value = "$shotCount",
+                subtext = "Count",
+                onClick = null,
+                modifier = Modifier.weight(1f)
+            )
+            SummaryCard(
+                title = "DURATION",
+                value = durationVal,
+                subtext = "MM:SS",
+                onClick = null,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
 
 @Composable
-fun SummaryCard(title: String, value: String, unit: String, modifier: Modifier = Modifier) {
+fun SummaryCard(
+    title: String,
+    value: String,
+    subtext: String,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    val clickableModifier = if (onClick != null) {
+        Modifier.clickable { onClick() }
+    } else {
+        Modifier
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = modifier.height(110.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+        modifier = modifier
+            .height(84.dp)
+            .then(clickableModifier),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (onClick != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.05f))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray, letterSpacing = 1.sp)
-            // Value and unit on separate lines to avoid overflow with 3-digit numbers
-            Text(value, fontSize = 32.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-            Text(unit, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, letterSpacing = 0.5.sp)
+            Text(
+                text = title,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray,
+                letterSpacing = 0.5.sp,
+                maxLines = 1
+            )
+            Text(
+                text = value,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+                color = if (onClick != null) MaterialTheme.colorScheme.primary else Color.White,
+                maxLines = 1
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onClick != null) {
+                    Text(
+                        text = "🔗 ",
+                        fontSize = 8.sp
+                    )
+                }
+                Text(
+                    text = subtext,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary,
+                    letterSpacing = 0.2.sp,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+fun getShotColor(shotType: String?, isHit: Boolean = true): Color {
+    if (!isHit) return Color(0xFFFF5252) // Miss is always red
+    val name = shotType?.uppercase() ?: return Color.Gray
+    return when {
+        "SLOG" in name || "POWER SHOT" in name -> Color(0xFFFF2E93) // Magenta
+        "POWER DRIVE" in name -> Color(0xFF58FF63) // Neon Green
+        "PULL" in name || "HOOK" in name -> Color(0xFFFF9F2E) // Orange
+        "SWEEP" in name -> Color(0xFFFFFF96) // Yellow
+        "GLANCE" in name || "FLICK" in name -> Color(0xFFFF85A2) // Pink
+        "CUT" in name || "PUNCH" in name -> Color(0xFF2EFFF0) // Cyan
+        "GUIDE" in name || "GLIDE" in name || "DEFLECTION" in name -> Color(0xFFAF2EFF) // Purple
+        "DRIVE" in name || "DEFENCE" in name || "DEFENSE" in name -> Color(0xFFBCD2FE) // Light Blue
+        else -> Color.Gray
+    }
+}
+
+@Composable
+fun ShotTypeSummary(events: List<InningsEvent>) {
+    val shotEvents = remember(events) { events.filter { it.batSpeed != null && it.shotType != null } }
+    if (shotEvents.isEmpty()) return
+
+    val grouped = remember(shotEvents) { shotEvents.groupBy { it.shotType!! } }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "SHOT TYPE DISTRIBUTION",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                color = Color.White.copy(alpha = 0.7f),
+                letterSpacing = 1.5.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("TYPE", modifier = Modifier.weight(1.8f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text("COUNT", modifier = Modifier.weight(0.9f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("SPEED (MAX/AVG)", modifier = Modifier.weight(1.8f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("EFF (MAX/AVG)", modifier = Modifier.weight(1.6f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("AVG FACE", modifier = Modifier.weight(1.4f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("AVG LAUNCH", modifier = Modifier.weight(1.5f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+            }
+
+            Divider(color = Color.White.copy(alpha = 0.05f), thickness = 1.dp, modifier = Modifier.padding(bottom = 8.dp))
+
+            grouped.entries.sortedByDescending { it.value.size }.forEach { entry ->
+                val typeName = entry.key
+                val group = entry.value
+                val count = group.size
+                
+                val maxSpeed = group.mapNotNull { it.batSpeed }.maxOrNull() ?: 0f
+                val avgSpeed = group.mapNotNull { it.batSpeed }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+                
+                val maxEff = group.mapNotNull { it.efficiency }.maxOrNull() ?: 0f
+                val avgEff = group.mapNotNull { it.efficiency }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+                
+                val avgFace = group.mapNotNull { it.bladeAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+                val avgFaceText = String.format(java.util.Locale.US, "%.0f°", avgFace) + " " + (if (avgFace < -1.5f) "O" else if (avgFace > 1.5f) "C" else "S")
+
+                val avgLaunch = group.mapNotNull { it.launchAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+                val avgLaunchText = String.format(java.util.Locale.US, "%.0f°", avgLaunch) + " " + (if (avgLaunch < -1.5f) "G" else if (avgLaunch > 1.5f) "L" else "F")
+
+                val indicatorColor = getShotColor(typeName, isHit = true)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1.8f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(indicatorColor)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = typeName.uppercase(),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Text(
+                        text = "$count",
+                        modifier = Modifier.weight(0.9f),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.End
+                    )
+                    Text(
+                        text = "${maxSpeed.toInt()}/${avgSpeed.toInt()}",
+                        modifier = Modifier.weight(1.8f),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = TextAlign.End
+                    )
+                    Text(
+                        text = "${maxEff.toInt()}%/${avgEff.toInt()}%",
+                        modifier = Modifier.weight(1.6f),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = TextAlign.End
+                    )
+                    Text(
+                        text = avgFaceText,
+                        modifier = Modifier.weight(1.4f),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.8f),
+                        textAlign = TextAlign.End
+                    )
+                    Text(
+                        text = avgLaunchText,
+                        modifier = Modifier.weight(1.5f),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.8f),
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
         }
     }
 }
@@ -1340,101 +1677,130 @@ fun HealthSyncBar(onSync: () -> Unit) {
 }
 
 @Composable
-fun TimelineList(events: List<InningsEvent>) {
-    val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-    val filteredEvents = events.filter { it.description != "Session Started" && it.description != "Session Ended" }
-    
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(filteredEvents.reversed()) { event ->
-            TimelineItem(event, formatter)
-        }
-    }
-}
-
-@Composable
-fun TimelineItem(event: InningsEvent, formatter: SimpleDateFormat) {
+fun TimelineItem(
+    event: InningsEvent,
+    formatter: SimpleDateFormat,
+    shotNumber: Int?,
+    displaySessionTime: Boolean,
+    sessionStartTimestamp: Long,
+    isHighlighted: Boolean,
+    onTimeToggle: () -> Unit
+) {
     val isHit = !event.description.contains("Miss")
-    val accentColor = if (isHit) MaterialTheme.colorScheme.primary else Color(0xFFFF5252)
+    val accentColor = getShotColor(event.shotType, isHit)
+
+    val borderAlpha by animateFloatAsState(
+        targetValue = if (isHighlighted) 0.8f else 0.15f,
+        animationSpec = if (isHighlighted) {
+            repeatable(
+                iterations = 3,
+                animation = tween(durationMillis = 250, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            )
+        } else {
+            tween(durationMillis = 500)
+        },
+        label = "borderHighlight"
+    )
+    val cardBgColor by animateColorAsState(
+        targetValue = if (isHighlighted) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
+        },
+        animationSpec = tween(durationMillis = 500),
+        label = "bgHighlight"
+    )
+
+    val timeText = if (displaySessionTime) {
+        val offsetMs = event.timestamp - sessionStartTimestamp
+        val totalSecs = offsetMs / 1000
+        val mins = totalSecs / 60
+        val secs = totalSecs % 60
+        String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+    } else {
+        formatter.format(Date(event.timestamp))
+    }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = cardBgColor),
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.2f))
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = borderAlpha))
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .height(40.dp)
-                    .clip(CircleShape)
+                    .width(5.dp)
+                    .fillMaxHeight()
                     .background(accentColor)
             )
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val headerText = buildString {
+                        if (shotNumber != null) {
+                            append("#$shotNumber ")
+                        }
+                        append(event.shotType?.uppercase() ?: event.description.uppercase())
+                    }
                     Text(
-                        event.shotType?.uppercase() ?: "ACTION",
+                        text = headerText,
                         fontWeight = FontWeight.Black,
-                        fontSize = 14.sp,
+                        fontSize = 12.sp,
                         color = Color.White,
                         letterSpacing = 0.5.sp
                     )
                     Text(
-                        formatter.format(Date(event.timestamp)),
-                        fontSize = 11.sp,
-                        color = Color.Gray
+                        text = timeText,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { onTimeToggle() }
                     )
                 }
-                
-                Text(
-                    event.description,
-                    fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.6f)
-                )
+
+                if (event.shotType != null) {
+                    Text(
+                        text = event.description,
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
 
                 if (event.batSpeed != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MetricSmall("SPEED", "${event.batSpeed.toInt()} km/h")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        MetricSmallCompact("SPEED", "${event.batSpeed.toInt()} km/h", modifier = Modifier.weight(1f))
                         if (event.efficiency != null) {
-                            MetricSmall("EFF", "${event.efficiency.toInt()}%")
+                            MetricSmallCompact("EFF", "${event.efficiency.toInt()}%", modifier = Modifier.weight(1f))
                         }
                         if (event.impactTimeMs != null) {
-                            MetricSmall("REACT", "${event.impactTimeMs} ms")
+                            MetricSmallCompact("REACT", "${event.impactTimeMs} ms", modifier = Modifier.weight(1f))
                         }
-                    }
-                    if (event.wristRollDeg != null || event.followThroughAngle != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            if (event.wristRollDeg != null) {
-                                MetricSmall("WRIST", "${String.format("%.0f", event.wristRollDeg)}°")
-                            }
-                            if (event.followThroughAngle != null) {
-                                MetricSmall("FINISH", "${String.format("%.0f", event.followThroughAngle)}°")
-                            }
+                        if (event.bladeAngle != null) {
+                            val cls = event.bladeClass ?: ""
+                            val label = if (cls.isNotEmpty()) "BLADE ($cls)" else "BLADE"
+                            MetricSmallCompact(label, "${String.format("%.0f", event.bladeAngle)}°", modifier = Modifier.weight(1.2f))
                         }
-                    }
-                    if (event.bladeAngle != null || event.launchAngle != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            if (event.bladeAngle != null) {
-                                val cls = event.bladeClass ?: "N/A"
-                                MetricSmall("BLADE", "${String.format("%.0f", event.bladeAngle)}° ($cls)")
-                            }
-                            if (event.launchAngle != null) {
-                                val cls = (event.launchClass ?: "N/A").replace("_", " ")
-                                MetricSmall("LAUNCH", "${String.format("%.0f", event.launchAngle)}° ($cls)")
-                            }
+                        if (event.launchAngle != null) {
+                            val cls = (event.launchClass ?: "").replace("_", " ")
+                            val label = if (cls.isNotEmpty()) "LAUNCH ($cls)" else "LAUNCH"
+                            MetricSmallCompact(label, "${String.format("%.0f", event.launchAngle)}°", modifier = Modifier.weight(1.2f))
                         }
                     }
                 }
@@ -1444,10 +1810,10 @@ fun TimelineItem(event: InningsEvent, formatter: SimpleDateFormat) {
 }
 
 @Composable
-fun MetricSmall(label: String, value: String) {
-    Column {
-        Text(label, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFBCD2FE))
+fun MetricSmallCompact(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(label, fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color.Gray, maxLines = 1)
+        Text(value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFBCD2FE), maxLines = 1)
     }
 }
 
