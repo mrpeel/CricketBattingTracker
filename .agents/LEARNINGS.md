@@ -57,6 +57,11 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Solution**: Modified the Parquet loading code to target the partition subdirectories directly (`pd.read_parquet(os.path.join(root_path, "sensor_type=game_orient"), filters=[("session_id", "==", session_id)])`). This completely isolates the schema context of the target sensor type and reads files instantly.
     *   **Result**: All adversarial analysis tests ran and compiled successfully, generating a comprehensive alignment and stance gate performance report (`last_session_analysis_update.md`) across all 25 sessions.
 
+54. **Validation Check Swing Filters Alignment (July 4, 2026)**:
+    *   **The Problem**: After updating the clock synchronization algorithm to treat defenses, blocks, edges, and misses as alignment non-swings (which use the fallback path), the pipeline crashed during validation with a `RuntimeError: ❌ Alignment failed due to high fallback rate (49.4%).` This happened because the validation check's `active_swings` calculation still counted those low-energy shots as active swings, leading to a false high fallback rate calculation.
+    *   **The Solution**: Modified `active_swings` in `automate_pipeline.py`'s validation block to filter out defenses, blocks, edges, and misses, aligning the validation check definitions with the clock offset search's peak matching filters.
+    *   **Result**: Validated that `automate_pipeline.py` runs successfully on local session folders without crashing and accurately computes high-energy swing alignment fallback rates.
+
 
 
 
