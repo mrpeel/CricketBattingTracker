@@ -32,11 +32,11 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
 | B-013 | Power Shot Precision | Reduce POWER SHOT → PULL/HOOK misclassification. Session-2026-06-15 was ~90% power shots and scored only 40% accuracy, exposing severe underrepresentation of this class in training data. Retrain after collecting more power shot sessions. | Backlog | `SwingDetectorGroundTruthTest` |
-| B-016 | Blade & Launch Angles | Implement mathematical calculation of blade (face normal) angle and launch (loft/grounded) angle in Python and real-time WearOS Kotlin, persisting and rendering them on the Android app dashboard | **Completed** | Real-time calculations matching python prototype, passing unit tests, verified database and dashboard integration |
 | B-017 | Video Session foundations | Implement 120fps video capture + passive watch sensor recording and ADB sync pull utility | **Completed** | Manual E2E on phone + watch; `video_analysis_poc.py` execution |
 | B-018 | Direct Gemini & 2D Alignment | Revert to direct Gemini audio transcription and implement a 2D Joint Offset and Linear Drift Rate Optimization grid search to mathematically align narration timelines precisely to WearOS sensors. | **Completed** | Parity check and WearOS unit tests successful, 0 prediction mismatches. |
 | B-019 | Improved Phone UI | Refactor Selected Session screen details grid, summaries, table breakdown, compact horizontal card metrics and time toggles | **Completed** | Gradle build and compilation verification |
 | B-020 | Robust Chronological Transcription & Fallback Gates | Deploy strict linear timeline instructions to Gemini audio transcription prompt, support un-numbered practices, and assert safety via <=25% fallback gates | **Completed** | Batch realignment succeeding on 24/24 valid sessions, restoring combined F1 to 0.7670 |
+| B-021 | Lossless Compression & Parquet Alignment | Implement voice-optimized mono audio compression, Gzip-compressed watch sensor files, native Kotlin GZIP streams, and transition adversarial analysis sweeps to partitioned Parquet database. | **Completed** | Parity checks, Kotlin unit tests, and post-session Parquet report generated successfully |
 
 ---
 
