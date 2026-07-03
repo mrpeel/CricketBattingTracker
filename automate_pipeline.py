@@ -1229,7 +1229,15 @@ def main():
         })
         
     # Validation Check:
-    active_swings = [s for s in aligned_shots if not any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"]) and s['sensor_narr_time_seconds'] >= -5.0 and s['sensor_narr_time_seconds'] <= gyro_duration + 5.0]
+    active_swings = [
+        s for s in aligned_shots 
+        if not (
+            any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+            any(term in (s['quality'] or '').lower() for term in ["poor", "edge", "edged", "miss"])
+        )
+        and s['sensor_narr_time_seconds'] >= -5.0 
+        and s['sensor_narr_time_seconds'] <= gyro_duration + 5.0
+    ]
     if len(active_swings) == 0:
         print("\n" + "="*80)
         print("❌ ALIGNMENT ERROR: Zero active swings found within watch logging duration!")
