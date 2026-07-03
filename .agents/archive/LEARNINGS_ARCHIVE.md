@@ -401,3 +401,32 @@ Compiled across 312 swings from the 6 trustworthy sessions (from 30 May 2026 to 
         2. Implemented bat keyword detection in the local Whisper parser.
         3. Implemented a stateful forward-filling loop (`format_gemini_shots`) that tracks the active bat selection chronologically and propagates it to all subsequent shots until a new bat is announced.
     *   **Result**: Bat type is successfully parsed and forward-filled down the shot timeline. Validated offline using a simulated session in [validate_bat_parsing.py](file:///Users/neilkloot/Code/CricketBattingTracker/scratch/validate_bat_parsing.py).
+
+44. **Glance/Flick Renamed to Glance/Flick/Sweep (June 27, 2026)**:
+    *   **The Problem**: The user was surprised to find that sweep shots were grouped into the `GLANCE/FLICK` category. Reviewing the biomechanical patterns validated this grouping, but the app UI category name itself was confusing.
+    *   **The Solution**: Renamed the shot classification class from `GLANCE/FLICK` to `GLANCE/FLICK/SWEEP` across the entire ecosystem. This required updates to Python data compilation, model training pipelines (`compile_dataset.py`, `model_update_pipeline.py`, `automate_pipeline.py`), watch application source (`SwingDetector.kt`), and unit/Ground Truth verification tests.
+    *   **Result**: Retrained the Random Forest classifier using the renamed category, successfully transpiling it to `GeneratedForest.kt`. Running the scorecard evaluation and WearOS test suite completed with 100% success.
+
+45. **Splitting GLANCE/FLICK/SWEEP into GLANCE/FLICK and SWEEP (June 27, 2026)**:
+    *   **The Problem**: The combined `GLANCE/FLICK/SWEEP` class mixed vertical-bat shots (glance, flick) with a horizontal-bat shot (sweep). Their physical geometries and swing plane characteristics are completely different (roll rotation vs yaw sweep), which made computing meaningful blade angles and launch angles at impact mathematically impossible.
+    *   **The Solution**:
+        1. Analyzed the raw narrations data and discovered that the Gemini prompt was already transcribing `"Sweep"`, `"Flick"`, and `"Leg Glance"` separately, resulting in 154 raw sweeps in the database. The combined class was purely a downstream mapping artifact in `normalize_shot_class()`.
+        2. Fixed `normalize_shot_class()` to split `SWEEP` and `GLANCE/FLICK` into separate classes.
+        3. Updated `generate_kotlin_forest.py` to support dynamic class counts (removing hardcoded `6` class assumptions that caused prediction index mismatches in Kotlin) and retrained the Random Forest model.
+    *   **Result**: The Random Forest was retrained successfully with 7 classes. Tests pass with 0 mismatches against Python, and accuracy is high: `GLANCE/FLICK` (77.6%), `SWEEP` (81.5%).
+
+46. **Biomechanical Blade & Launch Angle Kinematics (June 27, 2026)**:
+    *   **The Problem**: The app lacked feedback to help batters understand how well they were striking the ball in terms of blade face angle (open/closed) and vertical trajectory loft (grounded/lofted).
+    *   **The Solution**:
+        1. Designed split-plane math. For vertical bat shots, launch angle is vertical pitch normal elevation, and blade angle is stance-relative horizontal yaw relative to shot lines. For horizontal bat shots (cuts/pulls/sweeps), launch angle is relative wrist roll, and blade angle is face yaw calibrated for lead-wrist arm extension offsets.
+        2. Implemented these real-time calculations in `SwingDetector.kt` and populated extended `ShotData`.
+        3. Sync parsing in `DataSyncListenerService` was upgraded to parse these values, storing them in a Room database (with database version bumped to 6).
+        4. Rendered the calculated `BLADE` and `LAUNCH` metrics dynamically in the phone app's Compose dashboard item cards.
+    *   **Result**: The implementation works natively on both the pipeline and WearOS/Android apps, backed by a comprehensive unit test suite (`testBladeAndLaunchAngles`).
+
+47. **Power Shot Biomechanical Misalignment & Clock Alignment Drift (June 29, 2026)**:
+    *   **The Problem**: The model showed very low classification accuracy for "Power Shots" in some sessions (e.g. session-2026-06-29_12-21-45), often misclassifying them as `PULL/HOOK` or `DRIVE/DEFENCE`.
+    *   **The Solution**:
+        1. Analyzed physical data and validated that grounded power hits (very hard shots kept along the ground to mid-on/mid-wicket) lack the lofted power shot biomechanical signatures (positive roll at impact and high overhead `grav_x_max` displacement). Instead, they naturally exhibit negative roll (forearm pronation to close the face) and low gravity X displacement, matching `PULL/HOOK` or `DRIVE/DEFENCE` kinematics.
+        2. Uncovered a secondary pipeline issue: coarse-grained transcription timestamps from Gemini caused negative lag alignment penalties, mismatching the alignment window to stationary stance/wiggles, resulting in zero-energy training samples for power shots.
+    *   **Result**: Identified that (a) grounded power hits must be narrated biomechanically (e.g. as pull/drive/flick) to prevent training noise, and (b) pipeline transcription should be run with `--local` to use high-precision Whisper timestamps, avoiding negative lag alignment penalties.
