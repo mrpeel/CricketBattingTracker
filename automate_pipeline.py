@@ -99,6 +99,53 @@ def compress_session_csvs(session_dir):
                     os.remove(gz_path)
     print(f"✅ Losslessly compressed {compressed_count} watch sensor logs.")
 
+def append_to_combined_parquet(session_dir, parquet_dir):
+    print("\n📦 Appending session sensor data to combined Parquet database...")
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    
+    session_id = os.path.basename(session_dir)
+    sensor_mappings = [
+        ("gyro",        "WatchGyroscope.csv"),
+        ("accel",       "WatchAccelerometer.csv"),
+        ("gravity",     "WatchGravity.csv"),
+        ("linacc",      "WatchLinearAcceleration.csv"),
+        ("mag",         "WatchMagnetometer.csv"),
+        ("game_orient", "WatchGameOrientation.csv"),
+        ("orient",      "WatchOrientation.csv"),
+        ("steps",       "WatchSteps.csv")
+    ]
+    
+    os.makedirs(parquet_dir, exist_ok=True)
+    
+    appended_count = 0
+    for name, fname in sensor_mappings:
+        csv_path = os.path.join(session_dir, fname)
+        gz_path = csv_path + ".gz"
+        path_to_load = gz_path if os.path.exists(gz_path) else (csv_path if os.path.exists(csv_path) else None)
+        if not path_to_load:
+            continue
+            
+        try:
+            df = pd.read_csv(path_to_load)
+            if len(df) == 0:
+                continue
+                
+            df['session_id'] = session_id
+            table = pa.Table.from_pandas(df, preserve_index=False)
+            
+            sensor_type_dir = os.path.join(parquet_dir, f"sensor_type={name}")
+            os.makedirs(sensor_type_dir, exist_ok=True)
+            
+            session_file = os.path.join(sensor_type_dir, f"{session_id}.parquet")
+            pq.write_table(table, session_file, compression='snappy')
+            appended_count += 1
+            print(f"  Appended {name} ({len(df)} rows)")
+        except Exception as e:
+            print(f"  ❌ Error appending {name}: {e}")
+            
+    print(f"✅ Appended {appended_count} sensor datasets to Parquet database.")
+
 def check_adb_devices(watch_ip):
     print("Checking connected ADB devices...")
     subprocess.run(["adb", "connect", watch_ip], capture_output=True)
@@ -1116,22 +1163,38 @@ def main():
     audio_filename = os.path.basename(audio_path)
     match = re.search(r"narration_(\d{8})_(\d{6})", audio_filename)
 
-    # Derive a coarse baseline offset from the audio filename timestamp vs sensor start.
+    # Derive a coarse baseline offset from the audio filename timestamp vs watch startup epoch.
     # This is used only as the centre of the grid search — NOT as a validation signal.
-    if match:
+    watch_start_ms = None
+    timeline_path = os.path.join(session_dir, "latest_timeline.txt")
+    if os.path.exists(timeline_path):
+        try:
+            with open(timeline_path, "r") as f:
+                for line in f:
+                    if "SYSTEM_START:" in line:
+                        m = re.search(r"Ts=(\d+)", line)
+                        if m:
+                            watch_start_ms = int(m.group(1))
+                            break
+        except Exception as e:
+            print(f"⚠️ Error reading timeline for SYSTEM_START: {e}")
+
+    if match and watch_start_ms is not None:
         date_str, time_str = match.groups()
         try:
             dt = datetime.datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
             audio_start_epoch = dt.timestamp()
-            sensor_start_epoch = start_time_ms / 1000.0
-            baseline_offset = audio_start_epoch - sensor_start_epoch
-            print(f"🎯 Filename baseline offset calculated (sensor-only reference):")
-            print(f"   Audio filename time: {dt}")
-            print(f"   Sensor start epoch:  {sensor_start_epoch:.3f}s")
-            print(f"   Baseline offset:     {baseline_offset:+.3f}s")
+            watch_start_epoch = watch_start_ms / 1000.0
+            baseline_offset = audio_start_epoch - watch_start_epoch
+            print(f"🎯 Auto-start synchronization: filename baseline offset calculated!")
+            print(f"   Audio Start Time:  {dt} (Epoch: {audio_start_epoch:.3f}s)")
+            print(f"   Watch Start Time:  {datetime.datetime.fromtimestamp(watch_start_epoch)} (Epoch: {watch_start_epoch:.3f}s)")
+            print(f"   Calculated Baseline Clock Offset: {baseline_offset:+.3f}s")
         except Exception as e:
-            print(f"⚠️ Failed to parse audio filename timestamp: {e}")
-            baseline_offset = None
+            print(f"⚠️ Failed to parse auto-start times: {e}")
+            baseline_offset = 0.0
+    else:
+        baseline_offset = 0.0
 
     offset = args.manual_offset
     drift_rate = 0.0
@@ -1145,6 +1208,29 @@ def main():
             print(f"🔍 Starting clock offset and drift optimization grid search against raw gyroscope peaks")
             print(f"   (center={search_center:+.3f}s, range=\u00b1{search_range}s)")
             print(f"   ⚠️  Scoring is based ONLY on raw sensor peak matches — no watch detections used.")
+
+            # Precalculate all raw gyroscope peaks in the session to avoid slow pandas queries in the loop.
+            # A peak is defined as a local maximum with mag >= 1.5 in a 1.0s window.
+            print("📈 Precalculating gyroscope sensor peaks...")
+            times = df_gyro['seconds_elapsed'].to_numpy()
+            mags = df_gyro['mag'].to_numpy()
+            
+            precalculated_peaks = []
+            candidate_indices = np.where(mags >= 1.5)[0]
+            for idx in candidate_indices:
+                t = times[idx]
+                mag = mags[idx]
+                w_start = np.searchsorted(times, t - 0.5)
+                w_end = np.searchsorted(times, t + 0.5, side='right')
+                if mag >= np.max(mags[w_start:w_end]):
+                    # Avoid duplicate/near peaks
+                    if not any(abs(t - p['time']) < 1.0 for p in precalculated_peaks):
+                        precalculated_peaks.append({
+                            'time': t,
+                            'mag': mag,
+                            'is_fallback': False
+                        })
+            print(f"   Found {len(precalculated_peaks)} candidate peaks >= 1.5 rad/s.")
 
             def evaluate_offset_and_drift(o, d):
                 """Score an (offset, drift) pair by counting how many active shots
@@ -1164,24 +1250,14 @@ def main():
                             'is_fallback': True
                         })
                     else:
-                        window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t + 7.0)]
-                        peaks = []
-                        if len(window) > 0:
-                            sorted_samples = window.sort_values(by='mag', ascending=False)
-                            for _, row in sorted_samples.iterrows():
-                                pt = row['seconds_elapsed']
-                                pmag = row['mag']
-                                if pmag < 1.5:
-                                    continue
-                                if not any(abs(pt - p['time']) < 1.0 for p in peaks):
-                                    peaks.append({
-                                        'time': pt,
-                                        'mag': pmag,
-                                        'is_fallback': False
-                                    })
-                                    if len(peaks) >= 5:
-                                        break
-                        cands.extend(peaks)
+                        # Find peaks within [sensor_narr_t - 6.0, sensor_narr_t + 7.0] from precalculated_peaks
+                        window_peaks = [
+                            p for p in precalculated_peaks
+                            if sensor_narr_t - 6.0 <= p['time'] <= sensor_narr_t + 7.0
+                        ]
+                        # Sort by mag descending and take top 5
+                        window_peaks = sorted(window_peaks, key=lambda x: x['mag'], reverse=True)[:5]
+                        cands.extend(window_peaks)
                         cands.append({
                             'time': sensor_narr_t - 2.5,
                             'mag': 1.0,
@@ -1960,6 +2036,10 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
     print(f"Misclassified by Watch:             {mismatch_count} ({mismatch_count/total*100:.1f}%)")
     print(f"Undetected by Watch:                 {undetected_count} ({undetected_count/total*100:.1f}%)")
     print("===============================================================")
+    
+    # Append raw watch sensor logs to the combined Parquet database
+    combined_parquet_dir = os.path.join(args.dest, "..", "combined_sensor_data.parquet")
+    append_to_combined_parquet(session_dir, os.path.abspath(combined_parquet_dir))
     
     # Losslessly compress all raw Watch*.csv files to Watch*.csv.gz and delete original CSVs
     compress_session_csvs(session_dir)
