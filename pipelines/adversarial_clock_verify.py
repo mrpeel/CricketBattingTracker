@@ -14,21 +14,44 @@ def parse_args():
     parser.add_argument("--sessions-base", default="/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions", help="Base directory containing all sessions")
     return parser.parse_args()
 
+def resolve_sensor_path(session_dir, baseName):
+    path = os.path.join(session_dir, baseName)
+    if os.path.exists(path + ".gz"):
+        return path + ".gz"
+    return path
+
 def load_session_data(session_dir):
     timeline_path = os.path.join(session_dir, "latest_timeline.txt")
     narrations_path = os.path.join(session_dir, "narrations_raw.json")
-    gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
     gt_aligned_path = os.path.join(session_dir, "ground_truth_aligned.csv")
 
     if not os.path.exists(timeline_path):
         raise FileNotFoundError(f"Missing latest_timeline.txt at {timeline_path}")
     if not os.path.exists(narrations_path):
         raise FileNotFoundError(f"Missing narrations_raw.json at {narrations_path}")
-    if not os.path.exists(gyro_path):
-        raise FileNotFoundError(f"Missing WatchGyroscope.csv at {gyro_path}")
+
+    session_id = os.path.basename(session_dir)
+    parquet_path = "/Users/neilkloot/Code/Batting Sensor Stats/combined_sensor_data.parquet"
+    
+    # Load from Parquet database if available
+    if os.path.exists(parquet_path):
+        try:
+            partition_dir = os.path.join(parquet_path, "sensor_type=gyro")
+            df_gyro = pd.read_parquet(
+                partition_dir,
+                filters=[("session_id", "==", session_id)]
+            )
+            if len(df_gyro) == 0:
+                raise ValueError(f"No gyro data found in Parquet database for session {session_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to read from Parquet database ({e}), falling back to Gzip/CSV...")
+            gyro_path = resolve_sensor_path(session_dir, "WatchGyroscope.csv")
+            df_gyro = pd.read_csv(gyro_path)
+    else:
+        gyro_path = resolve_sensor_path(session_dir, "WatchGyroscope.csv")
+        df_gyro = pd.read_csv(gyro_path)
 
     # Load gyro data to calculate duration and magnitude
-    df_gyro = pd.read_csv(gyro_path)
     df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
     start_time_ns = df_gyro.iloc[0]['time']
     gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
@@ -226,8 +249,8 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
         mae = np.mean(errors) if errors else 999.0
         return detected, mae, matched_details
 
-    # Coarse search: ±15.0s range at 0.5s increments (60 evaluations)
-    coarse_range = 15.0
+    # Coarse search: ±2.5s range at 0.5s increments (10 evaluations)
+    coarse_range = 2.5
     sweep_offsets = np.arange(search_center - coarse_range, search_center + coarse_range + 0.01, 0.5)
     
     results = []

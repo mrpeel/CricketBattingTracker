@@ -53,17 +53,71 @@ def get_clock_offset(session_dir):
         pass
     return 0.0
 
+def resolve_sensor_path(session_dir, baseName):
+    path = os.path.join(session_dir, baseName)
+    if os.path.exists(path + ".gz"):
+        return path + ".gz"
+    return path
+
+_sensor_cache = {}
+
+def load_parquet_or_csv(session_dir, sensor_type):
+    cache_key = (session_dir, sensor_type)
+    if cache_key in _sensor_cache:
+        return _sensor_cache[cache_key]
+
+    name_map = {
+        "gyro": "WatchGyroscope.csv",
+        "accel": "WatchAccelerometer.csv",
+        "gravity": "WatchGravity.csv",
+        "linacc": "WatchLinearAcceleration.csv",
+        "mag": "WatchMagnetometer.csv",
+        "game_orient": "WatchGameOrientation.csv",
+        "orient": "WatchOrientation.csv",
+        "steps": "WatchSteps.csv",
+        "gyrouncal": "WatchGyroscopeUncalibrated.csv",
+        "maguncal": "WatchMagnetometerUncalibrated.csv",
+        "baro": "WatchBarometer.csv",
+        "hr": "WatchHeartRate.csv"
+    }
+    
+    session_id = os.path.basename(session_dir)
+    parquet_path = "/Users/neilkloot/Code/Batting Sensor Stats/combined_sensor_data.parquet"
+    
+    df = None
+    if os.path.exists(parquet_path):
+        try:
+            partition_dir = os.path.join(parquet_path, f"sensor_type={sensor_type}")
+            if os.path.exists(partition_dir):
+                df = pd.read_parquet(
+                    partition_dir,
+                    filters=[("session_id", "==", session_id)]
+                )
+                if len(df) == 0:
+                    df = None
+        except Exception as e:
+            pass
+            
+    if df is None:
+        fname = name_map.get(sensor_type)
+        if fname:
+            p = resolve_sensor_path(session_dir, fname)
+            if os.path.exists(p):
+                df = pd.read_csv(p)
+                
+    _sensor_cache[cache_key] = df
+    return df
+
 def load_shot_times(session_dir):
     offset = get_clock_offset(session_dir)
     narrations_path = os.path.join(session_dir, "narrations_raw.json")
-    gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
     if not os.path.exists(narrations_path):
         return [], offset
     with open(narrations_path, "r") as f:
         narrations = json.load(f)
     
-    if os.path.exists(gyro_path) and narrations:
-        df_gyro = pd.read_csv(gyro_path)
+    df_gyro = load_parquet_or_csv(session_dir, "gyro")
+    if df_gyro is not None and narrations:
         gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
         is_mmss = True
         for n in narrations:
@@ -160,11 +214,10 @@ def extract_all_features_for_session(session_dir):
     
     feats_dfs = []
     
-    gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
-    if not os.path.exists(gyro_path):
+    df_gyro = load_parquet_or_csv(session_dir, "gyro")
+    if df_gyro is None:
         return None, None
         
-    df_gyro = pd.read_csv(gyro_path)
     df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
     gyro_feats = compute_rolling_features(df_gyro, ['x', 'y', 'z', 'mag'], prefix='gyro')
     feats_dfs.append(gyro_feats)
@@ -172,9 +225,20 @@ def extract_all_features_for_session(session_dir):
     for name, (prefix, cols) in files.items():
         if name == 'WatchGyroscope':
             continue
-        p = os.path.join(session_dir, f"{name}.csv")
-        if os.path.exists(p):
-            df = pd.read_csv(p)
+        sensor_type = name.replace("Watch", "").lower()
+        if sensor_type == "accelerometer":
+            sensor_type = "accel"
+        elif sensor_type == "linearacceleration":
+            sensor_type = "linacc"
+        elif sensor_type == "gyroscopeuncalibrated":
+            sensor_type = "gyrouncal"
+        elif sensor_type == "magnetometeruncalibrated":
+            sensor_type = "maguncal"
+        elif sensor_type == "heartrate":
+            sensor_type = "hr"
+            
+        df = load_parquet_or_csv(session_dir, sensor_type)
+        if df is not None:
             if 'x' in cols and 'y' in cols and 'z' in cols:
                 df['mag'] = np.sqrt(df['x']**2 + df['y']**2 + df['z']**2)
                 cur_cols = cols + ['mag']
@@ -184,14 +248,13 @@ def extract_all_features_for_session(session_dir):
             feats_dfs.append(df_feats)
             
     quats = {
-        'WatchGameOrientation': 'game_ori',
-        'WatchGeomagneticOrientation': 'geomag_ori',
-        'WatchOrientation': 'ori'
+        'WatchGameOrientation': ('game_orient', 'game_ori'),
+        'WatchGeomagneticOrientation': ('geomag_orient', 'geomag_ori'),
+        'WatchOrientation': ('orient', 'ori')
     }
-    for name, prefix in quats.items():
-        p = os.path.join(session_dir, f"{name}.csv")
-        if os.path.exists(p):
-            df = pd.read_csv(p)
+    for name, (sensor_type, prefix) in quats.items():
+        df = load_parquet_or_csv(session_dir, sensor_type)
+        if df is not None:
             df_feats = compute_quat_features(df, prefix=prefix)
             feats_dfs.append(df_feats)
             
@@ -203,9 +266,8 @@ def extract_all_features_for_session(session_dir):
     for f_df in feats_dfs:
         merged_df = pd.merge_asof(merged_df, f_df, on='seconds_elapsed', direction='nearest')
         
-    steps_path = os.path.join(session_dir, "WatchSteps.csv")
-    if os.path.exists(steps_path):
-        df_steps = pd.read_csv(steps_path)
+    df_steps = load_parquet_or_csv(session_dir, "steps")
+    if df_steps is not None:
         step_times = df_steps['seconds_elapsed'].values
     else:
         step_times = np.array([])
@@ -262,22 +324,16 @@ def rank_features(df):
 
 def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_disp_max, grav_y_min, min_flexible,
                                   gyro_mandatory=True, step_mandatory=True, step_recency_s=1.0):
-    gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
-    accel_path = os.path.join(session_dir, "WatchAccelerometer.csv")
-    gravity_path = os.path.join(session_dir, "WatchGravity.csv")
-    orient_path = os.path.join(session_dir, "WatchGameOrientation.csv")
-    if not os.path.exists(orient_path):
-        orient_path = os.path.join(session_dir, "WatchOrientation.csv")
-    steps_path = os.path.join(session_dir, "WatchSteps.csv")
+    df_gyro = load_parquet_or_csv(session_dir, "gyro")
+    df_accel = load_parquet_or_csv(session_dir, "accel")
+    df_grav = load_parquet_or_csv(session_dir, "gravity")
+    df_orient = load_parquet_or_csv(session_dir, "game_orient")
+    if df_orient is None:
+        df_orient = load_parquet_or_csv(session_dir, "orient")
+    df_steps = load_parquet_or_csv(session_dir, "steps")
     
-    if not all(os.path.exists(p) for p in [gyro_path, accel_path, gravity_path, orient_path]):
+    if df_gyro is None or df_accel is None or df_grav is None or df_orient is None:
         return [], 0.0
-        
-    df_gyro = pd.read_csv(gyro_path)
-    df_accel = pd.read_csv(accel_path)
-    df_grav = pd.read_csv(gravity_path)
-    df_orient = pd.read_csv(orient_path)
-    df_steps = pd.read_csv(steps_path) if os.path.exists(steps_path) else None
     
     df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
     df_accel['mag'] = np.sqrt(df_accel['x']**2 + df_accel['y']**2 + df_accel['z']**2)

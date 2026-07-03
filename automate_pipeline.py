@@ -29,7 +29,6 @@ def parse_args():
     parser.add_argument("--dest", default="/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions", help="Base directory to save pulled logs")
     parser.add_argument("--manual-offset", type=float, help="Override offset detection and specify manual offset in seconds")
     parser.add_argument("--session-dir", help="Path to local pulled session directory (skips ADB watch pull)")
-    parser.add_argument("--local", default="false", help="Use local Whisper instead of Gemini ('true'/'false')")
     parser.add_argument(
         "--model", default="gemini-3.5-flash",
         help="Gemini model to use for transcription (default: gemini-3.5-flash). "
@@ -247,338 +246,7 @@ def pull_audio_from_phone(phone_id, dest_dir):
     return local_path
 
 
-def clean_and_normalize(text):
-    pre_mappings = {
-        r"\bboard\s+defens(e|ive)\b": "forward defensive",
-        r"\btouch\s+shot\b": "push",
-        r"\bwe're\s+going\s+to\b": "forward defensive",
-        r"\b(space|place|lacing|racing|lacing) up\b": "facing up",
-        r"\bpuncture\b": "punch shot",
-        r"\byorka\b": "yorker",
-        r"\b(yorker's own|yorka zone)\b": "yorker zone",
-        r"\bmid-wet\b": "midwicket",
-        r"\bnichs\b": "Nicolls",
-        r"\b(me run|me on)\b": "mid-on",
-        r"\bmidweek\b": "midwicket",
-        r"\bcarre сол\b": "finished",
-        r"\bcrook\b": "flick",
-        r"\b(half|have)\b": "off",
-        r"\b(offside|off-side)\b": "off side",
-        r"\b(onside|on-side)\b": "on side",
-        r"\b(4|four|for|force|fall|5|five)\s+defens(e|ive)\b": "forward defensive",
-        r"\bto forward defensive\b": "two forward defensive",
-        r"\ball to\b": "all two",
-        r"\bto backward defense\b": "two backward defense",
-        r"\bback with defens(e|ive)\b": "back-foot defensive",
-        r"\bbackward defens(e|ive)\b": "back-foot defensive",
-        r"\bi could defens(e|ive)\b": "back-foot defensive",
-        r"\bso to\b": "so two",
-        r"\bwell\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b": r"ball \1",
-        r"\bbowl\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b": r"ball \1",
-        r"\bfor\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b": r"ball \1",
-        r"\ball\s+defense\b": "forward defensive",
-        r"\bcatch up\b": "facing up",
-        r"\brobert guide\b": "glide",
-        r"\bsmeat it\b": "smashed it",
-    }
-    
-    cleaned = text.lower()
-    for pattern, replacement in pre_mappings.items():
-        cleaned = re.sub(pattern, replacement, cleaned)
-    return cleaned
-
-def word_to_num(word):
-    mapping = {
-        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-        "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
-        "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70,
-    }
-    if word.isdigit():
-        return int(word)
-    return mapping.get(word.lower(), None)
-
-def transcribe_audio_local(audio_path):
-    import whisper
-    import difflib
-    
-    print(f"🎙️ Loading local Whisper 'base' model...")
-    model = whisper.load_model("base")
-    
-    print(f"🎙️ Transcribing {os.path.basename(audio_path)} locally...")
-    result = model.transcribe(audio_path, verbose=False, condition_on_previous_text=False)
-    
-    segments = result.get("segments", [])
-    print(f"✅ Generated {len(segments)} transcription segments locally.")
-    
-    # Step 1: Merge segments using event duration limit of 7.0s
-    num_pattern = r"\b(?:shot|ball|round)?\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy)\b"
-    
-    grouped_segments = []
-    for s in segments:
-        text = s["text"].strip()
-        if not text:
-            continue
-        cleaned = clean_and_normalize(text)
-        has_num = re.search(num_pattern, cleaned) is not None
-        is_facing_up_start = "facing up" in cleaned
-        
-        if not grouped_segments:
-            grouped_segments.append({
-                "start": s["start"],
-                "end": s["end"],
-                "text": cleaned,
-                "has_num": has_num
-            })
-        else:
-            prev = grouped_segments[-1]
-            elapsed = s["start"] - prev["start"]
-            is_prev_facing_up = "facing up" in prev["text"]
-            
-            # Merge if elapsed <= 7.0s, current is not a new shot number, and neither is a "facing up" start/end
-            if elapsed <= 7.0 and not has_num and not is_facing_up_start and not is_prev_facing_up:
-                prev["text"] = (prev["text"] + " " + cleaned).strip()
-                prev["end"] = s["end"]
-            else:
-                grouped_segments.append({
-                    "start": s["start"],
-                    "end": s["end"],
-                    "text": cleaned,
-                    "has_num": has_num
-                })
-                
-    glossary = {
-        "Actions": ["facing up"],
-        "Shots": [
-            "Straight Drive", "Cover Drive", "Off Drive", "On Drive", 
-            "Forward Defensive", "Forward Defense", "Back-foot Defensive", "Back-foot Defense", 
-            "Flick Shot", "Glance", "Leg Glance", "On-Glance", "Traditional Sweep Shot", "Sweep", 
-            "Square Cut", "Cut", "Back-foot Punch", "Punch", "Pull Shot", "Hook Shot", 
-            "Late Cut", "Steer", "Glide", "push", "Slog", "Big hit", "Hit over cow", 
-            "Hit over cow corner", "Slog Sweep", "Switch Hit", "Reverse Sweep",
-            "no shot", "leave"
-        ],
-        "Quality": [
-            "Good", "great", "middled it", "nailed it", "smoked it", "smashed it", 
-            "excellent", "OK", "Okay", "average", "poor", "edge", "edged", "miss", 
-            "play and miss", "mishit", "toe", "toed", "hit high", "hit high on bat"
-        ],
-        "Admin": [
-            "machine jam", "Gray Nicolls", "Nichs", "Eye in bat", "Game bat", "Game day bat", "finished"
-        ]
-    }
-    
-    flat_shots = [s.lower() for s in glossary["Shots"]]
-    flat_qualities = [q.lower() for q in glossary["Quality"]]
-    flat_admins = [a.lower() for a in glossary["Admin"]]
-    
-    raw_events = []
-    
-    for segment in grouped_segments:
-        start_time = segment["start"]
-        end_time = segment["end"]
-        cleaned_text = segment["text"]
-        
-        # Split text into sub-clauses ONLY if it contains multiple shot indices
-        matches = list(re.finditer(num_pattern, cleaned_text))
-        
-        sub_segments = []
-        if len(matches) > 1:
-            last_idx = 0
-            for idx, m in enumerate(matches):
-                start_idx = m.start()
-                if idx > 0:
-                    sub_text = cleaned_text[last_idx:start_idx].strip()
-                    if sub_text:
-                        sub_segments.append((start_time + (last_idx / len(cleaned_text)) * (end_time - start_time), sub_text))
-                last_idx = start_idx
-            sub_text = cleaned_text[last_idx:].strip()
-            if sub_text:
-                sub_segments.append((start_time + (last_idx / len(cleaned_text)) * (end_time - start_time), sub_text))
-        else:
-            sub_segments.append((start_time, cleaned_text))
-            
-        for t_val, txt in sub_segments:
-            shot_num = None
-            m_num = re.search(num_pattern, txt)
-            if m_num:
-                val = word_to_num(m_num.group(1))
-                if val is not None:
-                    shot_num = val
-                    
-            matched_shot = None
-            matched_quality = None
-            matched_admin = None
-            
-            for term in flat_shots:
-                if term in txt:
-                    matched_shot = term
-                    break
-            if not matched_shot:
-                closest = difflib.get_close_matches(txt, flat_shots, n=1, cutoff=0.7)
-                if closest:
-                    matched_shot = closest[0]
-                    
-            for term in flat_qualities:
-                if term in txt:
-                    matched_quality = term
-                    break
-            if not matched_quality:
-                closest = difflib.get_close_matches(txt, flat_qualities, n=1, cutoff=0.7)
-                if closest:
-                    matched_quality = closest[0]
-                    
-            for term in flat_admins:
-                if term in txt:
-                    matched_admin = term
-                    break
-                    
-            # Handle delayed rating appending logic
-            if shot_num is None and matched_shot is None and matched_quality is not None and matched_admin is None:
-                if len(txt.split()) <= 3 and raw_events:
-                    prev_ev = raw_events[-1]
-                    time_diff = t_val - prev_ev["timestamp_seconds"]
-                    if time_diff <= 10.0:
-                        prev_ev["text"] = (prev_ev["text"] + " " + txt).strip()
-                        prev_ev["quality"] = matched_quality
-                        print(f"   📝 Appended delayed quality '{matched_quality}' to shot: '{prev_ev['text']}' (diff={time_diff:.1f}s)")
-                        continue
-                    else:
-                        print(f"   🗑️ Discarding delayed quality '{matched_quality}' at {t_val:.1f}s (diff={time_diff:.1f}s > 10s)")
-                        continue
-                    
-            # Require either shot number, shot type, admin action, or explicit "facing up"
-            # to filter out quality-only false positive events
-            if shot_num is not None or matched_shot is not None or matched_admin is not None or "facing up" in txt:
-                is_duplicate = False
-                for prev_ev in raw_events[-2:]:
-                    prev_txt = prev_ev["text"]
-                    time_diff = abs(t_val - prev_ev["timestamp_seconds"])
-                    if time_diff <= 3.5:
-                        if prev_txt == txt:
-                            is_duplicate = True
-                            break
-                        if len(txt) > 5 and len(prev_txt) > 5:
-                            ratio = difflib.SequenceMatcher(None, txt, prev_txt).ratio()
-                            if ratio > 0.85:
-                                is_duplicate = True
-                                break
-                if is_duplicate:
-                    continue
-                    
-                raw_events.append({
-                    "timestamp_seconds": t_val,
-                    "shot_number": shot_num,
-                    "shot_type": matched_shot,
-                    "quality": matched_quality,
-                    "text": txt
-                })
-
-    formatted_shots = []
-    last_num = 0
-    current_bat = None
-    for ev in raw_events:
-        num = ev["shot_number"]
-        txt_lower = ev["text"].lower()
-        
-        # Determine bat for this event
-        if any(w in txt_lower for w in ["giant", "nicolls", "nichs"]):
-            current_bat = "Gray Nicolls Giant"
-        elif "eye in" in txt_lower:
-            current_bat = "Eye In"
-        elif any(w in txt_lower for w in ["game bat", "game day bat", "normal game bat"]):
-            current_bat = "Game bat"
-            
-        if num is not None:
-            if num <= last_num:
-                # Ignore sequence numbers that jump backwards (phonetic slips or setup talk)
-                num = None
-                
-        is_facing_up = "facing up" in ev["text"].lower() and ev["shot_type"] is None
-        
-        if is_facing_up:
-            s_type = "Facing up"
-            num = None
-            # Extract quality if present
-            quality = "good"
-            raw_qual = ev["quality"]
-            if raw_qual:
-                raw_qual_lower = raw_qual.lower()
-                if any(w in raw_qual_lower for w in ["okay", "ok", "decent"]):
-                    quality = "okay"
-                elif any(w in raw_qual_lower for w in ["poor", "bad", "average"]):
-                    quality = "poor"
-        else:
-            if ev["shot_type"] is None and num is None:
-                # Discard events with no shot number and no shot type that are not stance checks
-                continue
-                
-            if num is not None:
-                if num > last_num + 5:
-                    mod_num = num % 100
-                    if abs(mod_num - last_num) <= 5:
-                        num = mod_num
-                    elif num > 100:
-                        num = last_num + 1
-                last_num = num
-            else:
-                last_num += 1
-                num = last_num
-                
-            s_type = "Defence/Block"
-            quality = "good"
-            
-            raw_shot = ev["shot_type"]
-            if raw_shot:
-                raw_shot_lower = raw_shot.lower()
-                if "cover drive" in raw_shot_lower:
-                    s_type = "Cover drive"
-                elif "straight drive" in raw_shot_lower:
-                    s_type = "Straight drive"
-                elif "off drive" in raw_shot_lower:
-                    s_type = "Off drive"
-                elif "on drive" in raw_shot_lower:
-                    s_type = "On drive"
-                elif "pull" in raw_shot_lower:
-                    s_type = "Pull shot"
-                elif "hook" in raw_shot_lower:
-                    s_type = "Hook shot"
-                elif "cut" in raw_shot_lower:
-                    s_type = "Cut shot"
-                elif "flick" in raw_shot_lower:
-                    s_type = "Flick"
-                elif "glance" in raw_shot_lower:
-                    s_type = "Leg glance"
-                elif "sweep" in raw_shot_lower:
-                    s_type = "Sweep"
-                elif "push" in raw_shot_lower:
-                    s_type = "Push"
-                elif "no shot" in raw_shot_lower:
-                    s_type = "No shot"
-                elif "leave" in raw_shot_lower:
-                    s_type = "Leave"
-                    
-            raw_qual = ev["quality"]
-            if raw_qual:
-                raw_qual_lower = raw_qual.lower()
-                if any(w in raw_qual_lower for w in ["excellent", "perfect", "nailed it", "smoked it", "smashed it", "middled it", "great"]):
-                    quality = "excellent"
-                elif any(w in raw_qual_lower for w in ["poor", "bad", "average", "toe", "toed", "edge", "edged", "mishit", "hit high"]):
-                    quality = "poor"
-                elif any(w in raw_qual_lower for w in ["miss", "play and miss"]):
-                    quality = "miss"
-                elif any(w in raw_qual_lower for w in ["okay", "ok", "decent"]):
-                    quality = "okay"
-                    
-        formatted_shots.append({
-            "timestamp_seconds": ev["timestamp_seconds"],
-            "shot_number": num,
-            "shot_type": s_type,
-            "quality": quality,
-            "bat": current_bat,
-            "narrated_text": ev["text"]
-        })
-        
-    return formatted_shots
+# (Whisper local fallback functions removed to keep the pipeline clean and free of unused code/heuristics)
 
 
 class ProgressSpinner:
@@ -1080,28 +748,17 @@ def main():
         with open(narrations_cache_path, "r") as f:
             narrations = json.load(f)
     else:
-        use_local = getattr(args, "local", "false").lower() == "true"
-        narrations = None
-
-        if use_local:
-            try:
-                narrations = transcribe_audio_local(audio_path)
-                print(f"Successfully transcribed {len(narrations)} narrations locally via Whisper.")
-            except Exception as e:
-                print(f"⚠️ Local Whisper transcription failed: {e}. Falling back to Gemini...")
-
-        if narrations is None:
-            preferred_model = getattr(args, "model", "gemini-3.5-flash")
-            try:
-                narrations = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
-                print(f"Successfully transcribed {len(narrations)} narrations via Gemini ({preferred_model}).")
-            except RuntimeError as e:
-                # RuntimeError from our guard includes full resume instructions
-                print(e)
-                sys.exit(1)
-            except Exception as e:
-                print(f"❌ Gemini transcription failed unexpectedly: {e}")
-                sys.exit(1)
+        preferred_model = getattr(args, "model", "gemini-3.5-flash")
+        try:
+            narrations = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
+            print(f"Successfully transcribed {len(narrations)} narrations via Gemini ({preferred_model}).")
+        except RuntimeError as e:
+            # RuntimeError from our guard includes full resume instructions
+            print(e)
+            sys.exit(1)
+        except Exception as e:
+            print(f"❌ Gemini transcription failed unexpectedly: {e}")
+            sys.exit(1)
 
         # Write raw narrations to session dir
         with open(narrations_cache_path, "w") as f:
@@ -1117,44 +774,8 @@ def main():
             if i > 0 and t < narrations[i-1]['timestamp_seconds']:
                 has_drops = True
                 
-        # Decide if the timestamps are in seconds or minutes
-        is_in_minutes = False
-        if gyro_duration > 90.0 and max_raw < gyro_duration * 0.7:
-            is_in_minutes = True
-        elif max_raw < 60.0 and gyro_duration > 60.0:
-            is_in_minutes = True
-            
-        if is_in_minutes:
-            # Check if it is rolling seconds (resetting to 0 every minute)
-            is_rolling = has_drops and all(n['timestamp_seconds'] < 60.0 for n in narrations)
-            if is_rolling:
-                print("💡 Detected rolling seconds format (resetting to 0 every minute). Converting to elapsed seconds...")
-                current_minute = 0
-                last_raw = 0.0
-                for n in narrations:
-                    t = n['timestamp_seconds']
-                    if t < last_raw - 1.5:
-                        current_minute += 1
-                    elapsed = current_minute * 60 + t
-                    last_raw = t
-                    n['timestamp_seconds'] = elapsed
-            else:
-                print("💡 Detected M.SS format (minutes.seconds). Converting to elapsed seconds...")
-                last_elapsed = 0.0
-                for n in narrations:
-                    t = n['timestamp_seconds']
-                    minutes = int(t)
-                    seconds_frac = round((t - minutes) * 100, 3)
-                    if seconds_frac < 60.0:
-                        elapsed = minutes * 60 + seconds_frac
-                    else:
-                        elapsed = t
-                    if elapsed < last_elapsed:
-                        elapsed = last_elapsed + 0.1
-                    n['timestamp_seconds'] = elapsed
-                    last_elapsed = elapsed
-        else:
-            print("💡 Timestamps detected as raw seconds since start.")
+        # All timestamps are treated directly as raw elapsed seconds, as requested by the prompt.
+        print("💡 Timestamps parsed directly as raw seconds since start.")
 
     # 6. Clock Offset Calibration Alignment (with automatic grid search)
     # NOTE: All optimisation is performed against raw gyroscope sensor peaks ONLY.
@@ -1204,7 +825,7 @@ def main():
     else:
         if narrations:
             search_center = baseline_offset if baseline_offset is not None else 0.0
-            search_range = 60.0
+            search_range = 2.5
             print(f"🔍 Starting clock offset and drift optimization grid search against raw gyroscope peaks")
             print(f"   (center={search_center:+.3f}s, range=\u00b1{search_range}s)")
             print(f"   ⚠️  Scoring is based ONLY on raw sensor peak matches — no watch detections used.")
