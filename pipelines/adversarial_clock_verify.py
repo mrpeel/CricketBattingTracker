@@ -131,7 +131,12 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
         for i, shot in enumerate(narrations):
             audio_t = shot['timestamp_seconds']
             sensor_narr_t = audio_t + o
-            is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+            shot_type_lower = shot['shot_type'].lower()
+            rating_lower = shot['rating'].lower() if shot.get('rating') else ""
+            is_non_swing = (
+                any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
+            )
             
             cands = []
             if is_non_swing:
@@ -148,14 +153,15 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
                     for _, row in sorted_samples.iterrows():
                         pt = row['seconds_elapsed']
                         pmag = row['mag']
-                        if not any(abs(pt - p['time']) < 1.0 for p in peaks):
-                            peaks.append({
-                                'time': pt,
-                                'mag': pmag,
-                                'is_fallback': False
-                            })
-                            if len(peaks) >= 5:
-                                break
+                        if pmag >= 3.0:
+                            if not any(abs(pt - p['time']) < 1.0 for p in peaks):
+                                peaks.append({
+                                    'time': pt,
+                                    'mag': pmag,
+                                    'is_fallback': False
+                                })
+                                if len(peaks) >= 5:
+                                    break
                 cands.extend(peaks)
                 cands.append({
                     'time': sensor_narr_t - 2.5,
@@ -196,8 +202,18 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
                 best_k = -1
                 score_j = calculate_candidate_score(cand, sensor_narr_t_val)
                 
-                prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
-                curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                prev_type_lower = narrations[i-1]['shot_type'].lower()
+                prev_rating_lower = narrations[i-1]['rating'].lower() if narrations[i-1].get('rating') else ""
+                prev_is_non_swing = (
+                    any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                    any(term in prev_rating_lower for term in ["poor", "edge", "edged", "miss"])
+                )
+                curr_type_lower = narrations[i]['shot_type'].lower()
+                curr_rating_lower = narrations[i]['rating'].lower() if narrations[i].get('rating') else ""
+                curr_is_non_swing = (
+                    any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                    any(term in curr_rating_lower for term in ["poor", "edge", "edged", "miss"])
+                )
                 min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
                 
                 for k, prev_cand in enumerate(all_candidates[i-1]):
@@ -234,7 +250,13 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
         errors = []
         matched_details = []
         for i, shot in enumerate(narrations):
-            if shot['shot_type'] == "Facing up":
+            shot_type_lower = shot['shot_type'].lower()
+            rating_lower = shot['rating'].lower() if shot.get('rating') else ""
+            is_non_swing = (
+                any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
+            )
+            if is_non_swing:
                 continue
             chosen_cand = all_candidates[i][chosen_indices[i]]
             impact_t = chosen_cand['time']

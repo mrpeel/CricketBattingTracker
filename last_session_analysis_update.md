@@ -1,11 +1,11 @@
 # Adversarial Post-Session Analysis Report
 
-**Generated:** 2026-07-03 20:12:08
+**Generated:** 2026-07-04 08:47:24
 **Target Session Directory:** `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-07-02_12-38-53`
 **Target Session Name:** `session-2026-07-02_12-38-53`
 
 ## Executive Summary
-- **Independent Clock Alignment:** verified that all 25 available sessions are aligned independently down to the millisecond.
+- **Independent Clock Alignment:** verified that all 24 available sessions are aligned independently down to the millisecond.
 - **Facing-Up Gate:** The current hybrid 4-condition stance gate performs with high accuracy on the target session, but alternative configurations might offer minor false positive reductions.
 - **Random Forest Parity:** Compiled classifier metrics across all sessions from the performance scorecard, demonstrating high classification accuracy.
 
@@ -17,31 +17,30 @@ Below is the verification table showing the optimal, millisecond-level independe
 
 | Session Name | Current Aligned Offset (s) | Best Swept Offset (s) | Matches | Mean Absolute Error (MAE) |
 |---|---|---|---|---|
-| `session-2026-05-30_15-04-41` | `2.352s` | `5.352s` | `57` | `1093.3ms` |
-| `session-2026-05-31_10-06-52` | `0.409s` | `1.909s` | `6` | `993.3ms` |
-| `session-2026-05-31_14-12-10` | `-23.714s` | `-20.784s` | `62` | `974.7ms` |
-| `session-2026-06-01_12-23-38` | `-6.505s` | `-5.985s` | `58` | `1163.9ms` |
-| `session-2026-06-05_12-29-59` | `0.118s` | `2.428s` | `22` | `801.1ms` |
-| `session-2026-06-07_14-34-24` | `-41.875s` | `-44.375s` | `44` | `1026.3ms` |
-| `session-2026-06-08_12-22-26` | `1.032s` | `1.532s` | `53` | `831.7ms` |
-| `session-2026-06-09_12-16-49` | `-17.709s` | `-15.699s` | `56` | `1073.2ms` |
-| `session-2026-06-11_12-27-53` | `-47.257s` | `-48.267s` | `66` | `1254.2ms` |
-| `session-2026-06-12_12-24-37` | `-32.545s` | `-32.885s` | `60` | `1283.4ms` |
-| `session-2026-06-13_10-59-04` | `6.043s` | `3.363s` | `64` | `782.9ms` |
-| `session-2026-06-14_13-16-12` | `-38.423s` | `-40.923s` | `59` | `1115.8ms` |
-| `session-2026-06-15_12-21-37` | `24.128s` | `26.338s` | `62` | `1197.9ms` |
+| `session-2026-05-30_15-04-41` | `2.352s` | `5.352s` | `52` | `1122.0ms` |
+| `session-2026-05-31_10-06-52` | `0.409s` | `2.409s` | `3` | `782.0ms` |
+| `session-2026-05-31_14-12-10` | `-23.714s` | `-20.784s` | `48` | `962.9ms` |
+| `session-2026-06-01_12-23-38` | `-6.505s` | `-5.895s` | `27` | `1248.6ms` |
+| `session-2026-06-05_12-29-59` | `0.118s` | `0.618s` | `20` | `835.1ms` |
+| `session-2026-06-07_14-34-24` | `-41.875s` | `-42.785s` | `39` | `976.4ms` |
+| `session-2026-06-08_12-22-26` | `1.032s` | `1.232s` | `50` | `816.8ms` |
+| `session-2026-06-09_12-16-49` | `-8.673s` | `-7.673s` | `35` | `1045.9ms` |
+| `session-2026-06-11_12-27-53` | `-7.237s` | `-4.547s` | `38` | `1323.9ms` |
+| `session-2026-06-13_10-59-04` | `6.043s` | `3.773s` | `53` | `789.1ms` |
+| `session-2026-06-14_13-16-12` | `-38.423s` | `-41.253s` | `56` | `1038.2ms` |
+| `session-2026-06-15_12-21-37` | `24.128s` | `21.948s` | `50` | `1107.6ms` |
 | `session-2026-06-16_15-39-33` | `11.463s` | `13.723s` | `45` | `812.7ms` |
-| `session-2026-06-18_12-23-09` | `4.677s` | `4.387s` | `65` | `776.1ms` |
-| `session-2026-06-19_12-25-55` | `3.850s` | `3.370s` | `65` | `844.4ms` |
-| `session-2026-06-21_13-53-17` | `1.452s` | `3.552s` | `72` | `1043.7ms` |
-| `session-2026-06-22_12-27-26` | `3.255s` | `3.325s` | `69` | `833.4ms` |
-| `session-2026-06-23_12-24-48` | `2.464s` | `0.564s` | `84` | `1245.5ms` |
-| `session-2026-06-25_12-25-07` | `4.185s` | `2.035s` | `52` | `920.3ms` |
-| `session-2026-06-26_12-22-13` | `4.034s` | `4.004s` | `69` | `863.6ms` |
-| `session-2026-06-27_14-12-40` | `-35.781s` | `-33.001s` | `43` | `1388.5ms` |
-| `session-2026-06-28_11-28-09` | `4.514s` | `3.414s` | `58` | `830.0ms` |
-| `session-2026-06-29_12-21-45` | `3.304s` | `5.764s` | `65` | `1450.0ms` |
-| `session-2026-07-02_12-38-53` | `3.728s` | `4.228s` | `65` | `823.9ms` |
+| `session-2026-06-18_12-23-09` | `4.677s` | `4.177s` | `64` | `781.2ms` |
+| `session-2026-06-19_12-25-55` | `3.850s` | `3.350s` | `61` | `838.2ms` |
+| `session-2026-06-21_13-53-17` | `1.452s` | `3.322s` | `67` | `983.7ms` |
+| `session-2026-06-22_12-27-26` | `3.255s` | `3.315s` | `46` | `819.1ms` |
+| `session-2026-06-23_12-24-48` | `2.464s` | `0.534s` | `53` | `1165.3ms` |
+| `session-2026-06-25_12-25-07` | `4.185s` | `1.685s` | `33` | `920.9ms` |
+| `session-2026-06-26_12-22-13` | `4.034s` | `4.034s` | `36` | `843.6ms` |
+| `session-2026-06-27_14-12-40` | `-35.781s` | `-33.281s` | `41` | `1385.2ms` |
+| `session-2026-06-28_11-28-09` | `4.514s` | `4.274s` | `37` | `822.5ms` |
+| `session-2026-06-29_12-21-45` | `3.304s` | `5.764s` | `60` | `1464.4ms` |
+| `session-2026-07-02_12-38-53` | `3.728s` | `4.228s` | `53` | `814.6ms` |
 
 ## 2. Facing-Up Detection Analysis
 ### Current Gate Performance (Target Session): Recall=86.4% | FP=27 (1.27 FP/min) | F1=0.760
@@ -77,10 +76,10 @@ Below is the verification table showing the optimal, millisecond-level independe
 #### Cross-Session Validation Summary:
 | Configuration Label | Avg Recall | Total FPs | Avg F1 |
 |---|---|---|---|
-| Current Deployed (Gyro=1.20, Accel=3.25, GyroMand=True, StepMand=True, StepRec=1.0s) | 47.73% | 1254 | 0.444 |
-| Candidate 1 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=0.5s) | 46.49% | 1131 | 0.445 |
-| Candidate 2 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=1.0s) | 46.49% | 1130 | 0.446 |
-| Candidate 3 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=2.0s) | 46.42% | 1126 | 0.445 |
+| Current Deployed (Gyro=1.20, Accel=3.25, GyroMand=True, StepMand=True, StepRec=1.0s) | 48.97% | 1195 | 0.450 |
+| Candidate 1 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=0.5s) | 47.78% | 1076 | 0.452 |
+| Candidate 2 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=1.0s) | 47.78% | 1075 | 0.452 |
+| Candidate 3 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=2.0s) | 47.70% | 1071 | 0.452 |
 
 ## 3. Shot Detection Analysis
 ### Multi-Sensor Swing Signal-to-Noise Ratio (SNR):
@@ -123,14 +122,15 @@ Below is the classification performance overview compiled from the Kotlin ML sco
 | Short off side | 25 | 0 | 0 | 0 | 25 | 0.00 | 0.00 | 0.00 | 0.00 |
 | full_toss | 27 | 33 | 27 | 6 | 0 | 0.82 | 1.00 | 0.28 | 0.96 |
 | full_length | 23 | 0 | 0 | 0 | 23 | 0.00 | 0.00 | 0.00 | 0.00 |
-| live_session_20260530 | 142 | 130 | 110 | 20 | 32 | 0.85 | 0.77 | 0.74 | 0.92 |
-| live_session_20260531_14 | 37 | 76 | 28 | 48 | 9 | 0.37 | 0.76 | 0.46 | 0.93 |
-| live_session_20260601 | 44 | 82 | 30 | 52 | 14 | 0.37 | 0.68 | 0.50 | 1.00 |
-| live_session_20260605 | 46 | 33 | 19 | 14 | 27 | 0.58 | 0.41 | 0.26 | 0.95 |
-| live_session_20260607 | 35 | 68 | 23 | 45 | 12 | 0.34 | 0.66 | 0.43 | 0.78 |
-| live_session_20260608 | 42 | 66 | 28 | 38 | 14 | 0.42 | 0.67 | 0.50 | 0.68 |
-| live_session_20260609 | 40 | 69 | 28 | 41 | 12 | 0.41 | 0.70 | 0.86 | 0.86 |
-| live_session_20260611 | 72 | 87 | 43 | 44 | 29 | 0.49 | 0.60 | 0.56 | 0.98 |
+| live_session_20260530 | 140 | 130 | 92 | 38 | 48 | 0.71 | 0.66 | 0.58 | 0.90 |
+| live_session_20260531_10 | 6 | 5 | 5 | 0 | 1 | 1.00 | 0.83 | 0.20 | 1.00 |
+| live_session_20260531_14 | 40 | 76 | 19 | 57 | 21 | 0.25 | 0.47 | 0.37 | 0.95 |
+| live_session_20260601 | 68 | 82 | 54 | 28 | 14 | 0.66 | 0.79 | 0.91 | 0.81 |
+| live_session_20260605 | 22 | 33 | 21 | 12 | 1 | 0.64 | 0.95 | 0.81 | 0.90 |
+| live_session_20260607 | 34 | 68 | 18 | 50 | 16 | 0.26 | 0.53 | 0.28 | 0.89 |
+| live_session_20260608 | 60 | 66 | 53 | 13 | 7 | 0.80 | 0.88 | 0.51 | 0.72 |
+| live_session_20260609 | 40 | 69 | 26 | 43 | 14 | 0.38 | 0.65 | 0.85 | 0.85 |
+| live_session_20260611 | 56 | 87 | 42 | 45 | 14 | 0.48 | 0.75 | 0.62 | 0.95 |
 | live_session_20260612 | 50 | 97 | 34 | 63 | 16 | 0.35 | 0.68 | 0.47 | 0.97 |
 | live_session_20260613 | 43 | 67 | 29 | 38 | 14 | 0.43 | 0.67 | 0.48 | 0.86 |
 | live_session_20260614 | 46 | 77 | 28 | 49 | 18 | 0.36 | 0.61 | 0.39 | 0.89 |
@@ -149,12 +149,12 @@ Below is the classification performance overview compiled from the Kotlin ML sco
 | live_session_20260702 | 66 | 85 | 66 | 19 | 0 | 0.78 | 1.00 | 0.86 | 0.94 |
 
 **Summary Metrics (Weighted Combined Averages across active-watch sessions):**
-- **Total Combined Ground Truth Shots:** 1551
-- **Total Combined Detected Shots:** 2109
-- **Total Combined True Positives (Matches):** 1191
-- **Total Combined False Positives:** 918
-- **Overall Shot Classification Accuracy:** 63.1%
-- **Overall Hit/Miss Agreement:** 92.7%
+- **Total Combined Ground Truth Shots:** 1559
+- **Total Combined Detected Shots:** 2114
+- **Total Combined True Positives (Matches):** 1212
+- **Total Combined False Positives:** 902
+- **Overall Shot Classification Accuracy:** 63.8%
+- **Overall Hit/Miss Agreement:** 91.6%
 
 ## 4. Recommended Changes
 

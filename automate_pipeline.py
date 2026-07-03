@@ -831,13 +831,13 @@ def main():
             print(f"   ⚠️  Scoring is based ONLY on raw sensor peak matches — no watch detections used.")
 
             # Precalculate all raw gyroscope peaks in the session to avoid slow pandas queries in the loop.
-            # A peak is defined as a local maximum with mag >= 1.5 in a 1.0s window.
+            # A peak is defined as a local maximum with mag >= 3.0 in a 1.0s window.
             print("📈 Precalculating gyroscope sensor peaks...")
             times = df_gyro['seconds_elapsed'].to_numpy()
             mags = df_gyro['mag'].to_numpy()
             
             precalculated_peaks = []
-            candidate_indices = np.where(mags >= 1.5)[0]
+            candidate_indices = np.where(mags >= 3.0)[0]
             for idx in candidate_indices:
                 t = times[idx]
                 mag = mags[idx]
@@ -851,7 +851,7 @@ def main():
                             'mag': mag,
                             'is_fallback': False
                         })
-            print(f"   Found {len(precalculated_peaks)} candidate peaks >= 1.5 rad/s.")
+            print(f"   Found {len(precalculated_peaks)} candidate peaks >= 3.0 rad/s.")
 
             def evaluate_offset_and_drift(o, d):
                 """Score an (offset, drift) pair by counting how many active shots
@@ -861,7 +861,12 @@ def main():
                 for i, shot in enumerate(narrations):
                     audio_t = shot['timestamp_seconds']
                     sensor_narr_t = audio_t * (1 + d) + o
-                    is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                    shot_type_lower = shot['shot_type'].lower()
+                    rating_lower = shot['rating'].lower() if shot.get('rating') else ""
+                    is_non_swing = (
+                        any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                        any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
+                    )
 
                     cands = []
                     if is_non_swing:
@@ -918,8 +923,18 @@ def main():
                         best_k = -1
                         score_j = calculate_candidate_score(cand, sensor_narr_t)
 
-                        prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
-                        curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                        prev_type_lower = narrations[i-1]['shot_type'].lower()
+                        prev_rating_lower = narrations[i-1]['rating'].lower() if narrations[i-1].get('rating') else ""
+                        prev_is_non_swing = (
+                            any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                            any(term in prev_rating_lower for term in ["poor", "edge", "edged", "miss"])
+                        )
+                        curr_type_lower = narrations[i]['shot_type'].lower()
+                        curr_rating_lower = narrations[i]['rating'].lower() if narrations[i].get('rating') else ""
+                        curr_is_non_swing = (
+                            any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                            any(term in curr_rating_lower for term in ["poor", "edge", "edged", "miss"])
+                        )
                         min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
 
                         for k, prev_cand in enumerate(all_candidates[i-1]):
@@ -957,7 +972,12 @@ def main():
                 real_peak_matches = 0
                 lags = []
                 for i, shot in enumerate(narrations):
-                    is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                    shot_type_lower = shot['shot_type'].lower()
+                    rating_lower = shot['rating'].lower() if shot.get('rating') else ""
+                    is_non_swing = (
+                        any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                        any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
+                    )
                     if is_non_swing:
                         continue
                     chosen_cand = all_candidates[i][chosen_indices[i]]
@@ -1054,7 +1074,12 @@ def main():
     for i, shot in enumerate(narrations):
         audio_t = shot['timestamp_seconds']
         sensor_narr_t = audio_t * (1 + drift_rate) + offset
-        is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+        shot_type_lower = shot['shot_type'].lower()
+        rating_lower = shot['rating'].lower() if shot.get('rating') else ""
+        is_non_swing = (
+            any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+            any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
+        )
         
         cands = []
         if is_non_swing:
@@ -1124,8 +1149,18 @@ def main():
             
             # Enforce chronological order with min gap
             # Swing-to-swing gap: 1.5s. Non-swing gap: 0.5s.
-            prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
-            curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+            prev_type_lower = narrations[i-1]['shot_type'].lower()
+            prev_rating_lower = narrations[i-1]['rating'].lower() if narrations[i-1].get('rating') else ""
+            prev_is_non_swing = (
+                any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                any(term in prev_rating_lower for term in ["poor", "edge", "edged", "miss"])
+            )
+            curr_type_lower = narrations[i]['shot_type'].lower()
+            curr_rating_lower = narrations[i]['rating'].lower() if narrations[i].get('rating') else ""
+            curr_is_non_swing = (
+                any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
+                any(term in curr_rating_lower for term in ["poor", "edge", "edged", "miss"])
+            )
             min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
             
             for k, prev_cand in enumerate(all_candidates[i-1]):
