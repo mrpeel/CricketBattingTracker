@@ -32,18 +32,19 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
 | B-013 | Power Shot Precision | Reduce POWER SHOT → PULL/HOOK misclassification. Session-2026-06-15 was ~90% power shots and scored only 40% accuracy, exposing severe underrepresentation of this class in training data. Retrain after collecting more power shot sessions. | Backlog | `SwingDetectorGroundTruthTest` |
-| B-015 | Bat Type Extraction | Add bat type (Gray Nicolls Giant, Eye In, Game bat) extraction and stateful forward-filling to narration pipeline | **Completed** | Run `scratch/validate_bat_parsing.py` |
 | B-016 | Blade & Launch Angles | Implement mathematical calculation of blade (face normal) angle and launch (loft/grounded) angle in Python and real-time WearOS Kotlin, persisting and rendering them on the Android app dashboard | **Completed** | Real-time calculations matching python prototype, passing unit tests, verified database and dashboard integration |
 | B-017 | Video Session foundations | Implement 120fps video capture + passive watch sensor recording and ADB sync pull utility | **Completed** | Manual E2E on phone + watch; `video_analysis_poc.py` execution |
 | B-018 | Direct Gemini & 2D Alignment | Revert to direct Gemini audio transcription and implement a 2D Joint Offset and Linear Drift Rate Optimization grid search to mathematically align narration timelines precisely to WearOS sensors. | **Completed** | Parity check and WearOS unit tests successful, 0 prediction mismatches. |
 | B-019 | Improved Phone UI | Refactor Selected Session screen details grid, summaries, table breakdown, compact horizontal card metrics and time toggles | **Completed** | Gradle build and compilation verification |
+| B-020 | Robust Chronological Transcription & Fallback Gates | Deploy strict linear timeline instructions to Gemini audio transcription prompt, support un-numbered practices, and assert safety via <=25% fallback gates | **Completed** | Batch realignment succeeding on 24/24 valid sessions, restoring combined F1 to 0.7670 |
 
 ---
 
-## 🔖 Current Session State (session-2026-06-29_12-21-45)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-29_12-21-45`
-*   **Audio File**: `narration_20260629_122136.m4a`
-*   **Status**: Transcribed using direct Gemini 2.5 Flash audio transcription. Aligned using 2D Clock Offset and Linear Drift Rate Optimization grid search, yielding perfect chronological sequence and sub-second precision alignment across the 18-minute session. Renamed POWER SHOT to SLOG/slog across the codebase. 51 grounded power hits successfully identified and updated to 'Power drive' via `fix_power_drives.py`.
+## 🔖 Current Session State (session-2026-06-23_12-24-48)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-23_12-24-48`
+*   **Audio File**: `narration_20260623_122444.m4a`
+*   **Status**: Fixed Mixed rolling/absolute seconds formatting issue. Transcribed using Gemini 2.5 Flash with strict chronological constraints. Realigned successfully (fallback rate 4.5%). Scorecard verified with combined F1 score of 0.7670.
+
 
 
 ---

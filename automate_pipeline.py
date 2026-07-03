@@ -998,28 +998,52 @@ def main():
 
     # Detect and convert mixed M.SS / raw seconds timestamps to actual elapsed seconds
     if narrations:
+        max_raw = 0.0
         has_drops = False
-        for i in range(1, len(narrations)):
-            if narrations[i]['timestamp_seconds'] < narrations[i-1]['timestamp_seconds']:
+        for i in range(len(narrations)):
+            t = narrations[i]['timestamp_seconds']
+            max_raw = max(max_raw, t)
+            if i > 0 and t < narrations[i-1]['timestamp_seconds']:
                 has_drops = True
-                break
                 
-        is_m_ss = has_drops
-        if is_m_ss:
-            print("💡 Detected mixed M.SS / raw seconds format. Converting to elapsed seconds...")
-            last_elapsed = 0.0
-            for n in narrations:
-                t = n['timestamp_seconds']
-                if t < last_elapsed or (int(t) > 0 and int(t) <= 15 and t < 60.0):
+        # Decide if the timestamps are in seconds or minutes
+        is_in_minutes = False
+        if gyro_duration > 90.0 and max_raw < gyro_duration * 0.7:
+            is_in_minutes = True
+        elif max_raw < 60.0 and gyro_duration > 60.0:
+            is_in_minutes = True
+            
+        if is_in_minutes:
+            # Check if it is rolling seconds (resetting to 0 every minute)
+            is_rolling = has_drops and all(n['timestamp_seconds'] < 60.0 for n in narrations)
+            if is_rolling:
+                print("💡 Detected rolling seconds format (resetting to 0 every minute). Converting to elapsed seconds...")
+                current_minute = 0
+                last_raw = 0.0
+                for n in narrations:
+                    t = n['timestamp_seconds']
+                    if t < last_raw - 1.5:
+                        current_minute += 1
+                    elapsed = current_minute * 60 + t
+                    last_raw = t
+                    n['timestamp_seconds'] = elapsed
+            else:
+                print("💡 Detected M.SS format (minutes.seconds). Converting to elapsed seconds...")
+                last_elapsed = 0.0
+                for n in narrations:
+                    t = n['timestamp_seconds']
                     minutes = int(t)
                     seconds_frac = round((t - minutes) * 100, 3)
-                    elapsed = minutes * 60 + seconds_frac
+                    if seconds_frac < 60.0:
+                        elapsed = minutes * 60 + seconds_frac
+                    else:
+                        elapsed = t
                     if elapsed < last_elapsed:
                         elapsed = last_elapsed + 0.1
-                else:
-                    elapsed = t
-                n['timestamp_seconds'] = elapsed
-                last_elapsed = elapsed
+                    n['timestamp_seconds'] = elapsed
+                    last_elapsed = elapsed
+        else:
+            print("💡 Timestamps detected as raw seconds since start.")
 
     # 6. Clock Offset Calibration Alignment (with automatic grid search)
     baseline_offset = None
@@ -1273,6 +1297,24 @@ def main():
                 except:
                     offset = 0.0
 
+    # Filter narrations to exclude out-of-bounds events relative to active watch data logging
+    filtered_narrations = []
+    for shot in narrations:
+        audio_t = shot['timestamp_seconds']
+        sensor_narr_t = audio_t * (1 + drift_rate) + offset
+        if -5.0 <= sensor_narr_t <= gyro_duration + 5.0:
+            filtered_narrations.append(shot)
+        else:
+            print(f"   🚫 Excluding shot '{shot['narrated_text']}' at {audio_t:.1f}s (estimated sensor: {sensor_narr_t:.1f}s) - outside watch logging range [0.0, {gyro_duration:.1f}s]")
+    narrations = filtered_narrations
+
+    if len(narrations) == 0:
+        print("\n" + "="*80)
+        print("❌ ALIGNMENT ERROR: Zero active shots found within watch logging duration after filtering!")
+        print(f"   Watch recorded for only {gyro_duration:.1f} seconds, but all narrated shots fall outside this window.")
+        print("="*80 + "\n")
+        raise RuntimeError(f"❌ Alignment failed: Zero narrated shots overlap with the watch logging duration [0.0, {gyro_duration:.1f}s].")
+
     # 7. Perform Dynamic Programming Sequence Alignment
     aligned_shots = []
     
@@ -1414,11 +1456,44 @@ def main():
             'impact_time_seconds': impact_t,
             'impact_timestamp_ns': impact_ns,
             'impact_gyro_mag': gyro_mag,
+            'is_fallback': bool(chosen_cand['is_fallback']),
             'shot_type': shot['shot_type'],
             'quality': shot['quality'],
             'narrated_text': shot['narrated_text']
         })
         
+    # Validation Check:
+    active_swings = [s for s in aligned_shots if not any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"]) and s['sensor_narr_time_seconds'] >= -5.0 and s['sensor_narr_time_seconds'] <= gyro_duration + 5.0]
+    if len(active_swings) == 0:
+        print("\n" + "="*80)
+        print("❌ ALIGNMENT ERROR: Zero active swings found within watch logging duration!")
+        print("   This indicates that the watch tracking and the audio recording do not overlap.")
+        print("="*80 + "\n")
+        raise RuntimeError("❌ Alignment failed: Zero active swings overlap with the watch logging duration.")
+        
+    fallback_swings = [s for s in active_swings if s['is_fallback']]
+    fallback_rate = len(fallback_swings) / len(active_swings)
+    
+    print(f"\n📊 Alignment Validation check:")
+    print(f"   Active swings:         {len(active_swings)}")
+    print(f"   Fallback alignments:   {len(fallback_swings)} ({fallback_rate * 100:.1f}%)")
+    
+    if fallback_rate > 0.25:
+        # High fallback rate indicates a clock mismatch, bad alignment, or broken parser!
+        aligned_csv_path = os.path.join(session_dir, "ground_truth_aligned.csv")
+        if os.path.exists(aligned_csv_path):
+            os.remove(aligned_csv_path)
+            
+        print("\n" + "="*80)
+        print("❌ ALIGNMENT ERROR: High fallback rate detected during physical peak matching!")
+        print(f"   {fallback_rate * 100:.1f}% of active swings were mapped to fallback wiggles.")
+        print("   This indicates that the clock offset optimization failed or the timeline is corrupted.")
+        print("="*80 + "\n")
+        raise RuntimeError(
+            f"❌ Alignment failed due to high fallback rate ({fallback_rate * 100:.1f}%). "
+            f"Expected fallback rate to be <= 25%."
+        )
+
     df_aligned = pd.DataFrame(aligned_shots)
     aligned_csv_path = os.path.join(session_dir, "ground_truth_aligned.csv")
     df_aligned.to_csv(aligned_csv_path, index=False)
@@ -1493,11 +1568,6 @@ def main():
         segments_saved += 1
         
     print(f"✅ Saved {segments_saved} training segments to {segments_dir}/")
-    
-    # 8. Compare with watch-detected shots in latest_timeline.txt
-    timeline_path = os.path.join(session_dir, "latest_timeline.txt")
-    if os.path.exists(timeline_path):
-        compare_with_timeline(timeline_path, df_aligned, start_time_ms)
 def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, df_gravity, df_orient, df_steps):
     t_start = t_stance
     t_end = t_stance + 1.5

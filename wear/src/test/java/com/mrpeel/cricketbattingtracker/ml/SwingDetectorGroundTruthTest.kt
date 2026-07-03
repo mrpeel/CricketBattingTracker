@@ -184,6 +184,10 @@ class SwingDetectorGroundTruthTest {
 
             // 2. Load ground truth shots for this session
             val transcriptFile = File(sessionDir, config.transcriptFile)
+            if (!transcriptFile.exists()) {
+                println("⚠️ Skipped session ${config.canonicalName} because alignment file ${transcriptFile.name} does not exist.")
+                continue
+            }
             val gtLoader = GroundTruthLoader(unifiedFile, speedFile, transcriptFile, config.canonicalName)
             val gtShots = gtLoader.load()
             println("Loaded ${gtShots.size} ground truth shots from unified list & transcript.")

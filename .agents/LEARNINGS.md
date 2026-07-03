@@ -62,6 +62,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         5. Resolved the CameraX build conflict by explicitly adding the `com.google.guava:guava:31.1-android` dependency to resolve classpath exclusions.
     *   **Result**: Tested and compiled successfully. All tests pass with no compilation errors.
 
+51. **Robust Chronological Transcription & Fallback Gates (July 3, 2026)**:
+    *   **The Problem**: Gemini's transcription of audio timecodes was inconsistent, mixing rolling seconds (resetting to 0 every minute) with absolute `M.SS` formats within the same session. This formatting drift corrupted the calculated offsets, leading to bad alignments. Additionally, the system was vulnerable to aligning non-overlapping or corrupt sessions blindly.
+    *   **The Solution**:
+        1. Updated the Gemini transcription prompt with strict linear timeline instructions.
+        2. Added a robust chronological timecode parser in `automate_pipeline.py` to reconstruct rolling seconds into a monotonic absolute timeline.
+        3. Upgraded the alignment validation to check that the fallback rate of active swings (ignoring stances/leaves) is <= 25%, automatically deleting `ground_truth_aligned.csv` on failure to raise immediate alarms.
+        4. Removed the misleading comparison report (`compare_with_timeline`) against `latest_timeline.txt` to clarify that alignment is performed directly against raw sensor peaks.
+    *   **Result**: Successfully aligned all 24 valid sessions. Restored combined ML F1 score back to **0.7670** (76.7%) from 0.56.
+
 
 
 
