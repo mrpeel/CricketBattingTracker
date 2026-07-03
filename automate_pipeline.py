@@ -19,6 +19,9 @@ import re
 import numpy as np
 import pandas as pd
 
+import gzip
+import shutil
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Pitch Analytix Pro Data Collection Pipeline")
     parser.add_argument("--watch-ip", default="192.168.1.27:37129", help="ADB watch IP and port")
@@ -36,7 +39,65 @@ def parse_args():
         "--force-retranscribe", action="store_true",
         help="Delete any existing narrations_raw.json cache and re-run transcription from scratch."
     )
+    parser.add_argument(
+        "--save-segments", action="store_true",
+        help="Export individual 6-second watch sensor CSV slices under the segments/ directory (default: False)."
+    )
     return parser.parse_args()
+
+def resolve_sensor_path(session_dir, baseName):
+    path = os.path.join(session_dir, baseName)
+    if os.path.exists(path + ".gz"):
+        return path + ".gz"
+    return path
+
+def compress_audio_in_place(audio_path):
+    if not audio_path or not os.path.exists(audio_path):
+        return audio_path
+    
+    # Skip if file size is already very small (e.g. less than 4.5MB, meaning it's likely already compressed)
+    if os.path.getsize(audio_path) < 4.5 * 1024 * 1024:
+        print(f"ℹ️ Audio file is already small ({os.path.getsize(audio_path)/1024/1024:.2f}MB). Skipping compression.")
+        return audio_path
+        
+    temp_path = audio_path + ".tmp.m4a"
+    print(f"🎵 Compressing voice narration audio to speech-optimized 16kHz mono 24kbps AAC...")
+    cmd = [
+        "ffmpeg", "-y", "-i", audio_path,
+        "-ac", "1", "-ar", "16000", "-b:a", "24k", "-c:a", "aac",
+        temp_path
+    ]
+    res = subprocess.run(cmd, capture_output=True)
+    if res.returncode == 0 and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+        orig_size = os.path.getsize(audio_path)
+        new_size = os.path.getsize(temp_path)
+        os.replace(temp_path, audio_path)
+        print(f"✅ Audio compressed successfully: {orig_size / 1024 / 1024:.2f}MB → {new_size / 1024 / 1024:.2f}MB")
+    else:
+        print("⚠️ Warning: FFmpeg audio compression failed or produced empty file. Retaining original.")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+    return audio_path
+
+def compress_session_csvs(session_dir):
+    print("\n🤐 Compressing raw session CSV files to Gzip...")
+    compressed_count = 0
+    for filename in os.listdir(session_dir):
+        if filename.startswith("Watch") and filename.endswith(".csv"):
+            csv_path = os.path.join(session_dir, filename)
+            gz_path = csv_path + ".gz"
+            try:
+                with open(csv_path, 'rb') as f_in:
+                    with gzip.open(gz_path, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                os.remove(csv_path)
+                compressed_count += 1
+                print(f"  Compressed and removed: {filename}")
+            except Exception as e:
+                print(f"  ❌ Failed to compress {filename}: {e}")
+                if os.path.exists(gz_path):
+                    os.remove(gz_path)
+    print(f"✅ Losslessly compressed {compressed_count} watch sensor logs.")
 
 def check_adb_devices(watch_ip):
     print("Checking connected ADB devices...")
@@ -940,14 +1001,17 @@ def main():
             print("❌ ERROR: File does not exist.")
             sys.exit(1)
             
+    # Compress voice narration to speech-optimized mono 16kHz 24kbps AAC
+    audio_path = compress_audio_in_place(audio_path)
+            
     # 4. Load Gyroscope sensor file (needed for MMSS conversion and offset alignment)
-    gyro_path = os.path.join(session_dir, "WatchGyroscope.csv")
-    accel_path = os.path.join(session_dir, "WatchAccelerometer.csv")
-    gravity_path = os.path.join(session_dir, "WatchGravity.csv")
-    orient_path = os.path.join(session_dir, "WatchOrientation.csv")
+    gyro_path = resolve_sensor_path(session_dir, "WatchGyroscope.csv")
+    accel_path = resolve_sensor_path(session_dir, "WatchAccelerometer.csv")
+    gravity_path = resolve_sensor_path(session_dir, "WatchGravity.csv")
+    orient_path = resolve_sensor_path(session_dir, "WatchOrientation.csv")
     
     if not os.path.exists(gyro_path):
-        print("❌ ERROR: Gyroscope sensor file missing from session log.")
+        print(f"❌ ERROR: Gyroscope sensor file missing from session log: {gyro_path}")
         sys.exit(1)
         
     df_gyro = pd.read_csv(gyro_path)
@@ -1046,79 +1110,52 @@ def main():
             print("💡 Timestamps detected as raw seconds since start.")
 
     # 6. Clock Offset Calibration Alignment (with automatic grid search)
+    # NOTE: All optimisation is performed against raw gyroscope sensor peaks ONLY.
+    # latest_timeline.txt and on-device watch detections are NOT used as a reference.
     baseline_offset = None
     audio_filename = os.path.basename(audio_path)
     match = re.search(r"narration_(\d{8})_(\d{6})", audio_filename)
-    
-    watch_start_ms = None
-    timeline_path = os.path.join(session_dir, "latest_timeline.txt")
-    if os.path.exists(timeline_path):
-        try:
-            with open(timeline_path, "r") as f:
-                for line in f:
-                    if "SYSTEM_START:" in line:
-                        m = re.search(r"Ts=(\d+)", line)
-                        if m:
-                            watch_start_ms = int(m.group(1))
-                            break
-        except Exception as e:
-            print(f"⚠️ Error reading timeline for SYSTEM_START: {e}")
 
-    if match and watch_start_ms is not None:
+    # Derive a coarse baseline offset from the audio filename timestamp vs sensor start.
+    # This is used only as the centre of the grid search — NOT as a validation signal.
+    if match:
         date_str, time_str = match.groups()
         try:
             dt = datetime.datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
             audio_start_epoch = dt.timestamp()
-            watch_start_epoch = watch_start_ms / 1000.0
-            baseline_offset = audio_start_epoch - watch_start_epoch
-            print(f"🎯 Auto-start synchronization: filename baseline offset calculated!")
-            print(f"   Audio Start Time:  {dt} (Epoch: {audio_start_epoch:.3f}s)")
-            print(f"   Watch Start Time:  {datetime.datetime.fromtimestamp(watch_start_epoch)} (Epoch: {watch_start_epoch:.3f}s)")
-            print(f"   Calculated Baseline Clock Offset: {baseline_offset:+.3f}s")
+            sensor_start_epoch = start_time_ms / 1000.0
+            baseline_offset = audio_start_epoch - sensor_start_epoch
+            print(f"🎯 Filename baseline offset calculated (sensor-only reference):")
+            print(f"   Audio filename time: {dt}")
+            print(f"   Sensor start epoch:  {sensor_start_epoch:.3f}s")
+            print(f"   Baseline offset:     {baseline_offset:+.3f}s")
         except Exception as e:
-            print(f"⚠️ Failed to parse auto-start times: {e}")
+            print(f"⚠️ Failed to parse audio filename timestamp: {e}")
             baseline_offset = None
-
-    # Parse watch detections from timeline for grid search
-    watch_shots = []
-    timeline_start = watch_start_ms if watch_start_ms is not None else start_time_ms
-    if os.path.exists(timeline_path):
-        try:
-            with open(timeline_path, "r") as f:
-                for line in f:
-                    if line.startswith("Shot:"):
-                        m_ts = re.search(r"Ts=(\d+)", line)
-                        m_type = re.search(r"Type=([^,]+)", line)
-                        if m_ts:
-                            watch_shots.append({
-                                'ts': int(m_ts.group(1)),
-                                'type': m_type.group(1) if m_type else "Unknown"
-                            })
-        except Exception as e:
-            print(f"⚠️ Error parsing timeline file for grid search: {e}")
-
-    for shot in watch_shots:
-        shot['rel_time'] = (shot['ts'] - timeline_start) / 1000.0
-    watch_times = np.array([s['rel_time'] for s in watch_shots])
 
     offset = args.manual_offset
     drift_rate = 0.0
-    
+
     if offset is not None:
         print(f"🎯 Using manual clock offset override: {offset:+.3f}s")
     else:
-        if len(watch_times) > 0 and narrations:
+        if narrations:
             search_center = baseline_offset if baseline_offset is not None else 0.0
             search_range = 60.0
-            print(f"🔍 Starting clock offset and drift optimization grid search (center={search_center:+.3f}s, range=\u00b1{search_range}s)...")
-            
+            print(f"🔍 Starting clock offset and drift optimization grid search against raw gyroscope peaks")
+            print(f"   (center={search_center:+.3f}s, range=\u00b1{search_range}s)")
+            print(f"   ⚠️  Scoring is based ONLY on raw sensor peak matches — no watch detections used.")
+
             def evaluate_offset_and_drift(o, d):
+                """Score an (offset, drift) pair by counting how many active shots
+                align to a real gyroscope peak (non-fallback). This is purely
+                sensor-driven — no latest_timeline.txt or watch detections involved."""
                 all_candidates = []
                 for i, shot in enumerate(narrations):
                     audio_t = shot['timestamp_seconds']
                     sensor_narr_t = audio_t * (1 + d) + o
                     is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
-                    
+
                     cands = []
                     if is_non_swing:
                         cands.append({
@@ -1151,7 +1188,7 @@ def main():
                             'is_fallback': True
                         })
                     all_candidates.append(cands)
-                    
+
                 def calculate_candidate_score(cand, sensor_narr_t):
                     t = cand['time']
                     mag = cand['mag']
@@ -1166,15 +1203,15 @@ def main():
                     else:
                         return np.log(mag) - ((lag - 2.5) ** 2) / 4.5
 
-                # DP Table
+                # DP alignment
                 M = len(narrations)
                 dp = []
                 parent = []
-                
+
                 first_narr_t = narrations[0]['timestamp_seconds'] * (1 + d) + o
                 dp.append([calculate_candidate_score(cand, first_narr_t) for cand in all_candidates[0]])
                 parent.append([-1] * len(all_candidates[0]))
-                
+
                 for i in range(1, M):
                     sensor_narr_t = narrations[i]['timestamp_seconds'] * (1 + d) + o
                     dp_i = []
@@ -1183,18 +1220,18 @@ def main():
                         best_score = -999999.0
                         best_k = -1
                         score_j = calculate_candidate_score(cand, sensor_narr_t)
-                        
+
                         prev_is_non_swing = any(term in narrations[i-1]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
                         curr_is_non_swing = any(term in narrations[i]['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
                         min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
-                        
+
                         for k, prev_cand in enumerate(all_candidates[i-1]):
                             if prev_cand['time'] < cand['time'] - min_gap:
                                 val = dp[i-1][k] + score_j
                                 if val > best_score:
                                     best_score = val
                                     best_k = k
-                                    
+
                         if best_k == -1:
                             for k, prev_cand in enumerate(all_candidates[i-1]):
                                 if prev_cand['time'] < cand['time']:
@@ -1205,92 +1242,89 @@ def main():
                         if best_k == -1:
                             best_k = 0
                             best_score = dp[i-1][0] + score_j
-                            
+
                         dp_i.append(best_score)
                         parent_i.append(best_k)
                     dp.append(dp_i)
                     parent.append(parent_i)
-                    
+
                 best_j = int(np.argmax(dp[M-1]))
                 chosen_indices = [best_j]
                 for i in range(M-1, 0, -1):
                     best_j = parent[i][best_j]
                     chosen_indices.append(best_j)
                 chosen_indices.reverse()
-                
-                # Calculate detections
-                detected = 0
-                errors = []
+
+                # Score = count of active shots that matched a REAL gyroscope peak (not fallback)
+                # MAE = average lag from narration timestamp to matched peak for non-fallbacks
+                real_peak_matches = 0
+                lags = []
                 for i, shot in enumerate(narrations):
-                    if shot['shot_type'] == "Facing up":
+                    is_non_swing = any(term in shot['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+                    if is_non_swing:
                         continue
                     chosen_cand = all_candidates[i][chosen_indices[i]]
-                    impact_t = chosen_cand['time']
-                    
-                    if len(watch_times) == 0:
-                        break
-                    diffs = np.abs(watch_times - impact_t)
-                    min_diff = np.min(diffs)
-                    if min_diff <= 3.0:
-                        detected += 1
-                        errors.append(min_diff)
-                        
-                mae = np.mean(errors) if errors else 999.0
-                return detected, mae
+                    if not chosen_cand['is_fallback']:
+                        real_peak_matches += 1
+                        sensor_narr_t = shot['timestamp_seconds'] * (1 + d) + o
+                        lags.append(abs(sensor_narr_t - chosen_cand['time']))
 
-            # Coarse search
+                mae = np.mean(lags) if lags else 999.0
+                return real_peak_matches, mae
+
+            # Coarse grid search
             coarse_offsets = np.arange(search_center - search_range, search_center + search_range + 0.1, 1.0)
             coarse_drifts = np.arange(-0.008, 0.0081, 0.001)
             best_matches = -1
             best_offset = search_center
             best_drift = 0.0
             best_mae = 999.0
-            
+
             for d in coarse_drifts:
                 for o in coarse_offsets:
                     det, mae = evaluate_offset_and_drift(o, d)
-                    if det > best_matches:
+                    if det > best_matches or (det == best_matches and mae < best_mae):
                         best_matches = det
                         best_offset = o
                         best_drift = d
                         best_mae = mae
-                    elif det == best_matches:
-                        if mae < best_mae:
-                            best_offset = o
-                            best_drift = d
-                            best_mae = mae
-                            
-            # Fine search
+
+            # Fine grid search
             fine_offsets = np.arange(best_offset - 1.2, best_offset + 1.21, 0.1)
             fine_drifts = np.arange(best_drift - 0.001, best_drift + 0.0011, 0.0002)
             for d in fine_drifts:
                 for o in fine_offsets:
                     det, mae = evaluate_offset_and_drift(o, d)
-                    if det > best_matches:
+                    if det > best_matches or (det == best_matches and mae < best_mae):
                         best_matches = det
                         best_offset = o
                         best_drift = d
                         best_mae = mae
-                    elif det == best_matches:
-                        if mae < best_mae:
-                            best_offset = o
-                            best_drift = d
-                            best_mae = mae
-                            
+
             offset = best_offset
             drift_rate = best_drift
-            print(f"🎯 Clock offset and drift optimized successfully!")
+
+            active_shot_count = sum(1 for s in narrations if not any(
+                term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"]
+            ))
+            print(f"🎯 Clock offset and drift optimized against raw gyroscope peaks:")
             if baseline_offset is not None:
-                print(f"   Baseline filename offset: {baseline_offset:+.3f}s")
-            print(f"   Optimized offset:         {offset:+.3f}s")
-            print(f"   Optimized drift rate:     {drift_rate:+.6f} ({drift_rate * 100:.3f}% speed correction)")
-            print(f"   Timeline matches:         {best_matches} (MAE: {best_mae:.3f}s)")
+                print(f"   Filename baseline offset:  {baseline_offset:+.3f}s")
+            print(f"   Optimized offset:          {offset:+.3f}s")
+            print(f"   Optimized drift rate:      {drift_rate:+.6f} ({drift_rate * 100:.3f}% speed correction)")
+            print(f"   Gyro peak matches:         {best_matches}/{active_shot_count} active shots (MAE: {best_mae:.3f}s)")
+            if active_shot_count > 0:
+                match_pct = best_matches / active_shot_count * 100
+                print(f"   Gyro match rate:           {match_pct:.1f}%")
+                if match_pct < 50:
+                    print(f"   ⚠️  WARNING: Less than 50% of active shots matched a real gyro peak.")
+                    print(f"      This may indicate a transcription timing problem or a corrupt session.")
         else:
             if baseline_offset is not None:
                 offset = baseline_offset
-                print(f"⚠️ Timeline detections or narrations empty. Using baseline offset: {offset:+.3f}s")
+                print(f"⚠️ No narrations available. Using baseline filename offset: {offset:+.3f}s")
             else:
-                print("⚠️ WARNING: Auto-sync metadata and timeline matches unavailable.")
+                print("⚠️ WARNING: No narrations and no filename timestamp available for offset.")
                 inp = input("Please enter manual clock offset (seconds) or 0 to skip: ").strip()
                 try:
                     offset = float(inp)
@@ -1500,21 +1534,17 @@ def main():
     print(f"\n✅ Ground-truth aligned file saved: {aligned_csv_path}")
     
     # 7. Extract training segments (6-second window around each impact)
-    print("\nExporting 6-second training segments (3s before, 3s after impact)...")
-    segments_dir = os.path.join(session_dir, "segments")
-    os.makedirs(segments_dir, exist_ok=True)
-    
     df_accel = pd.read_csv(accel_path)
     df_gravity = pd.read_csv(gravity_path)
     
     # Load Game Rotation Vector or fallback orientation
-    game_orient_path = os.path.join(session_dir, "WatchGameOrientation.csv")
+    game_orient_path = resolve_sensor_path(session_dir, "WatchGameOrientation.csv")
     if os.path.exists(game_orient_path):
         df_orient = pd.read_csv(game_orient_path)
-        print("📖 Loaded WatchGameOrientation.csv for bat orientation")
+        print(f"📖 Loaded {os.path.basename(game_orient_path)} for bat orientation")
     else:
         df_orient = pd.read_csv(orient_path)
-        print("📖 Loaded WatchOrientation.csv for bat orientation (fallback)")
+        print(f"📖 Loaded {os.path.basename(orient_path)} for bat orientation (fallback)")
         
     print("📈 Computing Blade and Launch angles at impact...")
     df_aligned = add_angle_stats_to_aligned_shots(df_aligned, df_orient)
@@ -1522,10 +1552,10 @@ def main():
     df_aligned.to_csv(aligned_csv_path, index=False)
     print(f"✅ Updated aligned file with angle stats: {aligned_csv_path}")
         
-    steps_path = os.path.join(session_dir, "WatchSteps.csv")
+    steps_path = resolve_sensor_path(session_dir, "WatchSteps.csv")
     if os.path.exists(steps_path):
         df_steps = pd.read_csv(steps_path)
-        print("📖 Loaded WatchSteps.csv for walking steps check")
+        print(f"📖 Loaded {os.path.basename(steps_path)} for walking steps check")
     else:
         df_steps = None
         
@@ -1543,31 +1573,38 @@ def main():
     if stance_events_count == 0:
         print("ℹ️ No 'Facing up' stance events found in this session.")
     
-    segments_saved = 0
-    for idx, row in df_aligned.iterrows():
-        if row['shot_type'] == "Facing up":
-            continue
+    save_segments = getattr(args, "save_segments", False)
+    if save_segments:
+        print("\nExporting 6-second training segments (3s before, 3s after impact)...")
+        segments_dir = os.path.join(session_dir, "segments")
+        os.makedirs(segments_dir, exist_ok=True)
+        segments_saved = 0
+        for idx, row in df_aligned.iterrows():
+            if row['shot_type'] == "Facing up":
+                continue
+                
+            t_impact = row['impact_time_seconds']
+            shot_name = row['shot_type'].lower().replace(" ", "_").replace("/", "_")
+            qual_name = row['quality'].lower().replace(" ", "_").replace("/", "_")
             
-        t_impact = row['impact_time_seconds']
-        shot_name = row['shot_type'].lower().replace(" ", "_").replace("/", "_")
-        qual_name = row['quality'].lower().replace(" ", "_").replace("/", "_")
-        
-        t_start = t_impact - 3.0
-        t_end = t_impact + 3.0
-        
-        g_slice = df_gyro[(df_gyro['seconds_elapsed'] >= t_start) & (df_gyro['seconds_elapsed'] <= t_end)]
-        a_slice = df_accel[(df_accel['seconds_elapsed'] >= t_start) & (df_accel['seconds_elapsed'] <= t_end)]
-        gr_slice = df_gravity[(df_gravity['seconds_elapsed'] >= t_start) & (df_gravity['seconds_elapsed'] <= t_end)]
-        o_slice = df_orient[(df_orient['seconds_elapsed'] >= t_start) & (df_orient['seconds_elapsed'] <= t_end)]
-        
-        prefix = f"seg_{idx+1:02d}_{shot_name}_{qual_name}"
-        g_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchGyroscope.csv"), index=False)
-        a_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchAccelerometer.csv"), index=False)
-        gr_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchGravity.csv"), index=False)
-        o_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchOrientation.csv"), index=False)
-        segments_saved += 1
-        
-    print(f"✅ Saved {segments_saved} training segments to {segments_dir}/")
+            t_start = t_impact - 3.0
+            t_end = t_impact + 3.0
+            
+            g_slice = df_gyro[(df_gyro['seconds_elapsed'] >= t_start) & (df_gyro['seconds_elapsed'] <= t_end)]
+            a_slice = df_accel[(df_accel['seconds_elapsed'] >= t_start) & (df_accel['seconds_elapsed'] <= t_end)]
+            gr_slice = df_gravity[(df_gravity['seconds_elapsed'] >= t_start) & (df_gravity['seconds_elapsed'] <= t_end)]
+            o_slice = df_orient[(df_orient['seconds_elapsed'] >= t_start) & (df_orient['seconds_elapsed'] <= t_end)]
+            
+            prefix = f"seg_{idx+1:02d}_{shot_name}_{qual_name}"
+            g_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchGyroscope.csv"), index=False)
+            a_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchAccelerometer.csv"), index=False)
+            gr_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchGravity.csv"), index=False)
+            o_slice.to_csv(os.path.join(segments_dir, f"{prefix}_WatchOrientation.csv"), index=False)
+            segments_saved += 1
+            
+        print(f"✅ Saved {segments_saved} training segments to {segments_dir}/")
+    else:
+        print("\nℹ️ Skipping segment CSV exports (to prevent file count bloat). Use --save-segments to export.")
 def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, df_gravity, df_orient, df_steps):
     t_start = t_stance
     t_end = t_stance + 1.5
@@ -1923,6 +1960,9 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
     print(f"Misclassified by Watch:             {mismatch_count} ({mismatch_count/total*100:.1f}%)")
     print(f"Undetected by Watch:                 {undetected_count} ({undetected_count/total*100:.1f}%)")
     print("===============================================================")
+    
+    # Losslessly compress all raw Watch*.csv files to Watch*.csv.gz and delete original CSVs
+    compress_session_csvs(session_dir)
 
 if __name__ == "__main__":
     main()

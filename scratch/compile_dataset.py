@@ -78,7 +78,12 @@ def load_all_sensors(session_dir):
         ("orient",      "WatchOrientation.csv")
     ]:
         path = os.path.join(session_dir, fname)
-        if os.path.exists(path):
+        gz_path = path + ".gz"
+        if os.path.exists(gz_path):
+            df = pd.read_csv(gz_path)
+            if len(df) > 0:
+                sensors[name] = df
+        elif os.path.exists(path):
             df = pd.read_csv(path)
             if len(df) > 0:
                 sensors[name] = df

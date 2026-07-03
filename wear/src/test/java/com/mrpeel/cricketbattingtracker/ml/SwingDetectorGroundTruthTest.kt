@@ -163,12 +163,20 @@ class SwingDetectorGroundTruthTest {
             }
             val wristDir = if (config.wristFolder.isEmpty()) sessionDir else File(sessionDir, config.wristFolder)
             
-            val accelFile = File(wristDir, "WatchAccelerometer.csv").takeIf { it.exists() } ?: File(wristDir, "Accelerometer.csv")
-            val gyroFile = File(wristDir, "WatchGyroscope.csv").takeIf { it.exists() } ?: File(wristDir, "Gyroscope.csv")
-            val gravFile = File(wristDir, "WatchGravity.csv").takeIf { it.exists() } ?: File(wristDir, "Gravity.csv")
-            val orientFile = File(wristDir, "WatchGameOrientation.csv").takeIf { it.exists() } ?: File(wristDir, "WatchOrientation.csv").takeIf { it.exists() } ?: File(wristDir, "Orientation.csv")
-            val magFile = File(wristDir, "WatchMagnetometer.csv").takeIf { it.exists() }
-                ?: File(wristDir, "WatchMagnetometerUncalibrated.csv").takeIf { it.exists() }
+            fun findSensorFile(dir: File, baseName: String): File {
+                val gzFile = File(dir, "$baseName.csv.gz")
+                if (gzFile.exists()) return gzFile
+                return File(dir, "$baseName.csv")
+            }
+
+            val accelFile = findSensorFile(wristDir, "WatchAccelerometer").takeIf { it.exists() } ?: File(wristDir, "Accelerometer.csv")
+            val gyroFile = findSensorFile(wristDir, "WatchGyroscope").takeIf { it.exists() } ?: File(wristDir, "Gyroscope.csv")
+            val gravFile = findSensorFile(wristDir, "WatchGravity").takeIf { it.exists() } ?: File(wristDir, "Gravity.csv")
+            val orientFile = findSensorFile(wristDir, "WatchGameOrientation").takeIf { it.exists() }
+                ?: findSensorFile(wristDir, "WatchOrientation").takeIf { it.exists() }
+                ?: File(wristDir, "Orientation.csv")
+            val magFile = findSensorFile(wristDir, "WatchMagnetometer").takeIf { it.exists() }
+                ?: findSensorFile(wristDir, "WatchMagnetometerUncalibrated").takeIf { it.exists() }
                 ?: File(wristDir, "Magnetometer.csv").takeIf { it.exists() }
 
             println("Sensor files: ")
@@ -497,7 +505,11 @@ class SwingDetectorGroundTruthTest {
 
     class SensorCsvReader(val file: File, val type: Int) {
         fun readEvents(): List<SensorEvent> {
-            val lines = file.readLines()
+            val lines = if (file.name.endsWith(".gz")) {
+                java.util.zip.GZIPInputStream(file.inputStream()).bufferedReader().use { it.readLines() }
+            } else {
+                file.readLines()
+            }
             if (lines.isEmpty()) return emptyList()
             val header = parseCsvLine(lines[0])
             val timeIdx = header.indexOfFirst { it.equals("time", ignoreCase = true) }

@@ -71,6 +71,16 @@ This document captures resolved bugs, architectural changes, key logical finding
         4. Removed the misleading comparison report (`compare_with_timeline`) against `latest_timeline.txt` to clarify that alignment is performed directly against raw sensor peaks.
     *   **Result**: Successfully aligned all 24 valid sessions. Restored combined ML F1 score back to **0.7670** (76.7%) from 0.56.
 
+52. **Lossless Session Compression & Audio Speech Optimization (July 3, 2026)**:
+    *   **The Problem**: 25 sessions accumulated 1.8 GB of disk space and 25,940 files, creating severe Git and backup bloat. Most files were redundant 6-second segment CSV slices, and the raw audio narration recordings were stored at a high stereo bitrate (~20MB/session).
+    *   **The Solution**:
+        1. Compressed narration audio to speech-optimized 16kHz mono 24kbps AAC in-place via FFmpeg after pulling (reducing files by ~81%).
+        2. Switched Watch sensor logs to lossless Gzip compression (`Watch*.csv` -> `Watch*.csv.gz`), saving ~75% disk space.
+        3. Modified `SensorCsvReader` in Kotlin unit tests (`SwingDetectorGroundTruthTest.kt`) to natively read `.csv.gz` files using standard Java `GZIPInputStream` (zero dependencies).
+        4. Updated `compile_dataset.py` to transparently load `.csv.gz` logs via Pandas.
+        5. Disabled redundant individual segment CSV outputs in the pipeline.
+    *   **Result**: Reduced total disk usage of live sessions from **1.8 GB to 461 MB** (74.4% savings) and file count from **25,940 to 452 files** (98.2% reduction) with zero loss of raw kinematic data. All Kotlin tests and Python training scripts pass successfully.
+
 
 
 
