@@ -442,38 +442,16 @@ class MainActivity : ComponentActivity() {
                                     ShotTypeSummary(events = timeline)
                                 }
 
-                                // 3. Section Header with time toggle
+                                // 3. Section Header
                                 item {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "SESSION TIMELINE",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                            letterSpacing = 2.sp
-                                        )
-                                        Row(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.surface)
-                                                .clickable { displaySessionTime = !displaySessionTime }
-                                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = if (displaySessionTime) "⏱️ SESSION TIME" else "🕒 CLOCK TIME",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
+                                    Text(
+                                        text = "SESSION TIMELINE",
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                                        letterSpacing = 2.sp
+                                    )
                                 }
 
                                 // 4. Shot Card Timeline Items
@@ -846,7 +824,7 @@ fun SummaryCard(
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = modifier
-            .height(84.dp)
+            .height(98.dp)
             .then(clickableModifier),
         shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, if (onClick != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.05f))
@@ -854,7 +832,7 @@ fun SummaryCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
@@ -937,18 +915,18 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("TYPE", modifier = Modifier.weight(1.8f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                Text("COUNT", modifier = Modifier.weight(0.9f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
-                Text("SPEED (MAX/AVG)", modifier = Modifier.weight(1.8f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
-                Text("EFF (MAX/AVG)", modifier = Modifier.weight(1.6f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("TYPE", modifier = Modifier.weight(2.0f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text("COUNT", modifier = Modifier.weight(0.8f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("SPEED (MAX/AVG)", modifier = Modifier.weight(1.7f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("EFF (MAX/AVG)", modifier = Modifier.weight(1.7f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
                 Text("AVG FACE", modifier = Modifier.weight(1.4f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
-                Text("AVG LAUNCH", modifier = Modifier.weight(1.5f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+                Text("AVG LAUNCH", modifier = Modifier.weight(1.4f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
             }
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.05f), thickness = 1.dp, modifier = Modifier.padding(bottom = 8.dp))
 
             grouped.entries.sortedByDescending { it.value.size }.forEach { entry ->
-                val typeName = entry.key
+                val rawTypeName = entry.key
                 val group = entry.value
                 val count = group.size
                 
@@ -964,7 +942,18 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                 val avgLaunch = group.mapNotNull { it.launchAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
                 val avgLaunchText = String.format(java.util.Locale.US, "%.0f°", avgLaunch) + " " + (if (avgLaunch < -1.5f) "G" else if (avgLaunch > 1.5f) "L" else "F")
 
-                val indicatorColor = getShotColor(typeName, isHit = true)
+                val indicatorColor = getShotColor(rawTypeName, isHit = true)
+                
+                // Shorten names for table display to prevent truncation
+                val typeNameDisplay = when {
+                    "GLANCE" in rawTypeName.uppercase() || "FLICK" in rawTypeName.uppercase() -> "GLANCE/FLK"
+                    "PULL" in rawTypeName.uppercase() || "HOOK" in rawTypeName.uppercase() -> "PULL/HOOK"
+                    "DRIVE" in rawTypeName.uppercase() && "DEF" in rawTypeName.uppercase() -> "DRIVE/DEF"
+                    "DEFLECT" in rawTypeName.uppercase() || "GUIDE" in rawTypeName.uppercase() || "GLIDE" in rawTypeName.uppercase() -> "DEFLECT/GD"
+                    "POWER DRIVE" in rawTypeName.uppercase() -> "POWER DRV"
+                    "POWER SHOT" in rawTypeName.uppercase() || "SLOG" in rawTypeName.uppercase() -> "POWER SHOT"
+                    else -> rawTypeName
+                }
 
                 Row(
                     modifier = Modifier
@@ -974,7 +963,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1.8f),
+                        modifier = Modifier.weight(2.0f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -985,8 +974,8 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = typeName.uppercase(),
-                            fontSize = 9.sp,
+                            text = typeNameDisplay.uppercase(),
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             maxLines = 1,
@@ -996,24 +985,24 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
 
                     Text(
                         text = "$count",
-                        modifier = Modifier.weight(0.9f),
-                        fontSize = 9.sp,
+                        modifier = Modifier.weight(0.8f),
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         textAlign = TextAlign.End
                     )
                     Text(
                         text = "${maxSpeed.toInt()}/${avgSpeed.toInt()}",
-                        modifier = Modifier.weight(1.8f),
-                        fontSize = 9.sp,
+                        modifier = Modifier.weight(1.7f),
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.End
                     )
                     Text(
                         text = "${maxEff.toInt()}%/${avgEff.toInt()}%",
-                        modifier = Modifier.weight(1.6f),
-                        fontSize = 9.sp,
+                        modifier = Modifier.weight(1.7f),
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.End
@@ -1028,7 +1017,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                     )
                     Text(
                         text = avgLaunchText,
-                        modifier = Modifier.weight(1.5f),
+                        modifier = Modifier.weight(1.4f),
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White.copy(alpha = 0.8f),
@@ -1717,9 +1706,9 @@ fun TimelineItem(
         val totalSecs = offsetMs / 1000
         val mins = totalSecs / 60
         val secs = totalSecs % 60
-        String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+        "${mins}m ${secs}s"
     } else {
-        formatter.format(Date(event.timestamp))
+        SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(Date(event.timestamp)).lowercase()
     }
 
     Card(
@@ -1794,13 +1783,23 @@ fun TimelineItem(
                         }
                         if (event.bladeAngle != null) {
                             val cls = event.bladeClass ?: ""
-                            val label = if (cls.isNotEmpty()) "BLADE ($cls)" else "BLADE"
-                            MetricSmallCompact(label, "${String.format("%.0f", event.bladeAngle)}°", modifier = Modifier.weight(1.2f))
+                            val suffix = when (cls.uppercase()) {
+                                "CLOSED" -> " Closed"
+                                "OPEN" -> " Open"
+                                "SQUARE" -> " Sq"
+                                else -> ""
+                            }
+                            MetricSmallCompact("BLADE", "${String.format("%.0f", event.bladeAngle)}°$suffix", modifier = Modifier.weight(1.1f))
                         }
                         if (event.launchAngle != null) {
-                            val cls = (event.launchClass ?: "").replace("_", " ")
-                            val label = if (cls.isNotEmpty()) "LAUNCH ($cls)" else "LAUNCH"
-                            MetricSmallCompact(label, "${String.format("%.0f", event.launchAngle)}°", modifier = Modifier.weight(1.2f))
+                            val cls = event.launchClass ?: ""
+                            val suffix = when {
+                                "GROUND" in cls.uppercase() -> " Grnd"
+                                "LOFT" in cls.uppercase() -> " Loft"
+                                "FLAT" in cls.uppercase() -> " Flat"
+                                else -> ""
+                            }
+                            MetricSmallCompact("LAUNCH", "${String.format("%.0f", event.launchAngle)}°$suffix", modifier = Modifier.weight(1.2f))
                         }
                     }
                 }
