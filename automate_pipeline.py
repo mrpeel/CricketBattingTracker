@@ -1472,33 +1472,50 @@ def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, 
     else:
         grav_y = -9.8
         
-    # Check conditions
-    gyro_ok = gyro_std < 1.6
-    accel_ok = accel_std < 3.25
-    ori_ok = ori_disp < 3.05
+    # ── Gate constants — must stay in sync with SwingDetector.kt ────────────
+    # Mandatory gates (both must pass)
+    GYRO_STD_MAX  = 1.2   # FACING_UP_GYRO_STD_MAX     = 1.2f rad/s
+    # Flexible gates (MIN_FLEXIBLE of 3 must pass)
+    ACCEL_STD_MAX = 3.25  # FACING_UP_ACCEL_STD_MAX    = 3.25f m/s²
+    ORI_DISP_MAX  = 2.5   # FACING_UP_ORI_DISP_MAX_DEG = 2.5f degrees
+    GRAV_Y_MIN    = -6.0  # FACING_UP_GRAVITY_Y_MIN    = -6.0f m/s²
+    MIN_FLEXIBLE  = 3     # FACING_UP_MIN_FLEXIBLE_CONDITIONS = 3
+
+    # Mandatory gate evaluations
+    gyro_ok  = gyro_std < GYRO_STD_MAX
     steps_ok = steps_count == 0
-    grav_ok = grav_y <= -6.0 or grav_y == 0.0
-    
-    passed = gyro_ok and accel_ok and ori_ok and steps_ok and grav_ok
+
+    # Flexible gate evaluations (accel OR ori OR arm_extended)
+    accel_ok = accel_std < ACCEL_STD_MAX
+    ori_ok   = ori_disp < ORI_DISP_MAX
+    # arm_extended: fail-open (0.0) when gravity data is absent (matches Kotlin sentinel)
+    arm_ok   = grav_y <= GRAV_Y_MIN or grav_y == 0.0
+
+    flexible_count = int(accel_ok) + int(ori_ok) + int(arm_ok)
+    passed = gyro_ok and steps_ok and (flexible_count >= MIN_FLEXIBLE)
     status_emoji = "🟢 SUCCESS" if passed else "🔴 FAILED"
-    
+
     print("\n=================== Stance Check Alignment Analysis ===================")
     print(f"Stance Event: '{narrated_text}'")
     print(f"Time:         {audio_t:.1f}s (audio) ➔ Stance aligned at {t_stance:.2f}s sensor (rel)")
-    print(f"  1. Gyro Std:    {gyro_std:.2f} rad/s  (Limit: < 1.6)  ➔ {'PASS' if gyro_ok else 'FAIL'}")
-    print(f"  2. Accel Std:   {accel_std:.2f} m/s²   (Limit: < 3.25) ➔ {'PASS' if accel_ok else 'FAIL'}")
-    print(f"  3. Ori Disp:    {ori_disp:.2f} deg    (Limit: < 3.05) ➔ {'PASS' if ori_ok else 'FAIL'}")
-    print(f"  4. Steps:       {steps_count} steps     (Limit: 0)      ➔ {'PASS' if steps_ok else 'FAIL'}")
-    print(f"  5. Gravity Y:   {grav_y:.2f} m/s²  (Limit: <= -6.0)➔ {'PASS' if grav_ok else 'FAIL'}")
+    print(f"  [MANDATORY] Gyro Std:  {gyro_std:.2f} rad/s  (Limit: < {GYRO_STD_MAX})   ➔ {'PASS' if gyro_ok else 'FAIL'}")
+    print(f"  [MANDATORY] Steps:     {steps_count} events   (Limit: 0 in last 1.0s) ➔ {'PASS' if steps_ok else 'FAIL'}")
+    print(f"  [FLEXIBLE]  Accel Std: {accel_std:.2f} m/s²   (Limit: < {ACCEL_STD_MAX}) ➔ {'PASS' if accel_ok else 'FAIL'}")
+    print(f"  [FLEXIBLE]  Ori Disp:  {ori_disp:.2f} deg     (Limit: < {ORI_DISP_MAX})   ➔ {'PASS' if ori_ok else 'FAIL'}")
+    print(f"  [FLEXIBLE]  Gravity Y: {grav_y:.2f} m/s²  (Limit: <= {GRAV_Y_MIN})  ➔ {'PASS' if arm_ok else 'FAIL'}")
+    print(f"  Flexible gates passed: {flexible_count}/{MIN_FLEXIBLE} required")
     print(f"STATUS: {status_emoji} ({'All conditions met' if passed else 'Stance lock would fail'})")
     if not passed:
         fails = []
-        if not gyro_ok: fails.append(f"Gyro Std ({gyro_std:.2f} >= 1.6)")
-        if not accel_ok: fails.append(f"Accel Std ({accel_std:.2f} >= 3.25)")
-        if not ori_ok: fails.append(f"Ori Disp ({ori_disp:.2f} >= 3.05)")
-        if not steps_ok: fails.append(f"Steps count ({steps_count} > 0)")
-        if not grav_ok: fails.append(f"Gravity Y ({grav_y:.2f} > -6.0)")
-        print(f"  Failed condition(s): {', '.join(fails)}")
+        if not gyro_ok:  fails.append(f"[MANDATORY] Gyro Std ({gyro_std:.2f} >= {GYRO_STD_MAX})")
+        if not steps_ok: fails.append(f"[MANDATORY] Steps ({steps_count} event(s) in last 1.0s)")
+        if flexible_count < MIN_FLEXIBLE:
+            flex_fails = []
+            if not accel_ok: flex_fails.append(f"Accel ({accel_std:.2f} >= {ACCEL_STD_MAX})")
+            if not ori_ok:   flex_fails.append(f"Ori ({ori_disp:.2f} >= {ORI_DISP_MAX})")
+            if not arm_ok:   flex_fails.append(f"GravY ({grav_y:.2f} > {GRAV_Y_MIN})")
+            fails.append(f"[FLEXIBLE] Only {flexible_count}/{MIN_FLEXIBLE} passed: failing={', '.join(flex_fails)}")
+        print(f"  Failed: {'; '.join(fails)}")
     print("-----------------------------------------------------------------------")
 
 def add_angle_stats_to_aligned_shots(df_aligned, df_orient):

@@ -109,16 +109,49 @@ def load_parquet_or_csv(session_dir, sensor_type):
     return df
 
 def load_shot_times(session_dir):
+    """Load ground-truth shot times (in sensor seconds) for a session.
+
+    Primary source: ``ground_truth_aligned.csv`` — produced by automate_pipeline.py
+    with its robust monotonic timecode parser and 2D clock-offset alignment already
+    applied.  Using this completely bypasses the fragile MMSS-vs-raw-seconds
+    heuristic that can silently corrupt timestamps on short sessions.
+
+    Fallback: ``narrations_raw.json`` + simple MMSS detection when the aligned CSV
+    is absent (e.g. the session has not yet been processed by the pipeline).
+    """
+    # ── Primary: ground_truth_aligned.csv ────────────────────────────────────
+    gt_aligned_path = os.path.join(session_dir, "ground_truth_aligned.csv")
+    if os.path.exists(gt_aligned_path):
+        try:
+            df_gt = pd.read_csv(gt_aligned_path)
+            # Exclude facing-up / leave / no-shot stances — same filter as below
+            exclude_terms = ['facing up', 'no shot', 'leave', 'evade']
+            mask = ~df_gt['shot_type'].str.lower().apply(
+                lambda s: any(term in s for term in exclude_terms)
+            )
+            df_shots = df_gt[mask]
+            if len(df_shots) > 0:
+                # sensor_narr_time_seconds is already clock-offset-corrected
+                shot_times = df_shots['sensor_narr_time_seconds'].tolist()
+                # Derive offset from aligned data so callers that need it get a
+                # consistent value (sensor_narr_time = audio_time + offset)
+                offset = get_clock_offset(session_dir)
+                return shot_times, offset
+        except Exception:
+            pass  # fall through to narrations_raw.json
+
+    # ── Fallback: narrations_raw.json + MMSS detection ───────────────────────
     offset = get_clock_offset(session_dir)
     narrations_path = os.path.join(session_dir, "narrations_raw.json")
     if not os.path.exists(narrations_path):
         return [], offset
     with open(narrations_path, "r") as f:
         narrations = json.load(f)
-    
+
     df_gyro = load_parquet_or_csv(session_dir, "gyro")
     if df_gyro is not None and narrations:
         gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
+        # Heuristic: if any second-component >= 60, it cannot be MMSS
         is_mmss = True
         for n in narrations:
             t = n['timestamp_seconds']
@@ -126,9 +159,13 @@ def load_shot_times(session_dir):
             if sec_part >= 60:
                 is_mmss = False
                 break
+        # Additional guard: if raw timestamps already exceed gyro duration they
+        # are in seconds format (MMSS max for a 20-min session is ~2020)
         max_t = max(n['timestamp_seconds'] for n in narrations)
-        if max_t > gyro_duration:
-            is_mmss = True
+        if not is_mmss and max_t <= gyro_duration:
+            pass  # confident it's raw seconds
+        elif max_t > gyro_duration:
+            is_mmss = True  # timestamps exceed session length → must be MMSS
         if is_mmss:
             for n in narrations:
                 t = n['timestamp_seconds']
@@ -137,7 +174,7 @@ def load_shot_times(session_dir):
                 minutes = ival // 100
                 seconds = ival % 100
                 n['timestamp_seconds'] = float(minutes * 60 + seconds + frac)
-                
+
     shot_times = []
     for n in narrations:
         st = n.get('shot_type', '')
@@ -524,25 +561,38 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
     return detected_shots, gyro_sec.max()
 
 def evaluate_detections(detected_secs, gt_times, session_duration):
+    """Match simulator detections to ground-truth shot times.
+
+    Detection timestamp anatomy (Bug 3 fix):
+      detected_shots.append(sec) fires when (t_ns - peak_gyro_time) >= 750_000_000.
+      peak_gyro_time is recorded inside MEASURING_ARC, which runs for >= 1.0s before
+      transitioning to CONTACT_WAIT.  So:
+        det_sec ≈ T_backswing_trigger + 1.0s (arc) + 0.75s (wait) = T_trigger + 1.75s
+      To align with the narrated shot time (≈ T_contact ≈ T_trigger), subtract 1.75s.
+    """
+    # Correction: 1.0s MEASURING_ARC + 0.75s CONTACT_WAIT
+    DETECTION_LAG_S = 1.75
+    MATCH_WINDOW_S  = 3.0   # ± tolerance for noisy narration timestamps
+
     tp = 0
     matched_gt = set()
     matched_det = set()
-    
+
     for gt_idx, gt_t in enumerate(gt_times):
         best_diff = 999.0
         best_det_idx = -1
         for det_idx, det_sec in enumerate(detected_secs):
             if det_idx in matched_det:
                 continue
-            diff = abs(det_sec - 0.75 - gt_t)
+            diff = abs(det_sec - DETECTION_LAG_S - gt_t)
             if diff < best_diff:
                 best_diff = diff
                 best_det_idx = det_idx
-        if best_diff <= 3.0:
+        if best_diff <= MATCH_WINDOW_S:
             tp += 1
             matched_gt.add(gt_idx)
             matched_det.add(best_det_idx)
-            
+
     fp = len(detected_secs) - tp
     fn = len(gt_times) - tp
     recall = tp / len(gt_times) if len(gt_times) > 0 else 1.0
