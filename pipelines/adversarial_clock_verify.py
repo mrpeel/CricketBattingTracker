@@ -277,7 +277,7 @@ def run_clock_verification(df_gyro, narrations, watch_start_ms, watch_shots, cur
     
     results = []
     best_matches = -1
-    best_offset = None
+    best_offset = search_center   # guaranteed non-None: falls back to centre if sweep finds nothing
     best_mae = 999.0
 
     for o in sweep_offsets:

@@ -43,7 +43,6 @@ def find_scorecard_file():
 def parse_scorecard(filepath):
     if not filepath or not os.path.exists(filepath):
         return None
-    
     total_gt = 0
     total_detected = 0
     total_tp = 0
@@ -322,7 +321,9 @@ def main():
         f.write("|---|---|---|---|---|\n")
         for s_data in all_sessions_data:
             mae_str = f"{s_data['best_mae']*1000:.1f}ms" if s_data['best_mae'] < 900.0 else "N/A"
-            f.write(f"| `{s_data['session_name']}` | `{s_data['current_offset']:.3f}s` | `{s_data['best_offset']:.3f}s` | `{s_data['best_matches']}` | `{mae_str}` |\n")
+            curr_off_str = f"{s_data['current_offset']:.3f}s" if s_data['current_offset'] is not None else "N/A"
+            best_off_str = f"{s_data['best_offset']:.3f}s" if s_data['best_offset'] is not None else "N/A"
+            f.write(f"| `{s_data['session_name']}` | `{curr_off_str}` | `{best_off_str}` | `{s_data['best_matches']}` | `{mae_str}` |\n")
         f.write("\n")
         
         # Stance section
