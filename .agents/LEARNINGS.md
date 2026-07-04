@@ -62,10 +62,17 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Solution**: Modified `active_swings` in `automate_pipeline.py`'s validation block to filter out defenses, blocks, edges, and misses, aligning the validation check definitions with the clock offset search's peak matching filters.
     *   **Result**: Validated that `automate_pipeline.py` runs successfully on local session folders without crashing and accurately computes high-energy swing alignment fallback rates.
 
-55. **Restoring Accidental Disabling of Compression & Parquet (July 4, 2026)**:
-    *   **The Problem**: Today's session data was neither gzipped nor appended to the combined Parquet database. Investigating `automate_pipeline.py` revealed that the calls to `append_to_combined_parquet` and `compress_session_csvs` were placed at the end of the `compare_with_timeline` function. Since `compare_with_timeline` was removed from the main execution path in entry 51 to clarify alignment logic, these two critical calls were accidentally deactivated.
-    *   **The Solution**: Moved the database append and Gzip compression function calls to the end of the `main()` function execution path in `automate_pipeline.py`.
-    *   **Result**: Ran the pipeline on the uncompressed session, successfully appending all 8 watch sensor logs (approx. 430,000 rows) to `combined_sensor_data.parquet` and compressing the 14 raw CSV files to `.csv.gz`.
+56. **Resolving Build Warnings & Deprecations (July 5, 2026)**:
+    *   **The Problem**: Building the application triggered various compilation warnings in `MainActivity.kt` and `VideoRecordService.kt` related to deprecated API usage, unnecessary non-null assertions, unused method parameters, and deprecated overridden methods.
+    *   **The Solution**:
+        1. Fixed the unnecessary double bang `!!` on the non-null `bestLocation` Smart Cast.
+        2. Added the `@Deprecated` annotation to the overridden deprecated `onStatusChanged` listener callback.
+        3. Suppressed the deprecation warning on `getFromLocation()` in `cacheLocation()` using `@Suppress("DEPRECATION")`.
+        4. Replaced the deprecated `Divider` layout composable with `HorizontalDivider`.
+        5. Removed the unused `context` parameter from `VideoRecordScreen`.
+        6. Suppressed the deprecation warnings on Bluetooth SCO APIs in `VideoRecordService.kt` and added proper SCO release cleanup in `onDestroy`.
+    *   **Result**: The app builds cleanly with zero errors/warnings.
+
 
 
 
