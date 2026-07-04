@@ -820,8 +820,76 @@ def main():
     offset = args.manual_offset
     drift_rate = 0.0
 
+    # 6a. Try Sync Tap Alignment (5 taps in < 5 seconds)
+    sync_tap_offset = None
+    if offset is None and narrations and os.path.exists(accel_path):
+        try:
+            print("🔍 Scanning for sync tap sequence (5 taps in < 5s) in sensor and audio logs...")
+            # 1. Read accelerometer data
+            df_acc = pd.read_csv(accel_path)
+            acc_times = df_acc['seconds_elapsed'].to_numpy()
+            acc_mags = np.sqrt(df_acc['x']**2 + df_acc['y']**2 + df_acc['z']**2)
+            
+            # Find candidate accel peaks above 18.0 m/s^2
+            candidate_indices = np.where(acc_mags >= 18.0)[0]
+            local_peaks = []
+            for idx in candidate_indices:
+                t = acc_times[idx]
+                mag = acc_mags[idx]
+                # Filter to local maximum in +/- 0.15s
+                w_start = np.searchsorted(acc_times, t - 0.15)
+                w_end = np.searchsorted(acc_times, t + 0.15, side='right')
+                if mag >= np.max(acc_mags[w_start:w_end]):
+                    if not any(abs(t - p[0]) < 0.2 for p in local_peaks):
+                        local_peaks.append((t, mag))
+            
+            # Look for 5 peaks in < 5s separated by [0.3s, 1.5s]
+            accel_sync_times = None
+            if len(local_peaks) >= 5:
+                for i in range(len(local_peaks) - 4):
+                    seq = local_peaks[i:i+5]
+                    seq_times = [p[0] for p in seq]
+                    if (seq_times[-1] - seq_times[0]) <= 5.0:
+                        valid = True
+                        for j in range(1, 5):
+                            gap = seq_times[j] - seq_times[j-1]
+                            if gap < 0.3 or gap > 1.5:
+                                valid = False
+                                break
+                        if valid:
+                            accel_sync_times = seq_times
+                            break
+            
+            # 2. Look for 5 "tap" narrations in < 5s
+            audio_sync_times = None
+            for i in range(len(narrations) - 4):
+                seq = narrations[i:i+5]
+                if all(s.get('shot_type', '').lower() == 'tap' or 'tap' in s.get('narrated_text', '').lower() for s in seq):
+                    seq_times = [s['timestamp_seconds'] for s in seq]
+                    if (seq_times[-1] - seq_times[0]) <= 5.0:
+                        audio_sync_times = seq_times
+                        break
+            
+            if accel_sync_times is not None and audio_sync_times is not None:
+                # Calculate sync tap offset (first accel tap - first audio tap)
+                sync_tap_offset = accel_sync_times[0] - audio_sync_times[0]
+                print(f"🎯 Sync taps DETECTED! Accelerometer taps: {[f'{x:.2f}s' for x in accel_sync_times]}")
+                print(f"                     Audio narration taps: {[f'{x:.2f}s' for x in audio_sync_times]}")
+                print(f"                     Calculated offset:    {sync_tap_offset:+.3f}s")
+            else:
+                if accel_sync_times is None:
+                    print("   ❌ Accelerometer sync tap sequence NOT found.")
+                if audio_sync_times is None:
+                    print("   ❌ Audio narration sync tap sequence NOT found.")
+        except Exception as e:
+            print(f"⚠️ Error trying sync tap alignment: {e}")
+
     if offset is not None:
         print(f"🎯 Using manual clock offset override: {offset:+.3f}s")
+    elif sync_tap_offset is not None:
+        offset = sync_tap_offset
+        drift_rate = 0.0
+        print(f"🎯 Using sync tap alignment offset: {offset:+.3f}s (skipping grid search optimization)")
     else:
         if narrations:
             search_center = baseline_offset if baseline_offset is not None else 0.0
