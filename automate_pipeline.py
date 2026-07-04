@@ -1413,6 +1413,13 @@ def main():
         print(f"✅ Saved {segments_saved} training segments to {segments_dir}/")
     else:
         print("\nℹ️ Skipping segment CSV exports (to prevent file count bloat). Use --save-segments to export.")
+
+    # Append raw watch sensor logs to the combined Parquet database
+    combined_parquet_dir = os.path.join(args.dest, "..", "combined_sensor_data.parquet")
+    append_to_combined_parquet(session_dir, os.path.abspath(combined_parquet_dir))
+    
+    # Losslessly compress all raw Watch*.csv files to Watch*.csv.gz and delete original CSVs
+    compress_session_csvs(session_dir)
 def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, df_gravity, df_orient, df_steps):
     t_start = t_stance
     t_end = t_stance + 1.5
