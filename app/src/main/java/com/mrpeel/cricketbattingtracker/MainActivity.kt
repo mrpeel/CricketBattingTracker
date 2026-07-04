@@ -237,7 +237,7 @@ class MainActivity : ComponentActivity() {
                 // Get last known location first
                 for (provider in locationManager.getProviders(true)) {
                     val loc = locationManager.getLastKnownLocation(provider) ?: continue
-                    if (bestLocation == null || loc.accuracy < bestLocation!!.accuracy) {
+                    if (bestLocation == null || loc.accuracy < bestLocation.accuracy) {
                         bestLocation = loc
                     }
                 }
@@ -254,6 +254,7 @@ class MainActivity : ComponentActivity() {
                                 cacheLocation(location)
                             }
                         }
+                        @Deprecated("Deprecated in parent class")
                         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
                         override fun onProviderEnabled(provider: String) {}
                         override fun onProviderDisabled(provider: String) {}
@@ -276,6 +277,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun cacheLocation(loc: android.location.Location) {
         try {
             val geocoder = android.location.Geocoder(this, Locale.getDefault())
@@ -943,7 +945,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                 Text("AVG LAUNCH", modifier = Modifier.weight(1.5f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
             }
 
-            Divider(color = Color.White.copy(alpha = 0.05f), thickness = 1.dp, modifier = Modifier.padding(bottom = 8.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f), thickness = 1.dp, modifier = Modifier.padding(bottom = 8.dp))
 
             grouped.entries.sortedByDescending { it.value.size }.forEach { entry ->
                 val typeName = entry.key
@@ -1297,8 +1299,7 @@ fun RecordScreen(
                     com.mrpeel.cricketbattingtracker.services.VideoRecordManager.discard(context)
                 }
                 showVideoRecord = false
-            },
-            context = context
+            }
         )
         return
     }
@@ -1370,8 +1371,7 @@ fun VideoRecordScreen(
     elapsedSeconds: Long,
     onStartClick: () -> Unit,
     onSaveClick: () -> Unit,
-    onCancelClick: () -> Unit,
-    context: android.content.Context
+    onCancelClick: () -> Unit
 ) {
     val neonGreen = Color(0xFF58FF63)
 

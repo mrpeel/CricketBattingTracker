@@ -84,6 +84,15 @@ class VideoRecordService : Service(), LifecycleOwner {
         _lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         ticker.removeCallbacks(tickRunnable)
         cameraExecutor.shutdown()
+
+        // Cleanup Bluetooth SCO if it was enabled
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        @Suppress("DEPRECATION")
+        if (audioManager.isBluetoothScoOn) {
+            audioManager.isBluetoothScoOn = false
+            audioManager.stopBluetoothSco()
+        }
+
         super.onDestroy()
     }
 
@@ -118,7 +127,9 @@ class VideoRecordService : Service(), LifecycleOwner {
                     .getDevices(AudioManager.GET_DEVICES_INPUTS)
                     .any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
                 if (hasBluetooth) {
+                    @Suppress("DEPRECATION")
                     audioManager.startBluetoothSco()
+                    @Suppress("DEPRECATION")
                     audioManager.isBluetoothScoOn = true
                     Log.d(TAG, "Using Bluetooth SCO microphone")
                 } else {
