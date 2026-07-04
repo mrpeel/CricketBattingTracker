@@ -1793,10 +1793,12 @@ fun TimelineItem(
                         }
                         if (event.launchAngle != null) {
                             val cls = event.launchClass ?: ""
-                            val suffix = when {
-                                "GROUND" in cls.uppercase() -> " Grnd"
-                                "LOFT" in cls.uppercase() -> " Loft"
-                                "FLAT" in cls.uppercase() -> " Flat"
+                            val suffix = when (cls.uppercase()) {
+                                "INTO_GROUND" -> " Grnd"
+                                "FLAT" -> " Flat"
+                                "LOFTED" -> " Loft"
+                                "POWER_ZONE" -> " PwrZ"
+                                "HIGH_LOFT" -> " H.Loft"
                                 else -> ""
                             }
                             MetricSmallCompact("LAUNCH", "${String.format("%.0f", event.launchAngle)}°$suffix", modifier = Modifier.weight(1.2f))
