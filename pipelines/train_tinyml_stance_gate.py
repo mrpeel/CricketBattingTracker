@@ -109,8 +109,8 @@ def main():
     X = combined_df[feature_cols].fillna(0.0)
     y = combined_df['label']
     
-    # max_depth=3 ensures tree is simple enough to easily write in Kotlin nested if-elses
-    clf = DecisionTreeClassifier(max_depth=3, class_weight='balanced', random_state=42)
+    # max_depth=4 keeps tree simple enough to easily write in Kotlin nested if-elses
+    clf = DecisionTreeClassifier(max_depth=4, class_weight='balanced', random_state=42)
     clf.fit(X, y)
     
     print("\nDecision Tree Structure (sklearn text format):")

@@ -1,11 +1,11 @@
 # Adversarial Post-Session Analysis Report
 
-**Generated:** 2026-07-04 19:39:31
-**Target Session Directory:** `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-07-04_12-19-20`
-**Target Session Name:** `session-2026-07-04_12-19-20`
+**Generated:** 2026-07-05 19:22:33
+**Target Session Directory:** `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-07-05_16-27-16`
+**Target Session Name:** `session-2026-07-05_16-27-16`
 
 ## Executive Summary
-- **Independent Clock Alignment:** verified that all 26 available sessions are aligned independently down to the millisecond.
+- **Independent Clock Alignment:** verified that all 27 available sessions are aligned independently down to the millisecond.
 - **Facing-Up Gate:** The current hybrid 4-condition stance gate performs with high accuracy on the target session, but alternative configurations might offer minor false positive reductions.
 - **Random Forest Parity:** Compiled classifier metrics across all sessions from the performance scorecard, demonstrating high classification accuracy.
 
@@ -42,126 +42,137 @@ Below is the verification table showing the optimal, millisecond-level independe
 | `session-2026-06-28_11-28-09` | `-7.185s` | `-7.185s` | `41` | `1042.3ms` |
 | `session-2026-06-29_12-21-45` | `-7.953s` | `-6.733s` | `45` | `1112.6ms` |
 | `session-2026-07-02_12-38-53` | `-7.468s` | `-4.668s` | `44` | `824.0ms` |
-| `session-2026-07-04_12-19-20` | `-7.474s` | `-5.474s` | `29` | `918.3ms` |
+| `session-2026-07-04_12-19-20` | `-7.474s` | `-5.474s` | `29` | `882.7ms` |
+| `session-2026-07-05_16-27-16` | `-17.928s` | `-14.978s` | `43` | `977.0ms` |
 
 ## 2. Facing-Up Detection Analysis
-### Current Gate Performance (Target Session): Recall=58.9% | FP=56 (2.72 FP/min) | F1=0.455
+### Current Gate Performance (Target Session): Recall=32.5% | FP=80 (4.23 FP/min) | F1=0.195
 
 #### Top 15 Feature Importances (All Physical & Virtual Sensors):
 | Rank | Feature Name | Mutual Info / Gini Importance |
 |---|---|---|
-| 1 | `accel_x_min_2.0s` | 0.0207 |
-| 2 | `step_age` | 0.0199 |
-| 3 | `accel_y_mean_2.0s` | 0.0179 |
-| 4 | `maguncal_bias_x_min_2.0s` | 0.0163 |
-| 5 | `maguncal_bias_x_min_1.0s` | 0.0163 |
-| 6 | `maguncal_bias_x_min_0.5s` | 0.0158 |
-| 7 | `maguncal_bias_x_mean_2.0s` | 0.0138 |
-| 8 | `maguncal_bias_x_max_1.0s` | 0.0138 |
-| 9 | `gyrouncal_y_min_2.0s` | 0.0135 |
-| 10 | `gyro_y_min_2.0s` | 0.0128 |
-| 11 | `gyro_mag_min_2.0s` | 0.0120 |
-| 12 | `maguncal_bias_x_mean_0.5s` | 0.0116 |
-| 13 | `maguncal_bias_x_mean_1.0s` | 0.0105 |
-| 14 | `maguncal_bias_z_min_1.0s` | 0.0097 |
-| 15 | `maguncal_bias_z_max_2.0s` | 0.0095 |
+| 1 | `gyro_y_range_1.0s` | 0.0253 |
+| 2 | `gyro_y_max_2.0s` | 0.0238 |
+| 3 | `gyro_x_max_2.0s` | 0.0184 |
+| 4 | `gyro_y_range_2.0s` | 0.0149 |
+| 5 | `gyro_y_range_0.5s` | 0.0126 |
+| 6 | `gyro_y_min_1.0s` | 0.0124 |
+| 7 | `gyro_y_max_1.0s` | 0.0110 |
+| 8 | `maguncal_bias_y_min_2.0s` | 0.0106 |
+| 9 | `maguncal_bias_y_max_2.0s` | 0.0105 |
+| 10 | `maguncal_bias_y_mean_1.0s` | 0.0100 |
+| 11 | `maguncal_bias_y_max_1.0s` | 0.0091 |
+| 12 | `gyrouncal_y_std_2.0s` | 0.0088 |
+| 13 | `step_age` | 0.0087 |
+| 14 | `maguncal_bias_z_min_1.0s` | 0.0085 |
+| 15 | `gyro_y_min_0.5s` | 0.0084 |
 
 #### Alternative Stance Gate Configurations (Grid Search):
-| Config | Gyro Std | Accel Std | Ori Disp | Grav Y | Min Flex | GyroMand | StepMand | StepRec | Recall | FP | FP/Min | F1 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | 0.90 | 3.25 | 3.00 | -7.0 | 3 | True | True | 0.5s | 58.9% | 52 | 2.53 | 0.468 |
-| 2 | 0.90 | 3.25 | 3.00 | -7.0 | 3 | True | True | 1.0s | 58.9% | 52 | 2.53 | 0.468 |
-| 3 | 0.90 | 3.25 | 3.00 | -7.0 | 3 | True | True | 2.0s | 58.9% | 52 | 2.53 | 0.468 |
-| 4 | 0.90 | 3.25 | 3.00 | -7.0 | 3 | True | True | 3.0s | 58.9% | 52 | 2.53 | 0.468 |
-| 5 | 0.90 | 3.25 | 2.50 | -6.0 | 3 | True | True | 0.5s | 58.9% | 54 | 2.63 | 0.462 |
+| Config | Gyro Std | Accel Std | Ori Disp | Grav Y | Min Flex | GyroMand | StepMand | StepRec | MinDur | BreakTol | Recall | FP | FP/Min | F1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1.50 | 4.00 | 2.50 | -7.0 | 3 | False | True | 3.0s | 0.8s | 1.5s | 55.0% | 105 | 5.56 | 0.263 |
+| 2 | 0.90 | 4.00 | 3.00 | -7.0 | 3 | False | True | 3.0s | 0.8s | 1.0s | 52.5% | 99 | 5.24 | 0.263 |
+| 3 | 1.50 | 4.00 | 3.00 | -6.0 | 3 | True | True | 3.0s | 0.8s | 1.5s | 47.5% | 86 | 4.55 | 0.262 |
+| 4 | 0.90 | 3.25 | 2.50 | -7.0 | 2 | False | True | 3.0s | 0.8s | 1.0s | 55.0% | 106 | 5.61 | 0.262 |
+| 5 | 1.20 | 4.00 | 3.00 | -7.0 | 3 | False | True | 3.0s | 0.8s | 1.0s | 55.0% | 106 | 5.61 | 0.262 |
 
 #### Cross-Session Validation Summary:
 | Configuration Label | Avg Recall | Total FPs | Avg F1 |
 |---|---|---|---|
-| Current Deployed (Gyro=1.20, Accel=3.25, GyroMand=True, StepMand=True, StepRec=1.0s) | 56.36% | 1273 | 0.466 |
-| Candidate 1 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=0.5s) | 55.18% | 1167 | 0.471 |
-| Candidate 2 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=1.0s) | 55.18% | 1165 | 0.471 |
-| Candidate 3 (Gyro=0.90, Accel=3.25, GyroMand=True, StepMand=True, StepRec=2.0s) | 55.08% | 1162 | 0.471 |
+| Current Deployed (Gyro=1.20, Accel=3.25, GyroMand=True, StepMand=True, StepRec=1.0s, MinDur=0.8s, BreakTol=1.5s) | 40.94% | 1606 | 0.331 |
+| Candidate 1 (Gyro=1.50, Accel=4.00, GyroMand=False, StepMand=True, StepRec=3.0s, MinDur=0.8s, BreakTol=1.5s) | 50.45% | 2233 | 0.332 |
+| Candidate 2 (Gyro=0.90, Accel=4.00, GyroMand=False, StepMand=True, StepRec=3.0s, MinDur=0.8s, BreakTol=1.0s) | 47.49% | 2116 | 0.325 |
+| Candidate 3 (Gyro=1.50, Accel=4.00, GyroMand=True, StepMand=True, StepRec=3.0s, MinDur=0.8s, BreakTol=1.5s) | 44.45% | 1770 | 0.338 |
 
 ## 3. Shot Detection Analysis
 ### Multi-Sensor Swing Signal-to-Noise Ratio (SNR):
 | Sensor Stream | Swing Peak | Stance Baseline | SNR Ratio |
 |---|---|---|---|
-| Gyroscope | 6.77 | 1.77 | 3.83x |
-| Accelerometer | 33.96 | 11.90 | 2.85x |
-| LinearAccel | 27.39 | 4.77 | 5.74x |
-| Magnetometer | 59.23 | 57.57 | 1.03x |
+| Gyroscope | 6.04 | 1.53 | 3.94x |
+| Accelerometer | 31.59 | 11.47 | 2.75x |
+| LinearAccel | 23.41 | 4.34 | 5.39x |
+| Magnetometer | 59.57 | 57.94 | 1.03x |
 
 #### Alternative Trigger Configurations:
 | Threshold (rad/s) | Contact Wait (s) | Recall | FP | FP/Min | F1 |
 |---|---|---|---|---|---|
-| 3.0 | 0.50 | 0.0% | 96 | 4.67 | 0.000 |
-| 3.0 | 0.75 | 0.0% | 96 | 4.67 | 0.000 |
-| 3.0 | 1.00 | 0.0% | 96 | 4.67 | 0.000 |
-| 5.0 | 0.50 | 0.0% | 86 | 4.18 | 0.000 |
-| 5.0 | 0.75 | 0.0% | 86 | 4.18 | 0.000 |
+| 3.0 | 0.50 | 0.0% | 98 | 5.19 | 0.000 |
+| 3.0 | 0.75 | 0.0% | 98 | 5.19 | 0.000 |
+| 3.0 | 1.00 | 0.0% | 98 | 5.19 | 0.000 |
+| 5.0 | 0.50 | 0.0% | 80 | 4.23 | 0.000 |
+| 5.0 | 0.75 | 0.0% | 80 | 4.23 | 0.000 |
 
 #### Missed Shot Forensic Diagnostics (Target Session):
 | Shot # | Narration Text | Target Time | Miss Diagnosis / Reason |
 |---|---|---|---|
-| 1 | "Click shot. Okay." | 37.53s | Accel std-of-mag too high (8.47 > 3.25), too much motion/shock |
-| 8 | "Full shot. Okay." | 166.53s | Gyro std-of-mag too high (1.76 > 1.2), bat was not still |
-| 9 | "Full shot, good." | 181.53s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
-| 19 | "Full shot, good." | 502.53s | Gyro std-of-mag too high (1.58 > 1.2), bat was not still |
-| 20 | "Full shot. Okay." | 540.53s | Accel std-of-mag too high (3.33 > 3.25), too much motion/shock |
-| 21 | "Full shot, miss." | 552.53s | Gyro std-of-mag too high (2.47 > 1.2), bat was not still |
-| 25 | "Glance, edge." | 627.53s | Gyro std-of-mag too high (1.61 > 1.2), bat was not still |
-| 29 | "Full shot, edge." | 757.53s | Accel std-of-mag too high (6.05 > 3.25), too much motion/shock |
-| 31 | "Click shot, good." | 769.53s | Gyro std-of-mag too high (1.99 > 1.2), bat was not still |
-| 32 | "Full shot. Okay." | 777.53s | Gyro std-of-mag too high (1.70 > 1.2), bat was not still |
-| 36 | "Full shot. Okay." | 1007.53s | Gyro std-of-mag too high (1.43 > 1.2), bat was not still |
-| 44 | "Full shot. Okay." | 1083.53s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
-| 48 | "Uh, full shot. Okay." | 1130.53s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 2 | "Power drive okay" | 41.07s | Gyro std-of-mag too high (1.85 > 1.2), bat was not still |
+| 6 | "Defense edge" | 71.07s | Gyro std-of-mag too high (1.29 > 1.2), bat was not still |
+| 7 | "Power drive good" | 79.07s | Accel std-of-mag too high (3.28 > 3.25), too much motion/shock |
+| 8 | "Defense good" | 88.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 10 | "Power drive edge" | 103.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 11 | "Defense edge" | 111.07s | Accel std-of-mag too high (4.96 > 3.25), too much motion/shock |
+| 14 | "Power drive miss" | 141.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 16 | "Straight drive good" | 158.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 17 | "Block good" | 167.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 19 | "Power drive edge" | 191.07s | Accel std-of-mag too high (3.67 > 3.25), too much motion/shock |
+| 22 | "Power drive good" | 458.07s | Gyro std-of-mag too high (2.61 > 1.2), bat was not still |
+| 29 | "Power drive okay" | 522.07s | Accel std-of-mag too high (4.39 > 3.25), too much motion/shock |
+| 34 | "Power drive edge" | 569.07s | Gyro std-of-mag too high (2.27 > 1.2), bat was not still |
+| 35 | "Power drive edge" | 578.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 38 | "Power shot good" | 620.07s | Gyro std-of-mag too high (1.65 > 1.2), bat was not still |
+| 40 | "Flick shot good" | 635.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 41 | "Power drive good" | 913.07s | Accel std-of-mag too high (6.04 > 3.25), too much motion/shock |
+| 43 | "Power drive okay" | 929.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 47 | "Power drive poor" | 965.07s | Step detector fired at 961.19s, breaking stance gate |
+| 49 | "Power drive okay" | 980.07s | Gyro std-of-mag too high (2.08 > 1.2), bat was not still |
+| 54 | "Power drive okay" | 1029.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
+| 55 | "Power drive good" | 1038.07s | Stance gate opened but backswing trigger failed to cross threshold, or timeout expired |
 
 #### Random Forest Classification Parity (Aggregated Over All Available Sessions):
 Below is the classification performance overview compiled from the Kotlin ML scorecard report (`swing_detector_scorecard.md`):
 
 | Session | GT | Detected | TP | FP | FN | Precision | Recall | Class Accuracy | Hit/Miss Agr |
 |---|---|---|---|---|---|---|---|---|---|
-| Pull shots | 24 | 28 | 22 | 6 | 2 | 0.79 | 0.92 | 0.10 | 0.95 |
-| Cover drives | 14 | 8 | 8 | 0 | 6 | 1.00 | 0.57 | 0.43 | 0.75 |
-| On drives and flick shots | 26 | 27 | 25 | 2 | 1 | 0.93 | 0.96 | 0.70 | 0.92 |
+| Pull shots | 24 | 28 | 22 | 6 | 2 | 0.79 | 0.92 | 0.33 | 0.95 |
+| Cover drives | 14 | 8 | 8 | 0 | 6 | 1.00 | 0.57 | 0.29 | 0.75 |
+| On drives and flick shots | 26 | 27 | 25 | 2 | 1 | 0.93 | 0.96 | 0.74 | 0.92 |
 | Short off side | 25 | 0 | 0 | 0 | 25 | 0.00 | 0.00 | 0.00 | 0.00 |
-| full_toss | 27 | 33 | 27 | 6 | 0 | 0.82 | 1.00 | 0.11 | 0.96 |
+| full_toss | 27 | 33 | 27 | 6 | 0 | 0.82 | 1.00 | 0.06 | 0.96 |
 | full_length | 23 | 0 | 0 | 0 | 23 | 0.00 | 0.00 | 0.00 | 0.00 |
-| live_session_20260530 | 140 | 130 | 92 | 38 | 48 | 0.71 | 0.66 | 0.67 | 0.90 |
-| live_session_20260531_10 | 6 | 5 | 5 | 0 | 1 | 1.00 | 0.83 | 0.60 | 1.00 |
-| live_session_20260531_14 | 40 | 76 | 19 | 57 | 21 | 0.25 | 0.47 | 0.47 | 0.95 |
-| live_session_20260601 | 68 | 82 | 54 | 28 | 14 | 0.66 | 0.79 | 0.93 | 0.81 |
-| live_session_20260605 | 22 | 33 | 21 | 12 | 1 | 0.64 | 0.95 | 0.81 | 0.90 |
-| live_session_20260607 | 34 | 68 | 18 | 50 | 16 | 0.26 | 0.53 | 0.44 | 0.89 |
-| live_session_20260608 | 60 | 66 | 53 | 13 | 7 | 0.80 | 0.88 | 0.85 | 0.72 |
-| live_session_20260609 | 40 | 69 | 26 | 43 | 14 | 0.38 | 0.65 | 0.88 | 0.85 |
-| live_session_20260611 | 56 | 87 | 42 | 45 | 14 | 0.48 | 0.75 | 0.67 | 0.95 |
-| live_session_20260612 | 50 | 97 | 34 | 63 | 16 | 0.35 | 0.68 | 0.44 | 0.97 |
-| live_session_20260613 | 43 | 67 | 29 | 38 | 14 | 0.43 | 0.67 | 0.41 | 0.86 |
-| live_session_20260614 | 46 | 77 | 28 | 49 | 18 | 0.36 | 0.61 | 0.29 | 0.89 |
-| live_session_20260615 | 42 | 103 | 26 | 77 | 16 | 0.25 | 0.62 | 0.65 | 0.92 |
-| live_session_20260616 | 36 | 81 | 26 | 55 | 10 | 0.32 | 0.72 | 0.62 | 0.69 |
-| live_session_20260618 | 69 | 86 | 64 | 22 | 5 | 0.74 | 0.93 | 0.77 | 0.95 |
-| live_session_20260619 | 66 | 81 | 64 | 17 | 2 | 0.79 | 0.97 | 0.86 | 1.00 |
-| live_session_20260621 | 99 | 94 | 67 | 27 | 32 | 0.71 | 0.68 | 0.70 | 0.96 |
-| live_session_20260622 | 68 | 93 | 66 | 27 | 2 | 0.71 | 0.97 | 0.80 | 1.00 |
-| live_session_20260623 | 125 | 88 | 72 | 16 | 53 | 0.82 | 0.58 | 0.47 | 0.93 |
-| live_session_20260625 | 67 | 100 | 50 | 50 | 17 | 0.50 | 0.75 | 0.80 | 0.98 |
-| live_session_20260626 | 66 | 93 | 65 | 28 | 1 | 0.70 | 0.98 | 0.78 | 0.95 |
-| live_session_20260627 | 38 | 78 | 22 | 56 | 16 | 0.28 | 0.58 | 0.68 | 0.91 |
-| live_session_20260628 | 56 | 89 | 56 | 33 | 0 | 0.63 | 1.00 | 0.70 | 0.80 |
-| live_session_20260629 | 65 | 90 | 65 | 25 | 0 | 0.72 | 1.00 | 0.31 | 1.00 |
-| live_session_20260702 | 66 | 85 | 66 | 19 | 0 | 0.78 | 1.00 | 0.83 | 0.94 |
+| live_session_20260530 | 140 | 130 | 92 | 38 | 48 | 0.71 | 0.66 | 0.55 | 0.90 |
+| live_session_20260531_10 | 6 | 5 | 5 | 0 | 1 | 1.00 | 0.83 | 0.40 | 1.00 |
+| live_session_20260531_14 | 40 | 76 | 19 | 57 | 21 | 0.25 | 0.47 | 0.37 | 0.95 |
+| live_session_20260601 | 68 | 82 | 54 | 28 | 14 | 0.66 | 0.79 | 0.87 | 0.81 |
+| live_session_20260605 | 22 | 33 | 21 | 12 | 1 | 0.64 | 0.95 | 0.76 | 0.90 |
+| live_session_20260607 | 34 | 68 | 18 | 50 | 16 | 0.26 | 0.53 | 0.39 | 0.89 |
+| live_session_20260608 | 60 | 66 | 53 | 13 | 7 | 0.80 | 0.88 | 0.79 | 0.72 |
+| live_session_20260609 | 40 | 69 | 26 | 43 | 14 | 0.38 | 0.65 | 0.77 | 0.85 |
+| live_session_20260611 | 56 | 87 | 42 | 45 | 14 | 0.48 | 0.75 | 0.69 | 0.95 |
+| live_session_20260612 | 77 | 97 | 64 | 33 | 13 | 0.66 | 0.83 | 0.47 | 0.97 |
+| live_session_20260613 | 43 | 67 | 25 | 42 | 18 | 0.37 | 0.58 | 0.32 | 0.88 |
+| live_session_20260614 | 71 | 77 | 62 | 15 | 9 | 0.81 | 0.87 | 0.58 | 0.92 |
+| live_session_20260615 | 21 | 103 | 13 | 90 | 8 | 0.13 | 0.62 | 0.31 | 0.77 |
+| live_session_20260616 | 54 | 81 | 15 | 66 | 39 | 0.19 | 0.28 | 0.07 | 0.73 |
+| live_session_20260618 | 76 | 86 | 39 | 47 | 37 | 0.45 | 0.51 | 0.36 | 1.00 |
+| live_session_20260621 | 113 | 94 | 60 | 34 | 53 | 0.64 | 0.53 | 0.35 | 0.98 |
+| live_session_20260622 | 46 | 93 | 24 | 69 | 22 | 0.26 | 0.52 | 0.21 | 1.00 |
+| live_session_20260623 | 66 | 88 | 65 | 23 | 1 | 0.74 | 0.98 | 0.83 | 0.94 |
+| live_session_20260625 | 67 | 100 | 50 | 50 | 17 | 0.50 | 0.75 | 0.62 | 0.92 |
+| live_session_20260626 | 65 | 93 | 53 | 40 | 12 | 0.57 | 0.82 | 0.45 | 0.96 |
+| live_session_20260627 | 38 | 78 | 18 | 60 | 20 | 0.23 | 0.47 | 0.33 | 0.89 |
+| live_session_20260628 | 37 | 89 | 16 | 73 | 21 | 0.18 | 0.43 | 0.19 | 0.69 |
+| live_session_20260629 | 65 | 90 | 46 | 44 | 19 | 0.51 | 0.71 | 0.54 | 1.00 |
+| live_session_20260702 | 66 | 85 | 50 | 35 | 16 | 0.59 | 0.76 | 0.34 | 0.92 |
+| live_session_20260704 | 56 | 92 | 35 | 57 | 21 | 0.38 | 0.62 | 0.26 | 0.83 |
+| live_session_20260705 | 40 | 91 | 19 | 72 | 21 | 0.21 | 0.47 | 0.68 | 0.84 |
 
 **Summary Metrics (Weighted Combined Averages across active-watch sessions):**
-- **Total Combined Ground Truth Shots:** 1559
-- **Total Combined Detected Shots:** 2114
-- **Total Combined True Positives (Matches):** 1212
-- **Total Combined False Positives:** 902
-- **Overall Shot Classification Accuracy:** 65.7%
-- **Overall Hit/Miss Agreement:** 91.6%
+- **Total Combined Ground Truth Shots:** 1558
+- **Total Combined Detected Shots:** 2216
+- **Total Combined True Positives (Matches):** 1066
+- **Total Combined False Positives:** 1150
+- **Overall Shot Classification Accuracy:** 51.7%
+- **Overall Hit/Miss Agreement:** 90.7%
 
 ## 4. Recommended Changes
 
