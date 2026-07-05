@@ -8,6 +8,162 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
+def apply_stance_stress_to_session_cache(session_dir, shot_times, seed=42):
+    """
+    Applies in-memory stance stress-testing to cached session sensor streams:
+      1. Twitch Injection (50% chance): Adds random high-gyro/accel spikes inside stance windows.
+      2. Stance Shortening (50% chance): Trims stance duration to between 0.5s and 1.5s by overlaying movement noise.
+    """
+    df_gyro = load_parquet_or_csv(session_dir, "gyro")
+    df_accel = load_parquet_or_csv(session_dir, "accel")
+    df_grav = load_parquet_or_csv(session_dir, "gravity")
+    df_orient = load_parquet_or_csv(session_dir, "game_orient")
+    if df_orient is None:
+        df_orient = load_parquet_or_csv(session_dir, "orient")
+        
+    if df_gyro is None or df_accel is None or df_grav is None:
+        return
+
+    # Create local copies to avoid mutating global original parquet/csv files on disk
+    df_gyro = df_gyro.copy()
+    df_accel = df_accel.copy()
+    df_grav = df_grav.copy()
+    if df_orient is not None:
+        df_orient = df_orient.copy()
+
+    rng = np.random.default_rng(seed)
+
+    for st in shot_times:
+        t_start = st - 3.5
+        t_end = st - 1.5
+
+        # 1. Twitch injection (50% probability)
+        if rng.uniform() < 0.5:
+            twitch_len = 0.15
+            t_twitch_start = rng.uniform(t_start, t_end - twitch_len)
+            t_twitch_end = t_twitch_start + twitch_len
+
+            # Gyro twitch: add high activity (rad/s)
+            mask_gyro = (df_gyro['seconds_elapsed'] >= t_twitch_start) & (df_gyro['seconds_elapsed'] <= t_twitch_end)
+            n_gyro = mask_gyro.sum()
+            if n_gyro > 0:
+                df_gyro.loc[mask_gyro, 'x'] += rng.normal(0, 4.0, size=n_gyro)
+                df_gyro.loc[mask_gyro, 'y'] += rng.normal(0, 4.0, size=n_gyro)
+                df_gyro.loc[mask_gyro, 'z'] += rng.normal(0, 2.0, size=n_gyro)
+
+            # Accel twitch: add high acceleration (m/s^2)
+            mask_accel = (df_accel['seconds_elapsed'] >= t_twitch_start) & (df_accel['seconds_elapsed'] <= t_twitch_end)
+            n_accel = mask_accel.sum()
+            if n_accel > 0:
+                df_accel.loc[mask_accel, 'x'] += rng.normal(0, 5.0, size=n_accel)
+                df_accel.loc[mask_accel, 'y'] += rng.normal(0, 5.0, size=n_accel)
+                df_accel.loc[mask_accel, 'z'] += rng.normal(0, 5.0, size=n_accel)
+
+        # 2. Stance shortening / continuous fidget noise (50% probability)
+        if rng.uniform() < 0.5:
+            trim_duration = rng.uniform(0.5, 1.5)
+            t_trim_end = t_start + trim_duration
+
+            # Inject walk/fidget oscillation noise into the trimmed section
+            mask_gyro = (df_gyro['seconds_elapsed'] >= t_start) & (df_gyro['seconds_elapsed'] <= t_trim_end)
+            n_gyro = mask_gyro.sum()
+            if n_gyro > 0:
+                df_gyro.loc[mask_gyro, 'x'] += rng.normal(0, 2.0, size=n_gyro)
+                df_gyro.loc[mask_gyro, 'y'] += rng.normal(0, 2.0, size=n_gyro)
+
+            mask_accel = (df_accel['seconds_elapsed'] >= t_start) & (df_accel['seconds_elapsed'] <= t_trim_end)
+            n_accel = mask_accel.sum()
+            if n_accel > 0:
+                df_accel.loc[mask_accel, 'x'] += rng.normal(0, 3.0, size=n_accel)
+                df_accel.loc[mask_accel, 'y'] += rng.normal(0, 3.0, size=n_accel)
+
+    # Force write back to cache
+    _sensor_cache[(session_dir, "gyro")] = df_gyro
+    _sensor_cache[(session_dir, "accel")] = df_accel
+    _sensor_cache[(session_dir, "gravity")] = df_grav
+    if df_orient is not None:
+        if (session_dir, "game_orient") in _sensor_cache:
+            _sensor_cache[(session_dir, "game_orient")] = df_orient
+        else:
+            _sensor_cache[(session_dir, "orient")] = df_orient
+
+_precomputed_cache = {}
+
+def get_precomputed_features(df_gyro, df_accel, df_grav, df_orient, df_steps):
+    cache_key = id(df_gyro)
+    if cache_key in _precomputed_cache:
+        return _precomputed_cache[cache_key]
+
+    df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
+    df_accel['mag'] = np.sqrt(df_accel['x']**2 + df_accel['y']**2 + df_accel['z']**2)
+    
+    gyro_t = df_gyro['seconds_elapsed'].values
+    gyro_mag = df_gyro['mag'].values
+    
+    accel_t = df_accel['seconds_elapsed'].values
+    accel_mag = df_accel['mag'].values
+    grav_t = df_grav['seconds_elapsed'].values
+    grav_y = df_grav['y'].values
+    orient_t = df_orient['seconds_elapsed'].values
+    orient_qx = df_orient['qx'].values
+    orient_qy = df_orient['qy'].values
+    orient_qz = df_orient['qz'].values
+    orient_qw = df_orient['qw'].values
+    step_t = df_steps['seconds_elapsed'].values if (df_steps is not None and len(df_steps) > 0) else np.array([])
+    
+    n_samples = len(gyro_t)
+    precomputed = {
+        'gyro_std': np.zeros(n_samples),
+        'accel_std': np.zeros(n_samples),
+        'mean_grav_y': np.zeros(n_samples),
+        'ori_disp': np.zeros(n_samples),
+        'step_age': np.zeros(n_samples)
+    }
+    
+    for i in range(n_samples):
+        t = gyro_t[i]
+        g_start = t - 1.0
+        g_start_idx = np.searchsorted(gyro_t, g_start)
+        g_end_idx = i + 1
+        precomputed['gyro_std'][i] = np.std(gyro_mag[g_start_idx:g_end_idx]) if (g_end_idx - g_start_idx) >= 2 else 0.0
+        
+        a_start_idx = np.searchsorted(accel_t, g_start)
+        a_end_idx = np.searchsorted(accel_t, t, side='right')
+        precomputed['accel_std'][i] = np.std(accel_mag[a_start_idx:a_end_idx]) if (a_end_idx - a_start_idx) >= 2 else 0.0
+        
+        gr_start_idx = np.searchsorted(grav_t, g_start)
+        gr_end_idx = np.searchsorted(grav_t, t, side='right')
+        y_gr = grav_y[gr_start_idx:gr_end_idx]
+        precomputed['mean_grav_y'][i] = np.mean(y_gr) if len(y_gr) >= 5 else 0.0
+        
+        o_start = t - 0.5
+        o_start_idx = np.searchsorted(orient_t, o_start)
+        o_end_idx = np.searchsorted(orient_t, t, side='right')
+        n_ori = o_end_idx - o_start_idx
+        if n_ori >= 2:
+            qx = orient_qx[o_start_idx:o_end_idx]
+            qy = orient_qy[o_start_idx:o_end_idx]
+            qz = orient_qz[o_start_idx:o_end_idx]
+            qw = orient_qw[o_start_idx:o_end_idx]
+            dots = qx[:-1]*qx[1:] + qy[:-1]*qy[1:] + qz[:-1]*qz[1:] + qw[:-1]*qw[1:]
+            dots = np.clip(np.abs(dots), -1.0, 1.0)
+            angles = np.degrees(2.0 * np.arccos(dots))
+            precomputed['ori_disp'][i] = np.mean(angles) if len(angles) > 0 else 999.0
+        else:
+            precomputed['ori_disp'][i] = 999.0
+            
+        if len(step_t) > 0:
+            step_idx = np.searchsorted(step_t, t, side='right')
+            if step_idx > 0:
+                precomputed['step_age'][i] = (t - step_t[step_idx - 1]) * 1e9
+            else:
+                precomputed['step_age'][i] = 999999.0 * 1e9
+        else:
+            precomputed['step_age'][i] = 999999.0 * 1e9
+
+    _precomputed_cache[cache_key] = precomputed
+    return precomputed
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--session-dir", required=True, help="Path to the target session directory")
@@ -360,7 +516,8 @@ def rank_features(df):
     return ranking
 
 def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_disp_max, grav_y_min, min_flexible,
-                                  gyro_mandatory=True, step_mandatory=True, step_recency_s=1.0):
+                                  gyro_mandatory=True, step_mandatory=True, step_recency_s=1.0,
+                                  facing_up_min_duration_s=0.8, facing_up_break_tolerance_s=1.5):
     df_gyro = load_parquet_or_csv(session_dir, "gyro")
     df_accel = load_parquet_or_csv(session_dir, "accel")
     df_grav = load_parquet_or_csv(session_dir, "gravity")
@@ -372,73 +529,12 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
     if df_gyro is None or df_accel is None or df_grav is None or df_orient is None:
         return [], 0.0
     
-    df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
-    df_accel['mag'] = np.sqrt(df_accel['x']**2 + df_accel['y']**2 + df_accel['z']**2)
+    precomputed = get_precomputed_features(df_gyro, df_accel, df_grav, df_orient, df_steps)
     
     gyro_t = df_gyro['seconds_elapsed'].values
     gyro_sec = df_gyro['seconds_elapsed'].values
     gyro_mag = df_gyro['mag'].values
-    
-    accel_t = df_accel['seconds_elapsed'].values
-    accel_mag = df_accel['mag'].values
-    grav_t = df_grav['seconds_elapsed'].values
-    grav_y = df_grav['y'].values
-    orient_t = df_orient['seconds_elapsed'].values
-    orient_qx = df_orient['qx'].values
-    orient_qy = df_orient['qy'].values
-    orient_qz = df_orient['qz'].values
-    orient_qw = df_orient['qw'].values
-    step_t = df_steps['seconds_elapsed'].values if (df_steps is not None and len(df_steps) > 0) else np.array([])
-    
     n_samples = len(gyro_t)
-    precomputed = {
-        'gyro_std': np.zeros(n_samples),
-        'accel_std': np.zeros(n_samples),
-        'mean_grav_y': np.zeros(n_samples),
-        'ori_disp': np.zeros(n_samples),
-        'step_age': np.zeros(n_samples)
-    }
-    
-    for i in range(n_samples):
-        t = gyro_t[i]
-        g_start = t - 1.0
-        g_start_idx = np.searchsorted(gyro_t, g_start)
-        g_end_idx = i + 1
-        precomputed['gyro_std'][i] = np.std(gyro_mag[g_start_idx:g_end_idx]) if (g_end_idx - g_start_idx) >= 2 else 0.0
-        
-        a_start_idx = np.searchsorted(accel_t, g_start)
-        a_end_idx = np.searchsorted(accel_t, t, side='right')
-        precomputed['accel_std'][i] = np.std(accel_mag[a_start_idx:a_end_idx]) if (a_end_idx - a_start_idx) >= 2 else 0.0
-        
-        gr_start_idx = np.searchsorted(grav_t, g_start)
-        gr_end_idx = np.searchsorted(grav_t, t, side='right')
-        y_gr = grav_y[gr_start_idx:gr_end_idx]
-        precomputed['mean_grav_y'][i] = np.mean(y_gr) if len(y_gr) >= 5 else 0.0
-        
-        o_start = t - 0.5
-        o_start_idx = np.searchsorted(orient_t, o_start)
-        o_end_idx = np.searchsorted(orient_t, t, side='right')
-        n_ori = o_end_idx - o_start_idx
-        if n_ori >= 2:
-            qx = orient_qx[o_start_idx:o_end_idx]
-            qy = orient_qy[o_start_idx:o_end_idx]
-            qz = orient_qz[o_start_idx:o_end_idx]
-            qw = orient_qw[o_start_idx:o_end_idx]
-            dots = qx[:-1]*qx[1:] + qy[:-1]*qy[1:] + qz[:-1]*qz[1:] + qw[:-1]*qw[1:]
-            dots = np.clip(np.abs(dots), -1.0, 1.0)
-            angles = np.degrees(2.0 * np.arccos(dots))
-            precomputed['ori_disp'][i] = np.mean(angles) if len(angles) > 0 else 999.0
-        else:
-            precomputed['ori_disp'][i] = 999.0
-            
-        if len(step_t) > 0:
-            step_idx = np.searchsorted(step_t, t, side='right')
-            if step_idx > 0:
-                precomputed['step_age'][i] = (t - step_t[step_idx - 1]) * 1e9
-            else:
-                precomputed['step_age'][i] = 999999.0 * 1e9
-        else:
-            precomputed['step_age'][i] = 999999.0 * 1e9
             
     STATE_ACTIVITY_CLASSIFY = 0
     STATE_FACING_UP_LOCKED = 1
@@ -461,8 +557,8 @@ def simulate_detector_for_session(session_dir, gyro_std_max, accel_std_max, ori_
     step_age_arr = precomputed['step_age']
     
     step_recency_ns = int(step_recency_s * 1e9)
-    facing_up_min_duration_ns = 800000000
-    facing_up_break_tolerance_ns = 1500000000
+    facing_up_min_duration_ns = int(facing_up_min_duration_s * 1e9)
+    facing_up_break_tolerance_ns = int(facing_up_break_tolerance_s * 1e9)
     backswing_timeout_ns = 10000000000
     backswing_trigger_rad_s = 5.0
     post_shot_guard_ns = 1500000000
@@ -604,15 +700,17 @@ def evaluate_detections(detected_secs, gt_times, session_duration):
 def main():
     args = parse_args()
     
-    print("Loading target session features...")
+    shot_times, offset = load_shot_times(args.session_dir)
+    print(f"Loaded {len(shot_times)} shots. Applying stance stress-testing to cached data...")
+    apply_stance_stress_to_session_cache(args.session_dir, shot_times)
+
+    print("Loading target session features (stressed)...")
     merged_df, _ = extract_all_features_for_session(args.session_dir)
     if merged_df is None:
         print("Error: Could not load target session.")
         return
         
-    shot_times, offset = load_shot_times(args.session_dir)
-    print(f"Loaded {len(shot_times)} shots. Running feature importance on all physical + virtual sensors...")
-    
+    print(f"Running feature importance on all physical + virtual sensors...")
     labeled_df = build_labeled_dataset(merged_df, shot_times)
     ranking = rank_features(labeled_df)
     
@@ -637,12 +735,16 @@ def main():
     grav_y_grids = [-6.0, -7.0]
     min_flex_grids = [2, 3]
     
+    # Timing variables to sweep (Option 3 timing stress)
+    min_dur_grids = [0.5, 0.8]
+    break_tol_grids = [1.0, 1.5]
+    
     # Structural variables to sweep
     gyro_mandatory_options = [True, False]
     step_mandatory_options = [True, False]
     step_recency_options = [0.5, 1.0, 2.0, 3.0]
     
-    print("\nGrid searching alternative gate structures and thresholds on the latest session...")
+    print("\nGrid searching alternative gate structures, thresholds, and timing on the latest session...")
     candidates = []
     for g_std in gyro_grids:
         for a_std in accel_grids:
@@ -652,18 +754,23 @@ def main():
                         for g_mand in gyro_mandatory_options:
                             for s_mand in step_mandatory_options:
                                 for s_rec in step_recency_options:
-                                    det, dur = simulate_detector_for_session(
-                                        args.session_dir, g_std, a_std, o_disp, gr_y, mf,
-                                        gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec
-                                    )
-                                    rec, f_p, fp_m, f1_score = evaluate_detections(det, shot_times, dur)
-                                    candidates.append((g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, rec, f_p, fp_m, f1_score))
+                                    for min_dur in min_dur_grids:
+                                        for brk_tol in break_tol_grids:
+                                            det, dur = simulate_detector_for_session(
+                                                args.session_dir, g_std, a_std, o_disp, gr_y, mf,
+                                                gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec,
+                                                facing_up_min_duration_s=min_dur, facing_up_break_tolerance_s=brk_tol
+                                            )
+                                            rec, f_p, fp_m, f1_score = evaluate_detections(det, shot_times, dur)
+                                            candidates.append((g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, min_dur, brk_tol, rec, f_p, fp_m, f1_score))
                         
-    candidates.sort(key=lambda x: (-x[11], x[9]))
+    # Sort candidates by F1 score desc, then FPs asc
+    candidates.sort(key=lambda x: (-x[13], x[11]))
     print("Top 5 Alternative Gate Configs (Latest Session):")
     for i, c in enumerate(candidates[:5]):
         print(f"  {i+1}. GyroStd={c[0]:.2f}, AccelStd={c[1]:.2f}, OriDisp={c[2]:.2f}, GravY={c[3]:.1f}, MinFlex={c[4]}, "
-              f"GyroMand={c[5]}, StepMand={c[6]}, StepRec={c[7]}s -> Recall={c[8]:.1%}, FPs={c[9]} ({c[10]:.2f} FP/min), F1={c[11]:.3f}")
+              f"GyroMand={c[5]}, StepMand={c[6]}, StepRec={c[7]}s, MinDur={c[8]:.1f}s, BreakTol={c[9]:.1f}s -> "
+              f"Recall={c[10]:.1%}, FPs={c[11]} ({c[12]:.2f} FP/min), F1={c[13]:.3f}")
 
     all_sessions = load_all_sessions(args.sessions_base)
     print(f"\nPerforming cross-session validation across {len(all_sessions)} sessions...")
@@ -677,16 +784,21 @@ def main():
         
     print(f"Loaded {len(session_data)} historical sessions for validation.")
     
-    top_configs = [(curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex, True, True, 1.0)] + [c[:8] for c in candidates[:3]]
+    # Apply stance stress to each validation session cache before running cross-session check
+    for s_path, s_shots in session_data:
+        apply_stance_stress_to_session_cache(s_path, s_shots)
+
+    top_configs = [(curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex, True, True, 1.0, 0.8, 1.5)] + [c[:10] for c in candidates[:3]]
     configs_metrics = []
     
     for cfg in top_configs:
-        g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec = cfg
+        g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, min_dur, brk_tol = cfg
         recalls, fps, f1s = [], [], []
         for s_path, s_shots in session_data:
             det, dur = simulate_detector_for_session(
                 s_path, g_std, a_std, o_disp, gr_y, mf,
-                gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec
+                gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec,
+                facing_up_min_duration_s=min_dur, facing_up_break_tolerance_s=brk_tol
             )
             rec, f_p, fp_m, f1_score = evaluate_detections(det, s_shots, dur)
             recalls.append(rec)
@@ -703,7 +815,8 @@ def main():
     for i, res in enumerate(configs_metrics):
         cfg = res['config']
         label = "Current Deployed" if i == 0 else f"Candidate {i}"
-        print(f"  {label:<18}: GyroStd={cfg[0]:.2f}, AccelStd={cfg[1]:.2f}, OriDisp={cfg[2]:.2f}, GravY={cfg[3]:.1f}, MinFlex={cfg[4]}, GyroMand={cfg[5]}, StepMand={cfg[6]}, StepRec={cfg[7]}s")
+        print(f"  {label:<18}: GyroStd={cfg[0]:.2f}, AccelStd={cfg[1]:.2f}, OriDisp={cfg[2]:.2f}, GravY={cfg[3]:.1f}, MinFlex={cfg[4]}, "
+              f"GyroMand={cfg[5]}, StepMand={cfg[6]}, StepRec={cfg[7]}s, MinDur={cfg[8]:.1f}s, BreakTol={cfg[9]:.1f}s")
         print(f"    Avg Recall: {res['mean_recall']:.2%}, Total FPs: {res['total_fps']}, Avg F1: {res['mean_f1']:.3f}")
 
 if __name__ == "__main__":
