@@ -527,7 +527,7 @@ def main():
             print(f"  Skipped {skipped_count} synthetic rows (failed gyroMag quality gate)")
     else:
         print(f"\n  ⚠️  Augmented data directory not found: {AUG_DIR}")
-        print("     Run scratch/augment_training_data.py first to generate synthetic data.")
+        print("     Run pipelines/augment_training_data.py first to generate synthetic data.")
 
     # ─── Save Results ───
     df_combined_aligned = pd.DataFrame(all_aligned_rows)

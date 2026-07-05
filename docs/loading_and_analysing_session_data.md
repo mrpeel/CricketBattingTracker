@@ -95,7 +95,7 @@ To train a robust machine learning model, single-session files are compiled into
 
 Compile features and alignments across the 8 trusted sessions:
 ```bash
-python3 scratch/compile_dataset.py
+python3 pipelines/compile_dataset.py
 ```
 
 *   **How it works**:
@@ -144,7 +144,7 @@ This script runs a grid search across feature subsets and model configurations (
 ### Step 2: Transpile to Kotlin
 Run the generation script to compile the Random Forest model directly into a static watch class:
 ```bash
-python3 scratch/generate_kotlin_forest.py
+python3 pipelines/generate_kotlin_forest.py
 ```
 *   **Generated Output**:
     Creates `GeneratedForest.kt` in `wear/src/main/java/.../ml/`.

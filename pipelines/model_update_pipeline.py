@@ -230,10 +230,10 @@ def main():
     # 0. Generate synthetic augmented training data from real sensor windows.
     #    This clears and regenerates augmented_training_data/ on every run.
     #    Synthetic data is NEVER used for evaluation — only for training features.
-    run_script(os.path.join(ROOT_DIR, "scratch/augment_training_data.py"))
+    run_script(os.path.join(ROOT_DIR, "pipelines/augment_training_data.py"))
 
     # 1. Compile updated dataset (real sessions + augmented synthetic rows)
-    run_script(os.path.join(ROOT_DIR, "scratch/compile_dataset.py"))
+    run_script(os.path.join(ROOT_DIR, "pipelines/compile_dataset.py"))
     
     # 2. Run Wear OS unit tests to evaluate the existing model against the updated dataset
     print("⏳ Evaluating existing model against the updated dataset...")
@@ -248,7 +248,7 @@ def main():
     before_stats = get_grouped_stats(scorecard_path)
     
     # 3. Retrain model and transpile to overwrite GeneratedForest.kt
-    run_script(os.path.join(ROOT_DIR, "scratch/generate_kotlin_forest.py"))
+    run_script(os.path.join(ROOT_DIR, "pipelines/generate_kotlin_forest.py"))
     
     # 4. Run Wear OS unit tests to evaluate the new model against the updated dataset
     print("⏳ Evaluating new model against the updated dataset...")

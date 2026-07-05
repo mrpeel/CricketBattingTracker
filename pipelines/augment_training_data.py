@@ -333,7 +333,7 @@ def main():
             "===========================================\n"
             "This directory contains programmatically augmented IMU sensor windows\n"
             "derived from real Galaxy Watch sessions.\n\n"
-            "These files are consumed ONLY by scratch/compile_dataset.py to add\n"
+            "These files are consumed ONLY by pipelines/compile_dataset.py to add\n"
             "training feature rows to combined_features.csv.\n\n"
             "SwingDetectorGroundTruthTest.kt and model evaluation ALWAYS use\n"
             "real live_watch_sessions/ data. Never add paths from this directory\n"
