@@ -1041,7 +1041,7 @@ fun ShotTypeMetricCol(
         )
         Row(
             verticalAlignment = Alignment.Bottom,
-            modifier = Modifier.offset(y = (-3).dp)
+            modifier = Modifier.offset(y = (-4).dp)
         ) {
             Text(
                 text = largeVal,
@@ -1884,7 +1884,7 @@ fun MetricSmallCompact(label: String, value: String, modifier: Modifier = Modifi
             fontWeight = FontWeight.Bold,
             color = Color(0xFFBCD2FE),
             maxLines = 1,
-            modifier = Modifier.offset(y = (-3).dp),
+            modifier = Modifier.offset(y = (-4).dp),
             style = LocalTextStyle.current.copy(
                 platformStyle = androidx.compose.ui.text.PlatformTextStyle(
                     includeFontPadding = false
