@@ -73,6 +73,16 @@ This document captures resolved bugs, architectural changes, key logical finding
         6. Suppressed the deprecation warnings on Bluetooth SCO APIs in `VideoRecordService.kt` and added proper SCO release cleanup in `onDestroy`.
     *   **Result**: The app builds cleanly with zero errors/warnings.
 
+57. **High-Fidelity Shot Types Cards Layout (July 5, 2026)**:
+    *   **The Problem**: The tabular layout for shot type distribution was prone to horizontal truncation and clipping under strict constraints, particularly on standard companion devices. Additionally, displaying raw angle metrics with inline letters (like `-1° S` or `51° L`) was cluttered.
+    *   **The Solution**:
+        1. Switched the distribution table to a list of individual type cards inside a new layout section titled **SHOT TYPES PLAYED**.
+        2. Programmed four distinct baseline-aligned columns: `KM/H`, `EFF`, `FACE`, and `LAUNCH`.
+        3. Configured `ShotTypeMetricCol` to display large values (e.g. max values or face/launch descriptions like `Open`, `Closed`, `Lofted`, `Ground`) adjacent to smaller secondary values (e.g. average values or absolute angles) aligned at the bottom baseline.
+        4. Structured the launch angles to present absolute angles with their trajectories (e.g., `Ground 8°`, `Lofted 15°`), matching the sport-specific vocabulary and layout of the designs.
+    *   **Result**: The app builds cleanly and fits exactly to the requested sporty designs.
+
+
 
 
 
