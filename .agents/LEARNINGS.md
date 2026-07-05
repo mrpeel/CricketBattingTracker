@@ -104,6 +104,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         5. Disabled default platform font padding (`includeFontPadding = false`) on all texts in `ShotTypeMetricCol` to completely eliminate excess vertical gaps.
     *   **Result**: Verified that the companion app builds and renders correctly with no text clipping.
 
+60. **Negative Layout Offsets and Padding Tuning (July 5, 2026)**:
+    *   **The Problem**: The vertical gap between the titles and values in both the "Shot Types Played" cards and the individual timeline shot cards was still too wide visually.
+    *   **The Solution**:
+        1. Applied `Modifier.offset(y = (-3).dp)` to the values row in `ShotTypeMetricCol`.
+        2. Disabled default platform font padding (`includeFontPadding = false`) on the label and value texts in `MetricSmallCompact`.
+        3. Applied `Modifier.offset(y = (-3).dp)` to the value text in `MetricSmallCompact` to pull it closer to its title.
+    *   **Result**: The vertical gap was reduced by exactly half in both layouts, and compilation succeeded.
+
+
 
 
 
