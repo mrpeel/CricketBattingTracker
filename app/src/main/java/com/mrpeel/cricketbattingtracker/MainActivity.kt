@@ -1039,7 +1039,10 @@ fun ShotTypeMetricCol(
                 )
             )
         )
-        Row(verticalAlignment = Alignment.Bottom) {
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier.offset(y = (-3).dp)
+        ) {
             Text(
                 text = largeVal,
                 fontSize = 11.sp,
@@ -1863,8 +1866,31 @@ fun TimelineItem(
 @Composable
 fun MetricSmallCompact(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(label, fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color.Gray, maxLines = 1)
-        Text(value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFBCD2FE), maxLines = 1)
+        Text(
+            text = label,
+            fontSize = 7.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Gray,
+            maxLines = 1,
+            style = LocalTextStyle.current.copy(
+                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                    includeFontPadding = false
+                )
+            )
+        )
+        Text(
+            text = value,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFBCD2FE),
+            maxLines = 1,
+            modifier = Modifier.offset(y = (-3).dp),
+            style = LocalTextStyle.current.copy(
+                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                    includeFontPadding = false
+                )
+            )
+        )
     }
 }
 
