@@ -91,6 +91,20 @@ This document captures resolved bugs, architectural changes, key logical finding
         4. Updated `BLADE` and `LAUNCH` values to show in the format `"{Description} (degrees)"` (e.g. `Closed (4°)`, `Lofted (15°)`), utilizing the wider column widths to handle the longest text combinations without wrapping.
     *   **Result**: Verified compilation, all tests pass, and layout renders cleanly with zero text wrap anomalies.
 
+59. **Terminologies and Layout Constraints (July 5, 2026)**:
+    *   **The Problem**:
+        1. In the "Shot Types Played" cards, the values were still too large and bold, and there was excessive vertical spacing between column titles and values.
+        2. The default ML class `"Square"` was confusing to the user, who wanted it shown as `"Full face"`.
+        3. In the timeline cards, wide text values like `"FULL_FACE (0°)"` or `"Grounded (0°)"` were clipping on the right edge because the columns were still too narrow. When the second text wrapped, it pushed the first text to the second line because of `Alignment.Bottom`, making it look like the angle was missing.
+    *   **The Solution**:
+        1. Mapped both `"SQUARE"` and `"FULL_FACE"` classes to `"Full face"` (which is also much narrower in lowercase!).
+        2. Updated `TimelineItem` layout to render `BLADE` and `LAUNCH` descriptions even if the corresponding angle is null, while including the degree angle in the format `"{Description} (degrees)"` when present.
+        3. Increased `BLADE` column layout weight to `1.8f` and `LAUNCH` to `2.1f` (allocating 65% of the total card width to these two columns).
+        4. Reduced the value text sizes inside "Shot Types Played" cards to `11.sp` `Medium` (primary) and `9.sp` `Normal` (secondary).
+        5. Disabled default platform font padding (`includeFontPadding = false`) on all texts in `ShotTypeMetricCol` to completely eliminate excess vertical gaps.
+    *   **Result**: Verified that the companion app builds and renders correctly with no text clipping.
+
+
 
 
 
