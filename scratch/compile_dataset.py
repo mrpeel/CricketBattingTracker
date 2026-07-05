@@ -10,6 +10,9 @@ from scipy.stats import skew as scipy_skew
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 NON_SWING_TYPES = {'facing up', 'no shot', 'leave', 'evade', 'evasion'}
 
+# Augmented synthetic training data directory (never used for evaluation)
+AUG_DIR = os.path.join(BASE_DIR, "augmented_training_data")
+
 # Dynamically list all session directories in live_watch_sessions
 base_live_dir = os.path.join(BASE_DIR, "live_watch_sessions")
 if os.path.exists(base_live_dir):
@@ -458,6 +461,73 @@ def main():
             feats_row["pred_current"] = pred
             feats_row["is_correct"] = is_correct
             all_features_rows.append(feats_row)
+
+    # ─── Load augmented synthetic training data ────────────────────────────────
+    # These rows are appended to combined_features.csv for training ONLY.
+    # They are NEVER added to all_aligned_rows (evaluation uses real data only).
+    synthetic_count = 0
+    skipped_count = 0
+    if os.path.exists(AUG_DIR):
+        aug_dirs = sorted([
+            d for d in os.listdir(AUG_DIR)
+            if os.path.isdir(os.path.join(AUG_DIR, d))
+        ])
+        for aug_name in aug_dirs:
+            aug_session_dir = os.path.join(AUG_DIR, aug_name)
+            aug_gt_path = os.path.join(aug_session_dir, "ground_truth_aligned.csv")
+            if not os.path.exists(aug_gt_path):
+                continue
+
+            df_aug_gt = pd.read_csv(aug_gt_path)
+            aug_sensors = load_all_sensors(aug_session_dir)
+
+            if "gyro" not in aug_sensors:
+                continue
+
+            for _, row in df_aug_gt.iterrows():
+                shot_type = str(row['shot_type'])
+                normalized_gt = normalize_shot_class(shot_type)
+
+                if normalized_gt == "Unknown":
+                    continue
+
+                t_impact = float(row["impact_time_seconds"])
+                feats = extract_shot_features(aug_sensors, t_impact)
+
+                # Apply same gyroMag quality gate as real data
+                g_mag = feats.get('gyroMag', 0.0)
+                if normalized_gt in ["SLOG", "POWER DRIVE", "PULL/HOOK", "SWEEP", "CUT/PUNCH", "GLANCE/FLICK"]:
+                    if g_mag < 9.0:
+                        skipped_count += 1
+                        continue
+                else:
+                    if g_mag < 4.0:
+                        skipped_count += 1
+                        continue
+
+                # Apply same SLOG -> POWER DRIVE biomechanical split
+                if normalized_gt == "SLOG" and feats.get('grav_x_max', 0.0) <= 5.5:
+                    normalized_gt = "POWER DRIVE"
+
+                feats_row = feats.copy()
+                feats_row["session_id"]    = aug_name
+                feats_row["session_date"]  = "synthetic"
+                feats_row["shot_index"]    = row.get("shot_index", 0)
+                feats_row["shot_number"]   = row.get("shot_number", "")
+                feats_row["shot_type"]     = shot_type
+                feats_row["normalized_gt"] = normalized_gt
+                feats_row["pred_current"]  = "N/A"
+                feats_row["is_correct"]    = 0
+                feats_row["source"]        = "synthetic"
+                all_features_rows.append(feats_row)
+                synthetic_count += 1
+
+        print(f"\n  Loaded {synthetic_count} synthetic training rows from {AUG_DIR}")
+        if skipped_count > 0:
+            print(f"  Skipped {skipped_count} synthetic rows (failed gyroMag quality gate)")
+    else:
+        print(f"\n  ⚠️  Augmented data directory not found: {AUG_DIR}")
+        print("     Run scratch/augment_training_data.py first to generate synthetic data.")
 
     # ─── Save Results ───
     df_combined_aligned = pd.DataFrame(all_aligned_rows)

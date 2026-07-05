@@ -280,18 +280,22 @@ class SwingDetectorTest {
 
     @Test
     fun testCutPunch() {
+        // A cut shot has a strongly negative roll (cross-body horizontal bat),
+        // a large swing arc (high deltaX and deltaZ), and moderate-high gyroMag.
+        // These ranges reflect the real CUT/PUNCH cluster (median roll ≈ -130°,
+        // deltaX ≈ 1.5, deltaZ ≈ 1.1) from the training dataset.
         val shot = findParametersForShot(
             targetShotType = "CUT/PUNCH",
-            rollRanges = floatArrayOf(-25f, -15f, -5f),
-            dxRanges = floatArrayOf(0.2f, 0.3f, 0.4f),
-            dzRanges = floatArrayOf(0.1f, 0.2f, 0.3f),
-            preGyroRanges = floatArrayOf(7.0f, 8.8f, 10.0f),
-            impactGyroRanges = floatArrayOf(14.0f, 16.0f, 18.0f),
-            postGyroRanges = floatArrayOf(9.0f, 11.2f, 13.0f),
-            shockRanges = floatArrayOf(50f, 60f, 70f),
-            gravYRanges = floatArrayOf(-9.3f, -8.5f, -9.5f),
+            rollRanges = floatArrayOf(-160f, -130f, -120f),
+            dxRanges = floatArrayOf(1.0f, 1.3f, 1.6f),
+            dzRanges = floatArrayOf(0.8f, 1.0f, 1.3f),
+            preGyroRanges = floatArrayOf(10.0f, 12.0f, 14.0f),
+            impactGyroRanges = floatArrayOf(16.0f, 18.0f, 22.0f),
+            postGyroRanges = floatArrayOf(10.0f, 12.0f, 14.0f),
+            shockRanges = floatArrayOf(50f, 60f),
+            gravYRanges = floatArrayOf(-9.3f, -9.0f),
             postGyroYRanges = floatArrayOf(-6.0f, -4.0f, -2.0f),
-            gravXRanges = floatArrayOf(5.0f, 7.0f, 9.0f)
+            gravXRanges = floatArrayOf(3.0f, 5.0f)
         )
         assertNotNull("Shot should be detected", shot)
         assertEquals("CUT/PUNCH", shot?.shotType)

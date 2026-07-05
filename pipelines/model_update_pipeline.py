@@ -227,7 +227,12 @@ def format_diff(before, after, is_percent=False):
 
 def main():
     print("============================================================")
-    # 1. Compile updated dataset (including all sessions, new and old)
+    # 0. Generate synthetic augmented training data from real sensor windows.
+    #    This clears and regenerates augmented_training_data/ on every run.
+    #    Synthetic data is NEVER used for evaluation — only for training features.
+    run_script(os.path.join(ROOT_DIR, "scratch/augment_training_data.py"))
+
+    # 1. Compile updated dataset (real sessions + augmented synthetic rows)
     run_script(os.path.join(ROOT_DIR, "scratch/compile_dataset.py"))
     
     # 2. Run Wear OS unit tests to evaluate the existing model against the updated dataset
