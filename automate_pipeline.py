@@ -822,9 +822,12 @@ def main():
 
     # 6a. Try Sync Tap Alignment (5 taps in < 5 seconds)
     sync_tap_offset = None
-    if offset is None and narrations and os.path.exists(accel_path):
+    sync_tap_drift_rate = 0.0
+    
+    if offset is None and os.path.exists(accel_path):
+        temp_wav = None
         try:
-            print("🔍 Scanning for sync tap sequence (5 taps in < 5s) in sensor and audio logs...")
+            print("🔍 Scanning for sync tap sequences (5 taps in < 5s) in sensor and audio logs...")
             # 1. Read accelerometer data
             df_acc = pd.read_csv(accel_path)
             acc_times = df_acc['seconds_elapsed'].to_numpy()
@@ -843,53 +846,172 @@ def main():
                     if not any(abs(t - p[0]) < 0.2 for p in local_peaks):
                         local_peaks.append((t, mag))
             
-            # Look for 5 peaks in < 5s separated by [0.3s, 1.5s]
-            accel_sync_times = None
-            if len(local_peaks) >= 5:
-                for i in range(len(local_peaks) - 4):
-                    seq = local_peaks[i:i+5]
-                    seq_times = [p[0] for p in seq]
-                    if (seq_times[-1] - seq_times[0]) <= 5.0:
+            # Look for all non-overlapping 5-peak sequences in < 5s separated by [0.3s, 1.5s]
+            accel_sequences = []
+            i = 0
+            while i < len(local_peaks) - 4:
+                seq = local_peaks[i:i+5]
+                seq_times = [p[0] for p in seq]
+                if (seq_times[-1] - seq_times[0]) <= 5.0:
+                    valid = True
+                    for j in range(1, 5):
+                        gap = seq_times[j] - seq_times[j-1]
+                        if gap < 0.3 or gap > 1.5:
+                            valid = False
+                            break
+                    if valid:
+                        # Ensure this sequence doesn't overlap/adjacent within 10s of the last added sequence
+                        if len(accel_sequences) == 0 or (seq_times[0] - accel_sequences[-1][0]) > 10.0:
+                            accel_sequences.append(seq_times)
+                            i += 5 # Skip past this sequence
+                            continue
+                i += 1
+            
+            # 2. Look for all non-overlapping 5 acoustic peaks in audio recording
+            audio_sequences = []
+            
+            # Convert entire M4A to WAV for analysis
+            temp_wav = os.path.join(session_dir, "sync_temp.wav")
+            # Run ffmpeg to extract the entire duration
+            subprocess.run([
+                "ffmpeg", "-y", "-i", audio_path,
+                "-ac", "1", "-ar", "16000", temp_wav
+            ], check=True, capture_output=True)
+
+            if os.path.exists(temp_wav):
+                import wave
+                with wave.open(temp_wav, "rb") as wav:
+                    params = wav.getparams()
+                    frames = wav.readframes(params.nframes)
+                    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                    fps = params.framerate
+                
+                hop_length = int(fps * 0.02) # 20ms
+                win_length = int(fps * 0.04) # 40ms
+                rms = []
+                times = []
+                for start in range(0, len(samples) - win_length, hop_length):
+                    win = samples[start:start+win_length]
+                    rms.append(np.sqrt(np.mean(win**2)))
+                    times.append(start / fps)
+                
+                rms = np.array(rms)
+                times = np.array(times)
+                
+                if len(rms) > 0 and np.max(rms) > 0:
+                    rms = rms / np.max(rms) # normalize
+                    
+                # Find peaks above normalized energy threshold
+                threshold = 0.25
+                cand_aud_indices = np.where(rms >= threshold)[0]
+                aud_peaks = []
+                for idx in cand_aud_indices:
+                    t = times[idx]
+                    val = rms[idx]
+                    w_start = np.searchsorted(times, t - 0.15)
+                    w_end = np.searchsorted(times, t + 0.15, side='right')
+                    if val >= np.max(rms[w_start:w_end]):
+                        if not any(abs(t - p) < 0.3 for p in aud_peaks):
+                            aud_peaks.append(t)
+                            
+                # Search for all non-overlapping 5 peaks in < 5s with gaps in [0.3s, 1.5s]
+                i = 0
+                while i < len(aud_peaks) - 4:
+                    seq = aud_peaks[i:i+5]
+                    if (seq[-1] - seq[0]) <= 5.0:
                         valid = True
                         for j in range(1, 5):
-                            gap = seq_times[j] - seq_times[j-1]
+                            gap = seq[j] - seq[j-1]
                             if gap < 0.3 or gap > 1.5:
                                 valid = False
                                 break
                         if valid:
-                            accel_sync_times = seq_times
-                            break
+                            audio_sequences.append(seq)
+                            i += 5 # Skip past this sequence to avoid overlapping matches
+                            continue
+                    i += 1
             
-            # 2. Look for 5 "tap" narrations in < 5s
-            audio_sync_times = None
-            for i in range(len(narrations) - 4):
-                seq = narrations[i:i+5]
-                if all(s.get('shot_type', '').lower() == 'tap' or 'tap' in s.get('narrated_text', '').lower() for s in seq):
-                    seq_times = [s['timestamp_seconds'] for s in seq]
-                    if (seq_times[-1] - seq_times[0]) <= 5.0:
-                        audio_sync_times = seq_times
-                        break
+            print(f"   Detected {len(accel_sequences)} accelerometer sync sequences.")
+            print(f"   Detected {len(audio_sequences)} audio sync sequences.")
             
-            if accel_sync_times is not None and audio_sync_times is not None:
-                # Calculate sync tap offset (first accel tap - first audio tap)
-                sync_tap_offset = accel_sync_times[0] - audio_sync_times[0]
-                print(f"🎯 Sync taps DETECTED! Accelerometer taps: {[f'{x:.2f}s' for x in accel_sync_times]}")
-                print(f"                     Audio narration taps: {[f'{x:.2f}s' for x in audio_sync_times]}")
-                print(f"                     Calculated offset:    {sync_tap_offset:+.3f}s")
+            # Match sequences sequentially using dynamic offset projection
+            matched_pairs = []
+            current_offset = baseline_offset
+            
+            for aud_seq in audio_sequences:
+                aud_t = aud_seq[0]
+                projected_sensor_t = aud_t + current_offset
+                
+                # Find the closest accelerometer sequence within +/- 30.0s of projection
+                best_match = None
+                best_diff = 30.0
+                for acc_seq in accel_sequences:
+                    acc_t = acc_seq[0]
+                    diff = abs(acc_t - projected_sensor_t)
+                    if diff < best_diff:
+                        best_diff = diff
+                        best_match = acc_seq
+                
+                if best_match is not None:
+                    matched_pairs.append((aud_seq, best_match))
+                    # Update local tracking offset for the next sequence projection
+                    current_offset = best_match[0] - aud_t
+            
+            matched_count = len(matched_pairs)
+            if matched_count > 0:
+                print(f"🎯 Sync taps DETECTED!")
+                for idx, (aud_seq, acc_seq) in enumerate(matched_pairs):
+                    print(f"   Sequence {idx+1}:")
+                    print(f"      Accelerometer taps: {[f'{x:.2f}s' for x in acc_seq]}")
+                    print(f"      Audio transient taps: {[f'{x:.2f}s' for x in aud_seq]}")
+                
+                # If we have multiple sync tap sequences, compute drift and offset using linear regression
+                if matched_count >= 2:
+                    x_pts = [] # Audio times
+                    y_pts = [] # Sensor times
+                    for aud_seq, acc_seq in matched_pairs:
+                        x_pts.append(aud_seq[0])
+                        y_pts.append(acc_seq[0])
+                    
+                    x_arr = np.array(x_pts)
+                    y_arr = np.array(y_pts)
+                    
+                    # Slope (1 + drift_rate), Intercept (offset)
+                    slope, intercept = np.polyfit(x_arr, y_arr, 1)
+                    sync_tap_drift_rate = slope - 1.0
+                    sync_tap_offset = intercept
+                    
+                    print(f"🎯 Multi-Point Regression Calibration:")
+                    print(f"   Calculated Offset:     {sync_tap_offset:+.3f}s")
+                    print(f"   Calculated Drift Rate:  {sync_tap_drift_rate:+.7f} ({sync_tap_drift_rate*100:+.4f}% speed correction)")
+                else:
+                    # Single point fallback: drift_rate = 0.0, offset = first accel tap - first audio tap
+                    sync_tap_offset = matched_pairs[0][1][0] - matched_pairs[0][0][0]
+                    sync_tap_drift_rate = 0.0
+                    print(f"🎯 Single-Point Fallback Calibration:")
+                    print(f"   Calculated Offset:     {sync_tap_offset:+.3f}s (Drift rate forced to 0.0)")
             else:
-                if accel_sync_times is None:
-                    print("   ❌ Accelerometer sync tap sequence NOT found.")
-                if audio_sync_times is None:
-                    print("   ❌ Audio narration sync tap sequence NOT found.")
+                if len(accel_sequences) == 0:
+                    print("   ❌ Accelerometer sync tap sequences NOT found.")
+                if len(audio_sequences) == 0:
+                    print("   ❌ Audio acoustic sync tap sequences NOT found.")
+                else:
+                    print("   ❌ No accelerometer sequence matched the audio sequences near the baseline offset.")
         except Exception as e:
             print(f"⚠️ Error trying sync tap alignment: {e}")
-
+        finally:
+            if temp_wav and os.path.exists(temp_wav):
+                try:
+                    os.remove(temp_wav)
+                except:
+                    pass
+ 
     if offset is not None:
         print(f"🎯 Using manual clock offset override: {offset:+.3f}s")
     elif sync_tap_offset is not None:
         offset = sync_tap_offset
-        drift_rate = 0.0
-        print(f"🎯 Using sync tap alignment offset: {offset:+.3f}s (skipping grid search optimization)")
+        drift_rate = sync_tap_drift_rate
+        print(f"🎯 Using sync tap alignment offset: {offset:+.3f}s, drift rate: {drift_rate:+.7f} (skipping grid search optimization)")
     else:
         if narrations:
             search_center = baseline_offset if baseline_offset is not None else 0.0

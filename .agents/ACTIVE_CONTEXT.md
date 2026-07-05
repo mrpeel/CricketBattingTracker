@@ -37,13 +37,14 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-019 | Improved Phone UI | Refactor Selected Session screen details grid, summaries, table breakdown, compact horizontal card metrics and time toggles | **Completed** | Gradle build and compilation verification |
 | B-020 | Robust Chronological Transcription & Fallback Gates | Deploy strict linear timeline instructions to Gemini audio transcription prompt, support un-numbered practices, and assert safety via <=25% fallback gates | **Completed** | Batch realignment succeeding on 24/24 valid sessions, restoring combined F1 to 0.7670 |
 | B-021 | Lossless Compression & Parquet Alignment | Implement voice-optimized mono audio compression, Gzip-compressed watch sensor files, native Kotlin GZIP streams, and transition adversarial analysis sweeps to partitioned Parquet database. | **Completed** | Parity checks, Kotlin unit tests, and post-session Parquet report generated successfully |
+| B-022 | Sync Tap Sequence Alignment | Implement local Python acoustic transient detector in automate_pipeline.py matching physical bat ground strikes to watch accelerometer spikes, bypassing Gemini transcription constraints. | **Completed** | Ran E2E on session-2026-07-05_16-27-16 with exact offset of -14.578s snapped successfully. |
 
 ---
 
-## 🔖 Current Session State (session-2026-06-23_12-24-48)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-06-23_12-24-48`
-*   **Audio File**: `narration_20260623_122444.m4a`
-*   **Status**: Fixed Mixed rolling/absolute seconds formatting issue. Transcribed using Gemini 2.5 Flash with strict chronological constraints. Realigned successfully (fallback rate 4.5%). Scorecard verified with combined F1 score of 0.7670.
+## 🔖 Current Session State (session-2026-07-05_16-27-16)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session-2026-07-05_16-27-16`
+*   **Audio File**: `narration_20260705_162710.m4a`
+*   **Status**: Successfully aligned session using the multi-point regression sync-tap detector. Matched all 3 rounds of sync taps, calculating a starting offset of -18.828s and a drift rate of +0.0176452 (+1.76% speed correction). Verified that late-session shots align perfectly.
 
 
 

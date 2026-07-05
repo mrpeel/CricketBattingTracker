@@ -14,7 +14,7 @@ The environment is noisy, containing sounds of the bowling machine motor, ball i
 
 Ensure the parsed fields strictly map to these standardized categories:
 
-* **Action Types:** 'Facing up', 'Defence/Block' (for forward/back-foot defense), 'Flick', 'Pull shot', 'Leg glance', 'Drive', 'Push', 'Sweep', 'Hook Shot', 'Cut', 'Punch', 'Steer', 'Glide', 'Guide', 'Slog', 'Power drive', 'No shot', 'Leave', 'tap'.
+* **Action Types:** 'Facing up', 'Defence/Block' (for forward/back-foot defense), 'Flick', 'Pull shot', 'Leg glance', 'Drive', 'Push', 'Sweep', 'Hook Shot', 'Cut', 'Punch', 'Steer', 'Glide', 'Guide', 'Slog', 'Power drive', 'No shot', 'Leave'.
 * **Quality Ratings:** 'good', 'great', 'excellent', 'smoked it', 'nailed it', 'okay', 'average', 'poor', 'edge', 'miss'.
 * **Bat Categories:** 'Gray Nicolls Giant', 'Eye In', 'Game bat'.
 
