@@ -893,138 +893,162 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
 
     val grouped = remember(shotEvents) { shotEvents.groupBy { it.shotType!! } }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "SHOT TYPE DISTRIBUTION",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.White.copy(alpha = 0.7f),
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+        Text(
+            text = "SHOT TYPES PLAYED",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black,
+            color = Color.White,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("TYPE", modifier = Modifier.weight(2.0f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                Text("COUNT", modifier = Modifier.weight(0.8f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
-                Text("SPEED (MAX/AVG)", modifier = Modifier.weight(1.7f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
-                Text("EFF (MAX/AVG)", modifier = Modifier.weight(1.7f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
-                Text("AVG FACE", modifier = Modifier.weight(1.4f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
-                Text("AVG LAUNCH", modifier = Modifier.weight(1.4f), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray, textAlign = TextAlign.End)
+        grouped.entries.sortedByDescending { it.value.size }.forEach { entry ->
+            val rawTypeName = entry.key
+            val group = entry.value
+            val count = group.size
+            
+            val maxSpeed = group.mapNotNull { it.batSpeed }.maxOrNull() ?: 0f
+            val avgSpeed = group.mapNotNull { it.batSpeed }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+            
+            val maxEff = group.mapNotNull { it.efficiency }.maxOrNull() ?: 0f
+            val avgEff = group.mapNotNull { it.efficiency }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+            
+            val avgFace = group.mapNotNull { it.bladeAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+            val avgFaceDesc = when {
+                avgFace < -1.5f -> "Open"
+                avgFace > 1.5f -> "Closed"
+                else -> "Square"
             }
+            val avgFaceAngleText = "${String.format(java.util.Locale.US, "%.0f", avgFace)}°"
 
-            HorizontalDivider(color = Color.White.copy(alpha = 0.05f), thickness = 1.dp, modifier = Modifier.padding(bottom = 8.dp))
+            val avgLaunch = group.mapNotNull { it.launchAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+            val avgLaunchDesc = when {
+                avgLaunch > 1.5f -> "Lofted"
+                avgLaunch < -1.5f -> "Ground"
+                else -> "Flat"
+            }
+            val avgLaunchAngleText = "${String.format(java.util.Locale.US, "%.0f", Math.abs(avgLaunch.toDouble()))}°"
 
-            grouped.entries.sortedByDescending { it.value.size }.forEach { entry ->
-                val rawTypeName = entry.key
-                val group = entry.value
-                val count = group.size
-                
-                val maxSpeed = group.mapNotNull { it.batSpeed }.maxOrNull() ?: 0f
-                val avgSpeed = group.mapNotNull { it.batSpeed }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
-                
-                val maxEff = group.mapNotNull { it.efficiency }.maxOrNull() ?: 0f
-                val avgEff = group.mapNotNull { it.efficiency }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
-                
-                val avgFace = group.mapNotNull { it.bladeAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
-                val avgFaceText = String.format(java.util.Locale.US, "%.0f°", avgFace) + " " + (if (avgFace < -1.5f) "O" else if (avgFace > 1.5f) "C" else "S")
+            val indicatorColor = getShotColor(rawTypeName, isHit = true)
 
-                val avgLaunch = group.mapNotNull { it.launchAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
-                val avgLaunchText = String.format(java.util.Locale.US, "%.0f°", avgLaunch) + " " + (if (avgLaunch < -1.5f) "G" else if (avgLaunch > 1.5f) "L" else "F")
-
-                val indicatorColor = getShotColor(rawTypeName, isHit = true)
-                
-                // Shorten names for table display to prevent truncation
-                val typeNameDisplay = when {
-                    "GLANCE" in rawTypeName.uppercase() || "FLICK" in rawTypeName.uppercase() -> "GLANCE/FLK"
-                    "PULL" in rawTypeName.uppercase() || "HOOK" in rawTypeName.uppercase() -> "PULL/HOOK"
-                    "DRIVE" in rawTypeName.uppercase() && "DEF" in rawTypeName.uppercase() -> "DRIVE/DEF"
-                    "DEFLECT" in rawTypeName.uppercase() || "GUIDE" in rawTypeName.uppercase() || "GLIDE" in rawTypeName.uppercase() -> "DEFLECT/GD"
-                    "POWER DRIVE" in rawTypeName.uppercase() -> "POWER DRV"
-                    "POWER SHOT" in rawTypeName.uppercase() || "SLOG" in rawTypeName.uppercase() -> "POWER SHOT"
-                    else -> rawTypeName
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Top Row: Indicator, Name and Shots Count
                     Row(
-                        modifier = Modifier.weight(2.0f),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(indicatorColor)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(indicatorColor)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = rawTypeName.uppercase(),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                         Text(
-                            text = typeNameDisplay.uppercase(),
-                            fontSize = 8.sp,
+                            text = "$count ${if (count == 1) "SHOT" else "SHOTS"}",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = Color(0xFFFFD54F) // Gold/yellow color
                         )
                     }
 
-                    Text(
-                        text = "$count",
-                        modifier = Modifier.weight(0.8f),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        textAlign = TextAlign.End
-                    )
-                    Text(
-                        text = "${maxSpeed.toInt()}/${avgSpeed.toInt()}",
-                        modifier = Modifier.weight(1.7f),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary,
-                        textAlign = TextAlign.End
-                    )
-                    Text(
-                        text = "${maxEff.toInt()}%/${avgEff.toInt()}%",
-                        modifier = Modifier.weight(1.7f),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary,
-                        textAlign = TextAlign.End
-                    )
-                    Text(
-                        text = avgFaceText,
-                        modifier = Modifier.weight(1.4f),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.8f),
-                        textAlign = TextAlign.End
-                    )
-                    Text(
-                        text = avgLaunchText,
-                        modifier = Modifier.weight(1.4f),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.8f),
-                        textAlign = TextAlign.End
-                    )
+                    // Bottom Row: 4 Metric Columns
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // KM/H Column
+                        ShotTypeMetricCol(
+                            title = "KM/H",
+                            largeVal = "${maxSpeed.toInt()}",
+                            smallVal = "${avgSpeed.toInt()}",
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // EFF Column
+                        ShotTypeMetricCol(
+                            title = "EFF",
+                            largeVal = "${maxEff.toInt()}",
+                            smallVal = "${avgEff.toInt()}",
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // FACE Column
+                        ShotTypeMetricCol(
+                            title = "FACE",
+                            largeVal = avgFaceDesc,
+                            smallVal = avgFaceAngleText,
+                            modifier = Modifier.weight(1.1f)
+                        )
+
+                        // LAUNCH Column
+                        ShotTypeMetricCol(
+                            title = "LAUNCH",
+                            largeVal = avgLaunchDesc,
+                            smallVal = avgLaunchAngleText,
+                            modifier = Modifier.weight(1.1f)
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ShotTypeMetricCol(
+    title: String,
+    largeVal: String,
+    smallVal: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Gray,
+            letterSpacing = 0.5.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = largeVal,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = smallVal,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
         }
     }
 }
