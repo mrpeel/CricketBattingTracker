@@ -922,7 +922,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
             val avgFaceDesc = when {
                 avgFace < -1.5f -> "Open"
                 avgFace > 1.5f -> "Closed"
-                else -> "Square"
+                else -> "Full face"
             }
             val avgFaceAngleText = "${String.format(java.util.Locale.US, "%.0f", avgFace)}°"
 
@@ -1032,21 +1032,36 @@ fun ShotTypeMetricCol(
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Gray,
-            letterSpacing = 0.5.sp
+            letterSpacing = 0.5.sp,
+            style = LocalTextStyle.current.copy(
+                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                    includeFontPadding = false
+                )
+            )
         )
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = largeVal,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White,
+                style = LocalTextStyle.current.copy(
+                    platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                        includeFontPadding = false
+                    )
+                )
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(3.dp))
             Text(
                 text = smallVal,
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Normal,
-                color = Color.Gray
+                color = Color.Gray,
+                style = LocalTextStyle.current.copy(
+                    platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                        includeFontPadding = false
+                    )
+                )
             )
         }
     }
@@ -1797,36 +1812,46 @@ fun TimelineItem(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        MetricSmallCompact("SPEED", "${event.batSpeed.toInt()} km/h", modifier = Modifier.weight(0.9f))
+                        MetricSmallCompact("SPEED", "${event.batSpeed.toInt()} km/h", modifier = Modifier.weight(0.8f))
                         if (event.efficiency != null) {
-                            MetricSmallCompact("EFF", "${event.efficiency.toInt()}%", modifier = Modifier.weight(0.6f))
+                            MetricSmallCompact("EFF", "${event.efficiency.toInt()}%", modifier = Modifier.weight(0.5f))
                         }
                         if (event.impactTimeMs != null) {
-                            MetricSmallCompact("REACT", "${event.impactTimeMs} ms", modifier = Modifier.weight(0.9f))
+                            MetricSmallCompact("REACT", "${event.impactTimeMs} ms", modifier = Modifier.weight(0.8f))
                         }
-                        if (event.bladeAngle != null) {
+                        if (event.bladeAngle != null || !event.bladeClass.isNullOrEmpty()) {
                             val cls = event.bladeClass ?: ""
-                            val desc = when (cls.uppercase()) {
-                                "CLOSED" -> "Closed"
-                                "OPEN" -> "Open"
-                                "SQUARE" -> "Square"
+                            val desc = when {
+                                cls.uppercase() == "CLOSED" || "CLOSE" in cls.uppercase() -> "Closed"
+                                cls.uppercase() == "OPEN" || "OPEN" in cls.uppercase() -> "Open"
+                                cls.uppercase() == "SQUARE" || "SQUARE" in cls.uppercase() || "FULL_FACE" in cls.uppercase() || "FULL" in cls.uppercase() -> "Full face"
                                 else -> cls
                             }
-                            val angleText = String.format(java.util.Locale.US, "%.0f", event.bladeAngle)
-                            MetricSmallCompact("BLADE", "$desc ($angleText°)", modifier = Modifier.weight(1.5f))
+                            val displayValue = if (event.bladeAngle != null) {
+                                val angleText = String.format(java.util.Locale.US, "%.0f", event.bladeAngle)
+                                "$desc ($angleText°)"
+                            } else {
+                                desc
+                            }
+                            MetricSmallCompact("BLADE", displayValue, modifier = Modifier.weight(1.8f))
                         }
-                        if (event.launchAngle != null) {
+                        if (event.launchAngle != null || !event.launchClass.isNullOrEmpty()) {
                             val cls = event.launchClass ?: ""
-                            val desc = when (cls.uppercase()) {
-                                "INTO_GROUND" -> "Grounded"
-                                "FLAT" -> "Flat"
-                                "LOFTED" -> "Lofted"
-                                "POWER_ZONE" -> "Power Zone"
-                                "HIGH_LOFT" -> "High Loft"
+                            val desc = when {
+                                cls.uppercase() == "INTO_GROUND" || "GROUND" in cls.uppercase() -> "Grounded"
+                                cls.uppercase() == "FLAT" || "FLAT" in cls.uppercase() -> "Flat"
+                                cls.uppercase() == "LOFTED" || "LOFT" in cls.uppercase() -> "Lofted"
+                                cls.uppercase() == "POWER_ZONE" || "POWER" in cls.uppercase() -> "Power Zone"
+                                cls.uppercase() == "HIGH_LOFT" || "HIGH" in cls.uppercase() -> "High Loft"
                                 else -> cls
                             }
-                            val angleText = String.format(java.util.Locale.US, "%.0f", Math.abs(event.launchAngle.toDouble()))
-                            MetricSmallCompact("LAUNCH", "$desc ($angleText°)", modifier = Modifier.weight(1.6f))
+                            val displayValue = if (event.launchAngle != null) {
+                                val angleText = String.format(java.util.Locale.US, "%.0f", Math.abs(event.launchAngle.toDouble()))
+                                "$desc ($angleText°)"
+                            } else {
+                                desc
+                            }
+                            MetricSmallCompact("LAUNCH", displayValue, modifier = Modifier.weight(2.1f))
                         }
                     }
                 }
