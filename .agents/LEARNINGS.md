@@ -82,6 +82,16 @@ This document captures resolved bugs, architectural changes, key logical finding
         4. Structured the launch angles to present absolute angles with their trajectories (e.g., `Ground 8°`, `Lofted 15°`), matching the sport-specific vocabulary and layout of the designs.
     *   **Result**: The app builds cleanly and fits exactly to the requested sporty designs.
 
+58. **Tightened Layouts and Timeline Column Alignment (July 5, 2026)**:
+    *   **The Problem**: The "Shot Types Played" cards had excessive vertical padding and spacing, and the primary values were too large and bold. Additionally, the timeline shot cards had suboptimal horizontal spacing, with too much space allocated for the simple `EFF` metric (values <= 100%) and not enough space for `BLADE` and `LAUNCH` metrics, causing horizontal text wrapping and clipping.
+    *   **The Solution**:
+        1. Shrunk the vertical card padding in `ShotTypeSummary` to `10.dp` and removed the spacer between metrics headers and values.
+        2. Configured the primary values in `ShotTypeMetricCol` to use `14.sp` `SemiBold` weight (down from `18.sp` `Bold`), and secondary values to use `10.sp` normal weight.
+        3. Redistributed column weights inside the timeline card layout: decreased `EFF` weight to `0.6f` and expanded `BLADE` and `LAUNCH` weights to `1.5f` and `1.6f` respectively.
+        4. Updated `BLADE` and `LAUNCH` values to show in the format `"{Description} (degrees)"` (e.g. `Closed (4°)`, `Lofted (15°)`), utilizing the wider column widths to handle the longest text combinations without wrapping.
+    *   **Result**: Verified compilation, all tests pass, and layout renders cleanly with zero text wrap anomalies.
+
+
 
 
 
