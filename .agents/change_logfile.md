@@ -4,6 +4,7 @@ This file archives completed catalog items from `ACTIVE_CONTEXT.md` to conserve 
 
 | Feature ID | Feature Name | Description | Status | Verification Method |
 |---|---|---|---|---|
+| B-022 | Sync Tap Alignment | Implement physical 5-tap alignment (5 taps in < 5 seconds) to calibrate both audio narration timelines and video recording streams with watch accelerometer peaks | **Completed** | Run `test_sync_tap.py` and backwards compatibility checks on raw datasets |
 | B-006 | Watch Teardown Crash | Fix lateinit healthServicesManager crash on onDestroy | Completed | E2E verification |
 | B-007 | Transcription Reliability | Implement structured Pydantic response schema + targeted prompts on Gemini 3.5 Flash for audio narration parsing | **Completed** | Pipeline re-run producing correct 69/69 shot count for 20-min session |
 | F-013 | Full Watch Sensor Stack Logging | Background logging of up to 15 physical/virtual Wear OS sensors when raw logging/diagnostics is enabled | **Completed** | E2E simulation verify 11 CSV files |
