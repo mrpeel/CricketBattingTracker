@@ -318,18 +318,6 @@ class SwingDetector {
 
     // ---- Facing-Up detection thresholds (validated against 3-session empirical analysis) ----
     companion object {
-        // Condition A: Gyro std-of-magnitude over 1s window — bat must not be swinging
-        // Optimized: 1.2f rad/s (Mandatory stillness)
-        const val FACING_UP_GYRO_STD_MAX     = 1.2f   // rad/s
-        // Condition B: Accelerometer std-of-magnitude over 1s window — foot-strike suppressor
-        // Optimized: 3.25f m/s² (Flexible motion threshold)
-        const val FACING_UP_ACCEL_STD_MAX    = 3.25f  // m/s²
-        // Condition C: Mean angular displacement of quaternion over 1s window — bat orientation lock
-        // Optimized: 2.5f° (Flexible orientation threshold)
-        const val FACING_UP_ORI_DISP_MAX_DEG = 2.5f   // degrees
-        // Condition E: Gravity Y arm-extension anchor — requires arm to be extended (not limp/resting)
-        // Optimized: -6.0f m/s² (Flexible pose threshold)
-        const val FACING_UP_GRAVITY_Y_MIN    = -6.0f  // m/s²
         // Recency gate: a step event within this window breaks the facing-up gate
         // 1.0s: at a walking cadence of ~90 steps/min, step interval ≈ 0.67s
         const val STEP_RECENCY_NS            = 1_000_000_000L  // 1.0 seconds
@@ -345,8 +333,6 @@ class SwingDetector {
         // Post-shot recovery guard: no new facing-up arm during this window
         // Optimized: 1.5s post-shot guard
         const val POST_SHOT_GUARD_NS         = 1_500_000_000L  // 1.5 seconds
-        // Minimum number of flexible conditions required to pass (out of accel, ori, gravity)
-        const val FACING_UP_MIN_FLEXIBLE_CONDITIONS = 3
     }
 
     fun processGyro(values: FloatArray, timestamp: Long) {
@@ -449,24 +435,16 @@ class SwingDetector {
         // avoid breaking detection when the gravity sensor is slow to populate.
         val meanGravY = gravBuffer.calculateMeanY(stdWindowStart, timestamp)
 
-        // Mandatory Gates
-        val gyroOk = gyroStd < FACING_UP_GYRO_STD_MAX
+        val stepAgeSeconds = if (lastStepTimestampNs == 0L) 10.0f
+                             else (timestamp - lastStepTimestampNs) / 1_000_000_000.0f
+
+        // Predict stance using TinyML Depth-4 Decision Tree
+        val stanceOk = predictStance(gyroStd, accelStd, oriDisp, meanGravY, stepAgeSeconds)
         val stepsOk = noRecentStep
-
-        // Flexible Gates (any 1 of 3 must pass)
-        val accelOk = accelStd < FACING_UP_ACCEL_STD_MAX
-        val oriOk = oriDisp < FACING_UP_ORI_DISP_MAX_DEG
-        val armExtended = meanGravY == 0f || meanGravY <= FACING_UP_GRAVITY_Y_MIN
-
-        var flexiblePassedCount = 0
-        if (accelOk) flexiblePassedCount++
-        if (oriOk) flexiblePassedCount++
-        if (armExtended) flexiblePassedCount++
-
-        val allConditionsMet = gyroOk && stepsOk && (flexiblePassedCount >= FACING_UP_MIN_FLEXIBLE_CONDITIONS)
+        val allConditionsMet = stanceOk && stepsOk
 
         if (debugEnabled) {
-            println("Time: ${timestamp / 1_000_000_000.0f}s | gyroStd=${"%.2f".format(gyroStd)} ($gyroOk) | stepsOk=$stepsOk | accelStd=${"%.2f".format(accelStd)} ($accelOk) | oriDisp=${"%.2f".format(oriDisp)}° ($oriOk) | meanGravY=${"%.2f".format(meanGravY)} ($armExtended) | flexiblePassedCount=$flexiblePassedCount | allConditionsMet=$allConditionsMet | State=$detectorState")
+            println("Time: ${timestamp / 1_000_000_000.0f}s | gyroStd=${"%.2f".format(gyroStd)} | accelStd=${"%.2f".format(accelStd)} | oriDisp=${"%.2f".format(oriDisp)}° | meanGravY=${"%.2f".format(meanGravY)} | stepsOk=$stepsOk | stanceOk=$stanceOk | allConditionsMet=$allConditionsMet | State=$detectorState")
         }
 
         if (allConditionsMet) {
@@ -514,6 +492,31 @@ class SwingDetector {
             }
         }
     }
+
+    private fun predictStance(gyroStd: Float, accelStd: Float, oriDisp: Float, meanGravY: Float, stepAgeSeconds: Float): Boolean {
+        if (gyroStd <= 1.176236f) {
+            if (oriDisp <= 0.281161f) {
+                if (gyroStd <= 0.419345f) {
+                    return meanGravY <= -8.347519f
+                } else {
+                    return true
+                }
+            } else {
+                return false
+            }
+        } else {
+            if (oriDisp <= 1.329910f) {
+                return true
+            } else {
+                if (gyroStd <= 1.807490f) {
+                    return oriDisp <= 2.972609f
+                } else {
+                    return true
+                }
+            }
+        }
+    }
+
 
     /**
      * FACING_UP_LOCKED: We have a confirmed guard position. Now watch for the
