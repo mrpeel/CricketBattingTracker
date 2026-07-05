@@ -944,7 +944,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                     // Top Row: Indicator, Name and Shots Count
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -978,7 +978,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp),
+                            .padding(top = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         // KM/H Column
@@ -986,7 +986,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                             title = "KM/H",
                             largeVal = "${maxSpeed.toInt()}",
                             smallVal = "${avgSpeed.toInt()}",
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(0.9f)
                         )
 
                         // EFF Column
@@ -994,7 +994,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                             title = "EFF",
                             largeVal = "${maxEff.toInt()}",
                             smallVal = "${avgEff.toInt()}",
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(0.8f)
                         )
 
                         // FACE Column
@@ -1010,7 +1010,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                             title = "LAUNCH",
                             largeVal = avgLaunchDesc,
                             smallVal = avgLaunchAngleText,
-                            modifier = Modifier.weight(1.1f)
+                            modifier = Modifier.weight(1.2f)
                         )
                     }
                 }
@@ -1034,19 +1034,18 @@ fun ShotTypeMetricCol(
             color = Color.Gray,
             letterSpacing = 0.5.sp
         )
-        Spacer(modifier = Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = largeVal,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = Color.White
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = smallVal,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Normal,
                 color = Color.Gray
             )
         }
@@ -1798,34 +1797,36 @@ fun TimelineItem(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        MetricSmallCompact("SPEED", "${event.batSpeed.toInt()} km/h", modifier = Modifier.weight(1f))
+                        MetricSmallCompact("SPEED", "${event.batSpeed.toInt()} km/h", modifier = Modifier.weight(0.9f))
                         if (event.efficiency != null) {
-                            MetricSmallCompact("EFF", "${event.efficiency.toInt()}%", modifier = Modifier.weight(1f))
+                            MetricSmallCompact("EFF", "${event.efficiency.toInt()}%", modifier = Modifier.weight(0.6f))
                         }
                         if (event.impactTimeMs != null) {
-                            MetricSmallCompact("REACT", "${event.impactTimeMs} ms", modifier = Modifier.weight(1f))
+                            MetricSmallCompact("REACT", "${event.impactTimeMs} ms", modifier = Modifier.weight(0.9f))
                         }
                         if (event.bladeAngle != null) {
                             val cls = event.bladeClass ?: ""
-                            val suffix = when (cls.uppercase()) {
-                                "CLOSED" -> " Closed"
-                                "OPEN" -> " Open"
-                                "SQUARE" -> " Sq"
-                                else -> ""
+                            val desc = when (cls.uppercase()) {
+                                "CLOSED" -> "Closed"
+                                "OPEN" -> "Open"
+                                "SQUARE" -> "Square"
+                                else -> cls
                             }
-                            MetricSmallCompact("BLADE", "${String.format("%.0f", event.bladeAngle)}°$suffix", modifier = Modifier.weight(1.1f))
+                            val angleText = String.format(java.util.Locale.US, "%.0f", event.bladeAngle)
+                            MetricSmallCompact("BLADE", "$desc ($angleText°)", modifier = Modifier.weight(1.5f))
                         }
                         if (event.launchAngle != null) {
                             val cls = event.launchClass ?: ""
-                            val suffix = when (cls.uppercase()) {
-                                "INTO_GROUND" -> " Grnd"
-                                "FLAT" -> " Flat"
-                                "LOFTED" -> " Loft"
-                                "POWER_ZONE" -> " PwrZ"
-                                "HIGH_LOFT" -> " H.Loft"
-                                else -> ""
+                            val desc = when (cls.uppercase()) {
+                                "INTO_GROUND" -> "Grounded"
+                                "FLAT" -> "Flat"
+                                "LOFTED" -> "Lofted"
+                                "POWER_ZONE" -> "Power Zone"
+                                "HIGH_LOFT" -> "High Loft"
+                                else -> cls
                             }
-                            MetricSmallCompact("LAUNCH", "${String.format("%.0f", event.launchAngle)}°$suffix", modifier = Modifier.weight(1.2f))
+                            val angleText = String.format(java.util.Locale.US, "%.0f", Math.abs(event.launchAngle.toDouble()))
+                            MetricSmallCompact("LAUNCH", "$desc ($angleText°)", modifier = Modifier.weight(1.6f))
                         }
                     }
                 }
