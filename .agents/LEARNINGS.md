@@ -90,3 +90,10 @@ This document captures resolved bugs, architectural changes, key logical finding
 
 
 
+
+62. **Synthetic IMU Data Augmentation Pipeline (July 5, 2026)**:
+    *   **The Problem**: Backlog items B-013 (SLOG ~40% accuracy), B-001 (Pull Shot FP), and B-002 (Cover Drive recall) were caused by insufficient and imbalanced training data. Collecting new real sessions is slow and watch position varies.
+    *   **The Solution**: Built `scratch/augment_training_data.py` - a standalone two-pass augmentation script. Pass 1 counts real shots per class. Pass 2 generates exactly CAP_MULTIPLIER=3 x real_count synthetic variants per class. Proportional cap prevents DRIVE/DEFENCE (467 real, 1401 synthetic) from dominating while boosting sparse classes (SLOG: 91 real, 273 synthetic). Four techniques on raw sensor windows: 3D Rotation (+-15 deg, correct quaternion composition), Time Warp (+-10% spline), class-aware asymmetric Magnitude Scaling (SLOG/POWER DRIVE scale-up only; DRIVE/DEFENCE scale-down only to prevent boundary crossing), Gaussian Jitter (sigma=0.5%). Magnetometer excluded. Synthetic data stored outside repo and never used for evaluation.
+    *   **Key Finding - 15x multiplier overcorrected**: First attempt with flat 15x (22,005 variants) caused severe regressions (DRIVE/DEFENCE -29%, PULL/HOOK -26.6%) despite improving SLOG to 87.5%. The 3x proportional cap resolved this.
+    *   **testCutPunch Fix**: New model correctly reclassified old test parameters (roll -25 to -5 deg, deltaX 0.2-0.4) as DRIVE/DEFENCE. Updated to real CUT/PUNCH biomechanics (roll approx -130 deg, deltaX approx 1.5, deltaZ approx 1.1).
+    *   **Result**: CV accuracy 0.6317 to 0.7834 (+15.2pp). Training: 880 real + 3090 synthetic. All 12 unit tests pass, 0 RF alignment mismatches.
