@@ -32,12 +32,13 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-003 | Speed Calibration | Fix speed anomalies on low-speed Cover Drives/Flicks | Backlog | `SwingDetectorGroundTruthTest` |
 | B-004 | Active Watch Data | Implement active sensor logging for short-off-side/full-length | Backlog | Session collection check |
 | B-013 | Power Shot Precision | Reduce POWER SHOT → PULL/HOOK misclassification. Session-2026-06-15 was ~90% power shots and scored only 40% accuracy, exposing severe underrepresentation of this class in training data. Retrain after collecting more power shot sessions. | Backlog | `SwingDetectorGroundTruthTest` |
-| B-017 | Video Session foundations | Implement 120fps video capture + passive watch sensor recording and ADB sync pull utility | **Completed** | Manual E2E on phone + watch; `video_analysis_poc.py` execution |
-| B-018 | Direct Gemini & 2D Alignment | Revert to direct Gemini audio transcription and implement a 2D Joint Offset and Linear Drift Rate Optimization grid search to mathematically align narration timelines precisely to WearOS sensors. | **Completed** | Parity check and WearOS unit tests successful, 0 prediction mismatches. |
-| B-019 | Improved Phone UI | Refactor Selected Session screen details grid, summaries, table breakdown, compact horizontal card metrics and time toggles | **Completed** | Gradle build and compilation verification |
-| B-020 | Robust Chronological Transcription & Fallback Gates | Deploy strict linear timeline instructions to Gemini audio transcription prompt, support un-numbered practices, and assert safety via <=25% fallback gates | **Completed** | Batch realignment succeeding on 24/24 valid sessions, restoring combined F1 to 0.7670 |
 | B-021 | Lossless Compression & Parquet Alignment | Implement voice-optimized mono audio compression, Gzip-compressed watch sensor files, native Kotlin GZIP streams, and transition adversarial analysis sweeps to partitioned Parquet database. | **Completed** | Parity checks, Kotlin unit tests, and post-session Parquet report generated successfully |
 | B-022 | Sync Tap Sequence Alignment | Implement local Python acoustic transient detector in automate_pipeline.py matching physical bat ground strikes to watch accelerometer spikes, bypassing Gemini transcription constraints. | **Completed** | Ran E2E on session-2026-07-05_16-27-16 with exact offset of -14.578s snapped successfully. |
+| B-023 | Stance Gate Staggering & Timing Sweep | Implement Option 3 stance duration compression and twitch injection sweeps under stressed stance simulation. | **Completed** | Grid sweep successfully completes in < 2 mins via 50x precomputation cache |
+| B-024 | TinyML Stance Gate | Compile and deploy depth-4 Decision Tree classifier into SwingDetector.kt stance gate, reducing FPs by 22% globally. | **Completed** | Simulation evaluations showing F1 improvement to 0.3948 on stressed dataset |
+| B-025 | 6x Synthetic Shot Classifier Augmentation | Scale training variants per shot to 90 and cap to 18x, retraining Random Forest to 86.22% CV accuracy. | **Completed** | Scikit-learn cross validation metrics and watch transpilation successful |
+| B-026 | Video Capture Config & Viewfinder | Integrate camera facing flip, linear zoom control slider, target frame rate selector, and live preview viewfinders. | **Completed** | Gradle assembleDebug builds successfully and camera parameter bindings validated |
+
 
 ---
 
@@ -57,8 +58,8 @@ This file defines the system objectives, feature backlog catalog, active technic
 *   **Ground Truth Scorecard**: Run [SwingDetectorGroundTruthTest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/test/java/com/mrpeel/cricketbattingtracker/ml/SwingDetectorGroundTruthTest.kt) to generate the performance scorecard against physical batting session datasets.
 
 ### 2. Manual E2E Simulation
-*   **Launch Emulators**: Run `./start_emulators.sh` to boot Phone and Wear AVD targets.
-*   **Visible E2E Script**: Execute `./run_visible_e2e.sh` to compile, deploy both apps, simulate shots, and verify synchronization.
+*   **Launch Emulators**: Run `test/start_emulators.sh` to boot Phone and Wear AVD targets.
+*   **Visible E2E Script**: Execute `test/run_visible_e2e.sh` to compile, deploy both apps, simulate shots, and verify synchronization.
 
 ### 3. Live Session Verification
 *   Deploy `wear` debug APK to physical watch: `./deploy_physical.sh`

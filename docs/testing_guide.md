@@ -18,13 +18,13 @@ This is the most comprehensive way to verify the system. You will see the watch 
 ### 1. Start the Emulators
 Launch both required emulators and wait for them to fully boot:
 ```bash
-./start_emulators.sh
+test/start_emulators.sh
 ```
 
 ### 2. Run the E2E Script
 This script builds both apps, deploys them, launches the UIs, and triggers the shot simulation:
 ```bash
-./run_visible_e2e.sh
+test/run_visible_e2e.sh
 ```
 
 ### 3. What to Observe
@@ -46,7 +46,7 @@ This script builds both apps, deploys them, launches the UIs, and triggers the s
 If you want to test specific shots manually while watching the UI:
 ```bash
 # Ensure the Wear app is running and 'Tracking' is active
-EMULATOR_PORT=5556 ./simulate_shots.sh
+EMULATOR_PORT=5556 test/simulate_shots.sh
 ```
 
 ### Monitoring Logs

@@ -117,6 +117,7 @@ Raw logging writes: `WatchAccelerometer.csv`, `WatchGyroscope.csv`, `WatchGravit
 ├── docs/
 │   ├── batting_top_hand_biomechanics.md  # Reference doc defining stance/walking/running biomechanics
 │   └── testing_guide.md            # Comprehensive instructions for running simulation/live sessions
+├── test/                       # Emulator running and kinematic testing scripts
 └── scratch/                    # Simulation and diagnostic scripts
 ```
 

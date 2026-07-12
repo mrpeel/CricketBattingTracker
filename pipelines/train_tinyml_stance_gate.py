@@ -61,6 +61,8 @@ def generate_python_code(tree, feature_names):
     
     lines = []
     lines.append("def predict_stance(gyro_std, accel_std, ori_disp, mean_grav_y, step_age):")
+    lines.append("    if gyro_std > 2.0:")
+    lines.append("        return 0")
     
     def recurse(node, depth):
         indent = "    " * (depth + 1)

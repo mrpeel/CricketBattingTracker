@@ -51,6 +51,7 @@
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/start_tracking" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/start_video_session" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/stop_tracking" />
             </intent-filter>
         </service>

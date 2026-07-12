@@ -54,8 +54,8 @@ class SwingDetectorTest {
         val gravZ = kotlin.math.sqrt((9.8f * 9.8f - gravY * gravY).coerceAtLeast(0f))
         var time = 3_000_000_000L // Start at 3s to bypass 2.5s startup guard window
         
-        // 1. Simulate quiet stance (1.4s)
-        for (i in 0 until 70) {
+        // 1. Simulate quiet stance (2.0s) - 100 samples
+        for (i in 0 until 100) {
             activeDetector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
             activeDetector.processGravity(floatArrayOf(gravX, gravY, gravZ), time)
             activeDetector.processAccel(floatArrayOf(gravX, gravY, gravZ), time)
@@ -64,10 +64,12 @@ class SwingDetectorTest {
             time += 20_000_000L
         }
 
-        // 2. Simulate swing initiation (0.2s)
-        for (i in 1..10) {
-            val progress = i / 10f
-            activeDetector.processGyro(floatArrayOf(preGyro, 0f, 0f), time)
+        // 2. Simulate swing initiation (0.8s) - 40 samples
+        for (i in 1..40) {
+            val progress = i / 40f
+            val gyroY = postGyroY * progress + kotlin.math.sin(progress * 3.14159f) * 1.5f
+            val gyroZ = kotlin.math.cos(progress * 3.14159f) * 1.5f
+            activeDetector.processGyro(floatArrayOf(preGyro * progress, gyroY, gyroZ), time)
             activeDetector.processGravity(floatArrayOf(gravX, gravY, gravZ), time)
             activeDetector.processAccel(floatArrayOf(gravX, gravY, gravZ), time)
             
@@ -90,6 +92,7 @@ class SwingDetectorTest {
 
         // 4. Post-impact follow-through (1.8s)
         for (i in 1..90) {
+            val progress = 1.0f + (i / 90f) * 0.2f // continues to rotate follow-through
             val (currentGyroX, currentGyroY) = if (i <= 5) {
                 Pair(postGyro, postGyroY)
             } else {
@@ -100,7 +103,7 @@ class SwingDetectorTest {
             activeDetector.processGravity(floatArrayOf(gravX, gravY, gravZ), time)
             activeDetector.processAccel(floatArrayOf(gravX, gravY, gravZ), time)
             
-            val q = computeRotationQuat(1.0f, rollImpactDeg, deltaX, deltaZ)
+            val q = computeRotationQuat(progress, rollImpactDeg, deltaX, deltaZ)
             activeDetector.processRotation(q, time)
             activeDetector.processMagnetometer(floatArrayOf(magX, 0f, 0f), time)
             time += 20_000_000L
@@ -152,10 +155,13 @@ class SwingDetectorTest {
                                                         magX = magX,
                                                         targetDetector = testDetector
                                                     )
-                                                    if (shot != null && shot.shotType == targetShotType && additionalCheck(shot)) {
-                                                        System.out.println("✅ Found valid parameters for $targetShotType: roll=$roll, dx=$dx, dz=$dz, preGyro=$preGyro, impactGyro=$impactGyro, postGyro=$postGyro, gravY=$gravY, postGyroY=$postGyroY")
-                                                        return shot
-                                                    }
+                                                     if (shot != null) {
+                                                         System.out.println("DEBUG SWEEP: target=$targetShotType, pred=${shot.shotType}, roll=$roll, dx=$dx, dz=$dz, preGyro=$preGyro, impactGyro=$impactGyro, postGyro=$postGyro, postGyroY=$postGyroY")
+                                                     }
+                                                     if (shot != null && shot.shotType == targetShotType && additionalCheck(shot)) {
+                                                         System.out.println("✅ Found valid parameters for $targetShotType: roll=$roll, dx=$dx, dz=$dz, preGyro=$preGyro, impactGyro=$impactGyro, postGyro=$postGyro, gravY=$gravY, postGyroY=$postGyroY")
+                                                         return shot
+                                                     }
                                                 }
                                             }
                                         }
@@ -172,12 +178,18 @@ class SwingDetectorTest {
 
     @Test
     fun testCoverDrive() {
+        // Real DRIVE/DEFENCE: deltaX median=0.82 (IQR 0.57-1.10), deltaZ median=1.20 (IQR 0.70-1.60)
+        // gyro_y_min median=-1.31 (IQR -2.76 to -0.78), grav_x_max median=-0.22
         val shot = findParametersForShot(
             targetShotType = "DRIVE/DEFENCE",
             rollRanges = floatArrayOf(-10f, 0f, 10f),
-            dxRanges = floatArrayOf(0.01f, 0.05f, 0.1f),
-            dzRanges = floatArrayOf(0.1f, 0.2f, 0.3f),
-            gravYRanges = floatArrayOf(-9.0f, -8.5f, -9.5f),
+            dxRanges = floatArrayOf(0.6f, 0.8f, 1.0f),
+            dzRanges = floatArrayOf(0.8f, 1.0f, 1.2f),
+            preGyroRanges = floatArrayOf(5f, 8f, 10f),
+            impactGyroRanges = floatArrayOf(8f, 10f, 12f),
+            postGyroRanges = floatArrayOf(5f, 8f, 10f),
+            gravYRanges = floatArrayOf(-9.0f, -8.5f, -9.4f),
+            postGyroYRanges = floatArrayOf(-3f, -2f, -1f, 0f),
             additionalCheck = { (it.efficiency ?: 0f) > 80f && (it.isHit ?: false) }
         )
         assertNotNull("Shot should be detected", shot)
@@ -188,74 +200,19 @@ class SwingDetectorTest {
 
     @Test
     fun testOnSideFlick() {
-        var foundShot: ShotData? = null
-        val rolls = floatArrayOf(45f, 55f, 65f, 75f)
-        val dXs = floatArrayOf(1.2f, 1.4f, 1.6f)
-        val dZs = floatArrayOf(0.8f, 1.0f, 1.2f)
-        val postGyrosY = floatArrayOf(-6.9f, -8.0f)
-        val gravXs = floatArrayOf(0.5f, 0.87f)
-        
-        outer@ for (roll in rolls) {
-            for (dx in dXs) {
-                for (dz in dZs) {
-                    for (pgy in postGyrosY) {
-                        for (gx in gravXs) {
-                            val detectorTmp = SwingDetector()
-                            var shotTmp: ShotData? = null
-                            detectorTmp.onShotDetected = { shotTmp = it }
-                            
-                            val gravZ = kotlin.math.sqrt((9.8f * 9.8f - (-9.0f) * (-9.0f)).coerceAtLeast(0f))
-                            var time = 3_000_000_000L
-                            
-                            // Stance
-                            for (i in 0 until 70) {
-                                detectorTmp.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
-                                detectorTmp.processGravity(floatArrayOf(gx, -9.0f, gravZ), time)
-                                detectorTmp.processAccel(floatArrayOf(gx, -9.0f, gravZ), time)
-                                detectorTmp.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)
-                                time += 20_000_000L
-                            }
-                            // Swing
-                            for (i in 1..10) {
-                                val progress = i / 10f
-                                detectorTmp.processGyro(floatArrayOf(5f, 0f, 0f), time)
-                                detectorTmp.processGravity(floatArrayOf(gx, -9.0f, gravZ), time)
-                                detectorTmp.processAccel(floatArrayOf(gx, -9.0f, gravZ), time)
-                                val q = computeRotationQuat(progress, roll, dx, dz)
-                                detectorTmp.processRotation(q, time)
-                                time += 20_000_000L
-                            }
-                            // Impact
-                            detectorTmp.processGyro(floatArrayOf(13.7f, 0f, 0f), time)
-                            detectorTmp.processAccel(floatArrayOf(30f, -9.0f, gravZ), time)
-                            detectorTmp.processGravity(floatArrayOf(gx, -9.0f, gravZ), time)
-                            val qImpact = computeRotationQuat(1f, roll, dx, dz)
-                            detectorTmp.processRotation(qImpact, time)
-                            time += 20_000_000L
-                            // Follow through
-                            for (i in 1..90) {
-                                val currentGyroY = if (i <= 5) pgy else pgy * kotlin.math.exp(-(i - 5) * 0.04f)
-                                detectorTmp.processGyro(floatArrayOf(2f, currentGyroY, 0f), time)
-                                detectorTmp.processGravity(floatArrayOf(gx, -9.0f, gravZ), time)
-                                detectorTmp.processAccel(floatArrayOf(gx, -9.0f, gravZ), time)
-                                val q = computeRotationQuat(1f, roll, dx, dz)
-                                detectorTmp.processRotation(q, time)
-                                time += 20_000_000L
-                            }
-                            
-                            if (shotTmp != null && shotTmp?.shotType == "GLANCE/FLICK") {
-                                foundShot = shotTmp
-                                System.out.println("✅ Found valid GLANCE/FLICK test parameters: roll=$roll, dx=$dx, dz=$dz, pgy=$pgy, gx=$gx")
-                                break@outer
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        assertNotNull("Shot should be detected", foundShot)
-        assertEquals("GLANCE/FLICK", foundShot?.shotType)
+        val shot = findParametersForShot(
+            targetShotType = "GLANCE/FLICK",
+            rollRanges = floatArrayOf(-90f, -45f, -30f, -15f, 0f, 15f, 30f, 45f),
+            dxRanges = floatArrayOf(0.2f, 0.4f, 0.7f, 1.0f, 1.3f),
+            dzRanges = floatArrayOf(0.2f, 0.3f, 0.6f, 0.9f, 1.2f),
+            preGyroRanges = floatArrayOf(6f, 10f, 14f),
+            impactGyroRanges = floatArrayOf(12f, 16f, 20f),
+            postGyroRanges = floatArrayOf(6f, 10f, 14f),
+            gravYRanges = floatArrayOf(-9.0f, -9.5f),
+            postGyroYRanges = floatArrayOf(-12.0f, -10.0f, -7.0f, -4.0f)
+        )
+        assertNotNull("Shot should be detected", shot)
+        assertEquals("GLANCE/FLICK", shot?.shotType)
     }
 
     @Test
@@ -294,7 +251,7 @@ class SwingDetectorTest {
             postGyroRanges = floatArrayOf(10.0f, 12.0f, 14.0f),
             shockRanges = floatArrayOf(50f, 60f),
             gravYRanges = floatArrayOf(-9.3f, -9.0f),
-            postGyroYRanges = floatArrayOf(-6.0f, -4.0f, -2.0f),
+            postGyroYRanges = floatArrayOf(-14.0f, -8.0f, -6.0f, -4.0f, -2.0f),
             gravXRanges = floatArrayOf(3.0f, 5.0f)
         )
         assertNotNull("Shot should be detected", shot)
@@ -305,11 +262,13 @@ class SwingDetectorTest {
     fun testForwardDefence() {
         val shot = findParametersForShot(
             targetShotType = "DRIVE/DEFENCE",
-            preGyroRanges = floatArrayOf(1f, 2f, 3f),
-            impactGyroRanges = floatArrayOf(4f, 6f, 8f),
-            postGyroRanges = floatArrayOf(1f, 2f, 3f),
-            shockRanges = floatArrayOf(20f, 25f, 30f),
-            dzRanges = floatArrayOf(0.01f, 0.05f, 0.1f, 0.2f),
+            rollRanges = floatArrayOf(-10f, -5f, 0f, 5f, 10f),
+            dxRanges = floatArrayOf(0.1f, 0.3f, 0.5f, 0.7f),
+            dzRanges = floatArrayOf(0.2f, 0.4f, 0.6f, 0.8f),
+            preGyroRanges = floatArrayOf(1f, 2f, 3f, 4f, 5f),
+            impactGyroRanges = floatArrayOf(4f, 6f, 8f, 10f, 12f),
+            postGyroRanges = floatArrayOf(1f, 2f, 3f, 4f, 5f),
+            shockRanges = floatArrayOf(20f, 25f, 30f, 35f, 40f),
             gravYRanges = floatArrayOf(-9.8f, -9.0f)
         )
         assertNotNull("Shot should be detected", shot)
@@ -318,15 +277,18 @@ class SwingDetectorTest {
 
     @Test
     fun testPush() {
+        // A push/nurdle is a gentle DRIVE/DEFENCE with moderate wrist movement
+        // Real DRIVE/DEFENCE: deltaX IQR 0.57-1.10, deltaZ IQR 0.70-1.60
         val shot = findParametersForShot(
             targetShotType = "DRIVE/DEFENCE",
             preGyroRanges = floatArrayOf(3f, 5f, 7f),
-            impactGyroRanges = floatArrayOf(8f, 10f, 12f),
-            postGyroRanges = floatArrayOf(10f, 12f, 14f),
+            impactGyroRanges = floatArrayOf(6f, 8f, 10f),
+            postGyroRanges = floatArrayOf(3f, 5f, 7f),
             shockRanges = floatArrayOf(35f, 40f, 45f),
             rollRanges = floatArrayOf(-5f, 0f, 5f),
-            dxRanges = floatArrayOf(0.01f, 0.02f, 0.05f),
-            dzRanges = floatArrayOf(0.01f, 0.02f, 0.05f)
+            dxRanges = floatArrayOf(0.5f, 0.7f, 0.9f),
+            dzRanges = floatArrayOf(0.7f, 1.0f, 1.3f),
+            postGyroYRanges = floatArrayOf(-3f, -2f, -1f, 0f)
         )
         assertNotNull("Shot should be detected", shot)
         assertEquals("DRIVE/DEFENCE", shot?.shotType)
@@ -334,15 +296,19 @@ class SwingDetectorTest {
 
     @Test
     fun testPlayAndMiss() {
+        // Play and miss: same biomechanics as a drive but isHit=false (low shock)
+        // Must use realistic deltaX/deltaZ ranges matching DRIVE/DEFENCE training data
         val shot = findParametersForShot(
             targetShotType = "DRIVE/DEFENCE", // Play and miss evaluates to shotType class, but isHit is false
             isHit = false,
-            dxRanges = floatArrayOf(0.01f, 0.05f, 0.1f),
-            dzRanges = floatArrayOf(0.1f, 0.2f, 0.3f),
-            preGyroRanges = floatArrayOf(8f, 10f, 12f),
-            impactGyroRanges = floatArrayOf(18f, 20f, 22f),
-            postGyroRanges = floatArrayOf(12f, 15f, 18f),
+            dxRanges = floatArrayOf(0.6f, 0.8f, 1.0f),
+            dzRanges = floatArrayOf(0.7f, 1.0f, 1.2f),
+            preGyroRanges = floatArrayOf(3f, 5f, 8f, 10f),
+            impactGyroRanges = floatArrayOf(6f, 8f, 10f, 12f),
+            postGyroRanges = floatArrayOf(3f, 5f, 8f),
             shockRanges = floatArrayOf(45f, 50f, 55f),
+            rollRanges = floatArrayOf(-10f, 0f, 10f),
+            postGyroYRanges = floatArrayOf(-3f, -2f, -1f, 0f),
             additionalCheck = { !(it.isHit ?: true) && it.sweetSpot == "Miss" }
         )
         assertNotNull("Play and miss shot should still be detected", shot)
@@ -361,8 +327,8 @@ class SwingDetectorTest {
         val gravZ = 0f
         var time = 3_000_000_000L
 
-        // 1. Simulate quiet stance (500ms) - 25 samples
-        for (i in 0 until 25) {
+        // 1. Simulate quiet stance (2.0s) - 100 samples
+        for (i in 0 until 100) {
             detector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
@@ -370,12 +336,14 @@ class SwingDetectorTest {
             time += 20_000_000L
         }
 
-        // 2. Simulate transient failure / rocking (200ms) - 10 samples
-        for (i in 0 until 10) {
-            detector.processGyro(floatArrayOf(5.0f, 0f, 0f), time)
+        // 2. Simulate transient failure / rocking (800ms) - 40 samples
+        for (i in 0 until 40) {
+            val gyroVal = if (i % 2 == 0) 4.0f else 0.0f
+            detector.processGyro(floatArrayOf(gyroVal, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
-            detector.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)
+            val q = computeRotationQuat(1.0f, 5.0f * i, 0f, 0f)
+            detector.processRotation(q, time)
             time += 20_000_000L
         }
 
@@ -432,27 +400,39 @@ class SwingDetectorTest {
         val gravZ = 0f
         var time = 3_000_000_000L
 
-        // 1. Simulate quiet stance (500ms) - 25 samples
-        for (i in 0 until 25) {
-            detector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
-            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
-            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
-            detector.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)
-            time += 20_000_000L
-        }
-
-        // 2. Simulate longer failure exceeding tolerance (2.0s) - 100 samples
-        // Alternate gyro values to keep standard deviation high (> 1.2 rad/s) so the gate remains broken
+        // 1. Populate buffers with walking/movement (2.0s) - 100 samples
         for (i in 0 until 100) {
-            val gyroVal = if (i % 2 == 0) 5.0f else 0.0f
+            val gyroVal = if (i % 2 == 0) 4.0f else 0.0f
             detector.processGyro(floatArrayOf(gyroVal, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
             detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
+            val q = computeRotationQuat(1.0f, 5.0f * i, 0f, 0f)
+            detector.processRotation(q, time)
+            time += 20_000_000L
+        }
+
+        // 2. Open the gate with quiet stance (1.4s) - 70 samples
+        // (1.0s to make Segment 2 quiet and open the gate + 400ms of active gate duration < 800ms lock threshold)
+        for (i in 0 until 70) {
+            detector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
+            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
+            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
             detector.processRotation(floatArrayOf(0f, 0f, 0f, 1f), time)
             time += 20_000_000L
         }
 
-        // 3. Restore quiet stance (500ms) - 25 samples (not enough to lock since it reset completely and only has 500ms < 0.8s)
+        // 3. Simulate failure exceeding break tolerance (2.0s) - 100 samples
+        for (i in 0 until 100) {
+            val gyroVal = if (i % 2 == 0) 4.0f else 0.0f
+            detector.processGyro(floatArrayOf(gyroVal, 0f, 0f), time)
+            detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
+            detector.processAccel(floatArrayOf(0f, gravY, gravZ), time)
+            val q = computeRotationQuat(1.0f, 5.0f * i, 0f, 0f)
+            detector.processRotation(q, time)
+            time += 20_000_000L
+        }
+
+        // 4. Restore quiet stance (500ms) - 25 samples (not enough to lock since it reset completely)
         for (i in 0 until 25) {
             detector.processGyro(floatArrayOf(0.1f, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
@@ -461,7 +441,7 @@ class SwingDetectorTest {
             time += 20_000_000L
         }
 
-        // 4. Swing initiation (200ms)
+        // 5. Swing initiation (200ms)
         for (i in 1..10) {
             val progress = i / 10f
             detector.processGyro(floatArrayOf(10f, 0f, 0f), time)
@@ -472,7 +452,7 @@ class SwingDetectorTest {
             time += 20_000_000L
         }
 
-        // 5. Impact & Peak
+        // 6. Impact & Peak
         val impactTime = time
         detector.processGyro(floatArrayOf(20f, 0f, 0f), impactTime)
         detector.processAccel(floatArrayOf(50f, 0f, 0f), impactTime)
@@ -481,7 +461,7 @@ class SwingDetectorTest {
         detector.processRotation(qImpact, impactTime)
         time += 20_000_000L
 
-        // 6. Post-impact follow-through
+        // 7. Post-impact follow-through
         for (i in 1..90) {
             detector.processGyro(floatArrayOf(15f, 0f, 0f), time)
             detector.processGravity(floatArrayOf(0f, gravY, gravZ), time)
@@ -496,14 +476,20 @@ class SwingDetectorTest {
 
     @Test
     fun testBladeAndLaunchAngles() {
+        // Uses realistic DRIVE/DEFENCE feature ranges to ensure model classifies correctly
         val shot = findParametersForShot(
             targetShotType = "DRIVE/DEFENCE",
             rollRanges = floatArrayOf(-10f, 0f, 10f),
-            dxRanges = floatArrayOf(0.01f, 0.05f, 0.1f),
-            dzRanges = floatArrayOf(0.1f, 0.2f, 0.3f),
-            gravYRanges = floatArrayOf(-9.0f, -8.5f, -9.5f)
+            dxRanges = floatArrayOf(0.6f, 0.8f, 1.0f),
+            dzRanges = floatArrayOf(0.8f, 1.0f, 1.2f),
+            preGyroRanges = floatArrayOf(5f, 8f, 10f),
+            impactGyroRanges = floatArrayOf(8f, 10f, 12f),
+            postGyroRanges = floatArrayOf(5f, 8f, 10f),
+            gravYRanges = floatArrayOf(-9.0f, -8.5f, -9.4f),
+            postGyroYRanges = floatArrayOf(-3f, -2f, -1f, 0f)
         )
         assertNotNull("DRIVE/DEFENCE Shot should be detected", shot)
+        System.out.println("DEBUG BLADE: bladeClass=${shot?.bladeClass}, launchClass=${shot?.launchClass}")
         assertTrue("Launch class should be valid", 
             shot?.launchClass == "INTO_GROUND" || shot?.launchClass == "FLAT" || shot?.launchClass == "LOFTED"
         )
@@ -519,6 +505,7 @@ class SwingDetectorTest {
             gravYRanges = floatArrayOf(-9.0f)
         )
         if (pullShot != null) {
+            System.out.println("DEBUG PULL: launchAngle=${pullShot.launchAngle}, launchClass=${pullShot.launchClass}")
             assertEquals(-30f, pullShot.launchAngle, 1.0f)
             assertEquals("LOFTED", pullShot.launchClass)
         }

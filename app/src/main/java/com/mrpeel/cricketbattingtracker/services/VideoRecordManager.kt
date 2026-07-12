@@ -32,8 +32,16 @@ object VideoRecordManager {
 
     fun startRecording(context: Context) {
         if (_isRecording.value) return
+        val prefs = context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+        val cameraFacing = prefs.getString("video_camera_facing", "back") ?: "back"
+        val zoomValue = prefs.getFloat("video_zoom_value", 0.0f)
+        val targetFps = prefs.getInt("video_target_fps", 120)
+
         val intent = Intent(context, VideoRecordService::class.java).apply {
             action = VideoRecordService.ACTION_START
+            putExtra("CAMERA_FACING", cameraFacing)
+            putExtra("ZOOM_VALUE", zoomValue)
+            putExtra("TARGET_FPS", targetFps)
         }
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

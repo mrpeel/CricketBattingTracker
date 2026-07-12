@@ -56,21 +56,30 @@ class SwingDetectorRandomForestAlignmentTest {
         // Map feature column indices dynamically
         val fSessionIdx = featuresHeader.indexOf("session_id")
         val fShotIdx = featuresHeader.indexOf("shot_index")
-        val fGyroMagIdx = featuresHeader.indexOf("gyroMag")
-        val fRollIdx = featuresHeader.indexOf("rollImpactDeg")
-        val fYawIdx = featuresHeader.indexOf("yawImpactDeg")
-        val fDeltaXIdx = featuresHeader.indexOf("deltaX")
-        val fDeltaZIdx = featuresHeader.indexOf("deltaZ")
-        val fRatioIdx = featuresHeader.indexOf("planeRatio")
-        val fGyroYMinIdx = featuresHeader.indexOf("gyro_y_min")
-        val fGravXMaxIdx = featuresHeader.indexOf("grav_x_max")
-        val fGravYMinIdx = featuresHeader.indexOf("grav_y_min")
-        val fMagXMaxIdx = featuresHeader.indexOf("mag_x_max")
+        
+        val fS1GyroYStdIdx = featuresHeader.indexOf("s1_gyro_y_std")
+        val fS1GyroZStdIdx = featuresHeader.indexOf("s1_gyro_z_std")
+        val fS1DeltaXIdx = featuresHeader.indexOf("s1_deltaX")
+        val fS1DeltaZIdx = featuresHeader.indexOf("s1_deltaZ")
+        
+        val fS2GyroMagIdx = featuresHeader.indexOf("s2_gyroMag")
+        val fS2GravYMeanIdx = featuresHeader.indexOf("s2_grav_y_mean")
+        val fS2DeltaXIdx = featuresHeader.indexOf("s2_deltaX")
+        val fS2DeltaZIdx = featuresHeader.indexOf("s2_deltaZ")
+        
+        val fS3RollIdx = featuresHeader.indexOf("s3_rollImpactDeg")
+        val fS3YawIdx = featuresHeader.indexOf("s3_yawImpactDeg")
+        val fS3DeltaXIdx = featuresHeader.indexOf("s3_deltaX")
+        val fS3DeltaZIdx = featuresHeader.indexOf("s3_deltaZ")
+        val fS3RatioIdx = featuresHeader.indexOf("s3_planeRatio")
+        val fS3GyroYMinIdx = featuresHeader.indexOf("s3_gyro_y_min")
 
         assertTrue("Missing critical features/metadata in combined_features.csv header",
-            fSessionIdx != -1 && fShotIdx != -1 && fGyroMagIdx != -1 && fRollIdx != -1 &&
-            fYawIdx != -1 && fDeltaXIdx != -1 && fDeltaZIdx != -1 && fRatioIdx != -1 &&
-            fGyroYMinIdx != -1 && fGravXMaxIdx != -1 && fGravYMinIdx != -1 && fMagXMaxIdx != -1
+            fSessionIdx != -1 && fShotIdx != -1 &&
+            fS1GyroYStdIdx != -1 && fS1GyroZStdIdx != -1 && fS1DeltaXIdx != -1 && fS1DeltaZIdx != -1 &&
+            fS2GyroMagIdx != -1 && fS2GravYMeanIdx != -1 && fS2DeltaXIdx != -1 && fS2DeltaZIdx != -1 &&
+            fS3RollIdx != -1 && fS3YawIdx != -1 && fS3DeltaXIdx != -1 && fS3DeltaZIdx != -1 &&
+            fS3RatioIdx != -1 && fS3GyroYMinIdx != -1
         )
 
         var matchedCount = 0
@@ -80,7 +89,12 @@ class SwingDetectorRandomForestAlignmentTest {
             val line = featuresLines[i]
             if (line.isBlank()) continue
             val parts = parseCsvLine(line)
-            if (parts.size > maxOf(fSessionIdx, fShotIdx, fGyroMagIdx, fRollIdx, fYawIdx, fDeltaXIdx, fDeltaZIdx, fRatioIdx, fGyroYMinIdx, fGravXMaxIdx, fGravYMinIdx, fMagXMaxIdx)) {
+            if (parts.size > maxOf(
+                    fSessionIdx, fShotIdx,
+                    fS1GyroYStdIdx, fS1GyroZStdIdx, fS1DeltaXIdx, fS1DeltaZIdx,
+                    fS2GyroMagIdx, fS2GravYMeanIdx, fS2DeltaXIdx, fS2DeltaZIdx,
+                    fS3RollIdx, fS3YawIdx, fS3DeltaXIdx, fS3DeltaZIdx, fS3RatioIdx, fS3GyroYMinIdx
+                )) {
                 val sessionId = parts[fSessionIdx]
                 val shotIndex = parts[fShotIdx]
                 
@@ -93,16 +107,20 @@ class SwingDetectorRandomForestAlignmentTest {
 
                 // Construct feature vector
                 val f = SwingFeatures(
-                    gyroMag = parts[fGyroMagIdx].toFloat(),
-                    rollImpactDeg = parts[fRollIdx].toFloat(),
-                    yawImpactDeg = parts[fYawIdx].toFloat(),
-                    deltaX = parts[fDeltaXIdx].toFloat(),
-                    deltaZ = parts[fDeltaZIdx].toFloat(),
-                    planeRatio = parts[fRatioIdx].toFloat(),
-                    gyro_y_min = parts[fGyroYMinIdx].toFloat(),
-                    grav_x_max = parts[fGravXMaxIdx].toFloat(),
-                    grav_y_min = parts[fGravYMinIdx].toFloat(),
-                    mag_x_max = parts[fMagXMaxIdx].toFloat()
+                    s1_gyro_y_std = parts[fS1GyroYStdIdx].toFloat(),
+                    s1_gyro_z_std = parts[fS1GyroZStdIdx].toFloat(),
+                    s1_deltaX = parts[fS1DeltaXIdx].toFloat(),
+                    s1_deltaZ = parts[fS1DeltaZIdx].toFloat(),
+                    s2_gyroMag = parts[fS2GyroMagIdx].toFloat(),
+                    s2_grav_y_mean = parts[fS2GravYMeanIdx].toFloat(),
+                    s2_deltaX = parts[fS2DeltaXIdx].toFloat(),
+                    s2_deltaZ = parts[fS2DeltaZIdx].toFloat(),
+                    s3_rollImpactDeg = parts[fS3RollIdx].toFloat(),
+                    s3_yawImpactDeg = parts[fS3YawIdx].toFloat(),
+                    s3_deltaX = parts[fS3DeltaXIdx].toFloat(),
+                    s3_deltaZ = parts[fS3DeltaZIdx].toFloat(),
+                    s3_planeRatio = parts[fS3RatioIdx].toFloat(),
+                    s3_gyro_y_min = parts[fS3GyroYMinIdx].toFloat()
                 )
 
                 // Predict in Kotlin

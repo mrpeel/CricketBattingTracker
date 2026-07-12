@@ -1,4 +1,6 @@
 def predict_stance(gyro_std, accel_std, ori_disp, mean_grav_y, step_age):
+    if gyro_std > 2.0:
+        return 0
     if gyro_std <= 1.176236:
         if ori_disp <= 0.281161:
             if gyro_std <= 0.419345:

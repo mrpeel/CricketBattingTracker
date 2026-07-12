@@ -26,7 +26,32 @@ data class InningsEvent(
     val bladeAngle: Float? = null,
     val bladeClass: String? = null,
     val launchAngle: Float? = null,
-    val launchClass: String? = null
+    val launchClass: String? = null,
+
+    // Bottom hand (Polar Sense) enhancement metrics
+    val bottom_hand_gyro_peak: Float? = null,      // Peak gyro magnitude from bottom hand arm
+    val bottom_hand_acc_peak: Float? = null,        // Peak accel magnitude from bottom hand arm
+    val bottom_hand_gyro_ratio: Float? = null,      // Bottom hand gyro / Watch gyro peak ratio
+    val bottom_hand_acc_ratio: Float? = null,       // Bottom hand accel / Watch accel peak ratio
+    val bottom_hand_time_lead_ms: Long? = null,     // Lag between top and bottom hand peaks (ms)
+    val bottom_hand_sync_score: Float? = null,      // Hand synchronization quality score (0-100)
+
+    // Watch SwingFeatures (stored for future re-classification)
+    val swing_feature_s1_gyro_y_std: Float? = null,
+    val swing_feature_s1_gyro_z_std: Float? = null,
+    val swing_feature_s1_delta_x: Float? = null,
+    val swing_feature_s1_delta_z: Float? = null,
+    val swing_feature_s2_gyro_mag: Float? = null,
+    val swing_feature_s2_grav_y_mean: Float? = null,
+    val swing_feature_s2_delta_x: Float? = null,
+    val swing_feature_s2_delta_z: Float? = null,
+    val swing_feature_s3_roll_deg: Float? = null,
+    val swing_feature_s3_yaw_deg: Float? = null,
+    val swing_feature_s3_delta_x: Float? = null,
+    val swing_feature_s3_delta_z: Float? = null,
+    val swing_feature_s3_plane_ratio: Float? = null,
+    val swing_feature_s3_gyro_y_min: Float? = null,
+    val videoFilePath: String? = null,
 )
 
 @Entity(tableName = "heart_rate_events")
@@ -68,4 +93,21 @@ interface InningsEventDao {
 
     @Query("SELECT location FROM innings_events WHERE location IS NOT NULL AND location != 'Net Practice' AND location != '' ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLastResolvedLocation(): String?
+
+    // Update bottom hand enhancement metrics for a specific shot event
+    @Query("""UPDATE innings_events SET 
+        bottom_hand_gyro_peak = :gyroPeak, 
+        bottom_hand_acc_peak = :accPeak, 
+        bottom_hand_gyro_ratio = :gyroRatio, 
+        bottom_hand_acc_ratio = :accRatio, 
+        bottom_hand_time_lead_ms = :timeLeadMs, 
+        bottom_hand_sync_score = :syncScore 
+        WHERE id = :eventId""")
+    suspend fun updateBottomHandMetrics(
+        eventId: Int, gyroPeak: Float, accPeak: Float,
+        gyroRatio: Float, accRatio: Float, timeLeadMs: Long, syncScore: Float
+    )
+    
+    @Query("UPDATE innings_events SET videoFilePath = :videoFilePath WHERE id = :eventId")
+    suspend fun updateVideoFilePath(eventId: Int, videoFilePath: String?)
 }

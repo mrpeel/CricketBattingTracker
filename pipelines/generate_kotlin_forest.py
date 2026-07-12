@@ -18,10 +18,12 @@ def main():
     df = pd.read_csv(FEATURES_CSV)
     df_swings = df[df['normalized_gt'] != 'NON-SWING'].copy()
     
-    # 10 Kotlin-native features
+    # 14 Segmented temporal features
     features = [
-        'gyroMag', 'rollImpactDeg', 'yawImpactDeg', 'deltaX', 'deltaZ', 'planeRatio',
-        'gyro_y_min', 'grav_x_max', 'grav_y_min', 'mag_x_max'
+        's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
+        's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
+        's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
+        's3_planeRatio', 's3_gyro_y_min'
     ]
     
     X = df_swings[features].fillna(df_swings[features].median())
@@ -204,8 +206,10 @@ def main():
         f.write("    fun predict(f: SwingFeatures): String {\n")
         f.write(f"        val votes = FloatArray({num_classes})\n")
         f.write("        val features = floatArrayOf(\n")
-        f.write("            f.gyroMag, f.rollImpactDeg, f.yawImpactDeg, f.deltaX, f.deltaZ, f.planeRatio,\n")
-        f.write("            f.gyro_y_min, f.grav_x_max, f.grav_y_min, f.mag_x_max\n")
+        f.write("            f.s1_gyro_y_std, f.s1_gyro_z_std, f.s1_deltaX, f.s1_deltaZ,\n")
+        f.write("            f.s2_gyroMag, f.s2_grav_y_mean, f.s2_deltaX, f.s2_deltaZ,\n")
+        f.write("            f.s3_rollImpactDeg, f.s3_yawImpactDeg, f.s3_deltaX, f.s3_deltaZ,\n")
+        f.write("            f.s3_planeRatio, f.s3_gyro_y_min\n")
         f.write("        )\n\n")
         f.write("        for (t in 0 until NUM_TREES) {\n")
         f.write("            var nodeIdx = TREE_OFFSETS[t]\n")

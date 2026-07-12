@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
@@ -69,7 +70,12 @@ class VideoRecordService : Service(), LifecycleOwner {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START   -> startVideoRecording()
+            ACTION_START   -> {
+                val cameraFacing = intent.getStringExtra("CAMERA_FACING") ?: "back"
+                val zoomValue = intent.getFloatExtra("ZOOM_VALUE", 0.0f)
+                val targetFps = intent.getIntExtra("TARGET_FPS", 120)
+                startVideoRecording(cameraFacing, zoomValue, targetFps)
+            }
             ACTION_STOP    -> stopVideoRecording(discard = false)
             ACTION_DISCARD -> stopVideoRecording(discard = true)
         }
@@ -98,7 +104,7 @@ class VideoRecordService : Service(), LifecycleOwner {
 
     // ── Recording ──────────────────────────────────────────────────────────────
 
-    private fun startVideoRecording() {
+    private fun startVideoRecording(cameraFacing: String, zoomValue: Float, targetFps: Int) {
         startForeground(NOTIF_ID, buildNotification("Starting camera…"))
 
         val outputDir = getExternalFilesDir("video_sessions") ?: filesDir
@@ -112,14 +118,23 @@ class VideoRecordService : Service(), LifecycleOwner {
             try {
                 val cameraProvider = cameraProviderFuture.get()
 
-                // Target FPS 120; CameraX will silently fall back to highest supported if unavailable
+                // Target FPS options. Under CameraX, target FPS behaves in Quality selector configurations.
+                // We order qualities depending on preference.
                 val qualitySelector = QualitySelector.fromOrderedList(
                     listOf(Quality.FHD, Quality.HD, Quality.SD)
                 )
                 val recorder = Recorder.Builder()
                     .setQualitySelector(qualitySelector)
                     .build()
-                val videoCapture = VideoCapture.withOutput(recorder)
+                
+                // Configure target FPS constraints via Camera2Interop
+                val videoCaptureBuilder = androidx.camera.video.VideoCapture.Builder(recorder)
+                val camera2extender = androidx.camera.camera2.interop.Camera2Interop.Extender(videoCaptureBuilder)
+                camera2extender.setCaptureRequestOption(
+                    android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+                    android.util.Range(targetFps, targetFps)
+                )
+                val videoCapture = videoCaptureBuilder.build()
 
                 // Select audio input: prefer BT SCO mic, fall back to phone mic
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
@@ -136,12 +151,36 @@ class VideoRecordService : Service(), LifecycleOwner {
                     Log.d(TAG, "Bluetooth SCO not available — using phone mic")
                 }
 
+                val cameraSelector = if (cameraFacing == "front") {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
+
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                val camera = cameraProvider.bindToLifecycle(
                     this,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    cameraSelector,
                     videoCapture
                 )
+
+                // Force high frame-rate request on the active camera session control
+                try {
+                    val camera2Control = androidx.camera.camera2.interop.Camera2CameraControl.from(camera.cameraControl)
+                    val fpsRange = android.util.Range(targetFps, targetFps)
+                    camera2Control.setCaptureRequestOptions(
+                        androidx.camera.camera2.interop.CaptureRequestOptions.Builder()
+                            .setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+                            .build()
+                    )
+                    Log.d(TAG, "Forced CONTROL_AE_TARGET_FPS_RANGE to $targetFps on Camera2CameraControl")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to force FPS range on Camera2CameraControl: ${e.message}")
+                }
+
+                // Apply Zoom settings
+                camera.cameraControl.setLinearZoom(zoomValue.coerceIn(0.0f, 1.0f))
+                Log.d(TAG, "Camera Zoom set to: $zoomValue")
 
                 val outputOptions = FileOutputOptions.Builder(file).build()
                 activeRecording = videoCapture.output
@@ -152,6 +191,12 @@ class VideoRecordService : Service(), LifecycleOwner {
                             is VideoRecordEvent.Start -> {
                                 Log.d(TAG, "Video recording started → ${file.name}")
                                 startEpoch = System.currentTimeMillis()
+                                val prefs = getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                                prefs.edit()
+                                    .putLong("video_session_start_epoch", startEpoch)
+                                    .putString("video_session_file_path", file.absolutePath)
+                                    .apply()
+                                
                                 VideoRecordManager.updateRecordingState(true)
                                 ticker.post(tickRunnable)
                                 updateNotification("● REC ${file.name}")
@@ -162,6 +207,8 @@ class VideoRecordService : Service(), LifecycleOwner {
                                 } else {
                                     Log.d(TAG, "Video saved: ${file.absolutePath}")
                                     VideoRecordManager.lastSavedFilePath = file.absolutePath
+                                    val prefs = getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                                    prefs.edit().putString("video_session_file_path", file.absolutePath).apply()
                                 }
                                 stopSelf()
                             }

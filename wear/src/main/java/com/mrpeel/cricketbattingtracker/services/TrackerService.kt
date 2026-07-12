@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import kotlin.math.sqrt
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -47,6 +48,16 @@ class TrackerService : Service(), SensorEventListener {
     // Store timeline data
     private val sessionTimeline = mutableListOf<String>()
     private var shouldDiscard = false
+
+    // Tap sequence detection for Polar Sense alignment
+    private data class TapEvent(val wallClockMs: Long, val sensorNanos: Long, val magnitude: Float)
+    private val tapBuffer = mutableListOf<TapEvent>()
+    private val TAP_THRESHOLD = 25.0f  // m/s² magnitude
+    private val TAP_MIN_GAP_MS = 200L
+    private val TAP_MAX_GAP_MS = 1500L
+    private val TAP_SEQUENCE_MAX_DURATION_MS = 5000L
+    private val TAP_SEQUENCE_COOLDOWN_MS = 10000L
+    private var lastTapSequenceTimeMs = 0L
 
     // Background Sensor Handling Thread
     private var sensorThread: android.os.HandlerThread? = null
@@ -131,7 +142,7 @@ class TrackerService : Service(), SensorEventListener {
         swingDetector.onShotDetected = { shot ->
             val shotTime = System.currentTimeMillis()
             Log.d(TAG, "Shot detected! ${shot.shotType}, Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
-            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$shotTime, Bd=${shot.bladeAngle}, BdCl=${shot.bladeClass}, Lch=${shot.launchAngle}, LchCl=${shot.launchClass}")
+            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$shotTime, Bd=${shot.bladeAngle}, BdCl=${shot.bladeClass}, Lch=${shot.launchAngle}, LchCl=${shot.launchClass}, F1=${shot.s1GyroYStd}, F2=${shot.s1GyroZStd}, F3=${shot.s1DeltaX}, F4=${shot.s1DeltaZ}, F5=${shot.s2GyroMag}, F6=${shot.s2GravYMean}, F7=${shot.s2DeltaX}, F8=${shot.s2DeltaZ}, F9=${shot.s3RollImpactDeg}, F10=${shot.s3YawImpactDeg}, F11=${shot.s3DeltaX}, F12=${shot.s3DeltaZ}, F13=${shot.s3PlaneRatio}, F14=${shot.s3GyroYMin}")
             SessionManager.addShot(shot)
         }
         
@@ -189,7 +200,12 @@ class TrackerService : Service(), SensorEventListener {
         // Register sensor listeners on background thread handler
         if (enableRawLogging) {
             // Register ALL supported configurations for full stack diagnostics
+            val hasGameRotation = sensorConfigs.any { it.type == Sensor.TYPE_GAME_ROTATION_VECTOR && sensorManager.getDefaultSensor(it.type) != null }
             for (config in sensorConfigs) {
+                if (config.type == Sensor.TYPE_ROTATION_VECTOR && hasGameRotation) {
+                    continue // Skip standard rotation vector if game rotation vector is available to avoid double-binding
+                }
+                
                 // Request wake-up version of low-frequency sensors to prevent Sensor Hub suspension in ambient/screen-off mode
                 val sensor = if (config.type == Sensor.TYPE_STEP_DETECTOR ||
                                  config.type == Sensor.TYPE_STEP_COUNTER ||
@@ -214,8 +230,11 @@ class TrackerService : Service(), SensorEventListener {
             accelSensor?.let        { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
             gyroSensor?.let         { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
             gravitySensor?.let      { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
-            rotationSensor?.let     { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
-            gameRotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
+            if (gameRotationSensor != null) {
+                sensorManager.registerListener(this, gameRotationSensor!!, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler)
+            } else if (rotationSensor != null) {
+                sensorManager.registerListener(this, rotationSensor!!, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler)
+            }
             stepDetectorSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
             heartRateSensor?.let    { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
             magnetometerSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
@@ -336,10 +355,21 @@ class TrackerService : Service(), SensorEventListener {
 
         // Standard real-time sensor processing for state machine
         when (type) {
-            Sensor.TYPE_ACCELEROMETER -> swingDetector.processAccel(vals, ts)
+            Sensor.TYPE_ACCELEROMETER -> {
+                swingDetector.processAccel(vals, ts)
+                // Tap sequence detection for Polar Sense alignment
+                val accelMag = sqrt(vals[0] * vals[0] + vals[1] * vals[1] + vals[2] * vals[2])
+                if (accelMag > TAP_THRESHOLD * 0.7f) {
+                    tapBuffer.add(TapEvent(System.currentTimeMillis(), event.timestamp, accelMag))
+                }
+                // Prune tapBuffer entries older than 10 seconds
+                val cutoffMs = System.currentTimeMillis() - 10_000L
+                tapBuffer.removeAll { it.wallClockMs < cutoffMs }
+                checkForTapSequence()
+            }
             Sensor.TYPE_GYROSCOPE     -> swingDetector.processGyro(vals, ts)
             Sensor.TYPE_GRAVITY       -> swingDetector.processGravity(vals, ts)
-            Sensor.TYPE_GAME_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
+            Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
             Sensor.TYPE_MAGNETIC_FIELD -> swingDetector.processMagnetometer(vals, ts)
             Sensor.TYPE_STEP_DETECTOR -> {
                 swingDetector.processStep(ts)
@@ -406,5 +436,73 @@ class TrackerService : Service(), SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
         // Not used
+    }
+
+    /**
+     * Detects a sequence of 5 deliberate taps on the watch/bat for Polar Sense alignment.
+     * Finds peaks (local maxima) in the tap buffer, deduplicates within TAP_MIN_GAP_MS,
+     * and checks for 5 consecutive peaks with inter-peak gaps in [TAP_MIN_GAP_MS, TAP_MAX_GAP_MS]
+     * and total duration ≤ TAP_SEQUENCE_MAX_DURATION_MS.
+     */
+    private fun checkForTapSequence() {
+        if (tapBuffer.size < 5) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastTapSequenceTimeMs < TAP_SEQUENCE_COOLDOWN_MS) return
+
+        // Find peaks: local maxima within ±150ms window, magnitude ≥ TAP_THRESHOLD
+        val peaks = mutableListOf<TapEvent>()
+        for (i in tapBuffer.indices) {
+            val event = tapBuffer[i]
+            if (event.magnitude < TAP_THRESHOLD) continue
+
+            var isLocalMax = true
+            for (j in tapBuffer.indices) {
+                if (i == j) continue
+                val other = tapBuffer[j]
+                if (kotlin.math.abs(event.wallClockMs - other.wallClockMs) <= 150L) {
+                    if (other.magnitude > event.magnitude) {
+                        isLocalMax = false
+                        break
+                    }
+                }
+            }
+            if (isLocalMax) peaks.add(event)
+        }
+
+        // Deduplicate peaks within TAP_MIN_GAP_MS
+        val dedupedPeaks = mutableListOf<TapEvent>()
+        for (peak in peaks.sortedBy { it.wallClockMs }) {
+            if (dedupedPeaks.isEmpty() || peak.wallClockMs - dedupedPeaks.last().wallClockMs >= TAP_MIN_GAP_MS) {
+                dedupedPeaks.add(peak)
+            }
+        }
+
+        if (dedupedPeaks.size < 5) return
+
+        // Check for 5 consecutive peaks with valid inter-peak gaps
+        for (i in 0..dedupedPeaks.size - 5) {
+            val window = dedupedPeaks.subList(i, i + 5)
+            val totalDuration = window.last().wallClockMs - window.first().wallClockMs
+            if (totalDuration > TAP_SEQUENCE_MAX_DURATION_MS) continue
+
+            var validGaps = true
+            for (j in 0 until 4) {
+                val gap = window[j + 1].wallClockMs - window[j].wallClockMs
+                if (gap < TAP_MIN_GAP_MS || gap > TAP_MAX_GAP_MS) {
+                    validGaps = false
+                    break
+                }
+            }
+
+            if (validGaps) {
+                lastTapSequenceTimeMs = now
+                val entry = "TAP_SEQ: Ts=$now, T1=${window[0].sensorNanos},T2=${window[1].sensorNanos},T3=${window[2].sensorNanos},T4=${window[3].sensorNanos},T5=${window[4].sensorNanos}"
+                sessionTimeline.add(entry)
+                Log.d(TAG, "🔔 Tap sequence detected: $entry")
+                tapBuffer.clear()
+                return
+            }
+        }
     }
 }

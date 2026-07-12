@@ -397,7 +397,7 @@ class SwingDetectorGroundTruthTest {
     }
 
     private fun writeScorecardReport(results: List<SessionResult>) {
-        val reportFile = File("/Users/neilkloot/.gemini/antigravity/brain/2b0e7b71-5668-46cd-a61d-48994a7fdd70/swing_detector_scorecard.md")
+        val reportFile = File("/Users/neilkloot/.gemini/antigravity/brain/1fceadb8-4798-4a54-b188-0e2fef80a0f4/swing_detector_scorecard.md")
         val sb = StringBuilder()
 
         sb.append("# SwingDetector Performance Scorecard\n\n")

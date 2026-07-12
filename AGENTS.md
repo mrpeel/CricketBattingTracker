@@ -27,3 +27,7 @@ To prevent chat bloat and conserve token quota, you must actively police the con
 ## 🚫 Strictly Forbidden Tools
 - **DO NOT USE WHISPER AI**: Local Whisper models (like Whisper `base` or `tiny`) are strictly forbidden for audio narration transcription. They are highly fragile under continuous background noise (such as bowling machine hum), leading to hallucinated repetition loops and missing anchors. Gemini's direct audio transcription must always be used instead, with systematic clock drift resolved mathematically at the sensor alignment layer (e.g. using 2D Joint Offset and Linear Drift Rate Optimization).
 
+## 🚫 Strictly Forbidden Metrics Reporting
+- **NEVER report training-set or cross-validation accuracy as model performance**. Scikit-learn `cross_val_score`, training accuracy, or any metric computed on data used for training (including synthetic/augmented data) is a training diagnostic only. It must NEVER be presented to the user as the model's accuracy or used to justify model quality.
+- **ONLY report real-world ground truth accuracy** from `SwingDetectorGroundTruthTest.kt` scorecard results. This is the single source of truth for model performance.
+- When reporting accuracy improvements, always compare the **ground truth scorecard before vs after** — never synthetic CV metrics.

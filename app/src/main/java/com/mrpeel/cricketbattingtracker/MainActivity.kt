@@ -1,12 +1,16 @@
 package com.mrpeel.cricketbattingtracker
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -311,12 +315,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        requestLocationPermissionLauncher.launch(
-            arrayOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
-            )
+        val permissionsToRequest = mutableListOf(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
         )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            permissionsToRequest.add(android.Manifest.permission.BLUETOOTH_SCAN)
+            permissionsToRequest.add(android.Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        
+        requestLocationPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         
         triggerForegroundLocationResolution()
         checkHealthConnectPermissions()
@@ -384,6 +392,7 @@ class MainActivity : ComponentActivity() {
 
                         var displaySessionTime by remember { mutableStateOf(false) }
                         var highlightedEventId by remember { mutableStateOf<Int?>(null) }
+                        var activePlaybackVideoPath by remember { mutableStateOf<String?>(null) }
                         val listState = rememberLazyListState()
                         val coroutineScope = rememberCoroutineScope()
                         
@@ -399,7 +408,7 @@ class MainActivity : ComponentActivity() {
                         val reversedTimelineShots = remember(timelineShots) {
                             timelineShots.reversed()
                         }
-                        val formatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+
 
                         Column(modifier = Modifier.fillMaxSize()) {
                             TopBar(
@@ -410,64 +419,73 @@ class MainActivity : ComponentActivity() {
                                 initials = initials,
                                 onProfileClick = { showProfileDialog = true }
                             )
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = 24.dp)
-                            ) {
-                                // 1. Summary Dashboard Metrics (Grid)
-                                item {
-                                    DashboardSummary(
-                                        events = timeline,
-                                        onNavigateToShot = { targetEvent ->
-                                            val indexInTimeline = reversedTimelineShots.indexOf(targetEvent)
-                                            if (indexInTimeline != -1) {
-                                                highlightedEventId = targetEvent.id
-                                                coroutineScope.launch {
-                                                    // Offset: DashboardSummary is item 0, ShotTypeSummary is item 1, Section Header is item 2
-                                                    listState.animateScrollToItem(indexInTimeline + 3)
-                                                    // Flash highlight for 1.5s
-                                                    kotlinx.coroutines.delay(1500)
-                                                    if (highlightedEventId == targetEvent.id) {
-                                                        highlightedEventId = null
+                            Box(modifier = Modifier.weight(1f)) {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(bottom = 24.dp)
+                                ) {
+                                    // 1. Summary Dashboard Metrics (Grid)
+                                    item {
+                                        DashboardSummary(
+                                            events = timeline,
+                                            onNavigateToShot = { targetEvent ->
+                                                val indexInTimeline = reversedTimelineShots.indexOf(targetEvent)
+                                                if (indexInTimeline != -1) {
+                                                    highlightedEventId = targetEvent.id
+                                                    coroutineScope.launch {
+                                                        // Offset: DashboardSummary is item 0, ShotTypeSummary is item 1, Section Header is item 2
+                                                        listState.animateScrollToItem(indexInTimeline + 3)
+                                                        // Flash highlight for 1.5s
+                                                        kotlinx.coroutines.delay(1500)
+                                                        if (highlightedEventId == targetEvent.id) {
+                                                            highlightedEventId = null
+                                                        }
                                                     }
                                                 }
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
+
+                                    // 2. Shot Type Summary Table
+                                    item {
+                                        ShotTypeSummary(events = timeline)
+                                    }
+
+                                    // 3. Section Header
+                                    item {
+                                        Text(
+                                            text = "SESSION TIMELINE",
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                                            letterSpacing = 2.sp
+                                        )
+                                    }
+
+                                    // 4. Shot Card Timeline Items
+                                    items(reversedTimelineShots) { event ->
+                                         val shotIndex = shotEvents.indexOf(event)
+                                         val shotNumber = if (shotIndex != -1) shotIndex + 1 else null
+                                         TimelineItem(
+                                             event = event,
+                                             shotNumber = shotNumber,
+                                             displaySessionTime = displaySessionTime,
+                                             sessionStartTimestamp = sessionStartTimestamp,
+                                             isHighlighted = event.id == highlightedEventId,
+                                             onTimeToggle = { displaySessionTime = !displaySessionTime },
+                                             onPlayVideo = { path -> activePlaybackVideoPath = path }
+                                         )
+                                         Spacer(modifier = Modifier.height(10.dp).padding(horizontal = 16.dp))
+                                     }
                                 }
 
-                                // 2. Shot Type Summary Table
-                                item {
-                                    ShotTypeSummary(events = timeline)
-                                }
-
-                                // 3. Section Header
-                                item {
-                                    Text(
-                                        text = "SESSION TIMELINE",
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                        letterSpacing = 2.sp
+                                if (activePlaybackVideoPath != null) {
+                                    VideoPlayerDialog(
+                                        videoPath = activePlaybackVideoPath!!,
+                                        onDismiss = { activePlaybackVideoPath = null }
                                     )
-                                }
-
-                                // 4. Shot Card Timeline Items
-                                items(reversedTimelineShots) { event ->
-                                    val shotIndex = shotEvents.indexOf(event)
-                                    val shotNumber = if (shotIndex != -1) shotIndex + 1 else null
-                                    TimelineItem(
-                                        event = event,
-                                        formatter = formatter,
-                                        shotNumber = shotNumber,
-                                        displaySessionTime = displaySessionTime,
-                                        sessionStartTimestamp = sessionStartTimestamp,
-                                        isHighlighted = event.id == highlightedEventId,
-                                        onTimeToggle = { displaySessionTime = !displaySessionTime }
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp).padding(horizontal = 16.dp))
                                 }
                             }
                         }
@@ -1299,15 +1317,46 @@ fun RecordScreen(
     onRequestVideoPermission: () -> Unit,
     context: android.content.Context
 ) {
-    var showVideoRecord by remember { mutableStateOf(false) }
-    val isVideoRecording by com.mrpeel.cricketbattingtracker.services.VideoRecordManager.isRecording.collectAsState()
-    val videoElapsed    by com.mrpeel.cricketbattingtracker.services.VideoRecordManager.elapsedSeconds.collectAsState()
+    val prefs = remember { context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE) }
+    var audioEnabled by remember { mutableStateOf(prefs.getBoolean("audio_narration_enabled", true)) }
+    var polarEnabled by remember { mutableStateOf(prefs.getBoolean("bottom_hand_sensor_enabled", false)) }
+    var videoEnabled by remember { mutableStateOf(prefs.getBoolean("record_video_enabled", false)) }
 
-    if (showVideoRecord || isVideoRecording) {
+    val polarState by com.mrpeel.cricketbattingtracker.services.PolarSenseManager.connectionState.collectAsState()
+    val polarSampleCount by com.mrpeel.cricketbattingtracker.services.PolarSenseManager.sampleCount.collectAsState()
+    val polarTaps by com.mrpeel.cricketbattingtracker.services.PolarSenseManager.detectedTapSequences.collectAsState()
+    val pairedDevice by com.mrpeel.cricketbattingtracker.services.PolarSenseManager.pairedDeviceId.collectAsState()
+
+    var showPairingScreen by remember { mutableStateOf(false) }
+    var showVideoConfigScreen by remember { mutableStateOf(false) }
+
+    if (showPairingScreen) {
+        PolarPairingScreen(
+            context = context,
+            onBack = { showPairingScreen = false }
+        )
+        return
+    }
+
+    if (showVideoConfigScreen) {
+        VideoSetupScreen(
+            context = context,
+            onBack = { showVideoConfigScreen = false }
+        )
+        return
+    }
+
+    val isVideoRecording by com.mrpeel.cricketbattingtracker.services.VideoRecordManager.isRecording.collectAsState()
+    val videoElapsed by com.mrpeel.cricketbattingtracker.services.VideoRecordManager.elapsedSeconds.collectAsState()
+
+    // Determine overall active session state
+    val sessionActive = isRecording || isVideoRecording || polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING
+
+    if (videoEnabled && (sessionActive || isVideoRecording)) {
         VideoRecordScreen(
-            isRecording    = isVideoRecording,
+            isRecording = isVideoRecording,
             elapsedSeconds = videoElapsed,
-            onStartClick   = {
+            onStartClick = {
                 val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(
                     context, android.Manifest.permission.CAMERA
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -1320,15 +1369,32 @@ fun RecordScreen(
                     onRequestVideoPermission()
                 }
             },
-            onSaveClick    = {
+            onSaveClick = {
                 com.mrpeel.cricketbattingtracker.services.VideoRecordManager.stopAndSave(context)
-                showVideoRecord = false
+                // Stop other enabled services
+                if (isRecording) {
+                    com.mrpeel.cricketbattingtracker.services.AudioRecordManager.stopRecording(context)
+                }
+                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                    val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
+                        action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
+                    }
+                    context.startService(serviceIntent)
+                }
             },
-            onCancelClick  = {
+            onCancelClick = {
                 if (isVideoRecording) {
                     com.mrpeel.cricketbattingtracker.services.VideoRecordManager.discard(context)
                 }
-                showVideoRecord = false
+                if (isRecording) {
+                    com.mrpeel.cricketbattingtracker.services.AudioRecordManager.discardRecording(context)
+                }
+                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                    val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
+                        action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
+                    }
+                    context.startService(serviceIntent)
+                }
             }
         )
         return
@@ -1337,62 +1403,68 @@ fun RecordScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 8.dp),
+            .padding(top = 8.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        SessionControlPanel(
-            isRecording = isRecording,
-            elapsedSeconds = elapsedSeconds,
+        UnifiedConsoleCard(
+            sessionActive = sessionActive,
+            audioEnabled = audioEnabled,
+            onAudioToggle = {
+                audioEnabled = it
+                prefs.edit().putBoolean("audio_narration_enabled", it).apply()
+            },
+            polarEnabled = polarEnabled,
+            onPolarToggle = {
+                if (pairedDevice == null && it) {
+                    showPairingScreen = true
+                } else {
+                    polarEnabled = it
+                    prefs.edit().putBoolean("bottom_hand_sensor_enabled", it).apply()
+                }
+            },
+            videoEnabled = videoEnabled,
+            onVideoToggle = {
+                if (it) {
+                    val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.CAMERA
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    if (!hasCamera) {
+                        onRequestVideoPermission()
+                    } else {
+                        videoEnabled = true
+                        prefs.edit().putBoolean("record_video_enabled", true).apply()
+                    }
+                } else {
+                    videoEnabled = false
+                    prefs.edit().putBoolean("record_video_enabled", false).apply()
+                }
+            },
+            polarState = polarState,
+            polarSampleCount = polarSampleCount,
+            polarTaps = polarTaps.size,
+            pairedDevice = pairedDevice,
+            onPairingClick = { showPairingScreen = true },
+            onVideoConfigClick = {
+                val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.CAMERA
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!hasCamera) {
+                    onRequestVideoPermission()
+                } else {
+                    showVideoConfigScreen = true
+                }
+            },
+            elapsedSeconds = if (videoEnabled) videoElapsed else elapsedSeconds,
             maxAmplitude = maxAmplitude,
             recordingsList = recordingsList,
             onRequestPermission = onRequestPermission,
+            onRequestVideoPermission = onRequestVideoPermission,
             context = context
         )
-
-        // ── Video Record Card ────────────────────────────────────────────────
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .clickable { showVideoRecord = true },
-            shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "🎥 VIDEO ANALYSIS",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.secondary,
-                        letterSpacing = 1.5.sp
-                    )
-                    Text(
-                        "Record Video Session",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "120fps video + watch sensor capture for ground truth analysis.",
-                        fontSize = 11.sp,
-                        color = Color.Gray,
-                        lineHeight = 15.sp
-                    )
-                }
-                Text("›", fontSize = 24.sp, color = Color.Gray, modifier = Modifier.padding(start = 12.dp))
-            }
-        }
     }
 }
+
 
 // ── Video Record Screen ─────────────────────────────────────────────────────────
 @Composable
@@ -1423,7 +1495,12 @@ fun VideoRecordScreen(
                         factory = { ctx ->
                             val previewView = androidx.camera.view.PreviewView(ctx).apply {
                                 implementationMode = androidx.camera.view.PreviewView.ImplementationMode.PERFORMANCE
+                                scaleType = androidx.camera.view.PreviewView.ScaleType.FIT_CENTER
                             }
+                            val prefs = ctx.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                            val cameraFacing = prefs.getString("video_camera_facing", "back") ?: "back"
+                            val zoomValue = prefs.getFloat("video_zoom_value", 0.0f)
+
                             // Bind camera preview
                             val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(ctx)
                             val lifecycleOwner = ctx as? androidx.lifecycle.LifecycleOwner
@@ -1433,13 +1510,19 @@ fun VideoRecordScreen(
                                     val preview = androidx.camera.core.Preview.Builder().build().also {
                                         it.setSurfaceProvider(previewView.surfaceProvider)
                                     }
+                                    val cameraSelector = if (cameraFacing == "front") {
+                                        androidx.camera.core.CameraSelector.DEFAULT_FRONT_CAMERA
+                                    } else {
+                                        androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
+                                    }
                                     cameraProvider.unbindAll()
                                     if (lifecycleOwner != null) {
-                                        cameraProvider.bindToLifecycle(
+                                        val camera = cameraProvider.bindToLifecycle(
                                             lifecycleOwner,
-                                            androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,
+                                            cameraSelector,
                                             preview
                                         )
+                                        camera.cameraControl.setLinearZoom(zoomValue)
                                     }
                                 } catch (e: Exception) {
                                     android.util.Log.e("VideoRecordScreen", "Preview bind failed: ${e.message}")
@@ -1709,12 +1792,12 @@ fun HealthSyncBar(onSync: () -> Unit) {
 @Composable
 fun TimelineItem(
     event: InningsEvent,
-    formatter: SimpleDateFormat,
     shotNumber: Int?,
     displaySessionTime: Boolean,
     sessionStartTimestamp: Long,
     isHighlighted: Boolean,
-    onTimeToggle: () -> Unit
+    onTimeToggle: () -> Unit,
+    onPlayVideo: (String) -> Unit
 ) {
     val isHit = !event.description.contains("Miss")
     val accentColor = getShotColor(event.shotType, isHit)
@@ -1752,9 +1835,11 @@ fun TimelineItem(
         SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(Date(event.timestamp)).lowercase()
     }
 
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = cardBgColor),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
         shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = borderAlpha))
     ) {
@@ -1785,13 +1870,31 @@ fun TimelineItem(
                         }
                         append(event.shotType?.uppercase() ?: event.description.uppercase())
                     }
-                    Text(
-                        text = headerText,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 12.sp,
-                        color = Color.White,
-                        letterSpacing = 0.5.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = headerText,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            letterSpacing = 0.5.sp
+                        )
+                        if (event.bottom_hand_sync_score != null) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "🧤",
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable { expanded = !expanded }
+                            )
+                        }
+                        if (!event.videoFilePath.isNullOrEmpty()) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "📹",
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable { onPlayVideo(event.videoFilePath) }
+                            )
+                        }
+                    }
                     Text(
                         text = timeText,
                         fontSize = 10.sp,
@@ -1855,6 +1958,64 @@ fun TimelineItem(
                                 desc
                             }
                             MetricSmallCompact("LAUNCH", displayValue, modifier = Modifier.weight(2.1f))
+                        }
+                    }
+                }
+
+                if (expanded && event.bottom_hand_sync_score != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "🧤 BOTTOM HAND BIO-METRICS",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val score = event.bottom_hand_sync_score
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("SYNC SCORE", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Text("${score.toInt()}/100", fontSize = 14.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            LinearProgressIndicator(
+                                progress = { score / 100f },
+                                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = Color.White.copy(alpha = 0.05f)
+                            )
+                        }
+
+                        val lead = event.bottom_hand_time_lead_ms ?: 0L
+                        val leadText = if (lead > 0) "+${lead}ms" else "${lead}ms"
+                        val leadColor = when {
+                            kotlin.math.abs(lead) < 60 -> MaterialTheme.colorScheme.primary
+                            kotlin.math.abs(lead) < 200 -> Color(0xFFFFD54F)
+                            else -> Color(0xFFFF5252)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("HAND TIMING", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Text(leadText, fontSize = 14.sp, fontWeight = FontWeight.Black, color = leadColor)
+                            Text(if (lead > 0) "Bottom Hand Leads" else "Top Hand Leads", fontSize = 8.sp, color = Color.Gray)
+                        }
+
+                        val gyroRatio = (event.bottom_hand_gyro_ratio ?: 0f) * 100
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("GYRO RATIO", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Text("${gyroRatio.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            Text("of top hand peak", fontSize = 8.sp, color = Color.Gray)
+                        }
+
+                        val forceRatio = (event.bottom_hand_acc_ratio ?: 0f) * 100
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("FORCE RATIO", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Text("${forceRatio.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            Text("of top hand peak", fontSize = 8.sp, color = Color.Gray)
                         }
                     }
                 }
@@ -2048,12 +2209,25 @@ fun ProfileDialog(
 }
 
 @Composable
-fun SessionControlPanel(
-    isRecording: Boolean,
+fun UnifiedConsoleCard(
+    sessionActive: Boolean,
+    audioEnabled: Boolean,
+    onAudioToggle: (Boolean) -> Unit,
+    polarEnabled: Boolean,
+    onPolarToggle: (Boolean) -> Unit,
+    videoEnabled: Boolean,
+    onVideoToggle: (Boolean) -> Unit,
+    polarState: com.mrpeel.cricketbattingtracker.services.PolarConnectionState,
+    polarSampleCount: Long,
+    polarTaps: Int,
+    pairedDevice: String?,
+    onPairingClick: () -> Unit,
+    onVideoConfigClick: () -> Unit,
     elapsedSeconds: Long,
     maxAmplitude: Float,
     recordingsList: List<java.io.File>,
     onRequestPermission: () -> Unit,
+    onRequestVideoPermission: () -> Unit,
     context: Context
 ) {
     Card(
@@ -2070,6 +2244,7 @@ fun SessionControlPanel(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2084,14 +2259,14 @@ fun SessionControlPanel(
                         letterSpacing = 1.5.sp
                     )
                     Text(
-                        if (isRecording) "SESSION TRACKING ACTIVE" else "SESSION CONTROLLER",
+                        if (sessionActive) "TRACKING IN PROGRESS" else "SESSION SETUP",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         color = Color.White
                     )
                 }
-                
-                if (isRecording) {
+
+                if (sessionActive) {
                     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
                     val alpha by infiniteTransition.animateFloat(
                         initialValue = 0.3f,
@@ -2108,42 +2283,190 @@ fun SessionControlPanel(
                             .clip(CircleShape)
                             .background(Color(0xFF58FF63).copy(alpha = alpha))
                     )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(Color.Gray.copy(alpha = 0.5f))
-                    )
                 }
             }
 
-            if (!isRecording) {
-                Text(
-                    "Start session tracking to record raw watch telemetry and capture voice annotations. Recording saves automatically for direct sync.",
-                    fontSize = 11.sp,
-                    color = Color.Gray,
-                    lineHeight = 16.sp
-                )
+            if (!sessionActive) {
+                // Determine if Bluetooth headphones are connected
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                val devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+                val isBluetoothHeadphonesConnected = devices.any { device ->
+                    val type = device.type
+                    type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
+                }
 
+                // If not connected, force audio narration option off
+                val isAudioAvailable = isBluetoothHeadphonesConnected
+                val finalAudioEnabled = audioEnabled && isAudioAvailable
+
+                // Toggles for configuring session options
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Audio toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically, 
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "🎙️", 
+                                fontSize = 18.sp, 
+                                modifier = Modifier.padding(end = 12.dp),
+                                color = if (isAudioAvailable) Color.Unspecified else Color.Gray.copy(alpha = 0.5f)
+                            )
+                            Column {
+                                Text(
+                                    "Audio Narration", 
+                                    fontSize = 12.sp, 
+                                    fontWeight = FontWeight.Bold, 
+                                    color = if (isAudioAvailable) Color.White else Color.Gray.copy(alpha = 0.5f)
+                                )
+                                Text(
+                                    if (isAudioAvailable) "Record voice shot observations" else "Requires Bluetooth Headphones", 
+                                    fontSize = 10.sp, 
+                                    color = if (isAudioAvailable) Color.Gray else Color.Gray.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = finalAudioEnabled,
+                            onCheckedChange = { onAudioToggle(it) },
+                            enabled = isAudioAvailable,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                disabledCheckedThumbColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                disabledUncheckedThumbColor = Color.Gray.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                    // Polar Sense toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text("🧤", fontSize = 18.sp, modifier = Modifier.padding(end = 12.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Bottom Hand Sensor", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = pairedDevice?.let { "PAIRED" } ?: "NOT CONFIG",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (pairedDevice != null) MaterialTheme.colorScheme.primary else Color(0xFFFF5252),
+                                        modifier = Modifier
+                                            .background(
+                                                if (pairedDevice != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                                else Color(0xFFFF5252).copy(alpha = 0.15f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Text(
+                                    text = pairedDevice?.let { "Polar Sense ID: $it" } ?: "Pair your sensor first",
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onPairingClick) {
+                                Text("⚙️", fontSize = 16.sp)
+                            }
+                            Switch(
+                                checked = polarEnabled && pairedDevice != null,
+                                onCheckedChange = onPolarToggle,
+                                enabled = pairedDevice != null,
+                                colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                    // Video toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text("🎥", fontSize = 18.sp, modifier = Modifier.padding(end = 12.dp))
+                            Column {
+                                Text("Record Session Video", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Record clips linked to watch swings", fontSize = 10.sp, color = Color.Gray)
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onVideoConfigClick) {
+                                Text("⚙️", fontSize = 16.sp)
+                            }
+                            Switch(
+                                checked = videoEnabled,
+                                onCheckedChange = onVideoToggle,
+                                colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Start button orchestration
                 Button(
                     onClick = {
-                        val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(
-                            context,
-                            android.Manifest.permission.RECORD_AUDIO
-                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                        val hasBt = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                            androidx.core.content.ContextCompat.checkSelfPermission(
-                                context,
-                                android.Manifest.permission.BLUETOOTH_CONNECT
+                        // Start watch session
+                        if (videoEnabled) {
+                            val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(
+                                context, android.Manifest.permission.CAMERA
                             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(
+                                context, android.Manifest.permission.RECORD_AUDIO
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            if (hasCamera && hasAudio) {
+                                com.mrpeel.cricketbattingtracker.services.VideoRecordManager.startRecording(context)
+                            } else {
+                                onRequestVideoPermission()
+                            }
+                        } else if (audioEnabled) {
+                            val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(
+                                context, android.Manifest.permission.RECORD_AUDIO
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            val hasBt = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.BLUETOOTH_CONNECT
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            } else {
+                                true
+                            }
+                            if (hasAudio && hasBt) {
+                                com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context)
+                            } else {
+                                onRequestPermission()
+                            }
                         } else {
-                            true
-                        }
-                        if (hasAudio && hasBt) {
+                            // If only watch/polar tracking (no video, no audio)
+                            // AudioRecordManager.startRecording() handles sending the watch start tracking message
                             com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context)
-                        } else {
-                            onRequestPermission()
+                        }
+
+                        // Start Polar Sense streaming if enabled
+                        if (polarEnabled && pairedDevice != null) {
+                            val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
+                                action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_START
+                            }
+                            context.startService(serviceIntent)
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -2156,9 +2479,9 @@ fun SessionControlPanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🎙️", fontSize = 16.sp)
+                        Text("▶️", fontSize = 14.sp)
                         Text(
-                            "START SESSION & AUDIO RECORD",
+                            "START BATTING SESSION",
                             fontWeight = FontWeight.Black,
                             fontSize = 11.sp,
                             color = Color(0xFF000C1B),
@@ -2167,7 +2490,7 @@ fun SessionControlPanel(
                     }
                 }
 
-                if (recordingsList.isNotEmpty()) {
+                if (recordingsList.isNotEmpty() && audioEnabled) {
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
                     Text(
                         "RECENT NARRATIONS (${recordingsList.size})",
@@ -2187,6 +2510,7 @@ fun SessionControlPanel(
                     }
                 }
             } else {
+                // Active session telemetry display
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -2198,35 +2522,58 @@ fun SessionControlPanel(
                     
                     Text(
                         text = timerStr,
-                        fontSize = 36.sp,
+                        fontSize = 44.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 1.sp
                     )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .padding(horizontal = 32.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val random = remember { java.util.Random(1234) }
-                        for (i in 0 until 7) {
-                            val factor = 0.4f + 0.6f * random.nextFloat()
-                            val heightRatio = (maxAmplitude * factor).coerceIn(0.05f, 1f)
-                            
-                            Box(
-                                modifier = Modifier
-                                    .width(4.dp)
-                                    .fillMaxHeight(heightRatio)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (i == 3) MaterialTheme.colorScheme.primary 
-                                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f + 0.5f * heightRatio)
-                                    )
-                            )
+                    // Audio visualizer (only when audio enabled)
+                    if (audioEnabled) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(32.dp)
+                                .padding(horizontal = 32.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val random = remember { java.util.Random(1234) }
+                            for (i in 0 until 7) {
+                                val factor = 0.4f + 0.6f * random.nextFloat()
+                                val heightRatio = (maxAmplitude * factor).coerceIn(0.05f, 1f)
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .fillMaxHeight(heightRatio)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (i == 3) MaterialTheme.colorScheme.primary 
+                                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f + 0.5f * heightRatio)
+                                        )
+                                )
+                            }
+                        }
+                    }
+
+                    // Polar Sense status (only if streaming)
+                    if (polarEnabled && polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.03f), shape = RoundedCornerShape(12.dp))
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🧤", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                                Text("Polar Verity Sense", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Live Stream (52Hz)", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                Text("Samples: $polarSampleCount  •  Taps: $polarTaps", fontSize = 10.sp, color = Color.Gray)
+                            }
                         }
                     }
 
@@ -2236,7 +2583,20 @@ fun SessionControlPanel(
                     ) {
                         OutlinedButton(
                             onClick = {
+                                // Discard all services
                                 com.mrpeel.cricketbattingtracker.services.AudioRecordManager.discardRecording(context)
+                                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                                    val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
+                                        action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
+                                    }
+                                    context.startService(serviceIntent)
+                                    // Discard polar files
+                                    val serviceClass = com.mrpeel.cricketbattingtracker.services.PolarSenseService()
+                                    serviceClass.discardSessionData()
+                                }
+                                if (videoEnabled) {
+                                    com.mrpeel.cricketbattingtracker.services.VideoRecordManager.discard(context)
+                                }
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -2250,7 +2610,17 @@ fun SessionControlPanel(
 
                         Button(
                             onClick = {
+                                // Stop and save all active services
                                 com.mrpeel.cricketbattingtracker.services.AudioRecordManager.stopRecording(context)
+                                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                                    val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
+                                        action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
+                                    }
+                                    context.startService(serviceIntent)
+                                }
+                                if (videoEnabled) {
+                                    com.mrpeel.cricketbattingtracker.services.VideoRecordManager.stopAndSave(context)
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
                             modifier = Modifier
@@ -2277,6 +2647,394 @@ fun SessionControlPanel(
         }
     }
 }
+
+@Composable
+fun PolarPairingScreen(
+    context: Context,
+    onBack: () -> Unit
+) {
+    LaunchedEffect(Unit) {
+        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.initialize(context)
+    }
+
+    val pairedDevice by com.mrpeel.cricketbattingtracker.services.PolarSenseManager.pairedDeviceId.collectAsState()
+    val scanDevices by com.mrpeel.cricketbattingtracker.services.PolarSenseManager.discoveredDevices.collectAsState()
+    val connectionState by com.mrpeel.cricketbattingtracker.services.PolarSenseManager.connectionState.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Back Bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    .clickable {
+                        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.stopScan()
+                        onBack()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("←", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("POLAR SENSE PAIRING", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text("Configure bottom hand arm sensor", fontSize = 10.sp, color = Color.Gray)
+            }
+        }
+
+        // Active Pairing Status Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("CURRENT SENSOR STATUS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.secondary, letterSpacing = 1.sp)
+                
+                if (pairedDevice != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Paired ID: $pairedDevice", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("State: $connectionState", fontSize = 10.sp, color = Color.Gray)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (connectionState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.DISCONNECTED) {
+                                        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.connect()
+                                    } else {
+                                        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.disconnect()
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(32.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), contentColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text(
+                                    text = if (connectionState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.DISCONNECTED) "Connect" else "Disconnect",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Button(
+                                onClick = { com.mrpeel.cricketbattingtracker.services.PolarSenseManager.forgetDevice(context) },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(32.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252).copy(alpha = 0.2f), contentColor = Color(0xFFFF5252))
+                            ) {
+                                Text("Forget", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                } else {
+                    Text("No sensor paired. Place Polar Sense in pairing mode and scan below.", fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+        }
+
+        // Discovery / Scanner List
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+            modifier = Modifier.fillMaxWidth().weight(1f)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("DISCOVERED SENSORS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.secondary, letterSpacing = 1.sp)
+                    Button(
+                        onClick = {
+                            if (connectionState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.SCANNING) {
+                                com.mrpeel.cricketbattingtracker.services.PolarSenseManager.stopScan()
+                            } else {
+                                com.mrpeel.cricketbattingtracker.services.PolarSenseManager.startScan()
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text(
+                            text = if (connectionState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.SCANNING) "Stop Scan" else "Start Scan",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF000C1B)
+                        )
+                    }
+                }
+
+                if (scanDevices.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = if (connectionState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.SCANNING) "Searching for sensors..." else "Scan inactive",
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(scanDevices) { device ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White.copy(alpha = 0.03f), shape = RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.stopScan()
+                                        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.pairDevice(context, device.deviceId)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(device.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("ID: ${device.deviceId}", fontSize = 9.sp, color = Color.Gray)
+                                }
+                                Text("📶 ${device.rssi} dBm", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VideoSetupScreen(
+    context: Context,
+    onBack: () -> Unit
+) {
+    val prefs = remember { context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE) }
+    var cameraFacing by remember { mutableStateOf(prefs.getString("video_camera_facing", "back") ?: "back") }
+    var zoomValue by remember { mutableFloatStateOf(prefs.getFloat("video_zoom_value", 0.0f)) }
+    var targetFps by remember { mutableIntStateOf(prefs.getInt("video_target_fps", 120)) }
+
+    var cameraControlRef = remember { mutableStateOf<androidx.camera.core.CameraControl?>(null) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Back Navigation Bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("←", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("VIDEO CAPTURE CONFIG", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text("Configure frame rate, zoom, and direction", fontSize = 10.sp, color = Color.Gray)
+            }
+        }
+
+        // Live Preview Card Finder
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(240.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { ctx ->
+                        val previewView = androidx.camera.view.PreviewView(ctx).apply {
+                            implementationMode = androidx.camera.view.PreviewView.ImplementationMode.PERFORMANCE
+                            scaleType = androidx.camera.view.PreviewView.ScaleType.FIT_CENTER
+                        }
+                        val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(ctx)
+                        cameraProviderFuture.addListener({
+                            try {
+                                val cameraProvider = cameraProviderFuture.get()
+                                val preview = androidx.camera.core.Preview.Builder().build().also {
+                                    it.setSurfaceProvider(previewView.surfaceProvider)
+                                }
+                                val cameraSelector = if (cameraFacing == "front") {
+                                    androidx.camera.core.CameraSelector.DEFAULT_FRONT_CAMERA
+                                } else {
+                                    androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
+                                }
+
+                                cameraProvider.unbindAll()
+                                var camera: androidx.camera.core.Camera? = null
+                                try {
+                                    camera = cameraProvider.bindToLifecycle(
+                                        lifecycleOwner,
+                                        cameraSelector,
+                                        preview
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.w("VideoSetupScreen", "Preferred camera bind failed: ${e.message}, falling back to back camera")
+                                    // Fallback to back camera if selected one fails
+                                    camera = cameraProvider.bindToLifecycle(
+                                        lifecycleOwner,
+                                        androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,
+                                        preview
+                                    )
+                                }
+                                if (camera != null) {
+                                    cameraControlRef.value = camera.cameraControl
+                                    camera.cameraControl.setLinearZoom(zoomValue)
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("VideoSetupScreen", "Setup Preview bind failed: ${e.message}")
+                            }
+                        }, androidx.core.content.ContextCompat.getMainExecutor(ctx))
+                        previewView
+                    },
+                    update = { view ->
+                        // Re-apply zoom when slider updates
+                        cameraControlRef.value?.setLinearZoom(zoomValue)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Aspect ratio guide overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent)
+                        .then(
+                            Modifier.border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                        )
+                )
+            }
+        }
+
+        // Camera facing & frame rate control controls
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Camera Direction selection
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("CAMERA DIRECTION", fontSize = 10.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.secondary, letterSpacing = 1.sp)
+                        Text(if (cameraFacing == "back") "Rear Facing (Recommended)" else "Front Facing (Selfie)", fontSize = 12.sp, color = Color.White)
+                    }
+                    Button(
+                        onClick = {
+                            val newFacing = if (cameraFacing == "back") "front" else "back"
+                            cameraFacing = newFacing
+                            prefs.edit().putString("video_camera_facing", newFacing).apply()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), contentColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("🔄 FLIP", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                // Linear zoom slider
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("ZOOM CONTROL", fontSize = 10.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.secondary, letterSpacing = 1.sp)
+                        Text(String.format(Locale.US, "%.1fx", 1.0f + zoomValue * 4.0f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Slider(
+                        value = zoomValue,
+                        onValueChange = {
+                            zoomValue = it
+                            prefs.edit().putFloat("video_zoom_value", it).apply()
+                        },
+                        valueRange = 0f..1f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = Color.White.copy(alpha = 0.1f)
+                        )
+                    )
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                // Target Capture FPS Selector
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("TARGET CAPTURE FRAME RATE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.secondary, letterSpacing = 1.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(120, 60, 30).forEach { fps ->
+                            val isSelected = targetFps == fps
+                            Button(
+                                onClick = {
+                                    targetFps = fps
+                                    prefs.edit().putInt("video_target_fps", fps).apply()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.05f),
+                                    contentColor = if (isSelected) Color(0xFF000C1B) else Color.White
+                                )
+                            ) {
+                                Text("${fps} FPS", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 @Composable
 fun RecordingHistoryItem(file: java.io.File, context: Context) {
@@ -2372,3 +3130,71 @@ fun RecordingHistoryItem(file: java.io.File, context: Context) {
         }
     }
 }
+
+@Composable
+fun VideoPlayerDialog(videoPath: String, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SHOT PLAYBACK",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.sp
+                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Text("✕", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            android.widget.VideoView(ctx).apply {
+                                setVideoPath(videoPath)
+                                val mc = android.widget.MediaController(ctx)
+                                mc.setAnchorView(this)
+                                setMediaController(mc)
+                                start()
+                            }
+                        },
+                        update = { view ->
+                            view.setVideoPath(videoPath)
+                            view.start()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+

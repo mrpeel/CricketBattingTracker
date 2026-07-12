@@ -412,39 +412,50 @@ class SwingDetector {
     private fun handleActivityClassify(timestamp: Long) {
         if (timestamp <= lastShotEndTime + POST_SHOT_GUARD_NS) return
 
-        val stdWindowStart = timestamp - 1_000_000_000L  // 1.0s rolling window for std
-        val oriWindowStart = timestamp - 500_000_000L    // 500ms rolling window for orientation
-        val windowSamples = gyroBuffer.getRange(oriWindowStart, timestamp)
-        if (windowSamples.size < 10) return
+        val s1Start = timestamp - 2_000_000_000L
+        val s1End = timestamp - 1_000_000_000L
+        val s2Start = timestamp - 1_000_000_000L
+        val s2End = timestamp
 
-        // Condition A: gyro std
-        val gyroStd = gyroBuffer.calculateStdOfMag(stdWindowStart, timestamp)
+        val windowSamples = gyroBuffer.getRange(s1Start, timestamp)
+        if (windowSamples.size < 20) return
 
-        // Condition B: accel std
-        val accelStd = accelBuffer.calculateStdOfMag(stdWindowStart, timestamp)
+        // Segment 1 Features
+        val seg1GyroStd = gyroBuffer.calculateStdOfMag(s1Start, s1End)
+        val seg1AccelStd = accelBuffer.calculateStdOfMag(s1Start, s1End)
+        val seg1OriDisp = rotationBuffer.calculateMeanAngularDisplacementDeg(s1Start, s1End)
+        val seg1MeanGravY = gravBuffer.calculateMeanY(s1Start, s1End)
 
-        // Condition C: quaternion orientation stability
-        val oriDisp = rotationBuffer.calculateMeanAngularDisplacementDeg(oriWindowStart, timestamp)
+        // Segment 2 Features
+        val seg2GyroStd = gyroBuffer.calculateStdOfMag(s2Start, s2End)
+        val seg2AccelStd = accelBuffer.calculateStdOfMag(s2Start, s2End)
+        val seg2OriDisp = rotationBuffer.calculateMeanAngularDisplacementDeg(s2Start, s2End)
+        val seg2MeanGravY = gravBuffer.calculateMeanY(s2Start, s2End)
 
         // Condition D: no step in last 2.0s (only check if step detector is available)
         val noRecentStep = lastStepTimestampNs == 0L ||
                            (timestamp - lastStepTimestampNs) > STEP_RECENCY_NS
 
-        // Condition E: gravity Y arm-extension anchor.
-        // Returns 0f if < 5 gravity samples in window — treat as satisfied (fail-open) to
-        // avoid breaking detection when the gravity sensor is slow to populate.
-        val meanGravY = gravBuffer.calculateMeanY(stdWindowStart, timestamp)
-
         val stepAgeSeconds = if (lastStepTimestampNs == 0L) 10.0f
                              else (timestamp - lastStepTimestampNs) / 1_000_000_000.0f
 
         // Predict stance using TinyML Depth-4 Decision Tree
-        val stanceOk = predictStance(gyroStd, accelStd, oriDisp, meanGravY, stepAgeSeconds)
+        val stanceOk = predictStance(
+            seg1GyroStd = seg1GyroStd,
+            seg1AccelStd = seg1AccelStd,
+            seg1OriDisp = seg1OriDisp,
+            seg1MeanGravY = seg1MeanGravY,
+            seg2GyroStd = seg2GyroStd,
+            seg2AccelStd = seg2AccelStd,
+            seg2OriDisp = seg2OriDisp,
+            seg2MeanGravY = seg2MeanGravY,
+            stepAgeSeconds = stepAgeSeconds
+        )
         val stepsOk = noRecentStep
         val allConditionsMet = stanceOk && stepsOk
 
         if (debugEnabled) {
-            println("Time: ${timestamp / 1_000_000_000.0f}s | gyroStd=${"%.2f".format(gyroStd)} | accelStd=${"%.2f".format(accelStd)} | oriDisp=${"%.2f".format(oriDisp)}° | meanGravY=${"%.2f".format(meanGravY)} | stepsOk=$stepsOk | stanceOk=$stanceOk | allConditionsMet=$allConditionsMet | State=$detectorState")
+            println("Time: ${timestamp / 1_000_000_000.0f}s | seg2GyroStd=${"%.2f".format(seg2GyroStd)} | seg2AccelStd=${"%.2f".format(seg2AccelStd)} | seg2OriDisp=${"%.2f".format(seg2OriDisp)}° | stepsOk=$stepsOk | stanceOk=$stanceOk | allConditionsMet=$allConditionsMet | State=$detectorState")
         }
 
         if (allConditionsMet) {
@@ -453,9 +464,9 @@ class SwingDetector {
                 facingUpGateStart  = timestamp
                 stanceStartTime    = timestamp
                 facingUpBreakStart = 0L
-                Log.v(TAG, "Facing-up gate opened (gyroStd=${"%.2f".format(gyroStd)}, " +
-                           "accelStd=${"%.2f".format(accelStd)}, oriDisp=${"%.2f".format(oriDisp)}°, " +
-                           "gravY=${"%.2f".format(meanGravY)}, stepAge=${(timestamp - lastStepTimestampNs) / 1_000_000}ms)")
+                Log.v(TAG, "Facing-up gate opened (seg2GyroStd=${"%.2f".format(seg2GyroStd)}, " +
+                           "seg2AccelStd=${"%.2f".format(seg2AccelStd)}, seg2OriDisp=${"%.2f".format(seg2OriDisp)}°, " +
+                           "seg2MeanGravY=${"%.2f".format(seg2MeanGravY)}, stepAge=${(timestamp - lastStepTimestampNs) / 1_000_000}ms)")
             } else {
                 if (facingUpBreakStart != 0L) {
                     val breakDuration = timestamp - facingUpBreakStart
@@ -471,17 +482,17 @@ class SwingDetector {
                     stanceExitTime     = timestamp
                     setDetectorState(DetectorState.FACING_UP_LOCKED)
                     Log.d(TAG, "✅ FACING UP LOCKED at ${timestamp / 1_000_000_000.0f}s " +
-                               "(held ${heldFor / 1_000_000}ms, oriDisp=${"%.2f".format(oriDisp)}°, " +
-                               "gravY=${"%.2f".format(meanGravY)})")
+                               "(held ${heldFor / 1_000_000}ms, seg2OriDisp=${"%.2f".format(seg2OriDisp)}°, " +
+                               "seg2MeanGravY=${"%.2f".format(seg2MeanGravY)})")
                 }
             }
         } else {
             if (facingUpGateActive) {
                 if (facingUpBreakStart == 0L) {
                     facingUpBreakStart = timestamp
-                    Log.v(TAG, "Facing-up conditions failed (gyroStd=${"%.2f".format(gyroStd)}, " +
-                               "accelStd=${"%.2f".format(accelStd)}, oriDisp=${"%.2f".format(oriDisp)}°, " +
-                               "gravY=${"%.2f".format(meanGravY)}); entering break tolerance window.")
+                    Log.v(TAG, "Facing-up conditions failed (seg2GyroStd=${"%.2f".format(seg2GyroStd)}, " +
+                               "seg2AccelStd=${"%.2f".format(seg2AccelStd)}, seg2OriDisp=${"%.2f".format(seg2OriDisp)}°, " +
+                               "seg2MeanGravY=${"%.2f".format(seg2MeanGravY)}); entering break tolerance window.")
                 } else if (timestamp - facingUpBreakStart > FACING_UP_BREAK_TOLERANCE_NS) {
                     val heldFor = timestamp - facingUpGateStart
                     Log.v(TAG, "Facing-up gate broken after ${heldFor / 1_000_000}ms " +
@@ -493,25 +504,33 @@ class SwingDetector {
         }
     }
 
-    private fun predictStance(gyroStd: Float, accelStd: Float, oriDisp: Float, meanGravY: Float, stepAgeSeconds: Float): Boolean {
-        if (gyroStd <= 1.176236f) {
-            if (oriDisp <= 0.281161f) {
-                if (gyroStd <= 0.419345f) {
-                    return meanGravY <= -8.347519f
+    private fun predictStance(
+        seg1GyroStd: Float, seg1AccelStd: Float, seg1OriDisp: Float, seg1MeanGravY: Float,
+        seg2GyroStd: Float, seg2AccelStd: Float, seg2OriDisp: Float, seg2MeanGravY: Float,
+        stepAgeSeconds: Float
+    ): Boolean {
+        if (seg2OriDisp <= 0.68f) {
+            if (seg2OriDisp <= 0.49f) {
+                return true
+            } else {
+                if (seg2GyroStd <= 1.14f) {
+                    return seg2AccelStd <= 1.50f
                 } else {
                     return true
                 }
-            } else {
-                return false
             }
         } else {
-            if (oriDisp <= 1.329910f) {
-                return true
-            } else {
-                if (gyroStd <= 1.807490f) {
-                    return oriDisp <= 2.972609f
+            if (seg2GyroStd <= 1.28f) {
+                if (seg2OriDisp <= 0.98f) {
+                    return seg2GyroStd > 0.91f
                 } else {
-                    return true
+                    return false
+                }
+            } else {
+                if (seg2OriDisp <= 1.94f) {
+                    return seg1GyroStd > 0.21f
+                } else {
+                    return false
                 }
             }
         }
@@ -654,37 +673,79 @@ class SwingDetector {
         averageQuats(finalStanceIndices, qStance)
         conjugateQuat(qStance, qStanceInv)
 
-        val swingStartForFeats = contactTime - 800_000_000L
-        val swingEndForFeats = contactTime + 300_000_000L
+        // Chronological segment boundaries relative to contactTime
+        val tStart = contactTime - 800_000_000L
+        val tSplit1 = contactTime - 200_000_000L
+        val tSplit2 = contactTime - 50_000_000L
+        val tEnd = contactTime + 300_000_000L
 
-        val swingOriIndices = rotationBuffer.getRange(swingStartForFeats, swingEndForFeats)
-        var deltaX = 0f; var deltaZ = 0f
-        if (swingOriIndices.size >= 2) {
-            var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE
-            var minZ = Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
-            for (idx in swingOriIndices) {
-                qCurr[0] = rotationBuffer.qx[idx]; qCurr[1] = rotationBuffer.qy[idx]
-                qCurr[2] = rotationBuffer.qz[idx]; qCurr[3] = rotationBuffer.qw[idx]
-                multiplyQuats(qStanceInv, qCurr, qRel)
-                rotateVector(qRel, vLocal, vRot)
-                if (vRot[0] < minX) minX = vRot[0]; if (vRot[0] > maxX) maxX = vRot[0]
-                if (vRot[2] < minZ) minZ = vRot[2]; if (vRot[2] > maxZ) maxZ = vRot[2]
+        // Helper to calculate deltaX and deltaZ for a specific time range
+        val getDisplacement = { ts: Long, te: Long ->
+            val subOri = rotationBuffer.getRange(ts, te)
+            var dx = 0f
+            var dz = 0f
+            if (subOri.size >= 2) {
+                var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE
+                var minZ = Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
+                for (idx in subOri) {
+                    qCurr[0] = rotationBuffer.qx[idx]; qCurr[1] = rotationBuffer.qy[idx]
+                    qCurr[2] = rotationBuffer.qz[idx]; qCurr[3] = rotationBuffer.qw[idx]
+                    multiplyQuats(qStanceInv, qCurr, qRel)
+                    rotateVector(qRel, vLocal, vRot)
+                    if (vRot[0] < minX) minX = vRot[0]; if (vRot[0] > maxX) maxX = vRot[0]
+                    if (vRot[2] < minZ) minZ = vRot[2]; if (vRot[2] > maxZ) maxZ = vRot[2]
+                }
+                dx = maxX - minX
+                dz = maxZ - minZ
             }
-            deltaX = maxX - minX
-            deltaZ = maxZ - minZ
+            Pair(dx, dz)
         }
 
-        val impactOriIdx = findClosestRotationIndex(contactTime)
-        var rollImpactDeg = 0f; var yawImpactDeg = 0f
+        // --- Segment 1: Footwork [tStart, tSplit1] ---
+        val (s1DeltaX, s1DeltaZ) = getDisplacement(tStart, tSplit1)
+        val s1GyroIndices = gyroBuffer.getRange(tStart, tSplit1)
+        val s1GyroYStd = if (s1GyroIndices.size >= 2) {
+            val yVals = s1GyroIndices.map { gyroBuffer.y[it] }
+            val mean = yVals.average()
+            sqrt(yVals.map { (it - mean).pow(2) }.average()).toFloat()
+        } else 0f
+        val s1GyroZStd = if (s1GyroIndices.size >= 2) {
+            val zVals = s1GyroIndices.map { gyroBuffer.z[it] }
+            val mean = zVals.average()
+            sqrt(zVals.map { (it - mean).pow(2) }.average()).toFloat()
+        } else 0f
+
+        // --- Segment 2: Intent & Height [tSplit1, tSplit2] ---
+        val (s2DeltaX, s2DeltaZ) = getDisplacement(tSplit1, tSplit2)
+        val s2GyroIndices = gyroBuffer.getRange(tSplit1, tSplit2)
+        val s2GyroMag = if (s2GyroIndices.isNotEmpty()) s2GyroIndices.maxOf { gyroBuffer.magnitudes[it] } else 0f
+        val s2GravIndices = gravBuffer.getRange(tSplit1, tSplit2)
+        val s2GravYMean = if (s2GravIndices.isNotEmpty()) s2GravIndices.map { gravBuffer.y[it] }.average().toFloat() else -9.8f
+
+        // --- Segment 3: Shot Selection [tSplit2, tEnd] ---
+        val (s3DeltaX, s3DeltaZ) = getDisplacement(tSplit2, tEnd)
+        val s3PlaneRatio = if (s3DeltaZ > 0f) s3DeltaX / s3DeltaZ else 0f
+        val s3GyroIndices = gyroBuffer.getRange(tSplit2, tEnd)
+        val s3GyroYMin = if (s3GyroIndices.isNotEmpty()) s3GyroIndices.minOf { gyroBuffer.y[it] } else 0f
+
+        val impactOriIdx = findClosestRotationIndex(tSplit2)
+        var s3RollImpactDeg = 0f
+        var s3YawImpactDeg = 0f
         if (impactOriIdx != -1) {
             qCurr[0] = rotationBuffer.qx[impactOriIdx]; qCurr[1] = rotationBuffer.qy[impactOriIdx]
             qCurr[2] = rotationBuffer.qz[impactOriIdx]; qCurr[3] = rotationBuffer.qw[impactOriIdx]
             multiplyQuats(qStanceInv, qCurr, qRel)
             rotateVector(qRel, vLocal, vRot)
-            rollImpactDeg = calcRelativeRoll(qRel)
-            yawImpactDeg  = atan2(vRot[0], -vRot[1]) * 57.295779513f
+            s3RollImpactDeg = calcRelativeRoll(qRel)
+            s3YawImpactDeg  = atan2(vRot[0], -vRot[1]) * 57.295779513f
         }
-        val wristRollDeg = rollImpactDeg
+
+        val wristRollDeg = s3RollImpactDeg
+        val rollImpactDeg = s3RollImpactDeg
+        val yawImpactDeg = s3YawImpactDeg
+        val deltaX = s3DeltaX
+        val deltaZ = s3DeltaZ
+        val planeRatio = s3PlaneRatio
 
         val postGIndices = gyroBuffer.getRange(contactTime, maxGyroTime + 1_000_000_000L)
         val preGIndices  = gyroBuffer.getRange(stanceExitTime, contactTime)
@@ -694,40 +755,29 @@ class SwingDetector {
             if (preMean > 0f) postMax / preMean else 0f
         } else 0f
 
-        // 8. Random Forest Classifier (Trained on 10 Kotlin-native features)
-        val gyroMag    = maxGyro
-        val planeRatio = if (deltaZ > 0.0f) (deltaX / deltaZ) else 0.0f
-
-        val swingGyroIndices = gyroBuffer.getRange(swingStartForFeats, swingEndForFeats)
-        val gyroYMin = if (swingGyroIndices.isNotEmpty())
-            swingGyroIndices.minOf { gyroBuffer.y[it] } else 0f
-
-        val swingGravIndices = gravBuffer.getRange(swingStartForFeats, swingEndForFeats)
-        val gravYMin = if (swingGravIndices.isNotEmpty())
-            swingGravIndices.minOf { gravBuffer.y[it] } else -9.8f
-        val gravXMax = if (swingGravIndices.isNotEmpty())
-            swingGravIndices.maxOf { gravBuffer.x[it] } else 0f
-
-        val swingMagIndices = magBuffer.getRange(swingStartForFeats, swingEndForFeats)
-        val magXMax = if (swingMagIndices.isNotEmpty())
-            swingMagIndices.maxOf { magBuffer.x[it] } else 0f
-
         val features = SwingFeatures(
-            gyroMag = gyroMag,
-            rollImpactDeg = rollImpactDeg,
-            yawImpactDeg = yawImpactDeg,
-            deltaX = deltaX,
-            deltaZ = deltaZ,
-            planeRatio = planeRatio,
-            gyro_y_min = gyroYMin,
-            grav_x_max = gravXMax,
-            grav_y_min = gravYMin,
-            mag_x_max = magXMax
+            s1_gyro_y_std = s1GyroYStd,
+            s1_gyro_z_std = s1GyroZStd,
+            s1_deltaX = s1DeltaX,
+            s1_deltaZ = s1DeltaZ,
+            s2_gyroMag = s2GyroMag,
+            s2_grav_y_mean = s2GravYMean,
+            s2_deltaX = s2DeltaX,
+            s2_deltaZ = s2DeltaZ,
+            s3_rollImpactDeg = s3RollImpactDeg,
+            s3_yawImpactDeg = s3YawImpactDeg,
+            s3_deltaX = s3DeltaX,
+            s3_deltaZ = s3DeltaZ,
+            s3_planeRatio = s3PlaneRatio,
+            s3_gyro_y_min = s3GyroYMin
         )
 
+        if (debugEnabled) {
+            System.out.println("FEATS: s1_gy=${features.s1_gyro_y_std}, s1_gz=${features.s1_gyro_z_std}, s1_dx=${features.s1_deltaX}, s1_dz=${features.s1_deltaZ}, s2_gMag=${features.s2_gyroMag}, s2_gyMean=${features.s2_grav_y_mean}, s2_dx=${features.s2_deltaX}, s2_dz=${features.s2_deltaZ}, s3_roll=${features.s3_rollImpactDeg}, s3_yaw=${features.s3_yawImpactDeg}, s3_dx=${features.s3_deltaX}, s3_dz=${features.s3_deltaZ}, s3_ratio=${features.s3_planeRatio}, s3_gymin=${features.s3_gyro_y_min}")
+        }
         val shotType = GeneratedForest.predict(features)
 
-        Log.d(TAG, "EVAL: Type=$shotType, MaxG=$gyroMag, Snap=$snapRatio, " +
+        Log.d(TAG, "EVAL: Type=$shotType, MaxG=$maxGyro, Snap=$snapRatio, " +
                    "Roll=$rollImpactDeg, Yaw=$yawImpactDeg, DX=$deltaX, DZ=$deltaZ, Ratio=$planeRatio")
 
         // Compute Blade and Launch Angles
@@ -816,7 +866,21 @@ class SwingDetector {
             bladeAngle         = bladeAngle,
             bladeClass         = bladeClass,
             launchAngle        = launchAngle,
-            launchClass        = launchClass
+            launchClass        = launchClass,
+            s1GyroYStd         = features.s1_gyro_y_std,
+            s1GyroZStd         = features.s1_gyro_z_std,
+            s1DeltaX           = features.s1_deltaX,
+            s1DeltaZ           = features.s1_deltaZ,
+            s2GyroMag          = features.s2_gyroMag,
+            s2GravYMean        = features.s2_grav_y_mean,
+            s2DeltaX           = features.s2_deltaX,
+            s2DeltaZ           = features.s2_deltaZ,
+            s3RollImpactDeg    = features.s3_rollImpactDeg,
+            s3YawImpactDeg     = features.s3_yawImpactDeg,
+            s3DeltaX           = features.s3_deltaX,
+            s3DeltaZ           = features.s3_deltaZ,
+            s3PlaneRatio       = features.s3_planeRatio,
+            s3GyroYMin         = features.s3_gyro_y_min
         ))
     }
 }

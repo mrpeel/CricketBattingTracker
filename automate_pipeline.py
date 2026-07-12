@@ -96,7 +96,25 @@ def compress_session_csvs(session_dir):
                 print(f"  ❌ Failed to compress {filename}: {e}")
                 if os.path.exists(gz_path):
                     os.remove(gz_path)
-    print(f"✅ Losslessly compressed {compressed_count} watch sensor logs.")
+    # Also compress CSV files in PolarSense/ subdirectory
+    polar_dir = os.path.join(session_dir, "PolarSense")
+    if os.path.isdir(polar_dir):
+        for filename in os.listdir(polar_dir):
+            if filename.endswith(".csv"):
+                csv_path = os.path.join(polar_dir, filename)
+                gz_path = csv_path + ".gz"
+                try:
+                    with open(csv_path, 'rb') as f_in:
+                        with gzip.open(gz_path, 'wb') as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+                    os.remove(csv_path)
+                    compressed_count += 1
+                    print(f"  Compressed and removed: PolarSense/{filename}")
+                except Exception as e:
+                    print(f"  ❌ Failed to compress PolarSense/{filename}: {e}")
+                    if os.path.exists(gz_path):
+                        os.remove(gz_path)
+    print(f"✅ Losslessly compressed {compressed_count} sensor logs.")
 
 def append_to_combined_parquet(session_dir, parquet_dir):
     print("\n📦 Appending session sensor data to combined Parquet database...")
@@ -147,7 +165,10 @@ def append_to_combined_parquet(session_dir, parquet_dir):
 
 def check_adb_devices(watch_ip):
     print("Checking connected ADB devices...")
-    subprocess.run(["adb", "connect", watch_ip], capture_output=True)
+    try:
+        subprocess.run(["adb", "connect", watch_ip], capture_output=True, timeout=8)
+    except subprocess.TimeoutExpired:
+        print(f"⚠️ ADB connect to {watch_ip} timed out (8s limit reached). Continuing check...")
     res = subprocess.run(["adb", "devices"], capture_output=True, text=True)
     lines = res.stdout.strip().split("\n")[1:]
     devices = []
@@ -244,6 +265,51 @@ def pull_audio_from_phone(phone_id, dest_dir):
     print(f"📥 Pulling phone audio file: {newest_file} → {local_path}")
     subprocess.run(["adb", "-s", phone_id, "pull", newest_file, local_path], check=True)
     return local_path
+
+def pull_polar_from_phone(phone_id, session_dir):
+    """Pull the most recent Polar Sense session from the phone and save to PolarSense/ subdirectory."""
+    print(f"Searching connected phone ({phone_id}) for Polar Sense session data...")
+    polar_base = "/sdcard/Android/data/com.mrpeel.cricketbattingtracker/files/polar_sessions"
+    cmd = ["adb", "-s", phone_id, "shell", "ls", polar_base]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0 or not res.stdout.strip():
+        print("⚠️ No Polar Sense session directories found on the phone.")
+        return False
+
+    sessions = [s.strip() for s in res.stdout.split("\n") if s.strip() and s.startswith("polar_session_")]
+    if not sessions:
+        print("⚠️ No polar_session_* directories found on the phone.")
+        return False
+
+    latest_session = sorted(sessions)[-1]
+    polar_phone_path = f"{polar_base}/{latest_session}"
+    local_polar_dir = os.path.join(session_dir, "PolarSense")
+    os.makedirs(local_polar_dir, exist_ok=True)
+
+    print(f"📥 Pulling Polar Sense files: {polar_phone_path} → {local_polar_dir}/")
+    pull_res = subprocess.run(
+        ["adb", "-s", phone_id, "pull", polar_phone_path + "/.", local_polar_dir],
+        capture_output=True, text=True
+    )
+    if pull_res.returncode != 0:
+        print(f"❌ Failed to pull Polar Sense data: {pull_res.stderr.strip()}")
+        return False
+
+    pulled_files = [f for f in os.listdir(local_polar_dir) if os.path.isfile(os.path.join(local_polar_dir, f))]
+    if not pulled_files:
+        print("⚠️ Polar Sense directory pulled but contains no files.")
+        return False
+
+    print(f"✅ Pulled {len(pulled_files)} Polar Sense files from {latest_session}.")
+
+    # Clean Polar session directory on phone after successful pull
+    print("🧹 Cleaning Polar Sense session on phone...")
+    subprocess.run(
+        ["adb", "-s", phone_id, "shell", f"rm -rf {polar_phone_path}"],
+        check=False
+    )
+
+    return True
 
 
 # (Whisper local fallback functions removed to keep the pipeline clean and free of unused code/heuristics)
@@ -705,6 +771,7 @@ def main():
                 phone_id = find_phone_device(devices, args.watch_ip)
                 if phone_id:
                     audio_path = pull_audio_from_phone(phone_id, session_dir)
+                    pull_polar_from_phone(phone_id, session_dir)
             if not audio_path:
                 print("⚠️ Phone device not detected or audio not found on phone.")
             
@@ -1462,6 +1529,9 @@ def main():
     aligned_csv_path = os.path.join(session_dir, "ground_truth_aligned.csv")
     df_aligned.to_csv(aligned_csv_path, index=False)
     print(f"\n✅ Ground-truth aligned file saved: {aligned_csv_path}")
+
+    # Enrich aligned shots with Polar Sense bottom-hand biomechanics features
+    add_polar_features_to_aligned_shots(session_dir)
     
     # 7. Extract training segments (6-second window around each impact)
     df_accel = pd.read_csv(accel_path)
@@ -1794,6 +1864,280 @@ def add_angle_stats_to_aligned_shots(df_aligned, df_orient):
     df_aligned['launch_angle_deg'] = launch_angles
     df_aligned['launch_class'] = launch_classes
     return df_aligned
+
+def add_polar_features_to_aligned_shots(session_dir):
+    """Align Polar Sense ACC/GYRO data with watch data via 5-tap sequences,
+    then compute bottom-hand biomechanics features for each aligned shot."""
+    polar_dir = os.path.join(session_dir, "PolarSense")
+    if not os.path.isdir(polar_dir):
+        print("\nℹ️ No PolarSense/ directory found. Skipping Polar feature extraction.")
+        return
+
+    aligned_csv_path = os.path.join(session_dir, "ground_truth_aligned.csv")
+    if not os.path.exists(aligned_csv_path):
+        print("⚠️ ground_truth_aligned.csv not found. Skipping Polar feature extraction.")
+        return
+
+    # 1. Discover Polar ACC and GYRO CSV files
+    polar_acc_files = sorted(glob.glob(os.path.join(polar_dir, "*ACC*.csv*")))
+    polar_gyro_files = sorted(glob.glob(os.path.join(polar_dir, "*GYRO*.csv*")))
+
+    if not polar_acc_files and not polar_gyro_files:
+        print("⚠️ No Polar ACC or GYRO data files found in PolarSense/. Skipping.")
+        return
+
+    print(f"\n📡 Processing Polar Sense data ({len(polar_acc_files)} ACC, {len(polar_gyro_files)} GYRO files)...")
+
+    def load_polar_csv_segments(file_list):
+        """Load and concatenate semicolon-delimited Polar CSV segments.
+        Format: Phone timestamp;sensor timestamp [ns];X;Y;Z
+        Handles both .csv and .csv.gz files."""
+        frames = []
+        for fpath in file_list:
+            try:
+                df = pd.read_csv(fpath, sep=';')
+                if len(df.columns) >= 5:
+                    df.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df.columns[5:])
+                    df['sensor_ns'] = pd.to_numeric(df['sensor_ns'], errors='coerce')
+                    df['x'] = pd.to_numeric(df['x'], errors='coerce')
+                    df['y'] = pd.to_numeric(df['y'], errors='coerce')
+                    df['z'] = pd.to_numeric(df['z'], errors='coerce')
+                    df = df.dropna(subset=['sensor_ns', 'x', 'y', 'z'])
+                    frames.append(df)
+            except Exception as e:
+                print(f"  ⚠️ Failed to load {os.path.basename(fpath)}: {e}")
+        if not frames:
+            return None
+        combined = pd.concat(frames, ignore_index=True)
+        combined = combined.sort_values('sensor_ns').reset_index(drop=True)
+        # Compute seconds elapsed from first sample
+        t0 = combined['sensor_ns'].iloc[0]
+        combined['seconds_elapsed'] = (combined['sensor_ns'] - t0) / 1e9
+        combined['mag'] = np.sqrt(combined['x']**2 + combined['y']**2 + combined['z']**2)
+        return combined
+
+    df_polar_acc = load_polar_csv_segments(polar_acc_files)
+    df_polar_gyro = load_polar_csv_segments(polar_gyro_files)
+
+    if df_polar_acc is None:
+        print("⚠️ Could not load Polar accelerometer data. Skipping Polar features.")
+        return
+
+    print(f"  Polar ACC: {len(df_polar_acc)} samples, {df_polar_acc['seconds_elapsed'].iloc[-1]:.1f}s duration")
+    if df_polar_gyro is not None:
+        print(f"  Polar GYRO: {len(df_polar_gyro)} samples, {df_polar_gyro['seconds_elapsed'].iloc[-1]:.1f}s duration")
+
+    # 2. Load watch accelerometer for tap detection
+    watch_accel_path = resolve_sensor_path(session_dir, "WatchAccelerometer.csv")
+    if not os.path.exists(watch_accel_path):
+        print("⚠️ WatchAccelerometer.csv not found. Skipping Polar alignment.")
+        return
+
+    df_watch_acc = pd.read_csv(watch_accel_path)
+    watch_acc_times = df_watch_acc['seconds_elapsed'].to_numpy()
+    watch_acc_mags = np.sqrt(df_watch_acc['x']**2 + df_watch_acc['y']**2 + df_watch_acc['z']**2)
+
+    # 3. Detect 5-tap sequences in watch accelerometer (peaks >= 18 m/s²)
+    def find_tap_sequences(times, mags, threshold, min_gap=0.2, max_gap=1.5, max_span=5.0):
+        """Find non-overlapping 5-tap sequences from peak data."""
+        candidate_indices = np.where(mags >= threshold)[0]
+        local_peaks = []
+        for idx in candidate_indices:
+            t = times[idx]
+            mag = mags[idx]
+            w_start = np.searchsorted(times, t - 0.15)
+            w_end = np.searchsorted(times, t + 0.15, side='right')
+            if mag >= np.max(mags[w_start:w_end]):
+                if not any(abs(t - p[0]) < min_gap for p in local_peaks):
+                    local_peaks.append((t, mag))
+
+        sequences = []
+        i = 0
+        while i < len(local_peaks) - 4:
+            seq = local_peaks[i:i+5]
+            seq_times = [p[0] for p in seq]
+            if (seq_times[-1] - seq_times[0]) <= max_span:
+                valid = True
+                for j in range(1, 5):
+                    gap = seq_times[j] - seq_times[j-1]
+                    if gap < min_gap or gap > max_gap:
+                        valid = False
+                        break
+                if valid:
+                    if len(sequences) == 0 or (seq_times[0] - sequences[-1][0]) > 10.0:
+                        sequences.append(seq_times)
+                        i += 5
+                        continue
+            i += 1
+        return sequences
+
+    watch_tap_seqs = find_tap_sequences(watch_acc_times, watch_acc_mags, threshold=18.0)
+
+    # 4. Detect 5-tap sequences in Polar accelerometer (peaks >= 2500 mg = 2.5 g)
+    # Polar ACC is in mg, so 2500mg threshold
+    polar_acc_times = df_polar_acc['seconds_elapsed'].to_numpy()
+    polar_acc_mags = df_polar_acc['mag'].to_numpy()
+    polar_tap_seqs = find_tap_sequences(polar_acc_times, polar_acc_mags, threshold=2500.0)
+
+    print(f"  Watch tap sequences detected: {len(watch_tap_seqs)}")
+    print(f"  Polar tap sequences detected: {len(polar_tap_seqs)}")
+
+    if not watch_tap_seqs or not polar_tap_seqs:
+        print("⚠️ No tap sequences found for Polar-Watch alignment. Skipping Polar features.")
+        return
+
+    # 5. Match sequences by inter-tap timing pattern
+    def inter_tap_pattern(seq):
+        return [seq[j+1] - seq[j] for j in range(len(seq)-1)]
+
+    matched_pairs = []  # (watch_seq, polar_seq)
+    used_polar = set()
+    for w_seq in watch_tap_seqs:
+        w_pattern = inter_tap_pattern(w_seq)
+        best_match = None
+        best_score = float('inf')
+        for p_idx, p_seq in enumerate(polar_tap_seqs):
+            if p_idx in used_polar:
+                continue
+            p_pattern = inter_tap_pattern(p_seq)
+            # Score = sum of absolute differences in inter-tap intervals
+            score = sum(abs(w - p) for w, p in zip(w_pattern, p_pattern))
+            if score < best_score:
+                best_score = score
+                best_match = (p_idx, p_seq)
+        # Accept match if cumulative pattern error < 1.0s total
+        if best_match is not None and best_score < 1.0:
+            matched_pairs.append((w_seq, best_match[1]))
+            used_polar.add(best_match[0])
+
+    if not matched_pairs:
+        print("⚠️ No tap sequence matches found between watch and Polar. Skipping Polar features.")
+        return
+
+    print(f"  Matched {len(matched_pairs)} tap sequence pair(s).")
+    for idx, (w_seq, p_seq) in enumerate(matched_pairs):
+        print(f"    Pair {idx+1}: Watch [{', '.join(f'{t:.2f}s' for t in w_seq)}] ↔ Polar [{', '.join(f'{t:.2f}s' for t in p_seq)}]")
+
+    # 6. Compute linear alignment (watch_time → polar_time)
+    if len(matched_pairs) >= 2:
+        x_pts = [w_seq[0] for w_seq, _ in matched_pairs]
+        y_pts = [p_seq[0] for _, p_seq in matched_pairs]
+        x_arr = np.array(x_pts)
+        y_arr = np.array(y_pts)
+        slope, intercept = np.polyfit(x_arr, y_arr, 1)
+        polar_drift_rate = slope - 1.0
+        polar_offset = intercept
+        print(f"  🎯 Multi-Point Polar Alignment: offset={polar_offset:+.3f}s, drift={polar_drift_rate:+.7f}")
+    else:
+        polar_offset = matched_pairs[0][1][0] - matched_pairs[0][0][0]
+        polar_drift_rate = 0.0
+        slope = 1.0
+        intercept = polar_offset
+        print(f"  🎯 Single-Point Polar Alignment: offset={polar_offset:+.3f}s (drift forced to 0.0)")
+
+    def watch_to_polar_time(watch_t):
+        return watch_t * slope + intercept
+
+    # 7. For each shot, extract Polar window features and append to ground_truth_aligned.csv
+    df_aligned = pd.read_csv(aligned_csv_path)
+
+    bottom_hand_gyro_peak = []
+    bottom_hand_acc_peak = []
+    bottom_hand_gyro_ratio = []
+    bottom_hand_acc_ratio = []
+    bottom_hand_time_lead_ms = []
+    bottom_hand_sync_score = []
+
+    polar_duration = df_polar_acc['seconds_elapsed'].iloc[-1]
+
+    for idx, row in df_aligned.iterrows():
+        impact_t = row['impact_time_seconds']
+        polar_t = watch_to_polar_time(impact_t)
+
+        # Check if the mapped Polar time falls within the Polar data range
+        if polar_t < -1.0 or polar_t > polar_duration + 1.0:
+            bottom_hand_gyro_peak.append(np.nan)
+            bottom_hand_acc_peak.append(np.nan)
+            bottom_hand_gyro_ratio.append(np.nan)
+            bottom_hand_acc_ratio.append(np.nan)
+            bottom_hand_time_lead_ms.append(np.nan)
+            bottom_hand_sync_score.append(np.nan)
+            continue
+
+        # Extract ±1s Polar window around impact
+        p_start = polar_t - 1.0
+        p_end = polar_t + 1.0
+
+        # Polar ACC window
+        acc_win = df_polar_acc[(df_polar_acc['seconds_elapsed'] >= p_start) & (df_polar_acc['seconds_elapsed'] <= p_end)]
+        if len(acc_win) > 0:
+            p_acc_peak = float(acc_win['mag'].max())
+            p_acc_peak_t = float(acc_win.loc[acc_win['mag'].idxmax(), 'seconds_elapsed'])
+        else:
+            p_acc_peak = np.nan
+            p_acc_peak_t = np.nan
+
+        # Polar GYRO window
+        if df_polar_gyro is not None:
+            gyro_win = df_polar_gyro[(df_polar_gyro['seconds_elapsed'] >= p_start) & (df_polar_gyro['seconds_elapsed'] <= p_end)]
+            if len(gyro_win) > 0:
+                p_gyro_peak = float(gyro_win['mag'].max())
+                p_gyro_peak_t = float(gyro_win.loc[gyro_win['mag'].idxmax(), 'seconds_elapsed'])
+            else:
+                p_gyro_peak = np.nan
+                p_gyro_peak_t = np.nan
+        else:
+            p_gyro_peak = np.nan
+            p_gyro_peak_t = np.nan
+
+        bottom_hand_gyro_peak.append(round(p_gyro_peak, 2) if not np.isnan(p_gyro_peak) else np.nan)
+        bottom_hand_acc_peak.append(round(p_acc_peak, 2) if not np.isnan(p_acc_peak) else np.nan)
+
+        # Ratios: Polar peak / watch peak at impact
+        watch_gyro_mag = row.get('impact_gyro_mag', np.nan)
+        if not np.isnan(p_gyro_peak) and not np.isnan(watch_gyro_mag) and watch_gyro_mag > 0:
+            bottom_hand_gyro_ratio.append(round(p_gyro_peak / watch_gyro_mag, 3))
+        else:
+            bottom_hand_gyro_ratio.append(np.nan)
+
+        # For acc ratio, watch accel peak in the same ±1s window
+        watch_acc_win_mask = (watch_acc_times >= impact_t - 1.0) & (watch_acc_times <= impact_t + 1.0)
+        if np.any(watch_acc_win_mask):
+            watch_acc_peak = float(np.max(watch_acc_mags[watch_acc_win_mask]))
+        else:
+            watch_acc_peak = np.nan
+
+        if not np.isnan(p_acc_peak) and not np.isnan(watch_acc_peak) and watch_acc_peak > 0:
+            bottom_hand_acc_ratio.append(round(p_acc_peak / watch_acc_peak, 3))
+        else:
+            bottom_hand_acc_ratio.append(np.nan)
+
+        # Time lead: how many ms the Polar acc peak leads the watch impact
+        if not np.isnan(p_acc_peak_t):
+            time_lead = (polar_t - p_acc_peak_t) * 1000.0  # positive = Polar peak before watch impact
+            bottom_hand_time_lead_ms.append(round(time_lead, 1))
+        else:
+            bottom_hand_time_lead_ms.append(np.nan)
+
+        # Sync score: 1.0 - abs(time_lead)/1000, clamped to [0, 1]
+        if not np.isnan(p_acc_peak_t):
+            sync = max(0.0, 1.0 - abs(polar_t - p_acc_peak_t))
+            bottom_hand_sync_score.append(round(sync, 3))
+        else:
+            bottom_hand_sync_score.append(np.nan)
+
+    df_aligned['bottom_hand_gyro_peak'] = bottom_hand_gyro_peak
+    df_aligned['bottom_hand_acc_peak'] = bottom_hand_acc_peak
+    df_aligned['bottom_hand_gyro_ratio'] = bottom_hand_gyro_ratio
+    df_aligned['bottom_hand_acc_ratio'] = bottom_hand_acc_ratio
+    df_aligned['bottom_hand_time_lead_ms'] = bottom_hand_time_lead_ms
+    df_aligned['bottom_hand_sync_score'] = bottom_hand_sync_score
+
+    df_aligned.to_csv(aligned_csv_path, index=False)
+
+    valid_count = df_aligned['bottom_hand_acc_peak'].notna().sum()
+    total_count = len(df_aligned)
+    print(f"\n✅ Polar Sense features appended to ground_truth_aligned.csv ({valid_count}/{total_count} shots with Polar data)")
 
 def normalize_shot_class(shot_name):
 

@@ -1,62 +1,47 @@
-#!/usr/bin/env python3
-import os
+import sys
+import numpy as np
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier, export_text
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import classification_report, accuracy_score
-from sklearn.model_selection import StratifiedKFold, cross_val_score
 
-BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
-FEATURES_CSV = os.path.join(BASE_DIR, "combined_features.csv")
+sys.path.append("/Users/neilkloot/Code/CricketBattingTracker/pipelines")
+import adversarial_facing_up_search
+
+sys.path.append("/Users/neilkloot/Code/CricketBattingTracker/scratch")
+import compare_facing_up_features
 
 def main():
-    df = pd.read_csv(FEATURES_CSV)
-    df = df[df['normalized_gt'] != 'NON-SWING'].copy()
+    sessions_base = "/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions"
+    all_sessions = adversarial_facing_up_search.load_all_sessions(sessions_base)
     
-    recommended_features = [
-        'gyroMag', 'rollImpactDeg', 'yawImpactDeg', 'deltaX', 'deltaZ', 'planeRatio',
-        'gyro_y_min', 'gyro_y_skew', 'grav_x_max', 'grav_y_min', 'mag_x_max', 'gameori_qz_range'
+    dfs = []
+    for s_path in all_sessions:
+        shot_times, offset = adversarial_facing_up_search.load_shot_times(s_path)
+        if len(shot_times) == 0:
+            continue
+        df = compare_facing_up_features.build_dataset_for_session(s_path, shot_times)
+        if df is not None and len(df) > 0:
+            dfs.append(df)
+            
+    merged_df = pd.concat(dfs, ignore_index=True)
+    
+    segment_features = [
+        'seg1_gyro_std', 'seg1_accel_std', 'seg1_ori_disp', 'seg1_mean_grav_y',
+        'seg2_gyro_std', 'seg2_accel_std', 'seg2_ori_disp', 'seg2_mean_grav_y',
+        'step_age'
     ]
     
-    meta_cols = ['session_id', 'session_date', 'shot_index', 'shot_number', 'shot_type', 
-                 'normalized_gt', 'pred_current', 'is_correct']
-    feature_cols = [c for c in df.columns if c not in meta_cols]
+    X_seg = merged_df[segment_features].values
+    y = merged_df['label'].values
     
-    df_features = df[feature_cols].copy().fillna(df[feature_cols].median())
-    X = df_features[recommended_features]
-    y = df['normalized_gt'].values
-
-    le = LabelEncoder()
-    y_enc = le.fit_transform(y)
-    class_names = le.classes_
-
-    # 1. Depth-3 Decision Tree
-    dt3 = DecisionTreeClassifier(max_depth=3, min_samples_split=10, random_state=42)
-    dt3.fit(X, y_enc)
+    dt_seg = DecisionTreeClassifier(max_depth=4, random_state=42)
+    dt_seg.fit(X_seg, y)
     
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    scores3 = cross_val_score(dt3, X, y_enc, cv=cv, scoring='accuracy')
-    
-    print("\n=================== DECISION TREE DEPTH 3 ===================")
-    print(f"5-Fold CV Accuracy: {scores3.mean()*100:.2f}% ± {scores3.std()*100:.2f}%")
-    print(f"Training Accuracy:  {accuracy_score(y_enc, dt3.predict(X))*100:.2f}%")
-    print("\nTree Structure:")
-    print(export_text(dt3, feature_names=recommended_features))
-    print("\nClassification Report:")
-    print(classification_report(y_enc, dt3.predict(X), target_names=class_names))
-
-    # 2. Depth-4 Decision Tree
-    dt4 = DecisionTreeClassifier(max_depth=4, min_samples_split=10, random_state=42)
-    dt4.fit(X, y_enc)
-    scores4 = cross_val_score(dt4, X, y_enc, cv=cv, scoring='accuracy')
-    
-    print("\n=================== DECISION TREE DEPTH 4 ===================")
-    print(f"5-Fold CV Accuracy: {scores4.mean()*100:.2f}% ± {scores4.std()*100:.2f}%")
-    print(f"Training Accuracy:  {accuracy_score(y_enc, dt4.predict(X))*100:.2f}%")
-    print("\nTree Structure:")
-    print(export_text(dt4, feature_names=recommended_features))
-    print("\nClassification Report:")
-    print(classification_report(y_enc, dt4.predict(X), target_names=class_names))
+    rules = export_text(dt_seg, feature_names=segment_features)
+    print("==============================================================")
+    print("RULES FOR SEGMENT-BASED CLASSIFIER")
+    print("==============================================================")
+    print(rules)
+    print("==============================================================")
 
 if __name__ == "__main__":
     main()

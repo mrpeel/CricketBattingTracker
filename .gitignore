@@ -22,3 +22,16 @@ __pycache__/
 
 # OS-specific
 .DS_Store
+
+# Large model and cache binaries
+*.pkl
+*.task
+
+# Python Virtual Environments
+venv/
+venv312/
+.venv/
+ENV/
+env/
+
+

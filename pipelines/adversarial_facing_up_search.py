@@ -166,7 +166,7 @@ def get_precomputed_features(df_gyro, df_accel, df_grav, df_orient, df_steps):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--session-dir", required=True, help="Path to the target session directory")
+    parser.add_argument("--session-dir", default=None, help="Path to the target session directory (optional)")
     parser.add_argument("--sessions-base", default="/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions", help="Base directory containing all sessions")
     return parser.parse_args()
 
@@ -697,26 +697,37 @@ def evaluate_detections(detected_secs, gt_times, session_duration):
     fp_min = fp / (session_duration / 60.0) if session_duration > 0 else 0.0
     return recall, fp, fp_min, f1
 
-def main():
-    args = parse_args()
-    
-    shot_times, offset = load_shot_times(args.session_dir)
-    print(f"Loaded {len(shot_times)} shots. Applying stance stress-testing to cached data...")
-    apply_stance_stress_to_session_cache(args.session_dir, shot_times)
-
-    print("Loading target session features (stressed)...")
-    merged_df, _ = extract_all_features_for_session(args.session_dir)
-    if merged_df is None:
-        print("Error: Could not load target session.")
-        return
+def run_global_facing_up_search(sessions_base, target_session_dir=None):
+    all_sessions = load_all_sessions(sessions_base)
+    session_data = []
+    for s_path in all_sessions:
+        s_shots, s_off = load_shot_times(s_path)
+        if len(s_shots) == 0:
+            continue
+        session_data.append((s_path, s_shots))
         
-    print(f"Running feature importance on all physical + virtual sensors...")
-    labeled_df = build_labeled_dataset(merged_df, shot_times)
-    ranking = rank_features(labeled_df)
-    
-    print("\nTop 30 Feature Importances:")
-    for i, (feat, imp) in enumerate(ranking[:30]):
-        print(f"  {i+1:2d}. {feat:<50} : {imp:.4f}")
+    if not session_data:
+        print("❌ Error: No sessions with ground truth shots found.")
+        return [], (0.0, 0, 0.0, 0.0), [], []
+        
+    print(f"Loaded {len(session_data)} sessions with ground truth shots. Applying stance stress-testing to cached data...")
+    for s_path, s_shots in session_data:
+        apply_stance_stress_to_session_cache(s_path, s_shots)
+        
+    print("Extracting features globally across all sessions...")
+    global_labeled_dfs = []
+    for s_path, s_shots in session_data:
+        merged_df, _ = extract_all_features_for_session(s_path)
+        if merged_df is not None:
+            labeled_df = build_labeled_dataset(merged_df, s_shots)
+            global_labeled_dfs.append(labeled_df)
+            
+    if global_labeled_dfs:
+        global_labeled_df = pd.concat(global_labeled_dfs, ignore_index=True)
+        print("Running global feature importance on merged dataset...")
+        ranking = rank_features(global_labeled_df)
+    else:
+        ranking = []
         
     curr_gyro = 1.2
     curr_accel = 3.25
@@ -724,10 +735,18 @@ def main():
     curr_grav_y = -6.0
     curr_min_flex = 3
     
-    print("\nSimulating current deployed gate config...")
-    det_shots, duration = simulate_detector_for_session(args.session_dir, curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex)
-    recall, fp, fp_min, f1 = evaluate_detections(det_shots, shot_times, duration)
-    print(f"Current Gate -> Recall: {recall:.2%}, FPs: {fp} ({fp_min:.2f} FP/min), F1: {f1:.3f}")
+    print("\nSimulating current deployed gate config across all sessions...")
+    curr_recalls, curr_fps, curr_fp_mins, curr_f1s = [], [], [], []
+    for s_path, s_shots in session_data:
+        det, dur = simulate_detector_for_session(s_path, curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex)
+        rec, f_p, fp_m, f1_score = evaluate_detections(det, s_shots, dur)
+        curr_recalls.append(rec)
+        curr_fps.append(f_p)
+        curr_fp_mins.append(fp_m)
+        curr_f1s.append(f1_score)
+        
+    curr_metrics = (np.mean(curr_recalls), int(np.sum(curr_fps)), np.mean(curr_fp_mins), np.mean(curr_f1s))
+    print(f"Current Gate -> Recall: {curr_metrics[0]:.2%}, Total FPs: {curr_metrics[1]} ({curr_metrics[2]:.2f} FP/min), F1: {curr_metrics[3]:.3f}")
     
     gyro_grids = [0.9, 1.2, 1.5]
     accel_grids = [3.25, 4.0]
@@ -735,7 +754,7 @@ def main():
     grav_y_grids = [-6.0, -7.0]
     min_flex_grids = [2, 3]
     
-    # Timing variables to sweep (Option 3 timing stress)
+    # Timing variables to sweep
     min_dur_grids = [0.5, 0.8]
     break_tol_grids = [1.0, 1.5]
     
@@ -744,8 +763,9 @@ def main():
     step_mandatory_options = [True, False]
     step_recency_options = [0.5, 1.0, 2.0, 3.0]
     
-    print("\nGrid searching alternative gate structures, thresholds, and timing on the latest session...")
+    print("\nGrid searching alternative gate structures, thresholds, and timing globally across all sessions...")
     candidates = []
+    
     for g_std in gyro_grids:
         for a_std in accel_grids:
             for o_disp in ori_grids:
@@ -756,41 +776,35 @@ def main():
                                 for s_rec in step_recency_options:
                                     for min_dur in min_dur_grids:
                                         for brk_tol in break_tol_grids:
-                                            det, dur = simulate_detector_for_session(
-                                                args.session_dir, g_std, a_std, o_disp, gr_y, mf,
-                                                gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec,
-                                                facing_up_min_duration_s=min_dur, facing_up_break_tolerance_s=brk_tol
-                                            )
-                                            rec, f_p, fp_m, f1_score = evaluate_detections(det, shot_times, dur)
-                                            candidates.append((g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, min_dur, brk_tol, rec, f_p, fp_m, f1_score))
-                        
-    # Sort candidates by F1 score desc, then FPs asc
+                                            recalls, fps, fp_mins, f1s = [], [], [], []
+                                            for s_path, s_shots in session_data:
+                                                det, dur = simulate_detector_for_session(
+                                                    s_path, g_std, a_std, o_disp, gr_y, mf,
+                                                    gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec,
+                                                    facing_up_min_duration_s=min_dur, facing_up_break_tolerance_s=brk_tol
+                                                )
+                                                rec, f_p, fp_m, f1_score = evaluate_detections(det, s_shots, dur)
+                                                recalls.append(rec)
+                                                fps.append(f_p)
+                                                fp_mins.append(fp_m)
+                                                f1s.append(f1_score)
+                                                
+                                            mean_rec = np.mean(recalls)
+                                            total_fp = int(np.sum(fps))
+                                            mean_fp_m = np.mean(fp_mins)
+                                            mean_f1 = np.mean(f1s)
+                                            
+                                            candidates.append((
+                                                g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, min_dur, brk_tol,
+                                                mean_rec, total_fp, mean_fp_m, mean_f1
+                                            ))
+                                            
+    # Sort candidates by aggregate F1 score desc, then total FPs asc
     candidates.sort(key=lambda x: (-x[13], x[11]))
-    print("Top 5 Alternative Gate Configs (Latest Session):")
-    for i, c in enumerate(candidates[:5]):
-        print(f"  {i+1}. GyroStd={c[0]:.2f}, AccelStd={c[1]:.2f}, OriDisp={c[2]:.2f}, GravY={c[3]:.1f}, MinFlex={c[4]}, "
-              f"GyroMand={c[5]}, StepMand={c[6]}, StepRec={c[7]}s, MinDur={c[8]:.1f}s, BreakTol={c[9]:.1f}s -> "
-              f"Recall={c[10]:.1%}, FPs={c[11]} ({c[12]:.2f} FP/min), F1={c[13]:.3f}")
-
-    all_sessions = load_all_sessions(args.sessions_base)
-    print(f"\nPerforming cross-session validation across {len(all_sessions)} sessions...")
     
-    session_data = []
-    for s_path in all_sessions:
-        s_shots, s_off = load_shot_times(s_path)
-        if len(s_shots) == 0:
-            continue
-        session_data.append((s_path, s_shots))
-        
-    print(f"Loaded {len(session_data)} historical sessions for validation.")
-    
-    # Apply stance stress to each validation session cache before running cross-session check
-    for s_path, s_shots in session_data:
-        apply_stance_stress_to_session_cache(s_path, s_shots)
-
+    # Reconstruct cross_res formatted data for top configs
     top_configs = [(curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex, True, True, 1.0, 0.8, 1.5)] + [c[:10] for c in candidates[:3]]
-    configs_metrics = []
-    
+    cross_res = []
     for cfg in top_configs:
         g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, min_dur, brk_tol = cfg
         recalls, fps, f1s = [], [], []
@@ -804,15 +818,31 @@ def main():
             recalls.append(rec)
             fps.append(f_p)
             f1s.append(f1_score)
-        configs_metrics.append({
+        cross_res.append({
             'config': cfg,
             'mean_recall': np.mean(recalls),
             'total_fps': np.sum(fps),
             'mean_f1': np.mean(f1s)
         })
         
+    return ranking, curr_metrics, candidates, cross_res
+
+def main():
+    args = parse_args()
+    ranking, curr_metrics, candidates, cross_res = run_global_facing_up_search(args.sessions_base, args.session_dir)
+    
+    print("\nTop 30 Feature Importances (Global):")
+    for i, (feat, imp) in enumerate(ranking[:30]):
+        print(f"  {i+1:2d}. {feat:<50} : {imp:.4f}")
+        
+    print("\nTop 5 Alternative Gate Configs (Global Multi-Session):")
+    for i, c in enumerate(candidates[:5]):
+        print(f"  {i+1}. GyroStd={c[0]:.2f}, AccelStd={c[1]:.2f}, OriDisp={c[2]:.2f}, GravY={c[3]:.1f}, MinFlex={c[4]}, "
+              f"GyroMand={c[5]}, StepMand={c[6]}, StepRec={c[7]}s, MinDur={c[8]:.1f}s, BreakTol={c[9]:.1f}s -> "
+              f"Recall={c[10]:.1%}, FPs={c[11]} ({c[12]:.2f} FP/min), F1={c[13]:.3f}")
+
     print("\nCross-Session Validation Results:")
-    for i, res in enumerate(configs_metrics):
+    for i, res in enumerate(cross_res):
         cfg = res['config']
         label = "Current Deployed" if i == 0 else f"Candidate {i}"
         print(f"  {label:<18}: GyroStd={cfg[0]:.2f}, AccelStd={cfg[1]:.2f}, OriDisp={cfg[2]:.2f}, GravY={cfg[3]:.1f}, MinFlex={cfg[4]}, "

@@ -164,101 +164,17 @@ def main():
         print(f"❌ Error in clock verification orchestration: {e}")
         traceback.print_exc()
 
-    # 3. Run Facing-Up Search on Target Session
-    print("⏳ Running facing-up detector adversarial search on target session...")
+    # 3. Run Facing-Up Search globally across all sessions
+    print("⏳ Running facing-up detector global adversarial search across all sessions...")
     try:
-        shot_times, offset = adversarial_facing_up_search.load_shot_times(target_session_dir)
-        print(f"  Target session: loaded {len(shot_times)} shots. Applying stance stress-testing to cached data...")
-        adversarial_facing_up_search.apply_stance_stress_to_session_cache(target_session_dir, shot_times)
-
-        print("  Extracting target session features (stressed)...")
-        merged_df, _ = adversarial_facing_up_search.extract_all_features_for_session(target_session_dir)
-        labeled_df = adversarial_facing_up_search.build_labeled_dataset(merged_df, shot_times)
-        ranking = adversarial_facing_up_search.rank_features(labeled_df)
-        
-        curr_gyro = 1.2
-        curr_accel = 3.25
-        curr_ori = 2.5
-        curr_grav_y = -6.0
-        curr_min_flex = 3
-        
-        det_shots, duration = adversarial_facing_up_search.simulate_detector_for_session(
-            target_session_dir, curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex,
-            facing_up_min_duration_s=0.8, facing_up_break_tolerance_s=1.5
+        ranking, curr_metrics, candidates, cross_res = adversarial_facing_up_search.run_global_facing_up_search(
+            args.sessions_base, target_session_dir
         )
-        curr_recall, curr_fp, curr_fp_min, curr_f1 = adversarial_facing_up_search.evaluate_detections(det_shots, shot_times, duration)
         
-        # Timing variables to sweep
-        gyro_grids = [0.9, 1.2, 1.5]
-        accel_grids = [3.25, 4.0]
-        ori_grids = [2.0, 2.5, 3.0]
-        grav_y_grids = [-6.0, -7.0]
-        min_flex_grids = [2, 3]
-        min_dur_grids = [0.5, 0.8]
-        break_tol_grids = [1.0, 1.5]
-        
-        # Structural variables to sweep
-        gyro_mandatory_options = [True, False]
-        step_mandatory_options = [True, False]
-        step_recency_options = [0.5, 1.0, 2.0, 3.0]
-        
-        candidates = []
-        for g_std in gyro_grids:
-            for a_std in accel_grids:
-                for o_disp in ori_grids:
-                    for gr_y in grav_y_grids:
-                        for mf in min_flex_grids:
-                            for g_mand in gyro_mandatory_options:
-                                for s_mand in step_mandatory_options:
-                                    for s_rec in step_recency_options:
-                                        for min_dur in min_dur_grids:
-                                            for brk_tol in break_tol_grids:
-                                                det, dur = adversarial_facing_up_search.simulate_detector_for_session(
-                                                    target_session_dir, g_std, a_std, o_disp, gr_y, mf,
-                                                    gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec,
-                                                    facing_up_min_duration_s=min_dur, facing_up_break_tolerance_s=brk_tol
-                                                )
-                                                rec, f_p, fp_m, f1_score = adversarial_facing_up_search.evaluate_detections(det, shot_times, dur)
-                                                candidates.append((g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, min_dur, brk_tol, rec, f_p, fp_m, f1_score))
-        candidates.sort(key=lambda x: (-x[13], x[11]))
-        
-        all_sessions = adversarial_facing_up_search.load_all_sessions(args.sessions_base)
-        session_data = []
-        for s_path in all_sessions:
-            s_shots, s_off = adversarial_facing_up_search.load_shot_times(s_path)
-            if len(s_shots) > 0:
-                session_data.append((s_path, s_shots))
-                
-        # Apply stance stress to each validation session cache before running cross-session check
-        for s_path, s_shots in session_data:
-            adversarial_facing_up_search.apply_stance_stress_to_session_cache(s_path, s_shots)
-
-        configs_to_test = [(curr_gyro, curr_accel, curr_ori, curr_grav_y, curr_min_flex, True, True, 1.0, 0.8, 1.5)] + [c[:10] for c in candidates[:3]]
-        cross_res = []
-        for cfg in configs_to_test:
-            g_std, a_std, o_disp, gr_y, mf, g_mand, s_mand, s_rec, min_dur, brk_tol = cfg
-            recalls, fps, f1s = [], [], []
-            for s_path, s_shots in session_data:
-                det, dur = adversarial_facing_up_search.simulate_detector_for_session(
-                    s_path, g_std, a_std, o_disp, gr_y, mf,
-                    gyro_mandatory=g_mand, step_mandatory=s_mand, step_recency_s=s_rec,
-                    facing_up_min_duration_s=min_dur, facing_up_break_tolerance_s=brk_tol
-                )
-                rec, f_p, fp_m, f1_score = adversarial_facing_up_search.evaluate_detections(det, s_shots, dur)
-                recalls.append(rec)
-                fps.append(f_p)
-                f1s.append(f1_score)
-            cross_res.append({
-                'config': cfg,
-                'mean_recall': np.mean(recalls),
-                'total_fps': np.sum(fps),
-                'mean_f1': np.mean(f1s)
-            })
-            
         facing_up_res = {
             "status": "success",
             "ranking": ranking[:30],
-            "curr_metrics": (curr_recall, curr_fp, curr_fp_min, curr_f1),
+            "curr_metrics": curr_metrics,
             "candidates": candidates[:5],
             "cross_res": cross_res
         }
@@ -348,16 +264,16 @@ def main():
         f.write(f"## 2. Facing-Up Detection Analysis\n")
         if facing_up_res.get('status') == 'success':
             curr_rec, curr_fp, curr_fp_m, curr_f1 = facing_up_res['curr_metrics']
-            f.write(f"### Current Gate Performance (Target Session): Recall={curr_rec:.1%} | FP={curr_fp} ({curr_fp_m:.2f} FP/min) | F1={curr_f1:.3f}\n\n")
+            f.write(f"### Current Gate Performance (Global Multi-Session): Recall={curr_rec:.1%} | Total FP={curr_fp} ({curr_fp_m:.2f} FP/min) | F1={curr_f1:.3f}\n\n")
             
-            f.write(f"#### Top 15 Feature Importances (All Physical & Virtual Sensors):\n")
+            f.write(f"#### Top 15 Feature Importances (All Physical & Virtual Sensors - Global):\n")
             f.write(f"| Rank | Feature Name | Mutual Info / Gini Importance |\n")
             f.write(f"|---|---|---|\n")
             for i, (feat, imp) in enumerate(facing_up_res['ranking'][:15]):
                 f.write(f"| {i+1} | `{feat}` | {imp:.4f} |\n")
             f.write("\n")
             
-            f.write(f"#### Alternative Stance Gate Configurations (Grid Search):\n")
+            f.write(f"#### Alternative Stance Gate Configurations (Global Grid Search):\n")
             f.write(f"| Config | Gyro Std | Accel Std | Ori Disp | Grav Y | Min Flex | GyroMand | StepMand | StepRec | MinDur | BreakTol | Recall | FP | FP/Min | F1 |\n")
             f.write(f"|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
             for i, c in enumerate(facing_up_res['candidates'][:5]):

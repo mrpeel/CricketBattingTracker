@@ -10,8 +10,9 @@ class FirebaseCloudManager {
 
     private val TAG = "FirebaseCloudManager"
 
+    @Suppress("UNUSED_PARAMETER")
     fun syncToCloud(userId: String, sessionTimestamp: Long, events: List<InningsEvent>) {
-        Log.d(TAG, "Mock Firebase sync initiated for UID: \$userId")
+        Log.d(TAG, "Mock Firebase sync initiated for UID: $userId")
 
         // In a production environment with google-services.json correctly initialized:
         /*

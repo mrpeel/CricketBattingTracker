@@ -190,9 +190,9 @@ def run_script(script_path):
     return res.stdout
 
 def run_gradle_tests(only_scorecard=False):
-    test_cmd = "./gradlew :wear:test"
+    test_cmd = "./gradlew :wear:test --rerun-tasks"
     if only_scorecard:
-        test_cmd = "./gradlew :wear:testDebugUnitTest --tests com.mrpeel.cricketbattingtracker.ml.SwingDetectorGroundTruthTest"
+        test_cmd = "./gradlew :wear:testDebugUnitTest --tests com.mrpeel.cricketbattingtracker.ml.SwingDetectorGroundTruthTest --rerun-tasks"
     print(f"⏳ Running Gradle command: {test_cmd}...")
     env = os.environ.copy()
     env["JAVA_HOME"] = "/Users/neilkloot/.jdk/jdk-17/"

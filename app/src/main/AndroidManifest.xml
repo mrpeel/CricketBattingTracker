@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.BODY_SENSORS" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
@@ -18,6 +19,15 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+
+    <!-- Polar BLE SDK: scan for Polar Sense devices (neverForLocation = no location permission needed) -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+
+    <!-- Polar BLE SDK: foreground service type for BLE streaming -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <application
         android:allowBackup="true"
@@ -70,6 +80,11 @@
 
         <service android:name=".services.VideoRecordService"
                  android:foregroundServiceType="camera|microphone"
+                 android:exported="false" />
+
+        <!-- Polar Sense BLE streaming foreground service -->
+        <service android:name=".services.PolarSenseService"
+                 android:foregroundServiceType="connectedDevice"
                  android:exported="false" />
     </application>
 </manifest>

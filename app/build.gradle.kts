@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.mrpeel.cricketbattingtracker"
-        minSdk = 26
+        minSdk = 33
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -21,6 +21,13 @@ android {
             isMinifyEnabled = true
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        debug {
+            packaging {
+                jniLibs {
+                    useLegacyPackaging = true
+                }
+            }
         }
     }
     compileOptions {
@@ -36,12 +43,18 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
@@ -68,4 +81,12 @@ dependencies {
     
     // Resolve CameraX ListenableFuture classpath compilation errors
     implementation("com.google.guava:guava:31.1-android")
+
+    // Polar BLE SDK — bottom hand sensor (Polar Verity Sense)
+    implementation("com.github.polarofficial:polar-ble-sdk:5.5.0")
+    implementation("io.reactivex.rxjava3:rxjava:3.1.9")
+    implementation("io.reactivex.rxjava3:rxandroid:3.0.2")
+
+    // DataStore — persist Polar device pairing
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 }

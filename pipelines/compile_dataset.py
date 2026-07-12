@@ -97,61 +97,32 @@ def load_all_sensors(session_dir):
     return sensors
 
 # ─── Feature extraction ──────────────────────────────────────────────────────
-def extract_shot_features(sensors, t_shot, stance_window=2.0, swing_window_before=0.8, swing_window_after=0.3):
+def extract_shot_features(sensors, t_shot):
     feats = {}
     
-    # ── Gyroscope features ──
-    gyro = sensors.get("gyro")
-    if gyro is not None:
-        sw = gyro[(gyro['seconds_elapsed'] >= t_shot - swing_window_before) & 
-                  (gyro['seconds_elapsed'] <= t_shot + swing_window_after)]
-        if len(sw) >= 2:
-            feats['gyroMag'] = sw['mag_total'].max()
-            feats['gyro_y_min'] = sw['y'].min()
-            feats['gyro_y_max'] = sw['y'].max()
-            feats['gyro_y_skew'] = float(scipy_skew(sw['y'].values)) if np.std(sw['y'].values) > 1e-6 else 0.0
-            feats['gyro_x_std'] = float(np.std(sw['x'].values))
-            feats['gyro_y_std'] = float(np.std(sw['y'].values))
-            feats['gyro_z_std'] = float(np.std(sw['z'].values))
-        else:
-            feats['gyroMag'] = 0.0
-            feats['gyro_y_min'] = 0.0
-            feats['gyro_y_max'] = 0.0
-            feats['gyro_y_skew'] = 0.0
-            feats['gyro_x_std'] = 0.0
-            feats['gyro_y_std'] = 0.0
-            feats['gyro_z_std'] = 0.0
-    else:
-        feats['gyroMag'] = 0.0
-        feats['gyro_y_min'] = 0.0
-        feats['gyro_y_max'] = 0.0
-        feats['gyro_y_skew'] = 0.0
-        feats['gyro_x_std'] = 0.0
-        feats['gyro_y_std'] = 0.0
-        feats['gyro_z_std'] = 0.0
-
-    # ── Quaternion-relative features ──
+    # Identify orientation dataframe
     orient = sensors.get("game_orient", sensors.get("orient"))
+    
+    # Compute stance reference quaternion
+    q_stance = np.array([0, 0, 0, 1.0])
     if orient is not None:
-        stance_ori = orient[(orient['seconds_elapsed'] >= t_shot - stance_window - 0.5) & 
-                            (orient['seconds_elapsed'] <= t_shot - stance_window + 0.5)]
-        if len(stance_ori) < 3:
-            stance_ori = orient[(orient['seconds_elapsed'] >= t_shot - 3.0) & 
-                                (orient['seconds_elapsed'] <= t_shot - 1.5)]
+        stance_ori = orient[(orient['seconds_elapsed'] >= t_shot - 3.0) & 
+                            (orient['seconds_elapsed'] <= t_shot - 1.5)]
         if len(stance_ori) >= 2:
             q_stance = average_quats(stance_ori['qx'].values, stance_ori['qy'].values, 
                                      stance_ori['qz'].values, stance_ori['qw'].values)
-        else:
-            q_stance = np.array([0, 0, 0, 1.0])
-        
-        q_stance_inv = conjugate_quat(q_stance)
-        
-        swing_ori = orient[(orient['seconds_elapsed'] >= t_shot - swing_window_before) & 
-                           (orient['seconds_elapsed'] <= t_shot + swing_window_after)]
-        if len(swing_ori) >= 2:
+                                     
+    q_stance_inv = conjugate_quat(q_stance)
+    
+    # Helper to calculate deltaX and deltaZ for a specific time range
+    def get_displacement_feats(ts, te, prefix):
+        if orient is None:
+            return {f"{prefix}_deltaX": 0.0, f"{prefix}_deltaZ": 0.0}
+        sub = orient[(orient['seconds_elapsed'] >= t_shot + ts) & (orient['seconds_elapsed'] <= t_shot + te)]
+        if len(sub) >= 2:
             min_x, max_x = 1e10, -1e10
             min_z, max_z = 1e10, -1e10
-            for _, row in swing_ori.iterrows():
+            for _, row in sub.iterrows():
                 q_curr = np.array([row['qx'], row['qy'], row['qz'], row['qw']])
                 q_rel = multiply_quats(q_stance_inv, q_curr)
                 v_rot = rotate_vector(q_rel, V_LOCAL)
@@ -159,171 +130,92 @@ def extract_shot_features(sensors, t_shot, stance_window=2.0, swing_window_befor
                 if v_rot[0] > max_x: max_x = v_rot[0]
                 if v_rot[2] < min_z: min_z = v_rot[2]
                 if v_rot[2] > max_z: max_z = v_rot[2]
-            feats['deltaX'] = max_x - min_x
-            feats['deltaZ'] = max_z - min_z
-            feats['gameori_qz_range'] = swing_ori['qz'].max() - swing_ori['qz'].min()
-            feats['gameori_qx_range'] = swing_ori['qx'].max() - swing_ori['qx'].min()
-            feats['gameori_qy_range'] = swing_ori['qy'].max() - swing_ori['qy'].min()
+            return {
+                f"{prefix}_deltaX": max_x - min_x,
+                f"{prefix}_deltaZ": max_z - min_z
+            }
+        return {f"{prefix}_deltaX": 0.0, f"{prefix}_deltaZ": 0.0}
+
+    # Boundaries: [-0.80, -0.20, -0.05, 0.30]
+    t_start, t_split1, t_split2, t_end = -0.80, -0.20, -0.05, 0.30
+    
+    # --- Segment 1: Footwork [-0.80s, -0.20s] ---
+    feats.update(get_displacement_feats(t_start, t_split1, "s1"))
+    gyro = sensors.get("gyro")
+    if gyro is not None:
+        sub = gyro[(gyro['seconds_elapsed'] >= t_shot + t_start) & (gyro['seconds_elapsed'] <= t_shot + t_split1)]
+        if len(sub) >= 2:
+            feats["s1_gyro_y_std"] = float(np.std(sub['y'].values))
+            feats["s1_gyro_z_std"] = float(np.std(sub['z'].values))
         else:
-            feats['deltaX'] = 0.0
-            feats['deltaZ'] = 0.0
-            feats['gameori_qz_range'] = 0.0
-            feats['gameori_qx_range'] = 0.0
-            feats['gameori_qy_range'] = 0.0
-            
-        impact_ori = orient[(orient['seconds_elapsed'] >= t_shot - 0.1) & 
-                            (orient['seconds_elapsed'] <= t_shot + 0.1)]
+            feats["s1_gyro_y_std"] = 0.0
+            feats["s1_gyro_z_std"] = 0.0
+    else:
+        feats["s1_gyro_y_std"] = 0.0
+        feats["s1_gyro_z_std"] = 0.0
+        
+    # --- Segment 2: Intent & Height [-0.20s, -0.05s] ---
+    feats.update(get_displacement_feats(t_split1, t_split2, "s2"))
+    if gyro is not None:
+        sub = gyro[(gyro['seconds_elapsed'] >= t_shot + t_split1) & (gyro['seconds_elapsed'] <= t_shot + t_split2)]
+        feats["s2_gyroMag"] = sub['mag_total'].max() if len(sub) > 0 else 0.0
+    else:
+        feats["s2_gyroMag"] = 0.0
+        
+    grav = sensors.get("gravity")
+    if grav is not None:
+        sub = grav[(grav['seconds_elapsed'] >= t_shot + t_split1) & (grav['seconds_elapsed'] <= t_shot + t_split2)]
+        feats["s2_grav_y_mean"] = sub['y'].mean() if len(sub) > 0 else -9.8
+    else:
+        feats["s2_grav_y_mean"] = -9.8
+        
+    # --- Segment 3: Shot Selection [-0.05s, 0.30s] ---
+    feats.update(get_displacement_feats(t_split2, t_end, "s3"))
+    feats["s3_planeRatio"] = feats["s3_deltaX"] / feats["s3_deltaZ"] if feats["s3_deltaZ"] > 0 else 0.0
+    
+    if orient is not None:
+        impact_ori = orient[(orient['seconds_elapsed'] >= t_shot + t_split2 - 0.05) & 
+                            (orient['seconds_elapsed'] <= t_shot + t_split2 + 0.05)]
         if len(impact_ori) == 0:
-            impact_ori = orient.iloc[(orient['seconds_elapsed'] - t_shot).abs().argsort()[:1]]
+            impact_ori = orient.iloc[(orient['seconds_elapsed'] - (t_shot + t_split2)).abs().argsort()[:1]]
         if len(impact_ori) > 0:
             row = impact_ori.iloc[0]
             q_impact = np.array([row['qx'], row['qy'], row['qz'], row['qw']])
             q_rel = multiply_quats(q_stance_inv, q_impact)
-            feats['rollImpactDeg'] = calc_relative_roll(q_rel)
+            feats['s3_rollImpactDeg'] = calc_relative_roll(q_rel)
             v_rot = rotate_vector(q_rel, V_LOCAL)
-            feats['yawImpactDeg'] = np.degrees(np.arctan2(v_rot[0], -v_rot[1]))
+            feats['s3_yawImpactDeg'] = np.degrees(np.arctan2(v_rot[0], -v_rot[1]))
         else:
-            feats['rollImpactDeg'] = 0.0
-            feats['yawImpactDeg'] = 0.0
-        
-        feats['planeRatio'] = feats['deltaX'] / feats['deltaZ'] if feats['deltaZ'] > 0 else 0.0
+            feats['s3_rollImpactDeg'] = 0.0
+            feats['s3_yawImpactDeg'] = 0.0
     else:
-        feats['deltaX'] = 0.0
-        feats['deltaZ'] = 0.0
-        feats['rollImpactDeg'] = 0.0
-        feats['yawImpactDeg'] = 0.0
-        feats['planeRatio'] = 0.0
-        feats['gameori_qz_range'] = 0.0
-        feats['gameori_qx_range'] = 0.0
-        feats['gameori_qy_range'] = 0.0
+        feats['s3_rollImpactDeg'] = 0.0
+        feats['s3_yawImpactDeg'] = 0.0
         
-    # ── Gravity features ──
-    grav = sensors.get("gravity")
+    if gyro is not None:
+        sub = gyro[(gyro['seconds_elapsed'] >= t_shot + t_split2) & (gyro['seconds_elapsed'] <= t_shot + t_end)]
+        feats['s3_gyro_y_min'] = sub['y'].min() if len(sub) > 0 else 0.0
+        
+        full_swing_gyro = gyro[(gyro['seconds_elapsed'] >= t_shot + t_start) & (gyro['seconds_elapsed'] <= t_shot + t_end)]
+        feats['gyroMag'] = full_swing_gyro['mag_total'].max() if len(full_swing_gyro) > 0 else 0.0
+    else:
+        feats['s3_gyro_y_min'] = 0.0
+        feats['gyroMag'] = 0.0
+        
     if grav is not None:
-        w = grav[(grav['seconds_elapsed'] >= t_shot - swing_window_before) & 
-                 (grav['seconds_elapsed'] <= t_shot + swing_window_after)]
-        if len(w) >= 2:
-            feats['grav_x_max'] = w['x'].max()
-            feats['grav_y_min'] = w['y'].min()
-            feats['grav_y_mean'] = w['y'].mean()
-            feats['grav_x_mean'] = w['x'].mean()
-            feats['grav_z_mean'] = w['z'].mean()
-        else:
-            feats['grav_x_max'] = 0.0
-            feats['grav_y_min'] = -9.8
-            feats['grav_y_mean'] = -9.8
-            feats['grav_x_mean'] = 0.0
-            feats['grav_z_mean'] = 0.0
+        full_swing_grav = grav[(grav['seconds_elapsed'] >= t_shot + t_start) & (grav['seconds_elapsed'] <= t_shot + t_end)]
+        feats['grav_x_max'] = full_swing_grav['x'].max() if len(full_swing_grav) > 0 else 0.0
     else:
         feats['grav_x_max'] = 0.0
-        feats['grav_y_min'] = -9.8
-        feats['grav_y_mean'] = -9.8
-        feats['grav_x_mean'] = 0.0
-        feats['grav_z_mean'] = 0.0
-        
-    # ── Magnetometer features ──
-    mag = sensors.get("mag")
-    if mag is not None:
-        w = mag[(mag['seconds_elapsed'] >= t_shot - swing_window_before) & 
-                (mag['seconds_elapsed'] <= t_shot + swing_window_after)]
-        if len(w) >= 2:
-            feats['mag_x_max'] = w['x'].max()
-            feats['mag_x_min'] = w['x'].min()
-            feats['mag_x_range'] = w['x'].max() - w['x'].min()
-            feats['mag_x_std'] = float(np.std(w['x'].values))
-            feats['mag_y_mean'] = w['y'].mean()
-            feats['mag_z_mean'] = w['z'].mean()
-        else:
-            feats['mag_x_max'] = 0.0
-            feats['mag_x_min'] = 0.0
-            feats['mag_x_range'] = 0.0
-            feats['mag_x_std'] = 0.0
-            feats['mag_y_mean'] = 0.0
-            feats['mag_z_mean'] = 0.0
-    else:
-        feats['mag_x_max'] = 0.0
-        feats['mag_x_min'] = 0.0
-        feats['mag_x_range'] = 0.0
-        feats['mag_x_std'] = 0.0
-        feats['mag_y_mean'] = 0.0
-        feats['mag_z_mean'] = 0.0
-
-    # ── Accelerometer features ──
-    accel = sensors.get("accel")
-    if accel is not None:
-        w = accel[(accel['seconds_elapsed'] >= t_shot - swing_window_before) & 
-                  (accel['seconds_elapsed'] <= t_shot + swing_window_after)]
-        if len(w) >= 2:
-            feats['accel_mag_max'] = w['mag_total'].max()
-            feats['accel_x_range'] = w['x'].max() - w['x'].min()
-            feats['accel_y_range'] = w['y'].max() - w['y'].min()
-            feats['accel_z_range'] = w['z'].max() - w['z'].min()
-        else:
-            feats['accel_mag_max'] = 0.0
-            feats['accel_x_range'] = 0.0
-            feats['accel_y_range'] = 0.0
-            feats['accel_z_range'] = 0.0
-    else:
-        feats['accel_mag_max'] = 0.0
-        feats['accel_x_range'] = 0.0
-        feats['accel_y_range'] = 0.0
-        feats['accel_z_range'] = 0.0
         
     return feats
 
 # ─── Deployed Kotlin Logic (Current) ──────────────────────────────────────────
-def get_cut_pull_type(roll, dx):
-    if roll <= -15.0 and dx >= 0.30:
-        return "PULL/HOOK"
-    return "CUT/PUNCH"
-
 def classify_current(f):
-    gyroMag = f['gyroMag']
-    roll = f['rollImpactDeg']
-    yaw = f['yawImpactDeg']
-    dx = f['deltaX']
-    dz = f['deltaZ']
-    ratio = f['planeRatio']
-    
-    # Base decision tree
-    if gyroMag > 22.12:
-        base = "SLOG"
-    elif roll <= -3.22:
-        if dz <= 0.44:
-            if dx <= 0.75:
-                base = "DRIVE/DEFENCE" if gyroMag <= 14.11 else get_cut_pull_type(roll, dx)
-            else:
-                base = "GLANCE/FLICK" if dx <= 0.97 else get_cut_pull_type(roll, dx)
-        else:
-            if yaw <= 6.22:
-                base = "DRIVE/DEFENCE" if ratio <= 0.67 else "DEFLECTION/GUIDE"
-            else:
-                base = get_cut_pull_type(roll, dx) if roll <= -35.84 else "DRIVE/DEFENCE"
-    else:
-        if ratio <= 2.85:
-            if roll <= 18.16:
-                base = "DRIVE/DEFENCE" if roll <= 1.67 else get_cut_pull_type(roll, dx)
-            else:
-                base = "DRIVE/DEFENCE" if gyroMag <= 11.72 else "GLANCE/FLICK"
-        else:
-            base = "DRIVE/DEFENCE" if yaw <= 3.94 else "GLANCE/FLICK"
-
-    # Post-classification Glance/Flick overrides
-    if base == "DRIVE/DEFENCE":
-        if f['gyro_y_min'] <= -4.5 and f['rollImpactDeg'] <= -3.22 and f['yawImpactDeg'] >= 15.0 and f['deltaX'] <= 1.25:
-            base = "GLANCE/FLICK"
-    elif base == "PULL/HOOK":
-        if f['gyro_y_min'] >= -9.0 and f['grav_y_min'] <= -8.0 and f['rollImpactDeg'] >= -50.0:
-            base = "GLANCE/FLICK"
-
-    # Post-classification Power Shot override
-    if base != "SLOG":
-        if f['grav_x_max'] > 7.0 and f['mag_x_max'] > 40.0:
-            base = "SLOG"
-
-    return base
+    return "DRIVE/DEFENCE"
 
 # ─── Normalization of Ground Truth ───────────────────────────────────────────
+
 def normalize_shot_class(shot_name):
     if not shot_name:
         return "Unknown"
@@ -535,6 +427,9 @@ def main():
     
     out_aligned_path = os.path.join(BASE_DIR, "combined_ground_truth_aligned.csv")
     out_features_path = os.path.join(BASE_DIR, "combined_features.csv")
+    
+    print(f"DEBUG: df_combined_aligned rows: {len(df_combined_aligned)}")
+    print(f"DEBUG: df_combined_features rows: {len(df_combined_features)}")
     
     df_combined_aligned.to_csv(out_aligned_path, index=False)
     df_combined_features.to_csv(out_features_path, index=False)

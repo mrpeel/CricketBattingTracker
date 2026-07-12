@@ -33,7 +33,10 @@ LIVE_DIR       = os.path.join(BASE_DIR, "live_watch_sessions")
 AUG_DIR        = os.path.join(BASE_DIR, "augmented_training_data")
 
 VARIANTS_PER_SHOT  = 15
-CAP_MULTIPLIER     = 3     # max synthetic rows = CAP_MULTIPLIER × real_count per class
+# Conservative balancing: only fill deficit classes up to the majority class size.
+# MAX_SYNTH_RATIO caps how much synthetic data any single class can receive
+# relative to its own real count, preventing domain-gap overfitting.
+MAX_SYNTH_RATIO    = 2     # max synthetic rows = 2 × real_count per class
 SWING_BEFORE       = 0.8   # seconds before impact to slice
 SWING_AFTER        = 0.3   # seconds after impact to slice
 STANCE_BEFORE      = 2.0   # seconds before impact for stance quaternion window
@@ -320,11 +323,29 @@ def reindex_time(windows, t_impact):
 def main():
     rng = np.random.default_rng(seed=42)
 
-    # Clear and recreate the augmented data directory
-    import shutil
+    # Clear files inside the augmented data directory (avoiding deleting the directory itself
+    # to bypass macOS directory lock/indexing race conditions)
     if os.path.exists(AUG_DIR):
-        shutil.rmtree(AUG_DIR)
-    os.makedirs(AUG_DIR)
+        import time
+        for root, dirs, files in os.walk(AUG_DIR, topdown=False):
+            for name in files:
+                path = os.path.join(root, name)
+                for attempt in range(5):
+                    try:
+                        os.remove(path)
+                        break
+                    except OSError:
+                        time.sleep(0.1)
+            for name in dirs:
+                path = os.path.join(root, name)
+                for attempt in range(5):
+                    try:
+                        os.rmdir(path)
+                        break
+                    except OSError:
+                        time.sleep(0.1)
+    else:
+        os.makedirs(AUG_DIR)
 
     # Safety marker — prevents accidental evaluation use
     with open(os.path.join(AUG_DIR, "README.txt"), "w") as f:
@@ -395,35 +416,49 @@ def main():
                 (session_id, windows_zeroed, gt_row.to_dict(), t_impact, shot_idx)
             )
 
-    # Print real class distribution
-    print("\n  Real shot counts per class (determines synthetic cap):")
-    for cls in sorted(shots_by_class.keys()):
-        cap = len(shots_by_class[cls]) * CAP_MULTIPLIER
-        print(f"    {cls:<25} {len(shots_by_class[cls]):>4} real → cap {cap:>4} synthetic ({CAP_MULTIPLIER}x)")
+    # Conservative deficit-only balancing:
+    # Only augment classes that have fewer real shots than the majority class.
+    # Cap each class at MAX_SYNTH_RATIO × its own real count to prevent
+    # domain-gap overfitting where synthetic patterns drown out real data.
+    max_real = max(len(shots_by_class[cls]) for cls in shots_by_class.keys())
 
-    # ── Pass 2: Generate variants up to CAP_MULTIPLIER × real_count per class ─
-    # Abundant classes (DRIVE/DEFENCE: ~467 real) stay manageable.
-    # Underrepresented classes (SLOG: ~91 real) still get a meaningful boost.
-    # Variants are distributed evenly across shots within each class.
+    # Print real class distribution and target synthetic totals
+    print("\n  Real shot counts per class and deficit-only balancing targets:")
+    for cls in sorted(shots_by_class.keys()):
+        real_count = len(shots_by_class[cls])
+        deficit = max(0, max_real - real_count)
+        capped = min(deficit, real_count * MAX_SYNTH_RATIO)
+        ratio = capped / real_count if real_count > 0 else 0.0
+        print(f"    {cls:<25} {real_count:>4} real → target {capped:>5} synthetic ({ratio:>5.1f}x multiplier)")
+
+    # ── Pass 2: Generate dynamic variants to perfectly balance all classes ─────
     class_counts = {}
     total_variants = 0
 
     for cls in sorted(shots_by_class.keys()):
         shot_list  = shots_by_class[cls]
         real_count = len(shot_list)
-        cap        = real_count * CAP_MULTIPLIER
+        deficit = max(0, max_real - real_count)
+        target_synthetic = min(deficit, real_count * MAX_SYNTH_RATIO)
+
+        if target_synthetic == 0:
+            class_counts[cls] = 0
+            continue
 
         scale_lo, scale_hi = SCALE_RANGES.get(cls, (0.90, 1.10))
         safe_cls = cls.replace("/", "_").replace(" ", "_")
 
+        # Determine dynamic variants per shot for this class
+        class_variants_per_shot = int(math.ceil(target_synthetic / real_count)) if real_count > 0 else 0
+
         generated = 0
 
         for (session_id, windows_zeroed, gt_row, t_impact, shot_idx) in shot_list:
-            if generated >= cap:
+            if generated >= target_synthetic:
                 break
 
-            remaining       = cap - generated
-            n_for_this_shot = min(VARIANTS_PER_SHOT, remaining)
+            remaining       = target_synthetic - generated
+            n_for_this_shot = min(class_variants_per_shot, remaining)
 
             for v_idx in range(n_for_this_shot):
                 rx_deg = rng.uniform(-15, 15)

@@ -79,15 +79,17 @@ class DataSyncListenerService : WearableListenerService() {
             val loc = locationManager.getLastKnownLocation(provider) ?: continue
             // If the location is recent (within 5 minutes)
             if (now - loc.time < 5 * 60 * 1000L) {
-                if (bestLocation == null || loc.accuracy < bestLocation!!.accuracy) {
+                val currentBest = bestLocation
+                if (currentBest == null || loc.accuracy < currentBest.accuracy) {
                     bestLocation = loc
                 }
             }
         }
         
         // If we got a highly accurate recent location, return it immediately!
-        if (bestLocation != null && bestLocation!!.accuracy < 30f) {
-            continuation.resume(bestLocation)
+        val finalBest = bestLocation
+        if (finalBest != null && finalBest.accuracy < 30f) {
+            continuation.resume(finalBest)
             return@suspendCancellableCoroutine
         }
 
@@ -115,6 +117,7 @@ class DataSyncListenerService : WearableListenerService() {
                     continuation.resume(location)
                 }
             }
+            @Deprecated("Deprecated in Android 29")
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
             override fun onProviderEnabled(provider: String) {}
             override fun onProviderDisabled(provider: String) {}
@@ -169,14 +172,30 @@ class DataSyncListenerService : WearableListenerService() {
             if (loc != null) {
                 val geocoder = Geocoder(applicationContext, Locale.getDefault())
                 var addresses: List<android.location.Address>? = null
-                var attempt = 0
-                while (attempt < 3 && addresses == null) {
-                    try {
-                        addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
-                    } catch (e: Exception) {
-                        attempt++
-                        if (attempt >= 3) throw e
-                        kotlinx.coroutines.delay(500)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    val lat = loc.latitude
+                    val lon = loc.longitude
+                    val comp = kotlinx.coroutines.CompletableDeferred<List<android.location.Address>?>()
+                    geocoder.getFromLocation(lat, lon, 1, object : Geocoder.GeocodeListener {
+                        override fun onGeocode(list: List<android.location.Address>) {
+                            comp.complete(list)
+                        }
+                        override fun onError(errorMessage: String?) {
+                            comp.complete(null)
+                        }
+                    })
+                    addresses = comp.await()
+                } else {
+                    var attempt = 0
+                    while (attempt < 3 && addresses == null) {
+                        try {
+                            @Suppress("DEPRECATION")
+                            addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+                        } catch (e: Exception) {
+                            attempt++
+                            if (attempt >= 3) throw e
+                            kotlinx.coroutines.delay(500)
+                        }
                     }
                 }
                 if (!addresses.isNullOrEmpty()) {
@@ -226,6 +245,16 @@ class DataSyncListenerService : WearableListenerService() {
         return "Net Practice"
     }
 
+    /** Extract a float value for a key like "F1=" from an event string. */
+    private fun extractFloat(event: String, key: String): Float? {
+        val prefix = "$key="
+        val startIdx = event.indexOf(prefix)
+        if (startIdx < 0) return null
+        val valueStart = startIdx + prefix.length
+        val endIdx = event.indexOf(',', valueStart).let { if (it < 0) event.length else it }
+        return event.substring(valueStart, endIdx).trim().toFloatOrNull()
+    }
+
     private fun ingestTimeline(timestamp: Long, eventsList: Array<String>) {
         val database = AppDatabase.getDatabase(applicationContext)
         val dao = database.inningsEventDao()
@@ -241,6 +270,9 @@ class DataSyncListenerService : WearableListenerService() {
             val parsedHeartRates = mutableListOf<Pair<Long, Long>>()
             var systemStartTs: Long? = null
             var systemEndTs: Long? = null
+            
+            // Collect TAP_SEQ events for Polar Sense alignment
+            val watchTapSequences = mutableListOf<Pair<Long, List<Long>>>()
 
             eventsList.forEachIndexed { index, eventString ->
                 if (eventString.startsWith("Shot:")) {
@@ -294,6 +326,22 @@ class DataSyncListenerService : WearableListenerService() {
                         Log.e(TAG, "Parse error: $eventString", e)
                     }
 
+                    // Parse SwingFeatures F1-F14 (appended by watch in expanded format)
+                    val f1 = extractFloat(eventString, "F1")
+                    val f2 = extractFloat(eventString, "F2")
+                    val f3 = extractFloat(eventString, "F3")
+                    val f4 = extractFloat(eventString, "F4")
+                    val f5 = extractFloat(eventString, "F5")
+                    val f6 = extractFloat(eventString, "F6")
+                    val f7 = extractFloat(eventString, "F7")
+                    val f8 = extractFloat(eventString, "F8")
+                    val f9 = extractFloat(eventString, "F9")
+                    val f10 = extractFloat(eventString, "F10")
+                    val f11 = extractFloat(eventString, "F11")
+                    val f12 = extractFloat(eventString, "F12")
+                    val f13 = extractFloat(eventString, "F13")
+                    val f14 = extractFloat(eventString, "F14")
+
                     val dbEvent = InningsEvent(
                         inningsId = newInningsId,
                         timestamp = shotTimestamp ?: (timestamp + index * 5000L),
@@ -310,7 +358,21 @@ class DataSyncListenerService : WearableListenerService() {
                         bladeAngle = bladeAngle,
                         bladeClass = bladeClass,
                         launchAngle = launchAngle,
-                        launchClass = launchClass
+                        launchClass = launchClass,
+                        swing_feature_s1_gyro_y_std = f1,
+                        swing_feature_s1_gyro_z_std = f2,
+                        swing_feature_s1_delta_x = f3,
+                        swing_feature_s1_delta_z = f4,
+                        swing_feature_s2_gyro_mag = f5,
+                        swing_feature_s2_grav_y_mean = f6,
+                        swing_feature_s2_delta_x = f7,
+                        swing_feature_s2_delta_z = f8,
+                        swing_feature_s3_roll_deg = f9,
+                        swing_feature_s3_yaw_deg = f10,
+                        swing_feature_s3_delta_x = f11,
+                        swing_feature_s3_delta_z = f12,
+                        swing_feature_s3_plane_ratio = f13,
+                        swing_feature_s3_gyro_y_min = f14
                     )
                     dao.insertEvent(dbEvent)
                 } else if (eventString.startsWith("HR:")) {
@@ -352,6 +414,26 @@ class DataSyncListenerService : WearableListenerService() {
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to parse SYSTEM_START: $eventString", e)
+                    }
+                } else if (eventString.startsWith("TAP_SEQ:")) {
+                    // Parse tap sequence for Polar Sense alignment
+                    // Format: TAP_SEQ: Ts={wallClockMs}, T1={ns1},T2={ns2},T3={ns3},T4={ns4},T5={ns5}
+                    try {
+                        val tsMatch = Regex("Ts=(\\d+)").find(eventString)
+                        val wallClockMs = tsMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+                        
+                        val tapNanos = mutableListOf<Long>()
+                        for (i in 1..5) {
+                            val tMatch = Regex("T$i=(\\d+)").find(eventString)
+                            tMatch?.groupValues?.get(1)?.toLongOrNull()?.let { tapNanos.add(it) }
+                        }
+                        
+                        if (tapNanos.size == 5 && wallClockMs > 0) {
+                            watchTapSequences.add(Pair(wallClockMs, tapNanos))
+                            Log.d(TAG, "Parsed TAP_SEQ at $wallClockMs with 5 taps")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to parse TAP_SEQ: $eventString", e)
                     }
                 } else if (eventString.startsWith("SYSTEM_END:")) {
                     try {
@@ -406,7 +488,25 @@ class DataSyncListenerService : WearableListenerService() {
                 Log.e(TAG, "Failed syncing to Health Connect: ${e.message}")
             }
 
-            // Pass the downloaded batch asynchronously up to Google Firestore
+            // Run Polar Sense shot enhancement if data is available
+            try {
+                if (watchTapSequences.isNotEmpty()) {
+                    Log.d(TAG, "Running bottom-hand enhancement with ${watchTapSequences.size} tap sequences")
+                    ShotEnhancementEngine.enhance(newInningsId, watchTapSequences, applicationContext)
+                } else {
+                    Log.d(TAG, "No TAP_SEQ events in timeline — skipping bottom-hand enhancement")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Bottom-hand enhancement failed: ${e.message}", e)
+            }
+
+            // Run video clipping for the completed session
+            try {
+                VideoClippingEngine.clipSessionShots(newInningsId, applicationContext)
+            } catch (e: Exception) {
+                Log.e(TAG, "Video clipping failed: ${e.message}", e)
+            }
+
             // Auto-launch the UI to show the new sync results
             val launchIntent = Intent(applicationContext, com.mrpeel.cricketbattingtracker.MainActivity::class.java)
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
