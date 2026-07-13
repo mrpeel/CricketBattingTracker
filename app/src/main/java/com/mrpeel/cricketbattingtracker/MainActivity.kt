@@ -1350,7 +1350,7 @@ fun RecordScreen(
     val videoElapsed by com.mrpeel.cricketbattingtracker.services.VideoRecordManager.elapsedSeconds.collectAsState()
 
     // Determine overall active session state
-    val sessionActive = isRecording || isVideoRecording || polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING
+    val sessionActive = isRecording || isVideoRecording
 
     if (videoEnabled && (sessionActive || isVideoRecording)) {
         VideoRecordScreen(
