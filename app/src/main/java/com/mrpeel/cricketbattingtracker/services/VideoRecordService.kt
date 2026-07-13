@@ -118,11 +118,52 @@ class VideoRecordService : Service(), LifecycleOwner {
             try {
                 val cameraProvider = cameraProviderFuture.get()
 
+                val cameraSelector = if (cameraFacing == "front") {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
+
+                // Resolve target FPS range from Camera Characteristics
+                var resolvedFpsRange = android.util.Range(30, targetFps)
+                try {
+                    val cameraInfo = cameraProvider.getAvailableCameraInfos()
+                        .firstOrNull { cameraSelector.filter(listOf(it)).isNotEmpty() }
+                    if (cameraInfo != null) {
+                        val camera2Info = androidx.camera.camera2.interop.Camera2CameraInfo.from(cameraInfo)
+                        val characteristics = camera2Info.getCameraCharacteristic(
+                            android.hardware.camera2.CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES
+                        )
+                        if (characteristics != null) {
+                            var bestRange: android.util.Range<Int>? = null
+                            for (range in characteristics) {
+                                if (range.upper == targetFps) {
+                                    if (bestRange == null || range.lower > bestRange.lower) {
+                                        bestRange = range
+                                    }
+                                }
+                            }
+                            if (bestRange != null) {
+                                resolvedFpsRange = bestRange
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to resolve camera target FPS ranges: ${e.message}")
+                }
+                Log.d(TAG, "Resolved target FPS range for capture: $resolvedFpsRange")
+
                 // Target FPS options. Under CameraX, target FPS behaves in Quality selector configurations.
-                // We order qualities depending on preference.
-                val qualitySelector = QualitySelector.fromOrderedList(
-                    listOf(Quality.FHD, Quality.HD, Quality.SD)
-                )
+                // We order qualities depending on preference. Favor HD (720p) first for 120fps support.
+                val qualitySelector = if (targetFps >= 120) {
+                    QualitySelector.fromOrderedList(
+                        listOf(Quality.HD, Quality.FHD, Quality.SD)
+                    )
+                } else {
+                    QualitySelector.fromOrderedList(
+                        listOf(Quality.FHD, Quality.HD, Quality.SD)
+                    )
+                }
                 val recorder = Recorder.Builder()
                     .setQualitySelector(qualitySelector)
                     .build()
@@ -132,7 +173,7 @@ class VideoRecordService : Service(), LifecycleOwner {
                 val camera2extender = androidx.camera.camera2.interop.Camera2Interop.Extender(videoCaptureBuilder)
                 camera2extender.setCaptureRequestOption(
                     android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                    android.util.Range(targetFps, targetFps)
+                    resolvedFpsRange
                 )
                 val videoCapture = videoCaptureBuilder.build()
 
@@ -151,12 +192,6 @@ class VideoRecordService : Service(), LifecycleOwner {
                     Log.d(TAG, "Bluetooth SCO not available — using phone mic")
                 }
 
-                val cameraSelector = if (cameraFacing == "front") {
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    CameraSelector.DEFAULT_BACK_CAMERA
-                }
-
                 cameraProvider.unbindAll()
                 val camera = cameraProvider.bindToLifecycle(
                     this,
@@ -167,13 +202,12 @@ class VideoRecordService : Service(), LifecycleOwner {
                 // Force high frame-rate request on the active camera session control
                 try {
                     val camera2Control = androidx.camera.camera2.interop.Camera2CameraControl.from(camera.cameraControl)
-                    val fpsRange = android.util.Range(targetFps, targetFps)
                     camera2Control.setCaptureRequestOptions(
                         androidx.camera.camera2.interop.CaptureRequestOptions.Builder()
-                            .setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+                            .setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, resolvedFpsRange)
                             .build()
                     )
-                    Log.d(TAG, "Forced CONTROL_AE_TARGET_FPS_RANGE to $targetFps on Camera2CameraControl")
+                    Log.d(TAG, "Forced CONTROL_AE_TARGET_FPS_RANGE to $resolvedFpsRange on Camera2CameraControl")
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to force FPS range on Camera2CameraControl: ${e.message}")
                 }

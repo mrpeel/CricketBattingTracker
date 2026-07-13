@@ -3166,15 +3166,18 @@ fun RecordingHistoryItem(file: java.io.File, context: Context) {
 
 @Composable
 fun VideoPlayerDialog(videoPath: String, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
             modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
-                .padding(16.dp)
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.65f)
+                .padding(8.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(12.dp),

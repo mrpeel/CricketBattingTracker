@@ -56,6 +56,11 @@ class DataSyncListenerService : WearableListenerService() {
                     val timestamp = dataMap.getLong("timestamp")
                     val eventsList = dataMap.getStringArray("events")
                     
+                    val watchToPhoneOffset = System.currentTimeMillis() - timestamp
+                    val prefs = getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                    prefs.edit().putLong("watch_to_phone_offset", watchToPhoneOffset).apply()
+                    Log.d(TAG, "Watch-to-Phone clock offset calibrated: ${watchToPhoneOffset}ms")
+                    
                     Log.d(TAG, "Received timeline sync: ${eventsList?.size} events")
                     if (eventsList != null) {
                         ingestTimeline(timestamp, eventsList)

@@ -223,9 +223,17 @@ object PolarSenseManager {
     }
 
     /** Connect to the paired device. */
-    fun connect() {
-        val deviceId = _pairedDeviceId.value ?: run {
-            Log.w(TAG, "No paired device ID")
+    fun connect(context: Context) {
+        var deviceId = _pairedDeviceId.value
+        if (deviceId == null) {
+            deviceId = kotlinx.coroutines.runBlocking {
+                context.polarDataStore.data.map { it[POLAR_DEVICE_ID_KEY] }.first()
+            }
+            _pairedDeviceId.value = deviceId
+        }
+
+        if (deviceId == null) {
+            Log.w(TAG, "No paired device ID found — cannot connect")
             return
         }
         val polarApi = api ?: return

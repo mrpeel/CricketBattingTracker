@@ -272,7 +272,14 @@ def pull_audio_from_phone(phone_id, dest_dir):
         print("⚠️ No audio files found automatically on the phone.")
         return None
         
-    print(f"Found {len(audio_files)} recordings on phone. Locating the most recent...")
+    print(f"Found {len(audio_files)} recordings on phone. Locating the most recent session file...")
+    ref_file = os.path.join(dest_dir, "WatchGyroscope.csv")
+    if not os.path.exists(ref_file):
+        ref_file = os.path.join(dest_dir, "WatchGyroscope.csv.gz")
+    if not os.path.exists(ref_file):
+        ref_file = dest_dir
+    session_time = int(os.path.getmtime(ref_file))
+
     newest_file = None
     newest_time = 0
     for f in audio_files:
@@ -281,6 +288,9 @@ def pull_audio_from_phone(phone_id, dest_dir):
         if res.returncode == 0 and res.stdout.strip():
             try:
                 mtime = int(res.stdout.strip())
+                # Ignore files not recorded within 30 minutes of the session
+                if abs(mtime - session_time) > 1800:
+                    continue
                 if mtime > newest_time:
                     newest_time = mtime
                     newest_file = f
@@ -288,6 +298,7 @@ def pull_audio_from_phone(phone_id, dest_dir):
                 pass
                 
     if not newest_file:
+        print("ℹ️ No recent voice recording matching this session was found on the phone.")
         return None
         
     local_name = os.path.basename(newest_file)

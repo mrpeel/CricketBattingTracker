@@ -36,7 +36,8 @@ object VideoClippingEngine {
             return
         }
 
-        Log.d(TAG, "Starting video clipping for innings $inningsId. Video: $videoPath, Start: $startEpoch")
+        val watchToPhoneOffset = prefs.getLong("watch_to_phone_offset", 0L)
+        Log.d(TAG, "Starting video clipping for innings $inningsId. Video: $videoPath, Start: $startEpoch, Clock Offset: ${watchToPhoneOffset}ms")
 
         val database = AppDatabase.getDatabase(context)
         val dao = database.inningsEventDao()
@@ -53,9 +54,8 @@ object VideoClippingEngine {
         clipsDir.mkdirs()
 
         for ((index, shot) in shots.withIndex()) {
-            // Calculate starting time of shot relative to video start
-            // Shot timestamp is wall-clock time of impact.
-            val impactTimeRelMs = shot.timestamp - startEpoch
+            // Calculate starting time of shot relative to video start using watch-phone clock sync
+            val impactTimeRelMs = (shot.timestamp + watchToPhoneOffset) - startEpoch
             if (impactTimeRelMs < 0) {
                 Log.w(TAG, "Shot #${index + 1} timestamp is before video start. Skipping.")
                 continue

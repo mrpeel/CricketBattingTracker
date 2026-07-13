@@ -46,7 +46,7 @@ class PolarSenseService : Service() {
                 startForegroundWithNotification()
                 startCsvWriting()
                 PolarSenseManager.initialize(this)
-                PolarSenseManager.connect()
+                PolarSenseManager.connect(this)
             }
             ACTION_STOP -> {
                 stopCsvWriting()
@@ -59,7 +59,7 @@ class PolarSenseService : Service() {
                 startForegroundWithNotification()
                 startCsvWriting()
                 PolarSenseManager.initialize(this)
-                PolarSenseManager.connect()
+                PolarSenseManager.connect(this)
             }
         }
         return START_STICKY
