@@ -77,11 +77,13 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Result**: Gradle `assembleDebug` successfully compiles, and video setup settings cleanly hook E2E into the CameraX provider lifecycle.
 
 80. **Polar Sense Bottom Hand Refinement and Magnetometer Integration (July 13, 2026)**:
-    *   **The Problem**: Shot classification and bat speed metrics were generated solely based on top-hand (watch) dynamics, ignoring valuable bottom-hand telemetry. Additionally, Polar Sense magnetometer readings were uncaptured.
+    *   **The Problem**: Shot classification and bat speed metrics were generated solely based on top-hand (watch) dynamics, ignoring bottom-hand telemetry. Additionally, Polar Sense magnetometer readings were uncaptured, and today's session saved empty files because `PolarSenseService` connected to the sensor but never started the data streams.
     *   **The Solution**:
         *   Enabled 52Hz magnetometer streaming in `PolarSenseManager` and saved telemetry to `PolarMagnetometer.csv`.
+        *   Resolved the auto-streaming bug by adding a check inside `bleSdkFeatureReady` to trigger `startStreaming()` automatically once the SDK signals the `ONLINE_STREAMING` feature is ready.
         *   Added Python grid-search optimization pipeline (`optimize_shot_enhancement.py`) to determine optimal bottom-hand reclassification boundaries using ground-truth sessions, outputting them into generated Kotlin configuration classes.
         *   Refined shot types (e.g., reclassifying straight drives to power drives under bottom-hand dominance) and adjusted bat speed dynamically in `ShotEnhancementEngine`.
         *   Updated Room DB schema to version 9 (migration `MIGRATION_8_9`) to store magnetometer metrics, and enhanced UI badges to display dominance and release timing.
-    *   **Result**: Automated grid search successfully compiles and runs, generating valid thresholds, and the companion app supports robust dual-sensor biomechanics.
+    *   **Result**: Automated grid search successfully compiles and runs, generating valid thresholds, and the companion app supports robust dual-sensor biomechanics with streaming verified end-to-end.
+
 
