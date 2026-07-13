@@ -1559,9 +1559,6 @@ def main():
     aligned_csv_path = os.path.join(session_dir, "ground_truth_aligned.csv")
     df_aligned.to_csv(aligned_csv_path, index=False)
     print(f"\n✅ Ground-truth aligned file saved: {aligned_csv_path}")
-
-    # Enrich aligned shots with Polar Sense bottom-hand biomechanics features
-    add_polar_features_to_aligned_shots(session_dir)
     
     # 7. Extract training segments (6-second window around each impact)
     df_accel = pd.read_csv(accel_path)
@@ -1581,6 +1578,9 @@ def main():
     # Overwrite the CSV with new columns
     df_aligned.to_csv(aligned_csv_path, index=False)
     print(f"✅ Updated aligned file with angle stats: {aligned_csv_path}")
+
+    # Enrich aligned shots with Polar Sense bottom-hand biomechanics features
+    add_polar_features_to_aligned_shots(session_dir)
         
     steps_path = resolve_sensor_path(session_dir, "WatchSteps.csv")
     if os.path.exists(steps_path):
@@ -1908,9 +1908,9 @@ def add_polar_features_to_aligned_shots(session_dir):
         print("⚠️ ground_truth_aligned.csv not found. Skipping Polar feature extraction.")
         return
 
-    # 1. Discover Polar ACC and GYRO CSV files
-    polar_acc_files = sorted(glob.glob(os.path.join(polar_dir, "*ACC*.csv*")))
-    polar_gyro_files = sorted(glob.glob(os.path.join(polar_dir, "*GYRO*.csv*")))
+    # 1. Discover Polar ACC and GYRO CSV files (case-insensitive globbing)
+    polar_acc_files = sorted(glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")))
+    polar_gyro_files = sorted(glob.glob(os.path.join(polar_dir, "*[gG][yY][rR][oO]*.csv*")))
 
     if not polar_acc_files and not polar_gyro_files:
         print("⚠️ No Polar ACC or GYRO data files found in PolarSense/. Skipping.")

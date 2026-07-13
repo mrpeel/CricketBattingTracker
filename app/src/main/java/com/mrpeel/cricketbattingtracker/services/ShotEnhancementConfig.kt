@@ -8,9 +8,9 @@ object ShotEnhancementConfig {
     const val DRIVE_TO_POWER_GYRO_RATIO = 1.3500f
     const val DRIVE_TO_POWER_ACC_PEAK = 25.0000f
 
-    const val FLICK_TO_GUIDE_GYRO_RATIO = 0.6000f
-    const val FLICK_TO_GUIDE_GYRO_PEAK = 6.0000f
+    const val FLICK_TO_GUIDE_GYRO_RATIO = 0.3000f
+    const val FLICK_TO_GUIDE_GYRO_PEAK = 3.0000f
 
-    const val PULL_TO_SLOG_GYRO_RATIO = 1.6000f
-    const val PULL_TO_SLOG_GYRO_PEAK = 14.0000f
+    const val PULL_TO_SLOG_GYRO_RATIO = 1.1000f
+    const val PULL_TO_SLOG_GYRO_PEAK = 8.0000f
 }
