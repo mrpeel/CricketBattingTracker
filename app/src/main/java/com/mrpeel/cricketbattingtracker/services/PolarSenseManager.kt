@@ -126,7 +126,7 @@ object PolarSenseManager {
 
             override fun bleSdkFeatureReady(identifier: String, feature: PolarBleApi.PolarBleSdkFeature) {
                 Log.d(TAG, "Feature ready: $feature for $identifier")
-                if (feature == PolarBleApi.PolarBleSdkFeature.ONLINE_STREAMING) {
+                if (feature == PolarBleApi.PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING) {
                     Log.d(TAG, "ONLINE_STREAMING ready — auto-starting stream")
                     startStreaming()
                 }
