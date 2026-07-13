@@ -292,15 +292,12 @@ object PolarSenseManager {
     }
 
     private fun startAccStream(deviceId: String, polarApi: PolarBleApi) {
-        val settings = PolarSensorSetting(
-            mapOf(
-                PolarSensorSetting.SettingType.SAMPLE_RATE to 52,
-                PolarSensorSetting.SettingType.RANGE to 8,
-                PolarSensorSetting.SettingType.RESOLUTION to 16
-            )
-        )
-
-        accDisposable = polarApi.startAccStreaming(deviceId, settings)
+        accDisposable = polarApi.requestStreamSettings(deviceId, PolarBleApi.PolarDeviceDataType.ACC)
+            .flatMapPublisher { settings ->
+                val maxSettings = settings.maxSettings()
+                Log.d(TAG, "Starting ACC stream with settings: $maxSettings")
+                polarApi.startAccStreaming(deviceId, maxSettings)
+            }
             .subscribe(
                 { data: PolarAccelerometerData ->
                     val phoneMs = System.currentTimeMillis()
@@ -314,19 +311,16 @@ object PolarSenseManager {
                     Log.e(TAG, "ACC stream error: ${error.message}", error)
                 }
             )
-        Log.d(TAG, "ACC stream started at 52Hz")
+        Log.d(TAG, "ACC stream subscription requested")
     }
 
     private fun startGyroStream(deviceId: String, polarApi: PolarBleApi) {
-        val settings = PolarSensorSetting(
-            mapOf(
-                PolarSensorSetting.SettingType.SAMPLE_RATE to 52,
-                PolarSensorSetting.SettingType.RANGE to 2000,
-                PolarSensorSetting.SettingType.RESOLUTION to 16
-            )
-        )
-
-        gyroDisposable = polarApi.startGyroStreaming(deviceId, settings)
+        gyroDisposable = polarApi.requestStreamSettings(deviceId, PolarBleApi.PolarDeviceDataType.GYRO)
+            .flatMapPublisher { settings ->
+                val maxSettings = settings.maxSettings()
+                Log.d(TAG, "Starting GYRO stream with settings: $maxSettings")
+                polarApi.startGyroStreaming(deviceId, maxSettings)
+            }
             .subscribe(
                 { data: PolarGyroData ->
                     val phoneMs = System.currentTimeMillis()
@@ -338,17 +332,16 @@ object PolarSenseManager {
                     Log.e(TAG, "GYRO stream error: ${error.message}", error)
                 }
             )
-        Log.d(TAG, "GYRO stream started at 52Hz")
+        Log.d(TAG, "GYRO stream subscription requested")
     }
 
     private fun startMagStream(deviceId: String, polarApi: PolarBleApi) {
-        val settings = PolarSensorSetting(
-            mapOf(
-                PolarSensorSetting.SettingType.SAMPLE_RATE to 52
-            )
-        )
-
-        magDisposable = polarApi.startMagnetometerStreaming(deviceId, settings)
+        magDisposable = polarApi.requestStreamSettings(deviceId, PolarBleApi.PolarDeviceDataType.MAGNETOMETER)
+            .flatMapPublisher { settings ->
+                val maxSettings = settings.maxSettings()
+                Log.d(TAG, "Starting MAG stream with settings: $maxSettings")
+                polarApi.startMagnetometerStreaming(deviceId, maxSettings)
+            }
             .subscribe(
                 { data: PolarMagnetometerData ->
                     val phoneMs = System.currentTimeMillis()
@@ -360,7 +353,7 @@ object PolarSenseManager {
                     Log.e(TAG, "MAG stream error: ${error.message}", error)
                 }
             )
-        Log.d(TAG, "MAG stream started at 52Hz")
+        Log.d(TAG, "MAG stream subscription requested")
     }
 
     /** Stop all streams and exit SDK Mode. */

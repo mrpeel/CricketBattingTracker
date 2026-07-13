@@ -2749,7 +2749,7 @@ fun PolarPairingScreen(
                             Button(
                                 onClick = {
                                     if (connectionState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.DISCONNECTED) {
-                                        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.connect()
+                                        com.mrpeel.cricketbattingtracker.services.PolarSenseManager.connect(context)
                                     } else {
                                         com.mrpeel.cricketbattingtracker.services.PolarSenseManager.disconnect()
                                     }
