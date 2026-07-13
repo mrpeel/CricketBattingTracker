@@ -13,6 +13,7 @@ import com.polar.sdk.api.PolarBleApiDefaultImpl
 import com.polar.sdk.api.model.PolarDeviceInfo
 import com.polar.sdk.api.model.PolarAccelerometerData
 import com.polar.sdk.api.model.PolarGyroData
+import com.polar.sdk.api.model.PolarMagnetometerData
 import com.polar.sdk.api.model.PolarSensorSetting
 import io.reactivex.rxjava3.disposables.Disposable
 import kotlinx.coroutines.CoroutineScope
@@ -57,6 +58,7 @@ object PolarSenseManager {
     private var api: PolarBleApi? = null
     private var accDisposable: Disposable? = null
     private var gyroDisposable: Disposable? = null
+    private var magDisposable: Disposable? = null
     private var scanDisposable: Disposable? = null
     private var sdkModeEnabled = false
 
@@ -90,6 +92,7 @@ object PolarSenseManager {
     // Callback for CSV writing — set by PolarSenseService
     var onAccSample: ((phoneMs: Long, sensorNs: Long, xMg: Int, yMg: Int, zMg: Int) -> Unit)? = null
     var onGyroSample: ((phoneMs: Long, sensorNs: Long, xDps: Float, yDps: Float, zDps: Float) -> Unit)? = null
+    var onMagSample: ((phoneMs: Long, sensorNs: Long, xUt: Float, yUt: Float, zUt: Float) -> Unit)? = null
 
     /** Initialize the Polar BLE API. Call once from Application or Service context. */
     fun initialize(context: Context) {
@@ -262,6 +265,7 @@ object PolarSenseManager {
                     Log.d(TAG, "SDK Mode enabled — starting streams")
                     startAccStream(deviceId, polarApi)
                     startGyroStream(deviceId, polarApi)
+                    startMagStream(deviceId, polarApi)
                     _connectionState.value = PolarConnectionState.STREAMING
                 },
                 { error ->
@@ -269,6 +273,7 @@ object PolarSenseManager {
                     // Fall back to default streaming without SDK Mode
                     startAccStream(deviceId, polarApi)
                     startGyroStream(deviceId, polarApi)
+                    startMagStream(deviceId, polarApi)
                     _connectionState.value = PolarConnectionState.STREAMING
                 }
             )
@@ -324,12 +329,36 @@ object PolarSenseManager {
         Log.d(TAG, "GYRO stream started at 52Hz")
     }
 
+    private fun startMagStream(deviceId: String, polarApi: PolarBleApi) {
+        val settings = PolarSensorSetting(
+            mapOf(
+                PolarSensorSetting.SettingType.SAMPLE_RATE to 52
+            )
+        )
+
+        magDisposable = polarApi.startMagnetometerStreaming(deviceId, settings)
+            .subscribe(
+                { data: PolarMagnetometerData ->
+                    val phoneMs = System.currentTimeMillis()
+                    for (sample in data.samples) {
+                        onMagSample?.invoke(phoneMs, sample.timeStamp, sample.x, sample.y, sample.z)
+                    }
+                },
+                { error ->
+                    Log.e(TAG, "MAG stream error: ${error.message}", error)
+                }
+            )
+        Log.d(TAG, "MAG stream started at 52Hz")
+    }
+
     /** Stop all streams and exit SDK Mode. */
     fun stopStreaming() {
         accDisposable?.dispose()
         accDisposable = null
         gyroDisposable?.dispose()
         gyroDisposable = null
+        magDisposable?.dispose()
+        magDisposable = null
 
         if (sdkModeEnabled) {
             val deviceId = _pairedDeviceId.value

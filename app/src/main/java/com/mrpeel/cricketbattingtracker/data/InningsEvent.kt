@@ -36,6 +36,13 @@ data class InningsEvent(
     val bottom_hand_time_lead_ms: Long? = null,     // Lag between top and bottom hand peaks (ms)
     val bottom_hand_sync_score: Float? = null,      // Hand synchronization quality score (0-100)
 
+    // Bottom hand magnetometer features
+    val bottom_hand_mag_peak: Float? = null,   // Peak magnetometer magnitude in window
+    val bottom_hand_mag_delta: Float? = null,  // Max - Min magnetometer magnitude in window
+    val bottom_hand_mag_x: Float? = null,      // Mag X value at impact time
+    val bottom_hand_mag_y: Float? = null,      // Mag Y value at impact time
+    val bottom_hand_mag_z: Float? = null,      // Mag Z value at impact time
+
     // Watch SwingFeatures (stored for future re-classification)
     val swing_feature_s1_gyro_y_std: Float? = null,
     val swing_feature_s1_gyro_z_std: Float? = null,
@@ -106,6 +113,28 @@ interface InningsEventDao {
     suspend fun updateBottomHandMetrics(
         eventId: Int, gyroPeak: Float, accPeak: Float,
         gyroRatio: Float, accRatio: Float, timeLeadMs: Long, syncScore: Float
+    )
+
+    @Query("""UPDATE innings_events SET 
+        bottom_hand_gyro_peak = :gyroPeak, 
+        bottom_hand_acc_peak = :accPeak, 
+        bottom_hand_gyro_ratio = :gyroRatio, 
+        bottom_hand_acc_ratio = :accRatio, 
+        bottom_hand_time_lead_ms = :timeLeadMs, 
+        bottom_hand_sync_score = :syncScore,
+        bottom_hand_mag_peak = :magPeak,
+        bottom_hand_mag_delta = :magDelta,
+        bottom_hand_mag_x = :magX,
+        bottom_hand_mag_y = :magY,
+        bottom_hand_mag_z = :magZ,
+        shotType = :refinedShotType,
+        batSpeed = :refinedSpeedKmh
+        WHERE id = :eventId""")
+    suspend fun updateBottomHandMetricsAndRefinement(
+        eventId: Int, gyroPeak: Float, accPeak: Float,
+        gyroRatio: Float, accRatio: Float, timeLeadMs: Long, syncScore: Float,
+        magPeak: Float, magDelta: Float, magX: Float, magY: Float, magZ: Float,
+        refinedShotType: String, refinedSpeedKmh: Float
     )
     
     @Query("UPDATE innings_events SET videoFilePath = :videoFilePath WHERE id = :eventId")

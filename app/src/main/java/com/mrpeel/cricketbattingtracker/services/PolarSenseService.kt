@@ -32,6 +32,7 @@ class PolarSenseService : Service() {
 
     private var accWriter: BufferedWriter? = null
     private var gyroWriter: BufferedWriter? = null
+    private var magWriter: BufferedWriter? = null
     private var sessionDir: File? = null
 
     override fun onCreate() {
@@ -82,6 +83,12 @@ class PolarSenseService : Service() {
         gyroWriter?.write("Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]")
         gyroWriter?.newLine()
 
+        // MAG CSV — semicolon-delimited
+        val magFile = File(dir, "PolarMagnetometer.csv")
+        magWriter = BufferedWriter(FileWriter(magFile))
+        magWriter?.write("Phone timestamp;sensor timestamp [ns];X [uT];Y [uT];Z [uT]")
+        magWriter?.newLine()
+
         // Wire up callbacks from PolarSenseManager
         PolarSenseManager.onAccSample = { phoneMs, sensorNs, x, y, z ->
             try {
@@ -103,12 +110,23 @@ class PolarSenseService : Service() {
             }
         }
 
+        PolarSenseManager.onMagSample = { phoneMs, sensorNs, x, y, z ->
+            try {
+                val phoneTs = formatPhoneTimestamp(phoneMs)
+                magWriter?.write("$phoneTs;$sensorNs;${String.format(Locale.US, "%.6f", x)};${String.format(Locale.US, "%.6f", y)};${String.format(Locale.US, "%.6f", z)}")
+                magWriter?.newLine()
+            } catch (e: Exception) {
+                Log.e(TAG, "MAG write error: ${e.message}")
+            }
+        }
+
         Log.d(TAG, "CSV writers opened: $dir")
     }
 
     private fun stopCsvWriting() {
         PolarSenseManager.onAccSample = null
         PolarSenseManager.onGyroSample = null
+        PolarSenseManager.onMagSample = null
 
         try {
             accWriter?.flush()
@@ -125,6 +143,14 @@ class PolarSenseService : Service() {
             Log.e(TAG, "Error closing GYRO writer: ${e.message}")
         }
         gyroWriter = null
+
+        try {
+            magWriter?.flush()
+            magWriter?.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing MAG writer: ${e.message}")
+        }
+        magWriter = null
 
         Log.d(TAG, "CSV writers closed. Session dir: ${sessionDir?.absolutePath}")
     }

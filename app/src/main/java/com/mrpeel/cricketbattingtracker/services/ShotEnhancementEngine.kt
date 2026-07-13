@@ -68,6 +68,7 @@ object ShotEnhancementEngine {
         // Step 3: Load Polar sensor data
         val polarAcc = loadPolarCsv(polarDir, "PolarAccelerometer")
         val polarGyro = loadPolarCsv(polarDir, "PolarGyroscope")
+        val polarMag = loadPolarCsv(polarDir, "PolarMagnetometer")
 
         if (polarAcc.isEmpty()) {
             Log.w(TAG, "No Polar ACC data loaded — skipping enhancement")
@@ -88,12 +89,23 @@ object ShotEnhancementEngine {
 
             val accWindow = extractWindow(polarAcc, polarTimeMs, 1000L) // ±1s
             val gyroWindow = extractWindow(polarGyro, polarTimeMs, 1000L)
+            val magWindow = extractWindow(polarMag, polarTimeMs, 1000L)
 
             if (accWindow.isEmpty()) continue
 
             // Compute bottom-hand metrics
             val polarAccPeak = accWindow.maxOf { it.magnitude }
             val polarGyroPeak = if (gyroWindow.isNotEmpty()) gyroWindow.maxOf { it.magnitude } else 0f
+
+            // Compute magnetometer metrics
+            val polarMagPeak = if (magWindow.isNotEmpty()) magWindow.maxOf { it.magnitude } else 0f
+            val polarMagMin = if (magWindow.isNotEmpty()) magWindow.minOf { it.magnitude } else 0f
+            val polarMagDelta = polarMagPeak - polarMagMin
+
+            val impactMagSample = magWindow.minByOrNull { abs(it.timestampMs - polarTimeMs) }
+            val magX = impactMagSample?.x ?: 0f
+            val magY = impactMagSample?.y ?: 0f
+            val magZ = impactMagSample?.z ?: 0f
 
             // Watch peaks (from existing event data)
             val watchAccPeak = event.impactForce ?: 0f  // stored as peak accel
@@ -111,14 +123,41 @@ object ShotEnhancementEngine {
             val ratioPenalty = min(1.0f, abs(gyroRatio - 1.0f))  // 0 at 1.0, 1.0 at 0.0 or 2.0
             val syncScore = ((1.0f - timePenalty * 0.6f - ratioPenalty * 0.4f) * 100f).coerceIn(0f, 100f)
 
-            dao.updateBottomHandMetrics(
+            // Refine Shot Classification
+            var refinedShotType = event.shotType
+            if (refinedShotType == "DRIVE/DEFENCE") {
+                if (gyroRatio > ShotEnhancementConfig.DRIVE_TO_POWER_GYRO_RATIO && polarAccPeak > ShotEnhancementConfig.DRIVE_TO_POWER_ACC_PEAK) {
+                    refinedShotType = "POWER DRIVE"
+                }
+            } else if (refinedShotType == "GLANCE/FLICK") {
+                if (gyroRatio < ShotEnhancementConfig.FLICK_TO_GUIDE_GYRO_RATIO && polarGyroPeak < ShotEnhancementConfig.FLICK_TO_GUIDE_GYRO_PEAK) {
+                    refinedShotType = "DEFLECTION/GUIDE"
+                }
+            } else if (refinedShotType == "PULL/HOOK") {
+                if (gyroRatio > ShotEnhancementConfig.PULL_TO_SLOG_GYRO_RATIO && polarGyroPeak > ShotEnhancementConfig.PULL_TO_SLOG_GYRO_PEAK) {
+                    refinedShotType = "SLOG"
+                }
+            }
+
+            // Refine Bat Speed (adjust by up to 25% based on bottom-hand acceleration ratio and dominance)
+            val originalSpeed = event.batSpeed ?: 0f
+            val refinedSpeed = (originalSpeed * (1.0f + (gyroRatio - 1.0f) * 0.15f)).coerceIn(originalSpeed * 0.8f, originalSpeed * 1.25f)
+
+            dao.updateBottomHandMetricsAndRefinement(
                 eventId = event.id,
                 gyroPeak = polarGyroPeak,
                 accPeak = polarAccPeak,
                 gyroRatio = gyroRatio,
                 accRatio = accRatio,
                 timeLeadMs = timeLeadMs,
-                syncScore = syncScore
+                syncScore = syncScore,
+                magPeak = polarMagPeak,
+                magDelta = polarMagDelta,
+                magX = magX,
+                magY = magY,
+                magZ = magZ,
+                refinedShotType = refinedShotType,
+                refinedSpeedKmh = refinedSpeed
             )
             enhanced++
         }

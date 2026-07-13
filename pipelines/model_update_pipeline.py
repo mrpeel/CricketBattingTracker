@@ -234,6 +234,9 @@ def main():
 
     # 1. Compile updated dataset (real sessions + augmented synthetic rows)
     run_script(os.path.join(ROOT_DIR, "pipelines/compile_dataset.py"))
+
+    # 1.5. Optimize bottom-hand enhancement thresholds
+    run_script(os.path.join(ROOT_DIR, "pipelines/optimize_shot_enhancement.py"))
     
     # 2. Run Wear OS unit tests to evaluate the existing model against the updated dataset
     print("⏳ Evaluating existing model against the updated dataset...")

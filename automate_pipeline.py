@@ -161,6 +161,36 @@ def append_to_combined_parquet(session_dir, parquet_dir):
         except Exception as e:
             print(f"  ❌ Error appending {name}: {e}")
             
+    # Also append Polar Sense sensor data if present
+    polar_dir = os.path.join(session_dir, "PolarSense")
+    polar_mappings = [
+        ("PolarAccelerometer", "PolarAccelerometer.csv"),
+        ("PolarGyroscope",     "PolarGyroscope.csv"),
+        ("PolarMagnetometer",  "PolarMagnetometer.csv")
+    ]
+    if os.path.isdir(polar_dir):
+        for name, fname in polar_mappings:
+            csv_path = os.path.join(polar_dir, fname)
+            gz_path = csv_path + ".gz"
+            path_to_load = gz_path if os.path.exists(gz_path) else (csv_path if os.path.exists(csv_path) else None)
+            if not path_to_load:
+                continue
+            try:
+                # Polar CSVs are semicolon-delimited
+                df = pd.read_csv(path_to_load, sep=';')
+                if len(df) == 0:
+                    continue
+                df['session_id'] = session_id
+                table = pa.Table.from_pandas(df, preserve_index=False)
+                sensor_type_dir = os.path.join(parquet_dir, f"sensor_type={name}")
+                os.makedirs(sensor_type_dir, exist_ok=True)
+                session_file = os.path.join(sensor_type_dir, f"{session_id}.parquet")
+                pq.write_table(table, session_file, compression='snappy')
+                appended_count += 1
+                print(f"  Appended {name} ({len(df)} rows)")
+            except Exception as e:
+                print(f"  ❌ Error appending Polar sensor {name}: {e}")
+            
     print(f"✅ Appended {appended_count} sensor datasets to Parquet database.")
 
 def check_adb_devices(watch_ip):

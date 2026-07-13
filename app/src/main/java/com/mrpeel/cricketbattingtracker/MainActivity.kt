@@ -2018,6 +2018,39 @@ fun TimelineItem(
                             Text("of top hand peak", fontSize = 8.sp, color = Color.Gray)
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    val gyroRatioVal = event.bottom_hand_gyro_ratio ?: 0f
+                    val dominanceText = when {
+                        gyroRatioVal > 1.15f -> "Bottom Hand Dominant (Power Whip)"
+                        gyroRatioVal < 0.85f -> "Top Hand Dominant (Control/Straight)"
+                        else -> "Balanced Dual-Hand Contribution"
+                    }
+                    val wristText = when {
+                        gyroRatioVal > 1.25f -> "Whippy / Active Bottom Hand Release"
+                        gyroRatioVal < 0.75f -> "Locked / Rigid Wrist Interface"
+                        else -> "Controlled Wrist Release"
+                    }
+                    val lead = event.bottom_hand_time_lead_ms ?: 0L
+                    val timingDetail = if (lead > 0) {
+                        "Bottom hand leads by ${lead}ms (Early Release)"
+                    } else if (lead < 0) {
+                        "Top hand leads by ${kotlin.math.abs(lead)}ms (Late Push)"
+                    } else {
+                        "Synchronous hand release (Perfect Timing)"
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White.copy(alpha = 0.03f), RoundedCornerShape(12.dp))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("• Contribution: $dominanceText", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                        Text("• Wrist Action: $wristText", fontSize = 9.sp, color = Color.Gray)
+                        Text("• Hand Release: $timingDetail", fontSize = 9.sp, color = Color.Gray)
+                    }
                 }
             }
         }
