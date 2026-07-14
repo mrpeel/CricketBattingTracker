@@ -51,6 +51,7 @@ class PolarSenseService : Service() {
             ACTION_STOP -> {
                 stopCsvWriting()
                 PolarSenseManager.stopStreaming()
+                PolarSenseManager.disconnect()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
@@ -198,6 +199,8 @@ class PolarSenseService : Service() {
 
     override fun onDestroy() {
         stopCsvWriting()
+        PolarSenseManager.stopStreaming()
+        PolarSenseManager.disconnect()
         super.onDestroy()
     }
 }

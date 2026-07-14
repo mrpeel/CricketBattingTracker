@@ -104,7 +104,7 @@ class MainActivity : ComponentActivity() {
                 android.util.Log.w("MainActivity", "Bluetooth connect permission denied; recording will fallback to built-in mic.")
             }
             com.mrpeel.cricketbattingtracker.services.AudioRecordManager.refreshRecordings(this)
-            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(this)
+            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(this, true)
         } else {
             android.util.Log.w("MainActivity", "Audio recording permission was denied.")
             Toast.makeText(this, "Microphone permission is required to record narration", Toast.LENGTH_LONG).show()
@@ -2484,14 +2484,14 @@ fun UnifiedConsoleCard(
                                 true
                             }
                             if (hasAudio && hasBt) {
-                                com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context)
+                                com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context, true)
                             } else {
                                 onRequestPermission()
                             }
                         } else {
                             // If only watch/polar tracking (no video, no audio)
                             // AudioRecordManager.startRecording() handles sending the watch start tracking message
-                            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context)
+                            com.mrpeel.cricketbattingtracker.services.AudioRecordManager.startRecording(context, false)
                         }
 
                         // Start Polar Sense streaming if enabled

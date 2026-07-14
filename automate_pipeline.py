@@ -1591,7 +1591,7 @@ def main():
     print(f"✅ Updated aligned file with angle stats: {aligned_csv_path}")
 
     # Enrich aligned shots with Polar Sense bottom-hand biomechanics features
-    add_polar_features_to_aligned_shots(session_dir)
+    add_polar_features_to_aligned_shots(session_dir, offset=offset, watch_start_epoch=watch_start_epoch)
         
     steps_path = resolve_sensor_path(session_dir, "WatchSteps.csv")
     if os.path.exists(steps_path):
@@ -1906,8 +1906,8 @@ def add_angle_stats_to_aligned_shots(df_aligned, df_orient):
     df_aligned['launch_class'] = launch_classes
     return df_aligned
 
-def add_polar_features_to_aligned_shots(session_dir):
-    """Align Polar Sense ACC/GYRO data with watch data via 5-tap sequences,
+def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_epoch=None):
+    """Align Polar Sense ACC/GYRO data with watch data via 5-tap sequences or phone timestamp fallback,
     then compute bottom-hand biomechanics features for each aligned shot."""
     polar_dir = os.path.join(session_dir, "PolarSense")
     if not os.path.isdir(polar_dir):
@@ -1939,11 +1939,19 @@ def add_polar_features_to_aligned_shots(session_dir):
                 df = pd.read_csv(fpath, sep=';')
                 if len(df.columns) >= 5:
                     df.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df.columns[5:])
+                    # Convert ISO 8601 string to UTC epoch seconds (adjusting for local timezone offset)
+                    local_offset = datetime.datetime.now().astimezone().utcoffset().total_seconds()
+                    dt = pd.to_datetime(df['phone_timestamp'], errors='coerce')
+                    valid_mask = dt.notna()
+                    df = df[valid_mask].copy()
+                    dt = dt[valid_mask]
+                    df['phone_timestamp'] = dt.map(lambda x: x.timestamp()) - local_offset
+                    
                     df['sensor_ns'] = pd.to_numeric(df['sensor_ns'], errors='coerce')
                     df['x'] = pd.to_numeric(df['x'], errors='coerce')
                     df['y'] = pd.to_numeric(df['y'], errors='coerce')
                     df['z'] = pd.to_numeric(df['z'], errors='coerce')
-                    df = df.dropna(subset=['sensor_ns', 'x', 'y', 'z'])
+                    df = df.dropna(subset=['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'])
                     frames.append(df)
             except Exception as e:
                 print(f"  ⚠️ Failed to load {os.path.basename(fpath)}: {e}")
@@ -2023,58 +2031,70 @@ def add_polar_features_to_aligned_shots(session_dir):
     print(f"  Watch tap sequences detected: {len(watch_tap_seqs)}")
     print(f"  Polar tap sequences detected: {len(polar_tap_seqs)}")
 
+    use_fallback = False
+    matched_pairs = []
+
     if not watch_tap_seqs or not polar_tap_seqs:
-        print("⚠️ No tap sequences found for Polar-Watch alignment. Skipping Polar features.")
-        return
-
-    # 5. Match sequences by inter-tap timing pattern
-    def inter_tap_pattern(seq):
-        return [seq[j+1] - seq[j] for j in range(len(seq)-1)]
-
-    matched_pairs = []  # (watch_seq, polar_seq)
-    used_polar = set()
-    for w_seq in watch_tap_seqs:
-        w_pattern = inter_tap_pattern(w_seq)
-        best_match = None
-        best_score = float('inf')
-        for p_idx, p_seq in enumerate(polar_tap_seqs):
-            if p_idx in used_polar:
-                continue
-            p_pattern = inter_tap_pattern(p_seq)
-            # Score = sum of absolute differences in inter-tap intervals
-            score = sum(abs(w - p) for w, p in zip(w_pattern, p_pattern))
-            if score < best_score:
-                best_score = score
-                best_match = (p_idx, p_seq)
-        # Accept match if cumulative pattern error < 1.0s total
-        if best_match is not None and best_score < 1.0:
-            matched_pairs.append((w_seq, best_match[1]))
-            used_polar.add(best_match[0])
-
-    if not matched_pairs:
-        print("⚠️ No tap sequence matches found between watch and Polar. Skipping Polar features.")
-        return
-
-    print(f"  Matched {len(matched_pairs)} tap sequence pair(s).")
-    for idx, (w_seq, p_seq) in enumerate(matched_pairs):
-        print(f"    Pair {idx+1}: Watch [{', '.join(f'{t:.2f}s' for t in w_seq)}] ↔ Polar [{', '.join(f'{t:.2f}s' for t in p_seq)}]")
-
-    # 6. Compute linear alignment (watch_time → polar_time)
-    if len(matched_pairs) >= 2:
-        x_pts = [w_seq[0] for w_seq, _ in matched_pairs]
-        y_pts = [p_seq[0] for _, p_seq in matched_pairs]
-        x_arr = np.array(x_pts)
-        y_arr = np.array(y_pts)
-        slope, intercept = np.polyfit(x_arr, y_arr, 1)
-        polar_drift_rate = slope - 1.0
-        polar_offset = intercept
-        print(f"  🎯 Multi-Point Polar Alignment: offset={polar_offset:+.3f}s, drift={polar_drift_rate:+.7f}")
+        use_fallback = True
     else:
-        polar_offset = matched_pairs[0][1][0] - matched_pairs[0][0][0]
-        polar_drift_rate = 0.0
-        slope = 1.0
-        intercept = polar_offset
-        print(f"  🎯 Single-Point Polar Alignment: offset={polar_offset:+.3f}s (drift forced to 0.0)")
+        # 5. Match sequences by inter-tap timing pattern
+        def inter_tap_pattern(seq):
+            return [seq[j+1] - seq[j] for j in range(len(seq)-1)]
+
+        used_polar = set()
+        for w_seq in watch_tap_seqs:
+            w_pattern = inter_tap_pattern(w_seq)
+            best_match = None
+            best_score = float('inf')
+            for p_idx, p_seq in enumerate(polar_tap_seqs):
+                if p_idx in used_polar:
+                    continue
+                p_pattern = inter_tap_pattern(p_seq)
+                # Score = sum of absolute differences in inter-tap intervals
+                score = sum(abs(w - p) for w, p in zip(w_pattern, p_pattern))
+                if score < best_score:
+                    best_score = score
+                    best_match = (p_idx, p_seq)
+            # Accept match if cumulative pattern error < 1.0s total
+            if best_match is not None and best_score < 1.0:
+                matched_pairs.append((w_seq, best_match[1]))
+                used_polar.add(best_match[0])
+        
+        if not matched_pairs:
+            use_fallback = True
+
+    if use_fallback:
+        if offset is not None and watch_start_epoch is not None:
+            polar_t0_phone = df_polar_acc['phone_timestamp'].iloc[0]
+            polar_drift_rate = 0.0
+            polar_offset = watch_start_epoch - offset - polar_t0_phone
+            slope = 1.0
+            intercept = polar_offset
+            print(f"  ⚠️ No tap sequence matches found. Falling back to phone-timestamp alignment: offset {polar_offset:+.3f}s")
+        else:
+            print("⚠️ No tap sequences found for Polar-Watch alignment and no clock offset available. Skipping.")
+            return
+    else:
+        print(f"  Matched {len(matched_pairs)} tap sequence pair(s).")
+        for idx, (w_seq, p_seq) in enumerate(matched_pairs):
+            print(f"    Pair {idx+1}: Watch [{', '.join(f'{t:.2f}s' for t in w_seq)}] ↔ Polar [{', '.join(f'{t:.2f}s' for t in p_seq)}]")
+
+        # 6. Compute linear alignment (watch_time → polar_time)
+        if len(matched_pairs) >= 2:
+            x_pts = [w_seq[0] for w_seq, _ in matched_pairs]
+            y_pts = [p_seq[0] for _, p_seq in matched_pairs]
+            x_arr = np.array(x_pts)
+            y_arr = np.array(y_pts)
+            slope, intercept = np.polyfit(x_arr, y_arr, 1)
+            polar_drift_rate = slope - 1.0
+            polar_offset = intercept
+            print(f"  🎯 Multi-Point Polar Alignment: offset={polar_offset:+.3f}s, drift={polar_drift_rate:+.7f}")
+        else:
+            polar_offset = matched_pairs[0][1][0] - matched_pairs[0][0][0]
+            polar_drift_rate = 0.0
+            slope = 1.0
+            intercept = polar_offset
+            print(f"  🎯 Single-Point Polar Alignment: offset={polar_offset:+.3f}s (drift forced to 0.0)")
 
     def watch_to_polar_time(watch_t):
         return watch_t * slope + intercept

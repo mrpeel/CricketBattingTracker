@@ -43,23 +43,27 @@ object AudioRecordManager {
         _maxAmplitude.value = amplitude
     }
 
-    fun startRecording(context: Context) {
+    fun startRecording(context: Context, recordAudio: Boolean) {
         if (_isRecording.value) return
 
-        val intent = Intent(context, AudioRecordService::class.java).apply {
-            action = AudioRecordService.ACTION_START
-        }
-
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+        if (recordAudio) {
+            val intent = Intent(context, AudioRecordService::class.java).apply {
+                action = AudioRecordService.ACTION_START
             }
-            sendMessageToWatch(context, "/start_tracking")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start recording service: ${e.message}", e)
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start recording service: ${e.message}", e)
+            }
+        } else {
+            // No audio recording, just mark active tracking session
+            updateRecordingState(true)
         }
+        sendMessageToWatch(context, "/start_tracking")
     }
 
     fun stopRecording(context: Context) {
@@ -67,6 +71,7 @@ object AudioRecordManager {
             action = AudioRecordService.ACTION_STOP
         }
         context.startService(intent)
+        updateRecordingState(false) // Safe fallback if service wasn't running
         sendMessageToWatch(context, "/stop_tracking")
     }
 
@@ -75,6 +80,7 @@ object AudioRecordManager {
             action = AudioRecordService.ACTION_DISCARD
         }
         context.startService(intent)
+        updateRecordingState(false) // Safe fallback if service wasn't running
         sendMessageToWatch(context, "/stop_tracking")
     }
 
