@@ -146,8 +146,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     composable("start") {
                         StartSessionScreen(
-                            onStartClick = { isDebug ->
-                                startTrackerService(isDebug)
+                            onStartClick = {
+                                startTrackerService(true)
                                 navController.navigate("data_recording")
                             }
                         )

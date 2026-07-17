@@ -18,10 +18,8 @@ import com.mrpeel.cricketbattingtracker.ui.theme.*
 
 @Composable
 fun StartSessionScreen(
-    onStartClick: (Boolean) -> Unit
+    onStartClick: () -> Unit
 ) {
-    var isDebugChecked by remember { mutableStateOf(false) }
-    
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -68,30 +66,11 @@ fun StartSessionScreen(
                 letterSpacing = 1.5.sp
             )
                 
-            Spacer(modifier = Modifier.height(10.dp))
-            
-            Chip(
-                onClick = { isDebugChecked = !isDebugChecked },
-                label = { Text("DIAGNOSTICS", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold) },
-                icon = {
-                    Icon(
-                        imageVector = ToggleChipDefaults.switchIcon(checked = isDebugChecked),
-                        contentDescription = null,
-                        tint = if (isDebugChecked) Color(0xFF58FF63) else Color.Gray,
-                        modifier = Modifier.size(14.dp)
-                    )
-                },
-                colors = ChipDefaults.chipColors(
-                    backgroundColor = Color.White.copy(alpha = 0.05f)
-                ),
-                modifier = Modifier.fillMaxWidth(0.85f).height(38.dp)
-            )
-                
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(18.dp))
             
             // Primary Action
             Button(
-                onClick = { onStartClick(isDebugChecked) },
+                onClick = { onStartClick() },
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = Color(0xFF58FF63),
                     contentColor = Color(0xFF000C1B)
