@@ -278,7 +278,22 @@ def pull_audio_from_phone(phone_id, dest_dir):
         ref_file = os.path.join(dest_dir, "WatchGyroscope.csv.gz")
     if not os.path.exists(ref_file):
         ref_file = dest_dir
-    session_time = int(os.path.getmtime(ref_file))
+    # Try to parse the session start time from the session directory name
+    # (e.g., session-2026-07-17_12-30-41)
+    session_name = os.path.basename(dest_dir)
+    session_time = None
+    match = re.match(r"session-(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})", session_name)
+    if match:
+        try:
+            dt = datetime.datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
+            session_time = int(dt.timestamp())
+            print(f"🕒 Parsed session start time from directory name: {dt} (timestamp: {session_time})")
+        except Exception as e:
+            print(f"⚠️ Failed to parse session start time from directory name: {e}")
+
+    if session_time is None:
+        session_time = int(os.path.getmtime(ref_file))
+
 
     newest_file = None
     newest_time = 0
