@@ -493,30 +493,124 @@ class DataSyncListenerService : WearableListenerService() {
                 Log.e(TAG, "Failed syncing to Health Connect: ${e.message}")
             }
 
-            // Run Polar Sense shot enhancement if data is available
+            // Expose the temporary watch tap sequence data to shared preferences or log
             try {
                 if (watchTapSequences.isNotEmpty()) {
-                    Log.d(TAG, "Running bottom-hand enhancement with ${watchTapSequences.size} tap sequences")
-                    ShotEnhancementEngine.enhance(newInningsId, watchTapSequences, applicationContext)
-                } else {
-                    Log.d(TAG, "No TAP_SEQ events in timeline — skipping bottom-hand enhancement")
+                    Log.d(TAG, "Saved ${watchTapSequences.size} watch tap sequences for raw alignment matching")
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Bottom-hand enhancement failed: ${e.message}", e)
-            }
+            } catch (e: Exception) {}
 
-            // Run video clipping for the completed session
-            try {
+            Log.d(TAG, "Watch timeline sync completed for innings $newInningsId. Awaiting raw ZIP data...")
+        }
+    }
+
+    override fun onChannelOpened(channel: com.google.android.gms.wearable.ChannelClient.Channel) {
+        Log.d(TAG, "onChannelOpened: path=${channel.path}")
+        if (channel.path == "/raw_session_data") {
+            val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
+            sessionsDir.mkdirs()
+            val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
+            
+            val channelClient = com.google.android.gms.wearable.Wearable.getChannelClient(this)
+            channelClient.receiveFile(channel, android.net.Uri.fromFile(tempZipFile), false)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Successfully started receiving raw session ZIP file")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to initiate receiveFile: ${e.message}")
+                }
+        }
+    }
+
+    override fun onInputClosed(channel: com.google.android.gms.wearable.ChannelClient.Channel, closeReason: Int, appSpecificErrorCode: Int) {
+        Log.d(TAG, "onInputClosed: path=${channel.path}, reason=$closeReason")
+        if (channel.path == "/raw_session_data" && closeReason == com.google.android.gms.wearable.ChannelClient.ChannelListener.CLOSE_REASON_NORMAL) {
+            val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
+            val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
+            if (tempZipFile.exists()) {
+                Log.d(TAG, "Raw session ZIP received fully. Length: ${tempZipFile.length()} bytes")
+                Thread {
+                    try {
+                        unzipAndProcessIncomingSession(tempZipFile)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error unzipping and processing incoming session", e)
+                    }
+                }.start()
+            }
+        }
+    }
+
+    private fun unzipAndProcessIncomingSession(zipFile: java.io.File) {
+        val database = AppDatabase.getDatabase(applicationContext)
+        val dao = database.inningsEventDao()
+        val newInningsId = dao.getLatestInningsId() ?: 1L
+        
+        val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
+        val watchSessionsDir = java.io.File(getExternalFilesDir("watch_sessions"), "session_$timestamp")
+        watchSessionsDir.mkdirs()
+        
+        Log.d(TAG, "Unzipping incoming watch logs to: ${watchSessionsDir.absolutePath}")
+        unzip(zipFile, watchSessionsDir)
+        
+        // Clean up temporary ZIP file
+        if (zipFile.exists()) {
+            zipFile.delete()
+        }
+
+        // Find the latest Polar session directory on the phone
+        val polarRoot = getExternalFilesDir("polar_sessions")
+        val polarSessionDir = polarRoot?.listFiles()
+            ?.filter { it.isDirectory && it.name.startsWith("polar_session_") }
+            ?.maxByOrNull { it.name }
+
+        if (polarSessionDir == null) {
+            Log.e(TAG, "No Polar session directory found on phone — batch processing requires both sensor streams.")
+            return
+        }
+
+        Log.d(TAG, "Found Polar session directory: ${polarSessionDir.absolutePath}")
+
+        // Run phone-side batch detection and classification
+        try {
+            kotlinx.coroutines.runBlocking {
+                PhoneSwingDetector.processSession(newInningsId, watchSessionsDir, polarSessionDir, applicationContext)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Phone swing detection batch processing failed", e)
+        }
+
+        // Run video clipping for the completed session
+        try {
+            kotlinx.coroutines.runBlocking {
                 VideoClippingEngine.clipSessionShots(newInningsId, applicationContext)
-            } catch (e: Exception) {
-                Log.e(TAG, "Video clipping failed: ${e.message}", e)
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Video clipping failed: ${e.message}", e)
+        }
 
-            // Auto-launch the UI to show the new sync results
-            val launchIntent = Intent(applicationContext, com.mrpeel.cricketbattingtracker.MainActivity::class.java)
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            applicationContext.startActivity(launchIntent)
+        // Auto-launch the UI to show the new sync results
+        val launchIntent = Intent(applicationContext, com.mrpeel.cricketbattingtracker.MainActivity::class.java)
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        applicationContext.startActivity(launchIntent)
+    }
+
+    private fun unzip(zipFile: java.io.File, targetDirectory: java.io.File) {
+        java.util.zip.ZipInputStream(java.io.BufferedInputStream(java.io.FileInputStream(zipFile))).use { zis ->
+            var ze: java.util.zip.ZipEntry? = zis.nextEntry
+            while (ze != null) {
+                val file = java.io.File(targetDirectory, ze.name)
+                val dir = if (ze.isDirectory) file else file.parentFile
+                if (dir != null && !dir.exists() && !dir.mkdirs()) {
+                    throw java.io.IOException("Failed to create directory " + dir.absolutePath)
+                }
+                if (!ze.isDirectory) {
+                    java.io.BufferedOutputStream(java.io.FileOutputStream(file)).use { bos ->
+                        zis.copyTo(bos)
+                    }
+                }
+                ze = zis.nextEntry
+            }
         }
     }
 }

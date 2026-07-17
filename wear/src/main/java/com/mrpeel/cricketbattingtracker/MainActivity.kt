@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
                 // Automatically navigate based on tracking state
                 LaunchedEffect(isTracking.value, isVideoMode.value) {
                     if (isTracking.value) {
-                        val dest = "summary"
+                        val dest = "data_recording"
                         if (navController.currentDestination?.route == "start") {
                             navController.navigate(dest) {
                                 popUpTo("start") { inclusive = true }

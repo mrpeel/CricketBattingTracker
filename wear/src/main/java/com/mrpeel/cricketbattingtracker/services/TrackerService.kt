@@ -41,7 +41,6 @@ class TrackerService : Service(), SensorEventListener {
     private var magnetometerSensor: Sensor? = null
     
     private var wakeLock: PowerManager.WakeLock? = null
-    private val swingDetector = SwingDetector()
     private lateinit var dataSyncManager: DataSyncManager
     private lateinit var healthServicesManager: HealthServicesManager
     
@@ -66,6 +65,7 @@ class TrackerService : Service(), SensorEventListener {
     // Dynamic Raw Debug Logging for Full Watch Sensor Stack
     private var enableRawLogging = false
     private var sessionStartNanos: Long = 0L
+    private var currentSessionDir: File? = null
 
     private data class SensorConfig(
         val type: Int,
@@ -138,17 +138,6 @@ class TrackerService : Service(), SensorEventListener {
         // Setup wake lock to keep recording while screen is off
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::BattingWakeLock")
-        
-        swingDetector.onShotDetected = { shot ->
-            val shotTime = System.currentTimeMillis()
-            Log.d(TAG, "Shot detected! ${shot.shotType}, Speed: ${shot.speedKmh}, Hit: ${shot.isHit}, SS: ${shot.sweetSpot}")
-            sessionTimeline.add("Shot: Type=${shot.shotType}, Spd=${shot.speedKmh}, Hit=${shot.isHit}, Acc=${shot.peakAccel}, SS=${shot.sweetSpot}, Eff=${shot.efficiency}, BL=${shot.backliftAngle}, FT=${shot.followThroughAngle}, ItMs=${shot.impactTimeMs}, Wr=${shot.wristRollDeg}, Ts=$shotTime, Bd=${shot.bladeAngle}, BdCl=${shot.bladeClass}, Lch=${shot.launchAngle}, LchCl=${shot.launchClass}, F1=${shot.s1GyroYStd}, F2=${shot.s1GyroZStd}, F3=${shot.s1DeltaX}, F4=${shot.s1DeltaZ}, F5=${shot.s2GyroMag}, F6=${shot.s2GravYMean}, F7=${shot.s2DeltaX}, F8=${shot.s2DeltaZ}, F9=${shot.s3RollImpactDeg}, F10=${shot.s3YawImpactDeg}, F11=${shot.s3DeltaX}, F12=${shot.s3DeltaZ}, F13=${shot.s3PlaneRatio}, F14=${shot.s3GyroYMin}")
-            SessionManager.addShot(shot)
-        }
-        
-        swingDetector.onFacingUpChanged = { isFacingUp ->
-            SessionManager.setFacingUp(isFacingUp)
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -163,30 +152,31 @@ class TrackerService : Service(), SensorEventListener {
             stopSelf()
             return START_NOT_STICKY
         }
-           enableRawLogging = intent?.getBooleanExtra("ENABLE_RAW_LOGGING", false) ?: false
-        if (enableRawLogging) {
-            try {
-                val ts = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
-                val sessionDir = File(getExternalFilesDir(null), "sessions/session-$ts")
-                sessionDir.mkdirs()
 
-                for (config in sensorConfigs) {
-                    val sensor = sensorManager.getDefaultSensor(config.type)
-                    if (sensor != null) {
-                        try {
-                            val writer = File(sessionDir, config.fileName).bufferedWriter()
-                            writer.write(config.header)
-                            writers[config.type] = writer
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to create writer for ${config.fileName}", e)
-                        }
+        enableRawLogging = true // Force raw logging to always be active in raw-only recording mode
+        try {
+            val ts = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
+            val sessionDir = File(getExternalFilesDir(null), "sessions/session-$ts")
+            sessionDir.mkdirs()
+            currentSessionDir = sessionDir
+
+            for (config in sensorConfigs) {
+                val sensor = sensorManager.getDefaultSensor(config.type)
+                if (sensor != null) {
+                    try {
+                        val writer = File(sessionDir, config.fileName).bufferedWriter()
+                        writer.write(config.header)
+                        writers[config.type] = writer
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to create writer for ${config.fileName}", e)
                     }
                 }
-                Log.d(TAG, "Raw Logging ENABLED for all supported sensors in: ${sessionDir.absolutePath}")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to prep log writers: ${e.message}")
             }
+            Log.d(TAG, "Raw Logging ENABLED for all supported sensors in: ${sessionDir.absolutePath}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to prep log writers: ${e.message}")
         }
+
         if (sessionTimeline.isEmpty()) {
             val startTime = System.currentTimeMillis()
             sessionTimeline.add("SYSTEM_START: Ts=$startTime")
@@ -197,50 +187,34 @@ class TrackerService : Service(), SensorEventListener {
         startForegroundService()
         wakeLock?.acquire(3 * 60 * 60 * 1000L) // maximum 3 hours
         
-        // Register sensor listeners on background thread handler
-        if (enableRawLogging) {
-            // Register ALL supported configurations for full stack diagnostics
-            val hasGameRotation = sensorConfigs.any { it.type == Sensor.TYPE_GAME_ROTATION_VECTOR && sensorManager.getDefaultSensor(it.type) != null }
-            for (config in sensorConfigs) {
-                if (config.type == Sensor.TYPE_ROTATION_VECTOR && hasGameRotation) {
-                    continue // Skip standard rotation vector if game rotation vector is available to avoid double-binding
-                }
-                
-                // Request wake-up version of low-frequency sensors to prevent Sensor Hub suspension in ambient/screen-off mode
-                val sensor = if (config.type == Sensor.TYPE_STEP_DETECTOR ||
-                                 config.type == Sensor.TYPE_STEP_COUNTER ||
-                                 config.type == Sensor.TYPE_HEART_RATE) {
-                    sensorManager.getDefaultSensor(config.type, true) ?: sensorManager.getDefaultSensor(config.type)
+        // Register sensor listeners on background thread handler at maximum frequency (SENSOR_DELAY_FASTEST)
+        val hasGameRotation = sensorConfigs.any { it.type == Sensor.TYPE_GAME_ROTATION_VECTOR && sensorManager.getDefaultSensor(it.type) != null }
+        for (config in sensorConfigs) {
+            if (config.type == Sensor.TYPE_ROTATION_VECTOR && hasGameRotation) {
+                continue // Skip standard rotation vector if game rotation vector is available to avoid double-binding
+            }
+            
+            // Request wake-up version of low-frequency sensors to prevent Sensor Hub suspension in ambient/screen-off mode
+            val sensor = if (config.type == Sensor.TYPE_STEP_DETECTOR ||
+                             config.type == Sensor.TYPE_STEP_COUNTER ||
+                             config.type == Sensor.TYPE_HEART_RATE) {
+                sensorManager.getDefaultSensor(config.type, true) ?: sensorManager.getDefaultSensor(config.type)
+            } else {
+                sensorManager.getDefaultSensor(config.type)
+            }
+            if (sensor != null) {
+                val delay = if (config.type == Sensor.TYPE_STEP_DETECTOR || 
+                                 config.type == Sensor.TYPE_HEART_RATE ||
+                                 config.type == Sensor.TYPE_STEP_COUNTER) {
+                    SensorManager.SENSOR_DELAY_NORMAL
                 } else {
-                    sensorManager.getDefaultSensor(config.type)
+                    SensorManager.SENSOR_DELAY_FASTEST
                 }
-                if (sensor != null) {
-                    val delay = if (config.type == Sensor.TYPE_STEP_DETECTOR || 
-                                     config.type == Sensor.TYPE_HEART_RATE ||
-                                     config.type == Sensor.TYPE_STEP_COUNTER) {
-                        SensorManager.SENSOR_DELAY_NORMAL
-                    } else {
-                        SensorManager.SENSOR_DELAY_GAME
-                    }
-                    sensorManager.registerListener(this, sensor, delay, 0, sensorHandler)
-                }
+                sensorManager.registerListener(this, sensor, delay, 0, sensorHandler)
             }
-        } else {
-            // Register ONLY the subset required for real-time SwingDetector to save battery
-            accelSensor?.let        { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
-            gyroSensor?.let         { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
-            gravitySensor?.let      { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
-            if (gameRotationSensor != null) {
-                sensorManager.registerListener(this, gameRotationSensor!!, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler)
-            } else if (rotationSensor != null) {
-                sensorManager.registerListener(this, rotationSensor!!, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler)
-            }
-            stepDetectorSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
-            heartRateSensor?.let    { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0, sensorHandler) }
-            magnetometerSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, 0, sensorHandler) }
         }
         
-        Log.d(TAG, "Service Started, tracking sensors")
+        Log.d(TAG, "Service Started, tracking sensors at max frequency")
         return START_STICKY
     }
 
@@ -315,6 +289,16 @@ class TrackerService : Service(), SensorEventListener {
                 val timelineFile = File(getExternalFilesDir(null), "latest_timeline.txt")
                 timelineFile.writeText(sessionTimeline.joinToString("\n"))
             } catch (e: Exception) {}
+            
+            // Also write latest_timeline.txt into the session directory so it is part of the ZIP
+            try {
+                currentSessionDir?.let { sDir ->
+                    val timelineFile = File(sDir, "latest_timeline.txt")
+                    timelineFile.writeText(sessionTimeline.joinToString("\n"))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to write timeline to session directory: ${e.message}")
+            }
         } else {
             Log.d(TAG, "Session discarded, skipping sync and timeline write.")
             try {
@@ -342,6 +326,68 @@ class TrackerService : Service(), SensorEventListener {
             }
         }
         writers.clear()
+
+        // Zip and transfer to phone over GMS ChannelClient
+        if (!shouldDiscard) {
+            val sDir = currentSessionDir
+            if (sDir != null && sDir.exists()) {
+                val parentDir = sDir.parentFile ?: getExternalFilesDir(null)!!
+                val zipFile = File(parentDir, "${sDir.name}_raw.zip")
+                Thread {
+                    try {
+                        Log.d(TAG, "Zipping session folder: ${sDir.absolutePath}")
+                        zipDirectory(sDir, zipFile)
+                        Log.d(TAG, "Zip file created at: ${zipFile.absolutePath} (${zipFile.length()} bytes)")
+                        syncRawDataToPhone(zipFile)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Zipping and syncing failed: ${e.message}", e)
+                    }
+                }.start()
+            }
+        }
+    }
+
+    private fun zipDirectory(sourceDir: File, zipFile: File) {
+        java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(java.io.FileOutputStream(zipFile))).use { zos ->
+            sourceDir.walkTopDown().forEach { file ->
+                if (file.isFile) {
+                    val entryName = sourceDir.toURI().relativize(file.toURI()).path
+                    zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                    file.inputStream().use { input ->
+                        input.copyTo(zos)
+                    }
+                    zos.closeEntry()
+                }
+            }
+        }
+    }
+
+    private fun syncRawDataToPhone(zipFile: File) {
+        val nodeClient = com.google.android.gms.wearable.Wearable.getNodeClient(this)
+        val channelClient = com.google.android.gms.wearable.Wearable.getChannelClient(this)
+        
+        try {
+            val nodes = com.google.android.gms.tasks.Tasks.await(nodeClient.connectedNodes)
+            val phoneNode = nodes.firstOrNull()
+            if (phoneNode == null) {
+                Log.e(TAG, "No phone node connected to sync raw data!")
+                return
+            }
+            
+            Log.d(TAG, "Opening Channel to phone (${phoneNode.displayName}) under path /raw_session_data")
+            val channel = com.google.android.gms.tasks.Tasks.await(channelClient.openChannel(phoneNode.id, "/raw_session_data"))
+            
+            Log.d(TAG, "Sending zip file ${zipFile.name} (${zipFile.length()} bytes)...")
+            com.google.android.gms.tasks.Tasks.await(channelClient.sendFile(channel, android.net.Uri.fromFile(zipFile)))
+            Log.d(TAG, "✅ Zipped raw data sent successfully to phone!")
+            
+            // Clean up the temporary zip file after successful send
+            if (zipFile.exists()) {
+                zipFile.delete()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing raw session zip to phone: ${e.message}", e)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -353,10 +399,9 @@ class TrackerService : Service(), SensorEventListener {
         val ts = event.timestamp
         val vals = event.values
 
-        // Standard real-time sensor processing for state machine
+        // Standard real-time sensor processing for state machine (passive logging mode)
         when (type) {
             Sensor.TYPE_ACCELEROMETER -> {
-                swingDetector.processAccel(vals, ts)
                 // Tap sequence detection for Polar Sense alignment
                 val accelMag = sqrt(vals[0] * vals[0] + vals[1] * vals[1] + vals[2] * vals[2])
                 if (accelMag > TAP_THRESHOLD * 0.7f) {
@@ -367,12 +412,7 @@ class TrackerService : Service(), SensorEventListener {
                 tapBuffer.removeAll { it.wallClockMs < cutoffMs }
                 checkForTapSequence()
             }
-            Sensor.TYPE_GYROSCOPE     -> swingDetector.processGyro(vals, ts)
-            Sensor.TYPE_GRAVITY       -> swingDetector.processGravity(vals, ts)
-            Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> swingDetector.processRotation(vals, ts)
-            Sensor.TYPE_MAGNETIC_FIELD -> swingDetector.processMagnetometer(vals, ts)
             Sensor.TYPE_STEP_DETECTOR -> {
-                swingDetector.processStep(ts)
                 val stepTime = System.currentTimeMillis()
                 sessionTimeline.add("Step: Ts=$stepTime")
                 Log.v(TAG, "Step detected at ${ts / 1_000_000_000.0f}s")

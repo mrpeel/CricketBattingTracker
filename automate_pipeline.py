@@ -193,12 +193,8 @@ def append_to_combined_parquet(session_dir, parquet_dir):
             
     print(f"✅ Appended {appended_count} sensor datasets to Parquet database.")
 
-def check_adb_devices(watch_ip):
+def check_adb_devices():
     print("Checking connected ADB devices...")
-    try:
-        subprocess.run(["adb", "connect", watch_ip], capture_output=True, timeout=8)
-    except subprocess.TimeoutExpired:
-        print(f"⚠️ ADB connect to {watch_ip} timed out (8s limit reached). Continuing check...")
     res = subprocess.run(["adb", "devices"], capture_output=True, text=True)
     lines = res.stdout.strip().split("\n")[1:]
     devices = []
@@ -210,42 +206,37 @@ def check_adb_devices(watch_ip):
             devices.append(parts[0])
     return devices
 
-def find_phone_device(devices, watch_ip):
-    # Any connected device that is not the watch is treated as the phone
-    for d in devices:
-        if d != watch_ip:
-            return d
+def find_phone_device(devices):
+    # Any connected device is treated as the phone
+    if devices:
+        return devices[0]
     return None
 
-def pull_latest_watch_session(watch_ip, dest_dir):
-    print("Pulling latest session from Wear OS watch...")
-    cmd = ["adb", "-s", watch_ip, "shell", "ls", "/storage/emulated/0/Android/data/com.mrpeel.cricketbattingtracker/files/sessions"]
+def pull_latest_session_from_phone(phone_id, dest_dir):
+    print("Pulling latest session from Phone companion storage...")
+    phone_base = "/sdcard/Android/data/com.mrpeel.cricketbattingtracker/files/watch_sessions"
+    cmd = ["adb", "-s", phone_id, "shell", "ls", phone_base]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0 or not res.stdout.strip():
-        print("❌ ERROR: No session directories found on the watch.")
+        print("❌ ERROR: No session directories found on the Phone.")
         return None
         
-    sessions = [s.strip() for s in res.stdout.split("\n") if s.strip() and s.startswith("session-")]
+    sessions = [s.strip() for s in res.stdout.split("\n") if s.strip() and (s.startswith("session-") or s.startswith("session_"))]
     if not sessions:
-        print("❌ ERROR: No session folders starting with 'session-' found.")
+        print("❌ ERROR: No session directories found on the Phone.")
         return None
         
     latest_session = sorted(sessions)[-1]
+    phone_path = f"{phone_base}/{latest_session}"
     local_session_dir = os.path.join(dest_dir, latest_session)
     os.makedirs(local_session_dir, exist_ok=True)
     
-    print(f"📥 Pulling files for {latest_session} to {local_session_dir}...")
-    watch_path = f"/storage/emulated/0/Android/data/com.mrpeel.cricketbattingtracker/files/sessions/{latest_session}"
-    subprocess.run(["adb", "-s", watch_ip, "pull", watch_path, dest_dir], check=True)
+    print(f"📥 Pulling latest phone-synced watch session: {phone_path} → {local_session_dir}/")
+    subprocess.run(["adb", "-s", phone_id, "pull", phone_path + "/.", local_session_dir], check=True)
     
-    # Pull latest timeline
-    timeline_local = os.path.join(local_session_dir, "latest_timeline.txt")
-    print("📥 Pulling latest_timeline.txt...")
-    subprocess.run(["adb", "-s", watch_ip, "pull", "/sdcard/Android/data/com.mrpeel.cricketbattingtracker/files/latest_timeline.txt", timeline_local], check=False)
-    
-    # Clean watch directory
-    print("🧹 Cleaning raw session directory on watch to free space...")
-    subprocess.run(["adb", "-s", watch_ip, "shell", f"rm -rf /storage/emulated/0/Android/data/com.mrpeel.cricketbattingtracker/files/sessions/{latest_session}"], check=True)
+    # Clean watch sessions directory on phone
+    print("🧹 Cleaning raw session directory on phone to free space...")
+    subprocess.run(["adb", "-s", phone_id, "shell", f"rm -rf {phone_path}"], check=True)
     
     return local_session_dir
 
@@ -800,17 +791,19 @@ def format_gemini_shots(shot_events):
 def main():
     args = parse_args()
     
-    # 1. Connect and pull watch session files
+    # 1. Connect and pull session files
+    phone_id = None
     if args.session_dir:
         session_dir = args.session_dir
         print(f"Using local session directory: {session_dir}")
     else:
-        devices = check_adb_devices(args.watch_ip)
-        if args.watch_ip not in devices:
-            print(f"❌ ERROR: Watch {args.watch_ip} is not connected or authorized.")
+        devices = check_adb_devices()
+        phone_id = find_phone_device(devices)
+        if not phone_id:
+            print("❌ ERROR: No phone device connected or authorized.")
             sys.exit(1)
             
-        session_dir = pull_latest_watch_session(args.watch_ip, args.dest)
+        session_dir = pull_latest_session_from_phone(phone_id, args.dest)
         if not session_dir:
             sys.exit(1)
         
@@ -823,11 +816,9 @@ def main():
             audio_path = local_audios[0]
             print(f"📖 Found local audio narration file in session directory: {audio_path}")
         else:
-            if 'devices' in locals():
-                phone_id = find_phone_device(devices, args.watch_ip)
-                if phone_id:
-                    audio_path = pull_audio_from_phone(phone_id, session_dir)
-                    pull_polar_from_phone(phone_id, session_dir)
+            if phone_id:
+                audio_path = pull_audio_from_phone(phone_id, session_dir)
+                pull_polar_from_phone(phone_id, session_dir)
             if not audio_path:
                 print("⚠️ Phone device not detected or audio not found on phone.")
             

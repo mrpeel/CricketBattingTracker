@@ -139,4 +139,7 @@ interface InningsEventDao {
     
     @Query("UPDATE innings_events SET videoFilePath = :videoFilePath WHERE id = :eventId")
     suspend fun updateVideoFilePath(eventId: Int, videoFilePath: String?)
+
+    @Query("DELETE FROM innings_events WHERE inningsId = :inningsId")
+    suspend fun deleteTimelineForInningsSync(inningsId: Long)
 }

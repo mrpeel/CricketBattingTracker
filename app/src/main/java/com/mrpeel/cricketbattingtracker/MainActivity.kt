@@ -420,65 +420,94 @@ class MainActivity : ComponentActivity() {
                                 onProfileClick = { showProfileDialog = true }
                             )
                             Box(modifier = Modifier.weight(1f)) {
-                                LazyColumn(
-                                    state = listState,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(bottom = 24.dp)
-                                ) {
-                                    // 1. Summary Dashboard Metrics (Grid)
-                                    item {
-                                        DashboardSummary(
-                                            events = timeline,
-                                            onNavigateToShot = { targetEvent ->
-                                                val indexInTimeline = reversedTimelineShots.indexOf(targetEvent)
-                                                if (indexInTimeline != -1) {
-                                                    highlightedEventId = targetEvent.id
-                                                    coroutineScope.launch {
-                                                        // Offset: DashboardSummary is item 0, ShotTypeSummary is item 1, Section Header is item 2
-                                                        listState.animateScrollToItem(indexInTimeline + 3)
-                                                        // Flash highlight for 1.5s
-                                                        kotlinx.coroutines.delay(1500)
-                                                        if (highlightedEventId == targetEvent.id) {
-                                                            highlightedEventId = null
+                                if (isProcessing) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(24.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            CircularProgressIndicator(color = Color(0xFF58FF63))
+                                            Text(
+                                                text = "Retrieving and processing raw sensor data from watch...",
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                fontSize = 14.sp,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                            Text(
+                                                text = "This will take about 1-2 minutes. Please keep your watch close.",
+                                                color = Color.Gray,
+                                                fontSize = 11.sp,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding = PaddingValues(bottom = 24.dp)
+                                    ) {
+                                        // 1. Summary Dashboard Metrics (Grid)
+                                        item {
+                                            DashboardSummary(
+                                                events = timeline,
+                                                onNavigateToShot = { targetEvent ->
+                                                    val indexInTimeline = reversedTimelineShots.indexOf(targetEvent)
+                                                    if (indexInTimeline != -1) {
+                                                        highlightedEventId = targetEvent.id
+                                                        coroutineScope.launch {
+                                                            // Offset: DashboardSummary is item 0, ShotTypeSummary is item 1, Section Header is item 2
+                                                            listState.animateScrollToItem(indexInTimeline + 3)
+                                                            // Flash highlight for 1.5s
+                                                            kotlinx.coroutines.delay(1500)
+                                                            if (highlightedEventId == targetEvent.id) {
+                                                                highlightedEventId = null
+                                                            }
                                                         }
                                                     }
                                                 }
-                                            }
-                                        )
-                                    }
+                                            )
+                                        }
 
-                                    // 2. Shot Type Summary Table
-                                    item {
-                                        ShotTypeSummary(events = timeline)
-                                    }
+                                        // 2. Shot Type Summary Table
+                                        item {
+                                            ShotTypeSummary(events = timeline)
+                                        }
 
-                                    // 3. Section Header
-                                    item {
-                                        Text(
-                                            text = "SESSION TIMELINE",
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                            letterSpacing = 2.sp
-                                        )
-                                    }
+                                        // 3. Section Header
+                                        item {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Text(
+                                                text = "SHOT TIMELINE",
+                                                modifier = Modifier.padding(start = 20.dp, bottom = 8.dp),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                                                letterSpacing = 2.sp
+                                            )
+                                        }
 
-                                    // 4. Shot Card Timeline Items
-                                    items(reversedTimelineShots) { event ->
-                                         val shotIndex = shotEvents.indexOf(event)
-                                         val shotNumber = if (shotIndex != -1) shotIndex + 1 else null
-                                         TimelineItem(
-                                             event = event,
-                                             shotNumber = shotNumber,
-                                             displaySessionTime = displaySessionTime,
-                                             sessionStartTimestamp = sessionStartTimestamp,
-                                             isHighlighted = event.id == highlightedEventId,
-                                             onTimeToggle = { displaySessionTime = !displaySessionTime },
-                                             onPlayVideo = { path -> activePlaybackVideoPath = path }
-                                         )
-                                         Spacer(modifier = Modifier.height(10.dp).padding(horizontal = 16.dp))
-                                     }
+                                        // 4. Shot Card Timeline Items
+                                        items(reversedTimelineShots) { event ->
+                                             val shotIndex = shotEvents.indexOf(event)
+                                             val shotNumber = if (shotIndex != -1) shotIndex + 1 else null
+                                             TimelineItem(
+                                                 event = event,
+                                                 shotNumber = shotNumber,
+                                                 displaySessionTime = displaySessionTime,
+                                                 sessionStartTimestamp = sessionStartTimestamp,
+                                                 isHighlighted = event.id == highlightedEventId,
+                                                 onTimeToggle = { displaySessionTime = !displaySessionTime },
+                                                 onPlayVideo = { path -> activePlaybackVideoPath = path }
+                                             )
+                                             Spacer(modifier = Modifier.height(10.dp).padding(horizontal = 16.dp))
+                                        }
+                                    }
                                 }
 
                                 if (activePlaybackVideoPath != null) {

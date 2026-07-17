@@ -340,6 +340,18 @@ def load_shot_times(session_dir):
     return shot_times, offset
 
 def compute_rolling_features(df, value_cols, windows=[0.5, 1.0, 2.0], prefix=""):
+    if len(df) == 0:
+        feats_dict = {}
+        feats_dict['seconds_elapsed'] = pd.Series(dtype='float64')
+        for w in windows:
+            for col in value_cols:
+                feats_dict[f"{prefix}_{col}_mean_{w}s"] = pd.Series(dtype='float64')
+                feats_dict[f"{prefix}_{col}_std_{w}s"] = pd.Series(dtype='float64')
+                feats_dict[f"{prefix}_{col}_min_{w}s"] = pd.Series(dtype='float64')
+                feats_dict[f"{prefix}_{col}_max_{w}s"] = pd.Series(dtype='float64')
+                feats_dict[f"{prefix}_{col}_range_{w}s"] = pd.Series(dtype='float64')
+        return pd.DataFrame(feats_dict, index=df.index)
+
     df = df.sort_values('seconds_elapsed')
     feats_dict = {}
     feats_dict['seconds_elapsed'] = df['seconds_elapsed']
@@ -367,6 +379,14 @@ def compute_rolling_features(df, value_cols, windows=[0.5, 1.0, 2.0], prefix="")
     return feats
 
 def compute_quat_features(df, prefix=""):
+    if len(df) == 0:
+        feats_dict = {}
+        feats_dict['seconds_elapsed'] = pd.Series(dtype='float64')
+        for w in [0.5, 1.0, 2.0]:
+            feats_dict[f"{prefix}_ori_disp_mean_{w}s"] = pd.Series(dtype='float64')
+            feats_dict[f"{prefix}_ori_disp_max_{w}s"] = pd.Series(dtype='float64')
+        return pd.DataFrame(feats_dict, index=df.index)
+
     df = df.sort_values('seconds_elapsed')
     qx = df['qx'].values
     qy = df['qy'].values
