@@ -1520,7 +1520,7 @@ fun RecordScreen(
                 if (isRecording) {
                     com.mrpeel.cricketbattingtracker.services.AudioRecordManager.stopRecording(context)
                 }
-                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                if (polarEnabled) {
                     val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
                         action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
                     }
@@ -1534,9 +1534,10 @@ fun RecordScreen(
                 if (isRecording) {
                     com.mrpeel.cricketbattingtracker.services.AudioRecordManager.discardRecording(context)
                 }
-                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                if (polarEnabled) {
                     val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
                         action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
+                        putExtra("discard", true)
                     }
                     context.startService(serviceIntent)
                 }
@@ -2768,14 +2769,12 @@ fun UnifiedConsoleCard(
                             onClick = {
                                 // Discard all services
                                 com.mrpeel.cricketbattingtracker.services.AudioRecordManager.discardRecording(context)
-                                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                                if (polarEnabled) {
                                     val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
                                         action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
+                                        putExtra("discard", true)
                                     }
                                     context.startService(serviceIntent)
-                                    // Discard polar files
-                                    val serviceClass = com.mrpeel.cricketbattingtracker.services.PolarSenseService()
-                                    serviceClass.discardSessionData()
                                 }
                                 if (videoEnabled) {
                                     com.mrpeel.cricketbattingtracker.services.VideoRecordManager.discard(context)
@@ -2795,7 +2794,7 @@ fun UnifiedConsoleCard(
                             onClick = {
                                 // Stop and save all active services
                                 com.mrpeel.cricketbattingtracker.services.AudioRecordManager.stopRecording(context)
-                                if (polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                                if (polarEnabled) {
                                     val serviceIntent = Intent(context, com.mrpeel.cricketbattingtracker.services.PolarSenseService::class.java).apply {
                                         action = com.mrpeel.cricketbattingtracker.services.PolarSenseService.ACTION_STOP
                                     }

@@ -49,7 +49,12 @@ class PolarSenseService : Service() {
                 PolarSenseManager.connect(this)
             }
             ACTION_STOP -> {
-                stopCsvWriting()
+                val shouldDiscard = intent.getBooleanExtra("discard", false)
+                if (shouldDiscard) {
+                    discardSessionData()
+                } else {
+                    stopCsvWriting()
+                }
                 PolarSenseManager.stopStreaming()
                 PolarSenseManager.disconnect()
                 stopForeground(STOP_FOREGROUND_REMOVE)
