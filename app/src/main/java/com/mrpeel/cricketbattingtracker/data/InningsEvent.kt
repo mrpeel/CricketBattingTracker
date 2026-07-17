@@ -92,6 +92,9 @@ interface InningsEventDao {
     @Query("SELECT MAX(inningsId) FROM innings_events")
     suspend fun getLatestInningsId(): Long?
 
+    @Query("SELECT inningsId FROM innings_events WHERE abs(timestamp - :targetTimeMs) < 600000 LIMIT 1")
+    suspend fun findInningsIdNearTime(targetTimeMs: Long): Long?
+
     @Query("SELECT MAX(inningsId) FROM innings_events")
     fun getLatestInningsIdFlow(): Flow<Long?>
 

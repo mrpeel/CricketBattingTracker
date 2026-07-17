@@ -265,7 +265,22 @@ class DataSyncListenerService : WearableListenerService() {
         val dao = database.inningsEventDao()
         
         CoroutineScope(Dispatchers.IO).launch {
-            val newInningsId = (dao.getLatestInningsId() ?: 0) + 1
+            var systemStartTs: Long? = null
+            eventsList.forEach { eventString ->
+                if (eventString.startsWith("SYSTEM_START:")) {
+                    try {
+                        val regex = Regex("Ts=(\\d+)")
+                        val match = regex.find(eventString)
+                        if (match != null) {
+                            systemStartTs = match.groupValues[1].toLong()
+                        }
+                    } catch (e: Exception) {}
+                }
+            }
+
+            val newInningsId = systemStartTs?.let { dao.findInningsIdNearTime(it) }
+                ?: ((dao.getLatestInningsId() ?: 0) + 1)
+
             val resolvedLocation = getPhoneLocation()
             var maxSpeed = 0f
             var shotCount = 0
@@ -273,7 +288,7 @@ class DataSyncListenerService : WearableListenerService() {
             var parsedStartTs = Long.MAX_VALUE
             var parsedEndTs = Long.MIN_VALUE
             val parsedHeartRates = mutableListOf<Pair<Long, Long>>()
-            var systemStartTs: Long? = null
+            // systemStartTs resolved above
             var systemEndTs: Long? = null
             
             // Collect TAP_SEQ events for Polar Sense alignment
@@ -543,7 +558,6 @@ class DataSyncListenerService : WearableListenerService() {
     private suspend fun unzipAndProcessIncomingSession(zipFile: java.io.File) {
         val database = AppDatabase.getDatabase(applicationContext)
         val dao = database.inningsEventDao()
-        val newInningsId = dao.getLatestInningsId() ?: 1L
         
         val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
         val watchSessionsDir = java.io.File(getExternalFilesDir("watch_sessions"), "session_$timestamp")
@@ -557,6 +571,51 @@ class DataSyncListenerService : WearableListenerService() {
             zipFile.delete()
         }
 
+        // Resolve innings ID by matching watch session timestamp with timeline
+        var sessionStartMs: Long? = null
+        val timelineFile = java.io.File(watchSessionsDir, "latest_timeline.txt")
+        if (timelineFile.exists()) {
+            try {
+                timelineFile.forEachLine { line ->
+                    if (line.startsWith("SYSTEM_START:")) {
+                        val regex = Regex("Ts=(\\d+)")
+                        val match = regex.find(line)
+                        if (match != null) {
+                            sessionStartMs = match.groupValues[1].toLong()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed parsing latest_timeline.txt for start time", e)
+            }
+        }
+        
+        if (sessionStartMs == null) {
+            val accFile = java.io.File(watchSessionsDir, "WatchAccelerometer.csv")
+            if (accFile.exists()) {
+                try {
+                    accFile.useLines { lines ->
+                        val firstSample = lines.drop(1).firstOrNull()
+                        if (firstSample != null) {
+                            val parts = firstSample.split(",")
+                            if (parts.isNotEmpty()) {
+                                val timeNanos = parts[0].toLongOrNull()
+                                if (timeNanos != null) {
+                                    sessionStartMs = timeNanos / 1_000_000L
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+
+        val resolvedStartMs = sessionStartMs ?: System.currentTimeMillis()
+        val newInningsId = dao.findInningsIdNearTime(resolvedStartMs)
+            ?: ((dao.getLatestInningsId() ?: 0) + 1)
+
+        Log.d(TAG, "Resolved inningsId $newInningsId for session starting at $resolvedStartMs")
+
         // Find the latest Polar session directory on the phone
         val polarRoot = getExternalFilesDir("polar_sessions")
         val polarSessionDir = polarRoot?.listFiles()
@@ -566,18 +625,14 @@ class DataSyncListenerService : WearableListenerService() {
         if (polarSessionDir == null) {
             Log.d(TAG, "No Polar session directory found on phone — falling back to watch-only batch processing.")
             try {
-                kotlinx.coroutines.runBlocking {
-                    PhoneSwingDetector.processWatchOnlySession(newInningsId, watchSessionsDir, applicationContext)
-                }
+                PhoneSwingDetector.processWatchOnlySession(newInningsId, watchSessionsDir, applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "Phone watch-only swing detection batch processing failed", e)
             }
         } else {
             Log.d(TAG, "Found Polar session directory: ${polarSessionDir.absolutePath}")
             try {
-                kotlinx.coroutines.runBlocking {
-                    PhoneSwingDetector.processSession(newInningsId, watchSessionsDir, polarSessionDir, applicationContext)
-                }
+                PhoneSwingDetector.processSession(newInningsId, watchSessionsDir, polarSessionDir, applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "Phone swing detection batch processing failed", e)
             }
@@ -585,9 +640,7 @@ class DataSyncListenerService : WearableListenerService() {
 
         // Run video clipping for the completed session
         try {
-            kotlinx.coroutines.runBlocking {
-                VideoClippingEngine.clipSessionShots(newInningsId, applicationContext)
-            }
+            VideoClippingEngine.clipSessionShots(newInningsId, applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Video clipping failed: ${e.message}", e)
         }
