@@ -1,6 +1,6 @@
 # Model Update & Retraining Performance Analysis
 
-**Generated:** 2026-07-17 19:25:59
+**Generated:** 2026-07-17 19:33:25
 
 ## Executive Summary
 This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.
@@ -27,19 +27,34 @@ Below is the classification accuracy comparison for each normalized shot type ca
 
 | Shot Type | Ground Truth Count | Accuracy (Before ➔ After) |
 |---|---|---|
-| CUT/PUNCH | 91 | 64.8% ➔ **65.9%** (+1.1%) 🟢 |
-| DEFLECTION/GUIDE | 63 | 73.0% ➔ **69.8%** (-3.2%) 🔴 |
-| DRIVE/DEFENCE | 207 | 21.7% ➔ **16.9%** (-4.8%) 🔴 |
+| CUT/PUNCH | 91 | 65.9% ➔ 65.9% (0.00) ⚪ |
+| DEFLECTION/GUIDE | 63 | 69.8% ➔ 69.8% (0.00) ⚪ |
+| DRIVE/DEFENCE | 207 | 16.9% ➔ 16.9% (0.00) ⚪ |
 | GLANCE/FLICK | 158 | 46.8% ➔ 46.8% (0.00) ⚪ |
 | POWER DRIVE | 28 | 85.7% ➔ 85.7% (0.00) ⚪ |
-| PULL/HOOK | 230 | 53.9% ➔ **52.6%** (-1.3%) 🔴 |
-| SLOG | 100 | 92.0% ➔ **89.0%** (-3.0%) 🔴 |
-| SWEEP | 10 | 30.0% ➔ **10.0%** (-20.0%) 🔴 |
+| PULL/HOOK | 230 | 52.6% ➔ 52.6% (0.00) ⚪ |
+| SLOG | 100 | 89.0% ➔ 89.0% (0.00) ⚪ |
+| SWEEP | 10 | 10.0% ➔ 10.0% (0.00) ⚪ |
 
 ## Legend
 - 🟢: Significant performance improvement (> +0.005)
 - 🔴: Significant performance regression (< -0.005)
 - ⚪: Unchanged performance
+
+## 3. Offline Classifier Performance (All 1,803 Physical Swings)
+Below is the classification accuracy for the newly retrained model evaluated on the complete offline compiled features dataset (where dynamic stance search was applied to resolve look-back misalignment):
+
+| Shot Type | Ground Truth Count | CV Accuracy (Generalizable) | Training Fit Accuracy |
+|---|---|---|---|
+| CUT/PUNCH | 208 | 61.5% | 78.8% |
+| DEFLECTION/GUIDE | 284 | 73.6% | 85.6% |
+| DRIVE/DEFENCE | 254 | 63.0% | 81.9% |
+| GLANCE/FLICK | 285 | 58.9% | 72.3% |
+| POWER DRIVE | 136 | 25.7% | 73.5% |
+| PULL/HOOK | 278 | 56.8% | 67.6% |
+| SLOG | 288 | 83.3% | 95.5% |
+| SWEEP | 70 | 42.9% | 92.9% |
+| **OVERALL** | **1803** | **62.6%** | **80.4%** |
 
 ## Detailed Verification Log
 - Model successfully retrained on `combined_features.csv`.

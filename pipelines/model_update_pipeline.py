@@ -225,6 +225,72 @@ def format_diff(before, after, is_percent=False):
     else:
         return f"{b_val} ➔ {a_val} (0.00) ⚪"
 
+def get_offline_classifier_stats():
+    import pandas as pd
+    import numpy as np
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+
+    features_csv = "/Users/neilkloot/Code/Batting Sensor Stats/combined_features.csv"
+    if not os.path.exists(features_csv):
+        return None
+
+    df = pd.read_csv(features_csv)
+    df_swings = df[df['normalized_gt'] != 'NON-SWING'].copy()
+
+    features = [
+        's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
+        's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
+        's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
+        's3_planeRatio', 's3_gyro_y_min'
+    ]
+
+    X = df_swings[features].fillna(df_swings[features].median())
+    y = df_swings['normalized_gt'].values
+
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y)
+    class_names = list(le.classes_)
+
+    rf = RandomForestClassifier(
+        n_estimators=100,
+        max_depth=7,
+        class_weight='balanced_subsample',
+        random_state=42,
+        n_jobs=-1
+    )
+
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    y_pred_cv_enc = cross_val_predict(rf, X, y_enc, cv=cv)
+    y_pred_cv = le.inverse_transform(y_pred_cv_enc)
+
+    rf.fit(X, y_enc)
+    y_pred_train_enc = rf.predict(X)
+    y_pred_train = le.inverse_transform(y_pred_train_enc)
+
+    class_stats = {}
+    for cls in class_names:
+        total = np.sum(y == cls)
+        correct_cv = np.sum((y == cls) & (y_pred_cv == cls))
+        correct_train = np.sum((y == cls) & (y_pred_train == cls))
+        class_stats[cls] = {
+            "gt": int(total),
+            "cv_acc": float(correct_cv / total) if total > 0 else 0.0,
+            "train_acc": float(correct_train / total) if total > 0 else 0.0
+        }
+    
+    total_swings = len(y)
+    overall_cv = float(np.sum(y_pred_cv == y) / total_swings)
+    overall_train = float(np.sum(y_pred_train == y) / total_swings)
+
+    return {
+        "classes": class_stats,
+        "overall_cv": overall_cv,
+        "overall_train": overall_train,
+        "total_swings": total_swings
+    }
+
 def main():
     print("============================================================")
     # 0. Generate synthetic augmented training data from real sensor windows.
@@ -323,6 +389,17 @@ def main():
         f.write("- 🟢: Significant performance improvement (> +0.005)\n")
         f.write("- 🔴: Significant performance regression (< -0.005)\n")
         f.write("- ⚪: Unchanged performance\n\n")
+
+        offline_stats = get_offline_classifier_stats()
+        if offline_stats:
+            f.write("## 3. Offline Classifier Performance (All 1,803 Physical Swings)\n")
+            f.write("Below is the classification accuracy for the newly retrained model evaluated on the complete offline compiled features dataset (where dynamic stance search was applied to resolve look-back misalignment):\n\n")
+            f.write("| Shot Type | Ground Truth Count | CV Accuracy (Generalizable) | Training Fit Accuracy |\n")
+            f.write("|---|---|---|---|\n")
+            for cat in sorted(offline_stats["classes"].keys()):
+                cls_data = offline_stats["classes"][cat]
+                f.write(f"| {cat} | {cls_data['gt']} | {cls_data['cv_acc']:.1%} | {cls_data['train_acc']:.1%} |\n")
+            f.write(f"| **OVERALL** | **{offline_stats['total_swings']}** | **{offline_stats['overall_cv']:.1%}** | **{offline_stats['overall_train']:.1%}** |\n\n")
         
         f.write("## Detailed Verification Log\n")
         f.write("- Model successfully retrained on `combined_features.csv`.\n")
