@@ -2531,18 +2531,23 @@ fun UnifiedConsoleCard(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("Bottom Hand Sensor", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = pairedDevice?.let { "PAIRED" } ?: "NOT CONFIG",
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (pairedDevice != null) MaterialTheme.colorScheme.primary else Color(0xFFFF5252),
-                                        modifier = Modifier
-                                            .background(
-                                                if (pairedDevice != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                                else Color(0xFFFF5252).copy(alpha = 0.15f),
-                                                shape = RoundedCornerShape(4.dp)
-                                            )
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    val (sensorIconId, sensorIconTint, sensorIconDesc) = when {
+                                         pairedDevice == null -> {
+                                             Triple(R.drawable.ic_sensor_off, Color(0xFFFF5252), "Not Configured")
+                                         }
+                                         polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING || 
+                                         polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.CONNECTED -> {
+                                             Triple(R.drawable.ic_sensor_connected, Color(0xFF58FF63), "Connected")
+                                         }
+                                         else -> {
+                                             Triple(R.drawable.ic_sensor_disconnected, Color(0xFFFFA726), "Not Connected")
+                                         }
+                                    }
+                                    Icon(
+                                         painter = androidx.compose.ui.res.painterResource(id = sensorIconId),
+                                         contentDescription = sensorIconDesc,
+                                         tint = sensorIconTint,
+                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 Text(
