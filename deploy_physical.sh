@@ -68,14 +68,8 @@ if [ "$WATCH_FOUND" = true ]; then
     # Wake up watch screen to keep Wi-Fi awake
     adb -s $WATCH_ID shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1
     
-    echo "   -> Pushing APK to watch temp storage..."
-    adb -s $WATCH_ID push wear/build/outputs/apk/release/wear-release.apk /data/local/tmp/wear-release.apk
-    
-    # Wake up watch screen again to keep connection alive
-    adb -s $WATCH_ID shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1
-    
     echo "   -> Installing APK on watch..."
-    if ! adb -s $WATCH_ID shell pm install -r /data/local/tmp/wear-release.apk; then
+    if ! adb -s $WATCH_ID install -r wear/build/outputs/apk/release/wear-release.apk; then
         echo "⚠️ Installation failed. Checking if device went offline..."
         if [[ "$WATCH_ID" == *":"* ]]; then
             echo "🔌 Attempting wireless reconnect to $WATCH_ID..."
@@ -85,14 +79,12 @@ if [ "$WATCH_FOUND" = true ]; then
             sleep 2
             adb -s $WATCH_ID shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1
             echo "   -> Retrying installation..."
-            adb -s $WATCH_ID shell pm install -r /data/local/tmp/wear-release.apk
+            adb -s $WATCH_ID install -r wear/build/outputs/apk/release/wear-release.apk
         else
             echo "❌ Installation failed and auto-reconnect is not supported for USB devices."
             exit 1
         fi
     fi
-    # Clean up temp file
-    adb -s $WATCH_ID shell rm /data/local/tmp/wear-release.apk
     
     # Grant necessary permissions
     echo "🔑 Granting Watch Permissions..."
