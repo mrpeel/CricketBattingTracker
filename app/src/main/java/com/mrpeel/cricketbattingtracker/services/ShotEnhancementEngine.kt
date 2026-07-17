@@ -325,9 +325,24 @@ object ShotEnhancementEngine {
                                 } catch (e: Exception) {
                                     phoneTimestampStr.toLongOrNull() ?: 0L
                                 }
-                                val x = parts[2].trim().toFloat()
-                                val y = parts[3].trim().toFloat()
-                                val z = parts[4].trim().toFloat()
+                                var x = parts[2].trim().toFloat()
+                                var y = parts[3].trim().toFloat()
+                                var z = parts[4].trim().toFloat()
+
+                                // Normalize units to standard Android metrics (mps^2 and rad/s)
+                                if (baseName.contains("Accelerometer", ignoreCase = true)) {
+                                    // Convert milli-g to m/s^2: 1 mg = 0.00980665 m/s^2
+                                    x *= 0.00980665f
+                                    y *= 0.00980665f
+                                    z *= 0.00980665f
+                                } else if (baseName.contains("Gyroscope", ignoreCase = true)) {
+                                    // Convert degrees/sec to radians/sec: 1 dps = pi / 180 rad/s
+                                    val dpsToRad = (Math.PI / 180.0).toFloat()
+                                    x *= dpsToRad
+                                    y *= dpsToRad
+                                    z *= dpsToRad
+                                }
+
                                 val mag = sqrt(x * x + y * y + z * z)
                                 samples.add(SensorSample(phoneMs, x, y, z, mag))
                             } catch (e: NumberFormatException) {

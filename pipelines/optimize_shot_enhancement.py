@@ -8,14 +8,14 @@ import pandas as pd
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 KOTLIN_CONFIG_PATH = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/ShotEnhancementConfig.kt"
 
-# Default heuristic thresholds in case data is insufficient
+# Default heuristic thresholds in case data is insufficient (normalized to rad/s)
 DEFAULT_THRESHOLDS = {
     "DRIVE_TO_POWER_GYRO_RATIO": 1.35,
     "DRIVE_TO_POWER_ACC_PEAK": 25.0,
     "FLICK_TO_GUIDE_GYRO_RATIO": 0.6,
-    "FLICK_TO_GUIDE_GYRO_PEAK": 6.0,
+    "FLICK_TO_GUIDE_GYRO_PEAK": 0.10,  # ~6.0 dps
     "PULL_TO_SLOG_GYRO_RATIO": 1.6,
-    "PULL_TO_SLOG_GYRO_PEAK": 14.0
+    "PULL_TO_SLOG_GYRO_PEAK": 0.25     # ~14.0 dps
 }
 
 def load_polar_ground_truth():
@@ -106,7 +106,7 @@ def optimize_flick_to_guide(df):
 
     # Grid search
     for r in np.arange(0.3, 0.9, 0.05):
-        for g in np.arange(3.0, 10.0, 0.5):
+        for g in np.arange(0.05, 0.20, 0.01):
             # Predict: DEFLECTION/GUIDE if gyro_ratio < r and gyro_peak < g
             preds = np.where((sub["bottom_hand_gyro_ratio"] < r) & (sub["bottom_hand_gyro_peak"] < g), "DEFLECTION/GUIDE", "GLANCE/FLICK")
             score = np.sum(preds == sub["normalized_gt"])
@@ -129,7 +129,7 @@ def optimize_pull_to_slog(df):
 
     # Grid search
     for r in np.arange(1.1, 2.0, 0.05):
-        for g in np.arange(8.0, 20.0, 0.5):
+        for g in np.arange(0.15, 0.35, 0.01):
             # Predict: SLOG if gyro_ratio > r and gyro_peak > g
             preds = np.where((sub["bottom_hand_gyro_ratio"] > r) & (sub["bottom_hand_gyro_peak"] > g), "SLOG", "PULL/HOOK")
             score = np.sum(preds == sub["normalized_gt"])

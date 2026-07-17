@@ -1944,7 +1944,7 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
 
     print(f"\n📡 Processing Polar Sense data ({len(polar_acc_files)} ACC, {len(polar_gyro_files)} GYRO files)...")
 
-    def load_polar_csv_segments(file_list):
+    def load_polar_csv_segments(file_list, sensor_type):
         """Load and concatenate semicolon-delimited Polar CSV segments.
         Format: Phone timestamp;sensor timestamp [ns];X;Y;Z
         Handles both .csv and .csv.gz files."""
@@ -1966,6 +1966,20 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
                     df['x'] = pd.to_numeric(df['x'], errors='coerce')
                     df['y'] = pd.to_numeric(df['y'], errors='coerce')
                     df['z'] = pd.to_numeric(df['z'], errors='coerce')
+
+                    # Normalize units to standard Android metrics (mps^2 and rad/s)
+                    if sensor_type == 'ACC':
+                        # Convert milli-g to m/s^2: 1 mg = 0.00980665 m/s^2
+                        df['x'] *= 0.00980665
+                        df['y'] *= 0.00980665
+                        df['z'] *= 0.00980665
+                    elif sensor_type == 'GYRO':
+                        # Convert degrees/sec to radians/sec: 1 dps = pi / 180 rad/s
+                        dps_to_rad = np.pi / 180.0
+                        df['x'] *= dps_to_rad
+                        df['y'] *= dps_to_rad
+                        df['z'] *= dps_to_rad
+
                     df = df.dropna(subset=['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'])
                     frames.append(df)
             except Exception as e:
@@ -1980,8 +1994,8 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         combined['mag'] = np.sqrt(combined['x']**2 + combined['y']**2 + combined['z']**2)
         return combined
 
-    df_polar_acc = load_polar_csv_segments(polar_acc_files)
-    df_polar_gyro = load_polar_csv_segments(polar_gyro_files)
+    df_polar_acc = load_polar_csv_segments(polar_acc_files, 'ACC')
+    df_polar_gyro = load_polar_csv_segments(polar_gyro_files, 'GYRO')
 
     if df_polar_acc is None:
         print("⚠️ Could not load Polar accelerometer data. Skipping Polar features.")
@@ -2041,7 +2055,7 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     # Polar ACC is in mg, so 2500mg threshold
     polar_acc_times = df_polar_acc['seconds_elapsed'].to_numpy()
     polar_acc_mags = df_polar_acc['mag'].to_numpy()
-    polar_tap_seqs = find_tap_sequences(polar_acc_times, polar_acc_mags, threshold=2500.0)
+    polar_tap_seqs = find_tap_sequences(polar_acc_times, polar_acc_mags, threshold=24.5)
 
     print(f"  Watch tap sequences detected: {len(watch_tap_seqs)}")
     print(f"  Polar tap sequences detected: {len(polar_tap_seqs)}")
