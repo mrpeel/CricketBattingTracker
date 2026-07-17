@@ -20,6 +20,14 @@ object PhoneSwingDetector {
     data class WatchIMUSample(val timeNanos: Long, val elapsedSecs: Double, val x: Float, val y: Float, val z: Float, val mag: Float)
     data class PolarSample(val phoneMs: Long, val sensorNs: Long, val x: Float, val y: Float, val z: Float, val mag: Float)
 
+    sealed class WatchSensorEvent(val timestampNanos: Long) {
+        class Accel(ts: Long, val values: FloatArray) : WatchSensorEvent(ts)
+        class Gyro(ts: Long, val values: FloatArray) : WatchSensorEvent(ts)
+        class Gravity(ts: Long, val values: FloatArray) : WatchSensorEvent(ts)
+        class Rotation(ts: Long, val values: FloatArray) : WatchSensorEvent(ts)
+        class Step(ts: Long) : WatchSensorEvent(ts)
+    }
+
     data class TimeAlignment(
         val offsetMs: Double,    // Polar_phoneMs = watch_wallMs * (1 + driftRate) + offsetMs
         val driftRate: Double
@@ -296,6 +304,151 @@ object PhoneSwingDetector {
         prefs.edit().putBoolean("processed_innings_$inningsId", true).apply()
 
         Log.d(TAG, "Processed $shotCount shots. Max Speed: $maxSpeed km/h. Syncing metadata...")
+    }
+
+    suspend fun processWatchOnlySession(
+        inningsId: Long,
+        watchDir: File,
+        context: Context
+    ) = withContext(Dispatchers.IO) {
+        Log.d(TAG, "Starting phone-bound watch-only batch processing for innings $inningsId...")
+
+        // 1. Load watch data
+        val watchAcc = parseWatchIMUCsv(File(watchDir, "WatchAccelerometer.csv"))
+        val watchGyro = parseWatchIMUCsv(File(watchDir, "WatchGyroscope.csv"))
+        val watchGrav = parseWatchIMUCsv(File(watchDir, "WatchGravity.csv"))
+        val watchRot = parseWatchRotCsv(File(watchDir, "WatchGameOrientation.csv").let { 
+            if (it.exists()) it else File(watchDir, "WatchOrientation.csv") 
+        })
+        val steps = parseWatchStepsCsv(File(watchDir, "WatchSteps.csv"))
+
+        if (watchAcc.isEmpty() || watchRot.isEmpty()) {
+            Log.e(TAG, "Watch raw files are missing or empty — skipping watch-only processing")
+            return@withContext
+        }
+
+        // 2. Combine all events chronologically
+        val allEvents = mutableListOf<WatchSensorEvent>()
+        
+        watchAcc.forEach { allEvents.add(WatchSensorEvent.Accel(it.timeNanos, floatArrayOf(it.x, it.y, it.z))) }
+        watchGyro.forEach { allEvents.add(WatchSensorEvent.Gyro(it.timeNanos, floatArrayOf(it.x, it.y, it.z))) }
+        watchGrav.forEach { allEvents.add(WatchSensorEvent.Gravity(it.timeNanos, floatArrayOf(it.x, it.y, it.z))) }
+        watchRot.forEach { allEvents.add(WatchSensorEvent.Rotation(it.timeNanos, floatArrayOf(it.qx, it.qy, it.qz, it.qw))) }
+        steps.forEach { allEvents.add(WatchSensorEvent.Step(it)) }
+        
+        allEvents.sortBy { it.timestampNanos }
+
+        val database = AppDatabase.getDatabase(context)
+        val dao = database.inningsEventDao()
+
+        // Clear existing events for this innings
+        dao.deleteTimelineForInningsSync(inningsId)
+
+        // Write "Session Started" marker
+        val watchStartMs = watchAcc.first().timeNanos / 1_000_000L
+        dao.insertEvent(InningsEvent(
+            inningsId = inningsId,
+            timestamp = watchStartMs,
+            description = "Session Started",
+            location = "Net Practice"
+        ))
+
+        // 3. Setup SwingDetector state machine
+        val detector = com.mrpeel.cricketbattingtracker.ml.SwingDetector()
+        val detectedShots = mutableListOf<ShotData>()
+        
+        detector.onShotDetected = { shot ->
+            detectedShots.add(shot)
+        }
+
+        // Stream all events chronologically
+        allEvents.forEach { event ->
+            when (event) {
+                is WatchSensorEvent.Accel -> detector.processAccel(event.values, event.timestampNanos)
+                is WatchSensorEvent.Gyro -> detector.processGyro(event.values, event.timestampNanos)
+                is WatchSensorEvent.Gravity -> detector.processGravity(event.values, event.timestampNanos)
+                is WatchSensorEvent.Rotation -> detector.processRotation(event.values, event.timestampNanos)
+                is WatchSensorEvent.Step -> detector.processStep(event.timestampNanos)
+            }
+        }
+
+        // 4. Save detected shots to database
+        var shotCount = 0
+        var maxSpeed = 0f
+        for (shot in detectedShots) {
+            val eventTimeMs = shot.impactTimeMs + watchStartMs
+            val dbEvent = InningsEvent(
+                inningsId = inningsId,
+                timestamp = eventTimeMs,
+                description = "${shot.shotType} (${shot.sweetSpot})",
+                batSpeed = shot.speedKmh,
+                impactForce = shot.peakAccel,
+                impactTimeMs = shot.impactTimeMs,
+                shotType = shot.shotType,
+                efficiency = shot.efficiency,
+                backliftAngle = shot.backliftAngle,
+                followThroughAngle = shot.followThroughAngle,
+                wristRollDeg = shot.wristRollDeg,
+                bladeAngle = shot.bladeAngle,
+                bladeClass = shot.bladeClass,
+                launchAngle = shot.launchAngle,
+                launchClass = shot.launchClass,
+                bottom_hand_acc_peak = shot.peakAccel,
+                swing_feature_s1_gyro_y_std = shot.s1GyroYStd,
+                swing_feature_s1_gyro_z_std = shot.s1GyroZStd,
+                swing_feature_s1_delta_x = shot.s1DeltaX,
+                swing_feature_s1_delta_z = shot.s1DeltaZ,
+                swing_feature_s2_gyro_mag = shot.s2GyroMag,
+                swing_feature_s2_grav_y_mean = shot.s2GravYMean,
+                swing_feature_s2_delta_x = shot.s2DeltaX,
+                swing_feature_s2_delta_z = shot.s2DeltaZ,
+                swing_feature_s3_roll_deg = shot.s3RollImpactDeg,
+                swing_feature_s3_yaw_deg = shot.s3YawImpactDeg,
+                swing_feature_s3_delta_x = shot.s3DeltaX,
+                swing_feature_s3_delta_z = shot.s3DeltaZ,
+                swing_feature_s3_plane_ratio = shot.s3PlaneRatio,
+                swing_feature_s3_gyro_y_min = shot.s3GyroYMin
+            )
+            dao.insertEvent(dbEvent)
+            shotCount++
+            if (shot.speedKmh > maxSpeed) {
+                maxSpeed = shot.speedKmh
+            }
+        }
+
+        // Write "Session Ended" marker
+        val watchEndMs = watchAcc.last().timeNanos / 1_000_000L
+        dao.insertEvent(InningsEvent(
+            inningsId = inningsId,
+            timestamp = watchEndMs,
+            description = "Session Ended",
+            location = "Net Practice"
+        ))
+
+        // Set processed flag
+        val prefs = context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("processed_innings_$inningsId", true).apply()
+
+        Log.d(TAG, "Watch-only processed $shotCount shots. Max Speed: $maxSpeed km/h. Syncing metadata...")
+    }
+
+    private fun parseWatchStepsCsv(file: File): List<Long> {
+        val list = mutableListOf<Long>()
+        if (!file.exists()) return list
+        try {
+            file.forEachLine { line ->
+                val parts = line.split(",")
+                if (parts.size >= 2) {
+                    val ts = parts[0].trim().toLongOrNull()
+                    if (ts != null) {
+                        list.add(ts)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse steps CSV: ${e.message}")
+        }
+        return list
     }
 
     // --- Biomechanical stability and rotation math ---

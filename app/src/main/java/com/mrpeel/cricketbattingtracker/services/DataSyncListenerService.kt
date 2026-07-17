@@ -564,19 +564,23 @@ class DataSyncListenerService : WearableListenerService() {
             ?.maxByOrNull { it.name }
 
         if (polarSessionDir == null) {
-            Log.e(TAG, "No Polar session directory found on phone — batch processing requires both sensor streams.")
-            return
-        }
-
-        Log.d(TAG, "Found Polar session directory: ${polarSessionDir.absolutePath}")
-
-        // Run phone-side batch detection and classification
-        try {
-            kotlinx.coroutines.runBlocking {
-                PhoneSwingDetector.processSession(newInningsId, watchSessionsDir, polarSessionDir, applicationContext)
+            Log.d(TAG, "No Polar session directory found on phone — falling back to watch-only batch processing.")
+            try {
+                kotlinx.coroutines.runBlocking {
+                    PhoneSwingDetector.processWatchOnlySession(newInningsId, watchSessionsDir, applicationContext)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Phone watch-only swing detection batch processing failed", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Phone swing detection batch processing failed", e)
+        } else {
+            Log.d(TAG, "Found Polar session directory: ${polarSessionDir.absolutePath}")
+            try {
+                kotlinx.coroutines.runBlocking {
+                    PhoneSwingDetector.processSession(newInningsId, watchSessionsDir, polarSessionDir, applicationContext)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Phone swing detection batch processing failed", e)
+            }
         }
 
         // Run video clipping for the completed session
