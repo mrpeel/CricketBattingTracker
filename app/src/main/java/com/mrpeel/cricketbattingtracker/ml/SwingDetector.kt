@@ -504,6 +504,7 @@ class SwingDetector {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun predictStance(
         seg1GyroStd: Float, seg1AccelStd: Float, seg1OriDisp: Float, seg1MeanGravY: Float,
         seg2GyroStd: Float, seg2AccelStd: Float, seg2OriDisp: Float, seg2MeanGravY: Float,

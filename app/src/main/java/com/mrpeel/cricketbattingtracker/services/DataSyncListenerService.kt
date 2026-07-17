@@ -524,23 +524,23 @@ class DataSyncListenerService : WearableListenerService() {
 
     override fun onInputClosed(channel: com.google.android.gms.wearable.ChannelClient.Channel, closeReason: Int, appSpecificErrorCode: Int) {
         Log.d(TAG, "onInputClosed: path=${channel.path}, reason=$closeReason")
-        if (channel.path == "/raw_session_data" && closeReason == com.google.android.gms.wearable.ChannelClient.ChannelListener.CLOSE_REASON_NORMAL) {
+        if (channel.path == "/raw_session_data" && closeReason == com.google.android.gms.wearable.ChannelClient.ChannelCallback.CLOSE_REASON_NORMAL) {
             val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
             val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
             if (tempZipFile.exists()) {
                 Log.d(TAG, "Raw session ZIP received fully. Length: ${tempZipFile.length()} bytes")
-                Thread {
+                CoroutineScope(Dispatchers.IO).launch {
                     try {
                         unzipAndProcessIncomingSession(tempZipFile)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error unzipping and processing incoming session", e)
                     }
-                }.start()
+                }
             }
         }
     }
 
-    private fun unzipAndProcessIncomingSession(zipFile: java.io.File) {
+    private suspend fun unzipAndProcessIncomingSession(zipFile: java.io.File) {
         val database = AppDatabase.getDatabase(applicationContext)
         val dao = database.inningsEventDao()
         val newInningsId = dao.getLatestInningsId() ?: 1L

@@ -112,7 +112,7 @@ object PhoneSwingDetector {
         var maxSpeed = 0f
 
         // 7. Extract features and classify each shot
-        for ((idx, polarPeakTimeMs) in impactPeaks.withIndex()) {
+        for (polarPeakTimeMs in impactPeaks) {
             val watchTimeMs = alignment.polarToWatchMs(polarPeakTimeMs)
             val watchTimeNanos = watchTimeMs * 1_000_000L
 

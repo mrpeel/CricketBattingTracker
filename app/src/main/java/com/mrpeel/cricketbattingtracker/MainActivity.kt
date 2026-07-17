@@ -409,6 +409,12 @@ class MainActivity : ComponentActivity() {
                             timelineShots.reversed()
                         }
 
+                        val isProcessing = remember(timeline, selectedSession) {
+                            val now = System.currentTimeMillis()
+                            val isRecent = selectedSession?.let { now - it.startTimeMillis < 120_000L } ?: false
+                            val hasNoShots = timeline.none { it.description.contains("Shot:") || it.batSpeed != null }
+                            isRecent && hasNoShots
+                        }
 
                         Column(modifier = Modifier.fillMaxSize()) {
                             TopBar(
@@ -533,9 +539,10 @@ class MainActivity : ComponentActivity() {
                                         selected = selectedTab == 0,
                                         onClick = { selectedTab = 0 },
                                         icon = {
-                                            Text(
-                                                "📊",
-                                                fontSize = if (selectedTab == 0) 22.sp else 18.sp
+                                            Icon(
+                                                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_dashboard),
+                                                contentDescription = "Dashboard",
+                                                modifier = Modifier.size(if (selectedTab == 0) 24.dp else 20.dp)
                                             )
                                         },
                                         label = {
@@ -560,9 +567,10 @@ class MainActivity : ComponentActivity() {
                                         onClick = { selectedTab = 1 },
                                         icon = {
                                             Box {
-                                                Text(
-                                                    if (isRecording) "⏺" else "🎙️",
-                                                    fontSize = if (selectedTab == 1) 22.sp else 18.sp
+                                                Icon(
+                                                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_record),
+                                                    contentDescription = "Record",
+                                                    modifier = Modifier.size(if (selectedTab == 1) 24.dp else 20.dp)
                                                 )
                                                 if (isRecording) {
                                                     val infiniteTransition = rememberInfiniteTransition(label = "badge")
@@ -607,9 +615,10 @@ class MainActivity : ComponentActivity() {
                                         selected = selectedTab == 2,
                                         onClick = { selectedTab = 2 },
                                         icon = {
-                                            Text(
-                                                "📋",
-                                                fontSize = if (selectedTab == 2) 22.sp else 18.sp
+                                            Icon(
+                                                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_history),
+                                                contentDescription = "History",
+                                                modifier = Modifier.size(if (selectedTab == 2) 24.dp else 20.dp)
                                             )
                                         },
                                         label = {
@@ -2958,7 +2967,7 @@ fun VideoSetupScreen(
                                 }
 
                                 cameraProvider.unbindAll()
-                                var camera: androidx.camera.core.Camera? = null
+                                var camera: androidx.camera.core.Camera?
                                 try {
                                     camera = cameraProvider.bindToLifecycle(
                                         lifecycleOwner,
@@ -2984,7 +2993,7 @@ fun VideoSetupScreen(
                         }, androidx.core.content.ContextCompat.getMainExecutor(ctx))
                         previewView
                     },
-                    update = { view ->
+                    update = { _ ->
                         // Re-apply zoom when slider updates
                         cameraControlRef.value?.setLinearZoom(zoomValue)
                     },
