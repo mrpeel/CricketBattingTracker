@@ -17,9 +17,9 @@ This file defines the system objectives, feature backlog catalog, active technic
 ---
 
 ## 🛠️ Technical Approach
-*   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous 50Hz sensor logging. Rotates raw sensor vectors using quaternions and computes real-time metrics locally using `SwingDetector`. When raw logging is enabled (diagnostics mode), it dynamically registers and logs the full watch sensor stack (up to 15 standard Wear OS physical and virtual sensors) to CSV files using a dedicated background thread (`SensorLoggingThread`) to prevent system lag.
-*   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives timeline data packages via Google Play Services Wearable Data Layer API. Integrates exercise sessions into Samsung/Google Health Connect under the "Cricket" type.
-*   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls sensor logs and phone audio. Transcribes audio directly using the Gemini API. Computes clock alignment using a **2D Joint Offset and Linear Drift Rate Optimization grid search** to calibrate any temporal speed mismatch between the watch and the recording device, snapping nartations precisely to the maximum gyroscope magnitude peaks.
+*   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous raw sensor logging at `SENSOR_DELAY_FASTEST` speed (up to 15 standard Wear OS physical and virtual sensors). When the session ends, the watch packages the entire session directory into a single ZIP file and syncs it to the companion phone app using GMS `ChannelClient` under the `/raw_session_data` path.
+*   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives raw sensor ZIP files via GMS `ChannelClient`, unzips them, and runs an offline batch analysis processor (`PhoneSwingDetector`). This performs clock alignment matching, peak impact detection, stance look-back checking, feature extraction, Random Forest classification (`GeneratedForest`), and video clipping entirely offline on the phone.
+*   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls consolidated watch + Polar session logs directly from the phone companion app's sync folder. Transcribes audio narration using the Gemini API and Snaps transcripts to maximum gyroscope magnitude peaks.
 
 ---
 
@@ -38,6 +38,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-024 | TinyML Stance Gate | Compile and deploy depth-4 Decision Tree classifier into SwingDetector.kt stance gate, reducing FPs by 22% globally. | **Completed** | Simulation evaluations showing F1 improvement to 0.3948 on stressed dataset |
 | B-025 | 6x Synthetic Shot Classifier Augmentation | Scale training variants per shot to 90 and cap to 18x, retraining Random Forest to 86.22% CV accuracy. | **Completed** | Scikit-learn cross validation metrics and watch transpilation successful |
 | B-026 | Video Capture Config & Viewfinder | Integrate camera facing flip, linear zoom control slider, target frame rate selector, and live preview viewfinders. | **Completed** | Gradle assembleDebug builds successfully and camera parameter bindings validated |
+| B-027 | Phone-Bound Batch Processing | Remove real-time detection on watch and move facing up, stance lock, feature extraction, and RF classification entirely to the Phone companion app. | **Completed** | Local file unzipping, database write checks, and Python pipeline phone pull verification |
 
 
 ---
