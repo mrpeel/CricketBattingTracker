@@ -166,21 +166,25 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
                     } catch (e: Exception) { false }
                 }
                 
-                if (matchedPolarDir != null) {
+                val success = if (matchedPolarDir != null) {
                     com.mrpeel.cricketbattingtracker.services.PhoneSwingDetector.processSession(
                         inningsId,
                         targetDir,
                         matchedPolarDir,
                         getApplication()
                     )
-                    onResult(true, "Successfully processed dual-sensor session data!")
                 } else {
                     com.mrpeel.cricketbattingtracker.services.PhoneSwingDetector.processWatchOnlySession(
                         inningsId,
                         targetDir,
                         getApplication()
                     )
-                    onResult(true, "Successfully recovered session using Watch-only data!")
+                }
+                
+                if (success) {
+                    onResult(true, if (matchedPolarDir != null) "Successfully processed dual-sensor session data!" else "Successfully recovered session using Watch-only data!")
+                } else {
+                    onResult(false, "Processing aborted: Session raw files were empty or invalid.")
                 }
                 
                 // Force timeline re-trigger

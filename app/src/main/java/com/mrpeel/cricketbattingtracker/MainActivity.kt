@@ -409,11 +409,13 @@ class MainActivity : ComponentActivity() {
                             timelineShots.reversed()
                         }
 
-                        val isProcessing = remember(timeline, selectedSession) {
+                        var processedByRecovery by remember(selectedSessionId) { mutableStateOf(false) }
+
+                        val isProcessing = remember(timeline, selectedSession, processedByRecovery) {
                             val now = System.currentTimeMillis()
                             val isRecent = selectedSession?.let { now - it.startTimeMillis < 15 * 60_000L } ?: false
                             val hasShots = timeline.any { it.description.contains("Shot:") || it.batSpeed != null }
-                            val isProcessed = hasShots || context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                            val isProcessed = hasShots || processedByRecovery || context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
                                 .getBoolean("processed_innings_$selectedSessionId", false)
                             isRecent && !isProcessed
                         }
@@ -503,9 +505,12 @@ class MainActivity : ComponentActivity() {
                                                                     selectedSessionId?.let { id ->
                                                                         isRecovering = true
                                                                         statusMsg = "Scanning files and re-processing..."
-                                                                        viewModel.retryLocalProcessing(id) { _, msg ->
+                                                                        viewModel.retryLocalProcessing(id) { success, msg ->
                                                                             isRecovering = false
                                                                             statusMsg = msg
+                                                                            if (success) {
+                                                                                processedByRecovery = true
+                                                                            }
                                                                         }
                                                                     }
                                                                 },
@@ -522,6 +527,7 @@ class MainActivity : ComponentActivity() {
                                                                 onClick = {
                                                                     selectedSessionId?.let { id ->
                                                                         viewModel.markInningsProcessed(id)
+                                                                        processedByRecovery = true
                                                                     }
                                                                 },
                                                                 enabled = !isRecovering,

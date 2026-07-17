@@ -48,7 +48,7 @@ object PhoneSwingDetector {
         watchDir: File,
         polarDir: File,
         context: Context
-    ) = withContext(Dispatchers.IO) {
+    ): Boolean = withContext(Dispatchers.IO) {
         Log.d(TAG, "Starting phone-bound batch processing for innings $inningsId...")
 
         // 1. Load watch data
@@ -62,7 +62,7 @@ object PhoneSwingDetector {
 
         if (watchAcc.isEmpty() || watchRot.isEmpty()) {
             Log.e(TAG, "Watch raw files are missing or empty — skipping processing")
-            return@withContext
+            return@withContext false
         }
 
         // 2. Parse watch tap sequences from latest_timeline.txt
@@ -75,7 +75,7 @@ object PhoneSwingDetector {
 
         if (polarAccFile == null) {
             Log.e(TAG, "Polar Accelerometer CSV not found — skipping processing")
-            return@withContext
+            return@withContext false
         }
 
         val polarAcc = parsePolarCsv(polarAccFile, isGyro = false)
@@ -93,7 +93,7 @@ object PhoneSwingDetector {
         val alignment = matchTapSequences(watchTapSequences, polarTapSequences)
         if (alignment == null) {
             Log.e(TAG, "Failed to match tap sequences for clock alignment — skipping processing")
-            return@withContext
+            return@withContext false
         }
         Log.d(TAG, "Clock Alignment computed: offset=${alignment.offsetMs}ms, drift=${alignment.driftRate}")
 
@@ -304,13 +304,14 @@ object PhoneSwingDetector {
         prefs.edit().putBoolean("processed_innings_$inningsId", true).apply()
 
         Log.d(TAG, "Processed $shotCount shots. Max Speed: $maxSpeed km/h. Syncing metadata...")
+        true
     }
 
     suspend fun processWatchOnlySession(
         inningsId: Long,
         watchDir: File,
         context: Context
-    ) = withContext(Dispatchers.IO) {
+    ): Boolean = withContext(Dispatchers.IO) {
         Log.d(TAG, "Starting phone-bound watch-only batch processing for innings $inningsId...")
 
         // 1. Load watch data
@@ -324,7 +325,7 @@ object PhoneSwingDetector {
 
         if (watchAcc.isEmpty() || watchRot.isEmpty()) {
             Log.e(TAG, "Watch raw files are missing or empty — skipping watch-only processing")
-            return@withContext
+            return@withContext false
         }
 
         // 2. Combine all events chronologically
@@ -430,6 +431,7 @@ object PhoneSwingDetector {
         prefs.edit().putBoolean("processed_innings_$inningsId", true).apply()
 
         Log.d(TAG, "Watch-only processed $shotCount shots. Max Speed: $maxSpeed km/h. Syncing metadata...")
+        true
     }
 
     private fun parseWatchStepsCsv(file: File): List<Long> {
