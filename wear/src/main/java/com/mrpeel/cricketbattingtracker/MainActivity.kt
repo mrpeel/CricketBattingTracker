@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -123,7 +124,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(isTracking.value, isVideoMode.value) {
                     if (isTracking.value) {
                         val dest = "data_recording"
-                        if (navController.currentDestination?.route == "start") {
+                        if (navController.currentDestination?.route != dest) {
                             navController.navigate(dest) {
                                 popUpTo("start") { inclusive = true }
                             }
@@ -147,7 +148,7 @@ class MainActivity : ComponentActivity() {
                         StartSessionScreen(
                             onStartClick = { isDebug ->
                                 startTrackerService(isDebug)
-                                navController.navigate("summary")
+                                navController.navigate("data_recording")
                             }
                         )
                     }

@@ -292,6 +292,9 @@ object PhoneSwingDetector {
             location = "Net Practice"
         ))
 
+        val prefs = context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("processed_innings_$inningsId", true).apply()
+
         Log.d(TAG, "Processed $shotCount shots. Max Speed: $maxSpeed km/h. Syncing metadata...")
     }
 

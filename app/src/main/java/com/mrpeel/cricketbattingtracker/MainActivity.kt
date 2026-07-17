@@ -411,9 +411,11 @@ class MainActivity : ComponentActivity() {
 
                         val isProcessing = remember(timeline, selectedSession) {
                             val now = System.currentTimeMillis()
-                            val isRecent = selectedSession?.let { now - it.startTimeMillis < 120_000L } ?: false
-                            val hasNoShots = timeline.none { it.description.contains("Shot:") || it.batSpeed != null }
-                            isRecent && hasNoShots
+                            val isRecent = selectedSession?.let { now - it.startTimeMillis < 15 * 60_000L } ?: false
+                            val hasShots = timeline.any { it.description.contains("Shot:") || it.batSpeed != null }
+                            val isProcessed = hasShots || context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                                .getBoolean("processed_innings_$selectedSessionId", false)
+                            isRecent && !isProcessed
                         }
 
                         Column(modifier = Modifier.fillMaxSize()) {
