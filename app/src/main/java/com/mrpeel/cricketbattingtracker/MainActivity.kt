@@ -452,6 +452,105 @@ class MainActivity : ComponentActivity() {
                                                 fontSize = 11.sp,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
+
+                                            val elapsedMinutes = selectedSession?.let { (System.currentTimeMillis() - it.startTimeMillis) / 60_000L } ?: 0L
+                                            if (elapsedMinutes >= 5) {
+                                                Spacer(modifier = Modifier.height(24.dp))
+                                                Card(
+                                                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(16.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "Session Sync Recovery",
+                                                            color = Color.White,
+                                                            fontSize = 14.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                        Text(
+                                                            text = "This session has been pending for over $elapsedMinutes minutes. If the sync failed, you can choose one of these recovery actions:",
+                                                            color = Color.LightGray,
+                                                            fontSize = 11.sp,
+                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                        )
+                                                        
+                                                        var statusMsg by remember { mutableStateOf("") }
+                                                        var isRecovering by remember { mutableStateOf(false) }
+                                                        
+                                                        if (statusMsg.isNotEmpty()) {
+                                                            Text(
+                                                                text = statusMsg,
+                                                                color = Color(0xFF58FF63),
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                            )
+                                                        }
+                                                        
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            // Retry local processing
+                                                            Button(
+                                                                onClick = {
+                                                                    selectedSessionId?.let { id ->
+                                                                        isRecovering = true
+                                                                        statusMsg = "Scanning files and re-processing..."
+                                                                        viewModel.retryLocalProcessing(id) { _, msg ->
+                                                                            isRecovering = false
+                                                                            statusMsg = msg
+                                                                        }
+                                                                    }
+                                                                },
+                                                                enabled = !isRecovering,
+                                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF58FF63), contentColor = Color(0xFF000C1B)),
+                                                                modifier = Modifier.weight(1f),
+                                                                shape = RoundedCornerShape(8.dp)
+                                                            ) {
+                                                                Text("Retry Sync", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                            }
+                                                            
+                                                            // Mark Completed (skip processing, show empty)
+                                                            OutlinedButton(
+                                                                onClick = {
+                                                                    selectedSessionId?.let { id ->
+                                                                        viewModel.markInningsProcessed(id)
+                                                                    }
+                                                                },
+                                                                enabled = !isRecovering,
+                                                                border = BorderStroke(1.dp, Color.Gray),
+                                                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Color.White),
+                                                                modifier = Modifier.weight(1f),
+                                                                shape = RoundedCornerShape(8.dp)
+                                                            ) {
+                                                                Text("Mark Done", fontSize = 11.sp)
+                                                            }
+                                                        }
+                                                        
+                                                        // Discard session
+                                                        Button(
+                                                            onClick = {
+                                                                selectedSessionId?.let { id ->
+                                                                    viewModel.deleteInnings(id)
+                                                                }
+                                                            },
+                                                            enabled = !isRecovering,
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252), contentColor = Color.White),
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            shape = RoundedCornerShape(8.dp)
+                                                        ) {
+                                                            Text("Discard Session", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 } else {

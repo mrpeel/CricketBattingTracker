@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mrpeel.cricketbattingtracker.data.AppDatabase
 import com.mrpeel.cricketbattingtracker.data.InningsEvent
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -90,4 +91,104 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    fun deleteInnings(inningsId: Long) {
+        viewModelScope.launch {
+            dao.deleteTimelineForInningsSync(inningsId)
+            selectInnings(null) // Reset selection
+        }
+    }
+
+    fun markInningsProcessed(inningsId: Long) {
+        val prefs = getApplication<Application>().getSharedPreferences("pitch_analytix_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("processed_innings_$inningsId", true).apply()
+        // Force flow refresh
+        _selectedInningsId.value = _selectedInningsId.value
+    }
+
+    fun retryLocalProcessing(inningsId: Long, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val watchRoot = getApplication<Application>().getExternalFilesDir("watch_sessions")
+                val watchDirs = watchRoot?.listFiles()?.filter { it.isDirectory && it.name.startsWith("session_") }
+                
+                val timeline = dao.getTimelineForInningsListSync(inningsId)
+                val startEvent = timeline.firstOrNull { it.description == "Session Started" }
+                if (startEvent == null) {
+                    onResult(false, "Could not find session start timestamp in database")
+                    return@launch
+                }
+                
+                val startTimeMs = startEvent.timestamp
+                val targetDir = watchDirs?.minByOrNull { dir ->
+                    try {
+                        val dirTimeStr = dir.name.substringAfter("session_")
+                        val dirTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(dirTimeStr)?.time ?: 0L
+                        kotlin.math.abs(dirTimeMs - startTimeMs)
+                    } catch (e: Exception) {
+                        Long.MAX_VALUE
+                    }
+                }
+                
+                if (targetDir == null || !targetDir.exists()) {
+                    onResult(false, "No matching watch session folder found on phone storage.")
+                    return@launch
+                }
+                
+                val dirTimeStr = targetDir.name.substringAfter("session_")
+                val dirTimeMs = try {
+                    java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(dirTimeStr)?.time ?: 0L
+                } catch (e: Exception) { 0L }
+                
+                if (kotlin.math.abs(dirTimeMs - startTimeMs) > 10 * 60_000L) {
+                    onResult(false, "No matching watch session folder found for this session's time.")
+                    return@launch
+                }
+                
+                val polarRoot = getApplication<Application>().getExternalFilesDir("polar_sessions")
+                val polarSessionDir = polarRoot?.listFiles()
+                    ?.filter { it.isDirectory && it.name.startsWith("polar_session_") }
+                    ?.minByOrNull { dir ->
+                        try {
+                            val polarTimeStr = dir.name.substringAfter("polar_session_")
+                            val polarTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(polarTimeStr)?.time ?: 0L
+                            kotlin.math.abs(polarTimeMs - startTimeMs)
+                        } catch (e: Exception) {
+                            Long.MAX_VALUE
+                        }
+                    }
+                
+                val matchedPolarDir = polarSessionDir?.takeIf { dir ->
+                    try {
+                        val polarTimeStr = dir.name.substringAfter("polar_session_")
+                        val polarTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(polarTimeStr)?.time ?: 0L
+                        kotlin.math.abs(polarTimeMs - startTimeMs) < 10 * 60_000L
+                    } catch (e: Exception) { false }
+                }
+                
+                if (matchedPolarDir != null) {
+                    com.mrpeel.cricketbattingtracker.services.PhoneSwingDetector.processSession(
+                        inningsId,
+                        targetDir,
+                        matchedPolarDir,
+                        getApplication()
+                    )
+                    onResult(true, "Successfully processed dual-sensor session data!")
+                } else {
+                    com.mrpeel.cricketbattingtracker.services.PhoneSwingDetector.processWatchOnlySession(
+                        inningsId,
+                        targetDir,
+                        getApplication()
+                    )
+                    onResult(true, "Successfully recovered session using Watch-only data!")
+                }
+                
+                // Force timeline re-trigger
+                _selectedInningsId.value = inningsId
+                
+            } catch (e: Exception) {
+                onResult(false, "Recovery processing failed: ${e.message}")
+            }
+        }
+    }
 }
