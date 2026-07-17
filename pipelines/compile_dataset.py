@@ -103,14 +103,54 @@ def extract_shot_features(sensors, t_shot):
     # Identify orientation dataframe
     orient = sensors.get("game_orient", sensors.get("orient"))
     
-    # Compute stance reference quaternion
+    # Compute stance reference quaternion using dynamic look-back stability search
     q_stance = np.array([0, 0, 0, 1.0])
     if orient is not None:
-        stance_ori = orient[(orient['seconds_elapsed'] >= t_shot - 3.0) & 
-                            (orient['seconds_elapsed'] <= t_shot - 1.5)]
-        if len(stance_ori) >= 2:
-            q_stance = average_quats(stance_ori['qx'].values, stance_ori['qy'].values, 
-                                     stance_ori['qz'].values, stance_ori['qw'].values)
+        def compute_stability(df_window):
+            if len(df_window) < 2:
+                return 999.0
+            df_sorted = df_window.sort_values('seconds_elapsed')
+            total_disp = 0.0
+            count = 0
+            q_vals = df_sorted[['qx', 'qy', 'qz', 'qw']].values
+            for i in range(1, len(q_vals)):
+                q1 = q_vals[i-1]
+                q2 = q_vals[i]
+                dot = np.clip(np.dot(q1, q2), -1.0, 1.0)
+                angle_deg = np.degrees(2.0 * np.arccos(np.abs(dot)))
+                total_disp += angle_deg
+                count += 1
+            return total_disp / count if count > 0 else 999.0
+
+        window_df = orient[(orient['seconds_elapsed'] >= t_shot - 3.0) & 
+                           (orient['seconds_elapsed'] <= t_shot - 1.0)]
+        if len(window_df) >= 2:
+            best_stability = 999.0
+            best_sub_df = None
+            window_df = window_df.sort_values('seconds_elapsed')
+            times = window_df['seconds_elapsed'].values
+            for i in range(len(times)):
+                t_start = times[i]
+                t_end = t_start + 0.8
+                if t_end > t_shot - 1.0 + 1e-5:
+                    break
+                sub_df = window_df[(window_df['seconds_elapsed'] >= t_start) & 
+                                   (window_df['seconds_elapsed'] <= t_end)]
+                if len(sub_df) >= 2:
+                    stab = compute_stability(sub_df)
+                    if stab < best_stability:
+                        best_stability = stab
+                        best_sub_df = sub_df
+            
+            if best_sub_df is not None and len(best_sub_df) >= 2:
+                q_stance = average_quats(best_sub_df['qx'].values, best_sub_df['qy'].values, 
+                                         best_sub_df['qz'].values, best_sub_df['qw'].values)
+            else:
+                stance_ori = orient[(orient['seconds_elapsed'] >= t_shot - 3.0) & 
+                                    (orient['seconds_elapsed'] <= t_shot - 1.5)]
+                if len(stance_ori) >= 2:
+                    q_stance = average_quats(stance_ori['qx'].values, stance_ori['qy'].values, 
+                                             stance_ori['qz'].values, stance_ori['qw'].values)
                                      
     q_stance_inv = conjugate_quat(q_stance)
     

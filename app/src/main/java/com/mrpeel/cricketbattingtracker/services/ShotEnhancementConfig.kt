@@ -5,8 +5,8 @@ package com.mrpeel.cricketbattingtracker.services
  * Contains optimized bottom-hand reclassification thresholds.
  */
 object ShotEnhancementConfig {
-    const val DRIVE_TO_POWER_GYRO_RATIO = 1.3500f
-    const val DRIVE_TO_POWER_ACC_PEAK = 25.0000f
+    const val DRIVE_TO_POWER_GYRO_RATIO = 1.2500f
+    const val DRIVE_TO_POWER_ACC_PEAK = 15.0000f
 
     const val FLICK_TO_GUIDE_GYRO_RATIO = 0.3000f
     const val FLICK_TO_GUIDE_GYRO_PEAK = 3.0000f
