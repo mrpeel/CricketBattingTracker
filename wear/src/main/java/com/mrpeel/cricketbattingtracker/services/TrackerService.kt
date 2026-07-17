@@ -208,7 +208,7 @@ class TrackerService : Service(), SensorEventListener {
                                  config.type == Sensor.TYPE_STEP_COUNTER) {
                     SensorManager.SENSOR_DELAY_NORMAL
                 } else {
-                    SensorManager.SENSOR_DELAY_FASTEST
+                    5000 // 5000 microseconds = 200Hz high-fidelity logging (auto-bounded by hardware max)
                 }
                 sensorManager.registerListener(this, sensor, delay, 0, sensorHandler)
             }
