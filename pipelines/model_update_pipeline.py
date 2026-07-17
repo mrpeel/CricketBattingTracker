@@ -400,6 +400,20 @@ def main():
                 cls_data = offline_stats["classes"][cat]
                 f.write(f"| {cat} | {cls_data['gt']} | {cls_data['cv_acc']:.1%} | {cls_data['train_acc']:.1%} |\n")
             f.write(f"| **OVERALL** | **{offline_stats['total_swings']}** | **{offline_stats['overall_cv']:.1%}** | **{offline_stats['overall_train']:.1%}** |\n\n")
+
+        # Add Section 4: Polar Sense (Bottom Hand) Integration
+        f.write("## 4. Polar Sense (Bottom Hand) Integration\n")
+        f.write("Polar Sense bottom-hand telemetry runs at a high sampling rate (~418Hz vs. the watch's 50Hz) to capture high-resolution impact transients and release mechanics. These metrics are used by the companion app's `ShotEnhancementEngine` as a post-classification refinement layer.\n\n")
+        config_path = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/ShotEnhancementConfig.kt"
+        if os.path.exists(config_path):
+            f.write("### Active Refinement Thresholds (Auto-Optimized):\n")
+            with open(config_path, "r") as cfg:
+                for line in cfg:
+                    if "const val" in line:
+                        f.write(f"- `{line.strip()}`\n")
+            f.write("\n")
+        else:
+            f.write("*(No bottom-hand refinement configurations found)*\n\n")
         
         f.write("## Detailed Verification Log\n")
         f.write("- Model successfully retrained on `combined_features.csv`.\n")

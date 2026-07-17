@@ -1,6 +1,6 @@
 # Model Update & Retraining Performance Analysis
 
-**Generated:** 2026-07-17 19:33:25
+**Generated:** 2026-07-17 19:40:15
 
 ## Executive Summary
 This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.
@@ -55,6 +55,17 @@ Below is the classification accuracy for the newly retrained model evaluated on 
 | SLOG | 288 | 83.3% | 95.5% |
 | SWEEP | 70 | 42.9% | 92.9% |
 | **OVERALL** | **1803** | **62.6%** | **80.4%** |
+
+## 4. Polar Sense (Bottom Hand) Integration
+Polar Sense bottom-hand telemetry runs at a high sampling rate (~418Hz vs. the watch's 50Hz) to capture high-resolution impact transients and release mechanics. These metrics are used by the companion app's `ShotEnhancementEngine` as a post-classification refinement layer.
+
+### Active Refinement Thresholds (Auto-Optimized):
+- `const val DRIVE_TO_POWER_GYRO_RATIO = 1.2500f`
+- `const val DRIVE_TO_POWER_ACC_PEAK = 15.0000f`
+- `const val FLICK_TO_GUIDE_GYRO_RATIO = 0.3000f`
+- `const val FLICK_TO_GUIDE_GYRO_PEAK = 3.0000f`
+- `const val PULL_TO_SLOG_GYRO_RATIO = 1.1000f`
+- `const val PULL_TO_SLOG_GYRO_PEAK = 8.0000f`
 
 ## Detailed Verification Log
 - Model successfully retrained on `combined_features.csv`.
