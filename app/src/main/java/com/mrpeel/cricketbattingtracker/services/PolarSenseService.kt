@@ -129,7 +129,7 @@ class PolarSenseService : Service() {
         Log.d(TAG, "CSV writers opened: $dir")
     }
 
-    private fun stopCsvWriting() {
+    private fun stopCsvWriting(compress: Boolean = true) {
         PolarSenseManager.onAccSample = null
         PolarSenseManager.onGyroSample = null
         PolarSenseManager.onMagSample = null
@@ -159,18 +159,52 @@ class PolarSenseService : Service() {
         magWriter = null
 
         Log.d(TAG, "CSV writers closed. Session dir: ${sessionDir?.absolutePath}")
+
+        if (compress) {
+            sessionDir?.let { dir ->
+                if (dir.exists()) {
+                    val zipFile = File(dir.parentFile, "${dir.name}.zip")
+                    try {
+                        zipDirectory(dir, zipFile)
+                        dir.deleteRecursively()
+                        Log.d(TAG, "Compressed Polar session folder into: ${zipFile.absolutePath}")
+                    } catch (e: java.lang.Exception) {
+                        Log.e(TAG, "Failed to compress Polar session: ${e.message}")
+                    }
+                }
+            }
+        }
     }
 
     /** Delete session data files (for DISCARD flow). */
     fun discardSessionData() {
-        stopCsvWriting()
+        stopCsvWriting(compress = false)
         sessionDir?.let { dir ->
             if (dir.exists()) {
                 dir.deleteRecursively()
                 Log.d(TAG, "Discarded Polar session data: ${dir.absolutePath}")
             }
+            val zipFile = File(dir.parentFile, "${dir.name}.zip")
+            if (zipFile.exists()) {
+                zipFile.delete()
+            }
         }
         sessionDir = null
+    }
+
+    private fun zipDirectory(sourceDir: File, zipFile: File) {
+        java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(java.io.FileOutputStream(zipFile))).use { zos ->
+            sourceDir.walkTopDown().forEach { file ->
+                if (file.isFile) {
+                    val entryName = sourceDir.toURI().relativize(file.toURI()).path
+                    zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                    file.inputStream().use { input ->
+                        input.copyTo(zos)
+                    }
+                    zos.closeEntry()
+                }
+            }
+        }
     }
 
     private fun formatPhoneTimestamp(epochMs: Long): String {

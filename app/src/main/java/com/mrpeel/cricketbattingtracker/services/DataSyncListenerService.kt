@@ -560,10 +560,21 @@ class DataSyncListenerService : WearableListenerService() {
         val dao = database.inningsEventDao()
         
         val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
-        val watchSessionsDir = java.io.File(getExternalFilesDir("watch_sessions"), "session_$timestamp")
+        
+        // 1. Copy the incoming zip to permanent compressed zip file
+        val permanentZipFile = java.io.File(getExternalFilesDir("watch_sessions"), "session_$timestamp.zip")
+        try {
+            zipFile.copyTo(permanentZipFile, overwrite = true)
+            Log.d(TAG, "Saved permanent compressed session zip to: ${permanentZipFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save permanent zip file: ${e.message}")
+        }
+        
+        // 2. Unzip to temporary folder for processing
+        val watchSessionsDir = java.io.File(getExternalFilesDir("watch_sessions"), "temp_processing_$timestamp")
         watchSessionsDir.mkdirs()
         
-        Log.d(TAG, "Unzipping incoming watch logs to: ${watchSessionsDir.absolutePath}")
+        Log.d(TAG, "Unzipping watch logs for processing to: ${watchSessionsDir.absolutePath}")
         unzip(zipFile, watchSessionsDir)
         
         // Clean up temporary ZIP file
@@ -643,6 +654,16 @@ class DataSyncListenerService : WearableListenerService() {
             VideoClippingEngine.clipSessionShots(newInningsId, applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Video clipping failed: ${e.message}", e)
+        }
+
+        // Clean up the temporary watch uncompressed directory
+        if (watchSessionsDir.exists()) {
+            try {
+                watchSessionsDir.deleteRecursively()
+                Log.d(TAG, "Deleted temp watch sessions directory: ${watchSessionsDir.absolutePath}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete temp watch directory", e)
+            }
         }
 
         // Auto-launch the UI to show the new sync results
