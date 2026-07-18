@@ -79,17 +79,12 @@ class TrackerService : Service(), SensorEventListener {
         SensorConfig(Sensor.TYPE_ACCELEROMETER, "WatchAccelerometer.csv", "time,seconds_elapsed,x,y,z\n"),
         SensorConfig(Sensor.TYPE_GYROSCOPE, "WatchGyroscope.csv", "time,seconds_elapsed,x,y,z\n"),
         SensorConfig(Sensor.TYPE_GRAVITY, "WatchGravity.csv", "time,seconds_elapsed,x,y,z\n"),
-        SensorConfig(Sensor.TYPE_ROTATION_VECTOR, "WatchOrientation.csv", "time,seconds_elapsed,qx,qy,qz,qw\n"),
         SensorConfig(Sensor.TYPE_GAME_ROTATION_VECTOR, "WatchGameOrientation.csv", "time,seconds_elapsed,qx,qy,qz,qw\n"),
         SensorConfig(Sensor.TYPE_STEP_DETECTOR, "WatchSteps.csv", "time,seconds_elapsed\n"),
         SensorConfig(Sensor.TYPE_HEART_RATE, "WatchHeartRate.csv", "time,seconds_elapsed,bpm\n"),
         SensorConfig(Sensor.TYPE_LINEAR_ACCELERATION, "WatchLinearAcceleration.csv", "time,seconds_elapsed,x,y,z\n"),
         SensorConfig(Sensor.TYPE_MAGNETIC_FIELD, "WatchMagnetometer.csv", "time,seconds_elapsed,x,y,z\n"),
-        SensorConfig(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, "WatchMagnetometerUncalibrated.csv", "time,seconds_elapsed,x,y,z,bias_x,bias_y,bias_z\n"),
-        SensorConfig(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, "WatchGyroscopeUncalibrated.csv", "time,seconds_elapsed,x,y,z,bias_x,bias_y,bias_z\n"),
-        SensorConfig(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED, "WatchAccelerometerUncalibrated.csv", "time,seconds_elapsed,x,y,z,bias_x,bias_y,bias_z\n"),
         SensorConfig(Sensor.TYPE_PRESSURE, "WatchBarometer.csv", "time,seconds_elapsed,pressure\n"),
-        SensorConfig(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR, "WatchGeomagneticOrientation.csv", "time,seconds_elapsed,qx,qy,qz,qw\n"),
         SensorConfig(Sensor.TYPE_STEP_COUNTER, "WatchStepCounter.csv", "time,seconds_elapsed,steps\n")
     )
 

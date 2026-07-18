@@ -421,12 +421,10 @@ class MainActivity : ComponentActivity() {
                         var processedByRecovery by remember(selectedSessionId) { mutableStateOf(false) }
 
                         val isProcessing = remember(timeline, selectedSession, processedByRecovery) {
-                            val now = System.currentTimeMillis()
-                            val isRecent = selectedSession?.let { now - it.startTimeMillis < 15 * 60_000L } ?: false
                             val hasShots = timeline.any { it.description.contains("Shot:") || it.batSpeed != null }
                             val isProcessed = hasShots || processedByRecovery || context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
                                 .getBoolean("processed_innings_$selectedSessionId", false)
-                            isRecent && !isProcessed
+                            !isProcessed
                         }
 
                         Column(modifier = Modifier.fillMaxSize()) {

@@ -245,8 +245,17 @@ def pull_latest_session_from_phone(phone_id, dest_dir):
             os.makedirs(local_session_dir, exist_ok=True)
             print(f"📦 Unzipping session file locally: {local_zip_path} → {local_session_dir}")
             import zipfile
-            with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
-                zip_ref.extractall(local_session_dir)
+            try:
+                with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(local_session_dir)
+            except zipfile.BadZipFile:
+                print(f"❌ ERROR: The pulled raw session file is corrupt or incomplete (BadZipFile).")
+                print("   This happens if the watch-to-phone data sync is still actively running or was aborted.")
+                if os.path.exists(local_zip_path): os.remove(local_zip_path)
+                if os.path.exists(local_session_dir):
+                    import shutil
+                    shutil.rmtree(local_session_dir)
+                return None
             os.remove(local_zip_path)
             
             print("🧹 Cleaning raw incoming session on phone...")
@@ -275,8 +284,17 @@ def pull_latest_session_from_phone(phone_id, dest_dir):
         
         print(f"📦 Unzipping session file locally: {local_zip_path} → {local_session_dir}")
         import zipfile
-        with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
-            zip_ref.extractall(local_session_dir)
+        try:
+            with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(local_session_dir)
+        except zipfile.BadZipFile:
+            print(f"❌ ERROR: The pulled session file {latest_session} is corrupt or incomplete (BadZipFile).")
+            print("   This happens if the watch-to-phone data sync is still actively running or was aborted.")
+            if os.path.exists(local_zip_path): os.remove(local_zip_path)
+            if os.path.exists(local_session_dir):
+                import shutil
+                shutil.rmtree(local_session_dir)
+            return None
             
         os.remove(local_zip_path)
     else:
