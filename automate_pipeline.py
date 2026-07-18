@@ -354,14 +354,38 @@ def pull_polar_from_phone(phone_id, session_dir):
     local_polar_dir = os.path.join(session_dir, "PolarSense")
     os.makedirs(local_polar_dir, exist_ok=True)
 
-    print(f"📥 Pulling Polar Sense files: {polar_phone_path} → {local_polar_dir}/")
-    pull_res = subprocess.run(
-        ["adb", "-s", phone_id, "pull", polar_phone_path + "/.", local_polar_dir],
-        capture_output=True, text=True
-    )
-    if pull_res.returncode != 0:
-        print(f"❌ Failed to pull Polar Sense data: {pull_res.stderr.strip()}")
-        return False
+    if polar_phone_path.endswith(".zip"):
+        local_zip_path = os.path.join(session_dir, latest_session)
+        if os.path.exists(local_zip_path):
+            if os.path.isdir(local_zip_path):
+                import shutil
+                shutil.rmtree(local_zip_path)
+            else:
+                os.remove(local_zip_path)
+                
+        print(f"📥 Pulling Polar Sense ZIP: {polar_phone_path} → {local_zip_path}")
+        pull_res = subprocess.run(
+            ["adb", "-s", phone_id, "pull", polar_phone_path, local_zip_path],
+            capture_output=True, text=True
+        )
+        if pull_res.returncode != 0:
+            print(f"❌ Failed to pull Polar Sense ZIP: {pull_res.stderr.strip()}")
+            return False
+            
+        print(f"📦 Unzipping Polar Sense files locally: {local_zip_path} → {local_polar_dir}")
+        import zipfile
+        with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
+            zip_ref.extractall(local_polar_dir)
+        os.remove(local_zip_path)
+    else:
+        print(f"📥 Pulling Polar Sense files: {polar_phone_path} → {local_polar_dir}/")
+        pull_res = subprocess.run(
+            ["adb", "-s", phone_id, "pull", polar_phone_path + "/.", local_polar_dir],
+            capture_output=True, text=True
+        )
+        if pull_res.returncode != 0:
+            print(f"❌ Failed to pull Polar Sense data: {pull_res.stderr.strip()}")
+            return False
 
     pulled_files = [f for f in os.listdir(local_polar_dir) if os.path.isfile(os.path.join(local_polar_dir, f))]
     if not pulled_files:
