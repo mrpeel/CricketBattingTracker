@@ -231,6 +231,12 @@ def pull_latest_session_from_phone(phone_id, dest_dir):
     
     if phone_path.endswith(".zip"):
         local_zip_path = os.path.join(dest_dir, latest_session)
+        if os.path.exists(local_zip_path):
+            if os.path.isdir(local_zip_path):
+                import shutil
+                shutil.rmtree(local_zip_path)
+            else:
+                os.remove(local_zip_path)
         print(f"📥 Pulling latest phone-synced watch session ZIP: {phone_path} → {local_zip_path}")
         subprocess.run(["adb", "-s", phone_id, "pull", phone_path, local_zip_path], check=True)
         
