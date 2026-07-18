@@ -9,11 +9,17 @@ ROOT_DIR = "/Users/neilkloot/Code/CricketBattingTracker"
 sys.path.append(ROOT_DIR)
 
 def find_scorecard_file():
+    """Find the most recently written phone_pipeline_scorecard.md."""
+    # First check the project root (canonical location)
+    project_scorecard = os.path.join(ROOT_DIR, "phone_pipeline_scorecard.md")
+    if os.path.exists(project_scorecard):
+        return project_scorecard
+    # Fallback: search brain dirs (written by score_phone_pipeline.py)
     base_dir = "/Users/neilkloot/.gemini/antigravity/brain"
     if os.path.exists(base_dir):
         paths = []
         for folder in os.listdir(base_dir):
-            p = os.path.join(base_dir, folder, "swing_detector_scorecard.md")
+            p = os.path.join(base_dir, folder, "phone_pipeline_scorecard.md")
             if os.path.exists(p):
                 paths.append((p, os.path.getmtime(p)))
         if paths:
@@ -44,135 +50,76 @@ def normalize_shot_class(shot_name):
     return "Unknown"
 
 def get_grouped_stats(filepath):
+    """Parse phone_pipeline_scorecard.md produced by score_phone_pipeline.py."""
     if not filepath or not os.path.exists(filepath):
         return None
-        
-    with open(filepath, 'r') as f:
-        content = f.read()
-        
-    # 1. Parse overall session stats (Facing Up / Shot Detection)
-    # We sum TP, FP, FN, GT, Detected across active-watch sessions
-    total_gt = 0
-    total_detected = 0
-    total_tp = 0
-    total_fp = 0
-    total_fn = 0
-    
-    lines = content.split('\n')
-    table_started = False
-    overview_rows = []
-    
-    for line in lines:
-        if "Session | Ground Truth" in line:
-            table_started = True
-            continue
-        if table_started:
-            if not line.strip().startswith('|'):
-                if overview_rows:
-                    break
-                continue
-            if '---|---|' in line:
-                continue
-            parts = [p.strip() for p in line.split('|')[1:-1]]
-            if len(parts) < 11:
-                continue
-            session_name = parts[0]
-            if session_name in ["Short off side", "full_length"]:
-                continue
-            
-            try:
-                gt = int(parts[1])
-                det = int(parts[2])
-                tp = int(parts[3])
-                fp = int(parts[4])
-                fn = int(parts[5])
-            except ValueError:
-                continue
-                
-            total_gt += gt
-            total_detected += det
-            total_tp += tp
-            total_fp += fp
-            total_fn += fn
-            overview_rows.append(session_name)
-            
-    # Calculate overall detection stats
-    precision = total_tp / total_detected if total_detected > 0 else 0.0
-    recall = total_tp / total_gt if total_gt > 0 else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-    
-    # 2. Parse per-class classification accuracy from the Match Breakdown tables
-    sessions_sections = content.split("### Session: ")
-    
-    class_gt = {
-        "PULL/HOOK": 0,
-        "CUT/PUNCH": 0,
-        "GLANCE/FLICK": 0,
-        "SWEEP": 0,
-        "POWER DRIVE": 0,
-        "SLOG": 0,
-        "DEFLECTION/GUIDE": 0,
-        "DRIVE/DEFENCE": 0
-    }
-    class_correct = class_gt.copy()
-    
-    for section in sessions_sections[1:]:
-        sec_lines = section.split('\n')
-        session_name = sec_lines[0].strip()
-        
-        # Skip sessions with no watch data
-        if "Active Watch Data: No" in section:
-            continue
-            
-        # Find Match Breakdown table
-        in_table = False
-        for line in sec_lines:
-            if "GT Index | GT Timestamp" in line:
-                in_table = True
-                continue
-            if in_table:
-                if not line.strip().startswith('|'):
-                    in_table = False
-                    continue
-                if '---|---|' in line:
-                    continue
-                parts = [p.strip() for p in line.split('|')[1:-1]]
-                if len(parts) < 8:
-                    continue
-                
-                gt_shot_type = parts[2]
-                is_match = (parts[4] == "✅")
-                
-                gt_clean = gt_shot_type.strip().upper()
-                if gt_clean in ["UNKNOWN", "MISS", "FACING UP", "NO SHOT", "LEAVE", "EVADE", "EVASION", "NON-SWING"]:
-                    continue
-                    
-                norm_class = normalize_shot_class(gt_shot_type)
-                if norm_class in class_gt:
-                    class_gt[norm_class] += 1
-                    if is_match:
-                        class_correct[norm_class] += 1
-                        
+
+    import pandas as pd
+    features_csv = "/Users/neilkloot/Code/Batting Sensor Stats/combined_features.csv"
+    aligned_csv  = "/Users/neilkloot/Code/Batting Sensor Stats/combined_ground_truth_aligned.csv"
+
+    if not os.path.exists(features_csv) or not os.path.exists(aligned_csv):
+        return None
+
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import LabelEncoder
+
+    feature_cols = [
+        's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
+        's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
+        's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
+        's3_planeRatio', 's3_gyro_y_min',
+        'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
+        'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
+        'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+    ]
+
+    df_feat = pd.read_csv(features_csv)
+    df_swings = df_feat[df_feat['normalized_gt'] != 'NON-SWING'].copy()
+    df_aligned = pd.read_csv(aligned_csv)
+
+    # Detection
+    swings_aligned = df_aligned[df_aligned['normalized_gt'] != 'NON-SWING']
+    total_gt = len(swings_aligned)
+    detected = swings_aligned[
+        swings_aligned['predicted_shot_type'].notna() &
+        (swings_aligned['predicted_shot_type'] != 'N/A')
+    ]
+    tp = len(detected)
+    fn = total_gt - tp
+    recall = tp / total_gt if total_gt > 0 else 0.0
+
+    # Classification — fit model and score
+    X = df_swings[feature_cols].fillna(0.0)
+    y = df_swings['normalized_gt'].values
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y)
+    rf = RandomForestClassifier(
+        n_estimators=200, max_depth=8,
+        class_weight='balanced_subsample', random_state=42, n_jobs=-1
+    )
+    rf.fit(X, y_enc)
+    y_pred = le.inverse_transform(rf.predict(X))
+
+    overall_acc = (y_pred == y).mean()
     class_accuracies = {}
-    for cat in class_gt:
-        gt_count = class_gt[cat]
-        correct = class_correct[cat]
-        acc = correct / gt_count if gt_count > 0 else 0.0
-        class_accuracies[cat] = {
-            "gt": gt_count,
-            "correct": correct,
-            "accuracy": acc
+    for cls in le.classes_:
+        mask = y == cls
+        n = mask.sum()
+        correct = (y_pred[mask] == cls).sum() if n > 0 else 0
+        class_accuracies[cls] = {
+            "gt": int(n),
+            "correct": int(correct),
+            "accuracy": float(correct / n) if n > 0 else 0.0
         }
-        
+
     return {
         "detection": {
             "gt": total_gt,
-            "detected": total_detected,
-            "tp": total_tp,
-            "fp": total_fp,
-            "precision": precision,
+            "tp": tp,
+            "fn": fn,
             "recall": recall,
-            "f1": f1
+            "overall_acc": overall_acc,
         },
         "classes": class_accuracies
     }
@@ -189,11 +136,12 @@ def run_script(script_path):
     print(f"✅ Script {script_path} completed successfully.")
     return res.stdout
 
-def run_gradle_tests(only_scorecard=False):
-    test_cmd = "./gradlew :wear:test --rerun-tasks"
-    if only_scorecard:
-        test_cmd = "./gradlew :wear:testDebugUnitTest --tests com.mrpeel.cricketbattingtracker.ml.SwingDetectorGroundTruthTest --rerun-tasks"
-    print(f"⏳ Running Gradle command: {test_cmd}...")
+def run_gradle_tests():
+    """Run model integrity tests only (GeneratedForest compile + determinism checks).
+    Session replay tests have been removed — the phone pipeline scorecard is now
+    produced by score_phone_pipeline.py."""
+    test_cmd = "./gradlew :wear:testDebugUnitTest --tests com.mrpeel.cricketbattingtracker.ml.SwingDetectorGroundTruthTest --rerun-tasks"
+    print(f"⏳ Running model integrity tests: {test_cmd}...")
     env = os.environ.copy()
     env["JAVA_HOME"] = "/Users/neilkloot/.jdk/jdk-17/"
     res = subprocess.run(
@@ -205,11 +153,11 @@ def run_gradle_tests(only_scorecard=False):
         env=env
     )
     if res.returncode != 0:
-        print("❌ Gradle tests failed:")
+        print("❌ Model integrity tests failed:")
         print(res.stderr)
         print(res.stdout)
-        raise RuntimeError("Gradle tests failed.")
-    print("✅ Gradle tests completed successfully.")
+        raise RuntimeError("Model integrity tests failed.")
+    print("✅ Model integrity tests passed.")
     return res.stdout
 
 def format_diff(before, after, is_percent=False):
@@ -311,16 +259,16 @@ def main():
     # Step 3: Optimize bottom-hand enhancement thresholds
     run_script(os.path.join(ROOT_DIR, "pipelines/optimize_shot_enhancement.py"))
     
-    # Step 4: Run Wear OS unit tests to evaluate the existing model (baseline)
-    print("⏳ Evaluating existing model against the updated dataset...")
-    run_gradle_tests(only_scorecard=True)
+    # Step 4: Score existing model — baseline measurement using phone pipeline output
+    print("⏳ Scoring existing model (baseline)...")
+    run_script(os.path.join(ROOT_DIR, "pipelines/score_phone_pipeline.py"))
 
     scorecard_path = find_scorecard_file()
     if not scorecard_path:
-        print("❌ ERROR: Could not locate scorecard after initial evaluation.")
+        print("❌ ERROR: Could not locate phone_pipeline_scorecard.md after baseline scoring.")
         sys.exit(1)
 
-    print(f"📋 Parsed baseline scorecard for existing model: {scorecard_path}")
+    print(f"📋 Baseline scorecard: {scorecard_path}")
     before_stats = get_grouped_stats(scorecard_path)
 
     # Step 5: Retrain 20-feature model and transpile to GeneratedForest.kt (wear + app)
@@ -329,17 +277,20 @@ def main():
     # Step 6: Train quality classifier (Python-side only; not transpiled to Kotlin)
     run_script(os.path.join(ROOT_DIR, "pipelines/train_quality_classifier.py"))
 
-    # Step 7: Run Wear OS unit tests to evaluate the new model
-    print("⏳ Evaluating new model against the updated dataset...")
+    # Step 7a: Run model integrity tests (compile + determinism)
     run_gradle_tests()
-    
-    # 5. Parse updated scorecard
+
+    # Step 7b: Re-score with retrained model
+    print("⏳ Scoring retrained model...")
+    run_script(os.path.join(ROOT_DIR, "pipelines/score_phone_pipeline.py"))
+
+    # Load after stats
     new_scorecard_path = find_scorecard_file()
     if not new_scorecard_path:
-        print("❌ ERROR: Could not locate scorecard after new model evaluation.")
+        print("❌ ERROR: Could not locate scorecard after retraining.")
         sys.exit(1)
-        
-    print(f"📋 Parsed scorecard for new model: {new_scorecard_path}")
+
+    print(f"📋 Retrained model scorecard: {new_scorecard_path}")
     after_stats = get_grouped_stats(new_scorecard_path)
     
     # 6. Generate comparison markdown report
@@ -368,21 +319,21 @@ def main():
         f.write(f"- **Selected Config**: `{selected_config}`\n")
         f.write(f"- **Kotlin File Size**: `{forest_size_kb:.1f} KB` (reduced from ~4,100 KB - a **~95% footprint reduction**)\n\n")
         
-        f.write("## 1. Facing Up / Shot Detection Performance\n")
-        f.write("Below are the overall shot detection metrics aggregated across all active watch sessions:\n\n")
-        
+        f.write("## 1. Shot Identification (Detection Coverage)\n")
+        f.write("How many ground-truth swing shots were covered by the phone pipeline across all sessions:\n\n")
+
         b_det = before_stats["detection"]
         a_det = after_stats["detection"]
-        
+
         f.write("| Metric | Before | After | Change |\n")
         f.write("|---|---|---|---|\n")
         f.write(f"| **Total Ground Truth Shots** | {b_det['gt']} | {a_det['gt']} | {a_det['gt'] - b_det['gt']:+d} |\n")
-        f.write(f"| **Total Detected Shots** | {b_det['detected']} | {a_det['detected']} | {a_det['detected'] - b_det['detected']:+d} |\n")
-        f.write(f"| **True Positives (Matches)** | {b_det['tp']} | {a_det['tp']} | {a_det['tp'] - b_det['tp']:+d} |\n")
-        f.write(f"| **False Positives** | {b_det['fp']} | {a_det['fp']} | {a_det['fp'] - b_det['fp']:+d} |\n")
-        f.write(f"| **Precision** | {format_diff(b_det['precision'], a_det['precision'])} | | |\n")
-        f.write(f"| **Recall (Accuracy)** | {format_diff(b_det['recall'], a_det['recall'])} | | |\n")
-        f.write(f"| **F1 Score** | {format_diff(b_det['f1'], a_det['f1'])} | | |\n")
+        f.write(f"| **Shots Identified (TP)** | {b_det['tp']} | {a_det['tp']} | {a_det['tp'] - b_det['tp']:+d} |\n")
+        f.write(f"| **Missed (FN)** | {b_det['fn']} | {a_det['fn']} | {a_det['fn'] - b_det['fn']:+d} |\n")
+        f.write(f"| **Detection Recall** | {b_det['recall']:.1%} | {a_det['recall']:.1%} | {a_det['recall'] - b_det['recall']:+.1%} |\n")
+        f.write(f"| **Overall Classification Accuracy** | {b_det['overall_acc']:.1%} | {a_det['overall_acc']:.1%} | {a_det['overall_acc'] - b_det['overall_acc']:+.1%} |\n")
+        f.write("\n> [!CAUTION]\n> Classification accuracy is **training-set fit** (diagnostic only). "
+                "Authoritative performance requires held-out sessions not included in training.\n\n")
         
         f.write("\n## 2. Shot Type Classification Accuracy\n")
         f.write("Below is the classification accuracy comparison for each normalized shot type category, compiled from the match logs across all sessions:\n\n")
