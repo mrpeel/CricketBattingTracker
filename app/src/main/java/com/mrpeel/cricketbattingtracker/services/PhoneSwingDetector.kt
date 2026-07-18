@@ -8,6 +8,8 @@ import com.mrpeel.cricketbattingtracker.ml.GeneratedForest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.*
@@ -51,13 +53,11 @@ object PhoneSwingDetector {
         Log.d(TAG, "Starting phone-bound two-pass batch processing for innings $inningsId...")
 
         // 1. Load watch data
-        val watchAcc = parseWatchIMUCsv(File(watchDir, "WatchAccelerometer.csv"))
-        val watchGyro = parseWatchIMUCsv(File(watchDir, "WatchGyroscope.csv"))
-        val watchGrav = parseWatchIMUCsv(File(watchDir, "WatchGravity.csv"))
-        val watchRot = parseWatchRotCsv(File(watchDir, "WatchGameOrientation.csv").let { 
-            if (it.exists()) it else File(watchDir, "WatchOrientation.csv") 
-        })
-        val steps = parseWatchStepsCsv(File(watchDir, "WatchSteps.csv"))
+        val watchAcc = loadWatchIMU(watchDir, "WatchAccelerometer")
+        val watchGyro = loadWatchIMU(watchDir, "WatchGyroscope")
+        val watchGrav = loadWatchIMU(watchDir, "WatchGravity")
+        val watchRot = loadWatchRot(watchDir)
+        val steps = loadWatchSteps(watchDir)
 
         if (watchAcc.isEmpty() || watchRot.isEmpty()) {
             Log.e(TAG, "Watch raw files are missing or empty — skipping processing")
@@ -511,6 +511,194 @@ object PhoneSwingDetector {
     }
 
     // --- Parser helpers ---
+
+    private fun getInputStream(file: File): java.io.InputStream {
+        val fis = file.inputStream()
+        return if (file.name.endsWith(".gz")) {
+            java.util.zip.GZIPInputStream(fis)
+        } else {
+            fis
+        }
+    }
+
+    private fun loadWatchIMU(watchDir: File, baseName: String): List<WatchIMUSample> {
+        val binFile = File(watchDir, "$baseName.bin")
+        if (binFile.exists()) return parseWatchIMUBin(binFile)
+        val binGzFile = File(watchDir, "$baseName.bin.gz")
+        if (binGzFile.exists()) return parseWatchIMUBin(binGzFile)
+        
+        val csvFile = File(watchDir, "$baseName.csv")
+        if (csvFile.exists()) return parseWatchIMUCsv(csvFile)
+        val csvGzFile = File(watchDir, "$baseName.csv.gz")
+        if (csvGzFile.exists()) return parseWatchIMUCsvGz(csvGzFile)
+        return emptyList()
+    }
+
+    private fun parseWatchIMUBin(file: File): List<WatchIMUSample> {
+        val list = mutableListOf<WatchIMUSample>()
+        if (!file.exists()) return list
+        try {
+            getInputStream(file).use { input ->
+                val bytes = input.readBytes()
+                val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+                while (buffer.remaining() >= 24) {
+                    val t = buffer.long
+                    val sec = buffer.float.toDouble()
+                    val x = buffer.float
+                    val y = buffer.float
+                    val z = buffer.float
+                    val mag = sqrt(x*x + y*y + z*z)
+                    list.add(WatchIMUSample(t, sec, x, y, z, mag))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse IMU binary file ${file.name}: ${e.message}")
+        }
+        return list.sortedBy { it.timeNanos }
+    }
+
+    private fun parseWatchIMUCsvGz(file: File): List<WatchIMUSample> {
+        val list = mutableListOf<WatchIMUSample>()
+        try {
+            java.io.BufferedReader(java.io.InputStreamReader(java.util.zip.GZIPInputStream(file.inputStream()))).use { br ->
+                var isHeader = true
+                br.forEachLine { line ->
+                    if (isHeader) { isHeader = false; return@forEachLine }
+                    val parts = line.split(",")
+                    if (parts.size >= 5) {
+                        val t = parts[0].toLongOrNull() ?: return@forEachLine
+                        val sec = parts[1].toDoubleOrNull() ?: 0.0
+                        val x = parts[2].toFloatOrNull() ?: 0f
+                        val y = parts[3].toFloatOrNull() ?: 0f
+                        val z = parts[4].toFloatOrNull() ?: 0f
+                        val mag = sqrt(x*x + y*y + z*z)
+                        list.add(WatchIMUSample(t, sec, x, y, z, mag))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse IMU CSV.GZ file ${file.name}: ${e.message}")
+        }
+        return list.sortedBy { it.timeNanos }
+    }
+
+    private fun loadWatchRot(watchDir: File): List<WatchRotSample> {
+        val baseNames = listOf("WatchGameOrientation", "WatchOrientation")
+        for (base in baseNames) {
+            val binFile = File(watchDir, "$base.bin")
+            if (binFile.exists()) return parseWatchRotBin(binFile)
+            val binGzFile = File(watchDir, "$base.bin.gz")
+            if (binGzFile.exists()) return parseWatchRotBin(binGzFile)
+            
+            val csvFile = File(watchDir, "$base.csv")
+            if (csvFile.exists()) return parseWatchRotCsv(csvFile)
+            val csvGzFile = File(watchDir, "$base.csv.gz")
+            if (csvGzFile.exists()) return parseWatchRotCsvGz(csvGzFile)
+        }
+        return emptyList()
+    }
+
+    private fun parseWatchRotBin(file: File): List<WatchRotSample> {
+        val list = mutableListOf<WatchRotSample>()
+        if (!file.exists()) return list
+        try {
+            getInputStream(file).use { input ->
+                val bytes = input.readBytes()
+                val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+                while (buffer.remaining() >= 28) {
+                    val t = buffer.long
+                    val sec = buffer.float.toDouble()
+                    val qx = buffer.float
+                    val qy = buffer.float
+                    val qz = buffer.float
+                    val qw = buffer.float
+                    list.add(WatchRotSample(t, sec, qx, qy, qz, qw))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse rotation binary file ${file.name}: ${e.message}")
+        }
+        return list.sortedBy { it.timeNanos }
+    }
+
+    private fun parseWatchRotCsvGz(file: File): List<WatchRotSample> {
+        val list = mutableListOf<WatchRotSample>()
+        try {
+            java.io.BufferedReader(java.io.InputStreamReader(java.util.zip.GZIPInputStream(file.inputStream()))).use { br ->
+                var isHeader = true
+                br.forEachLine { line ->
+                    if (isHeader) { isHeader = false; return@forEachLine }
+                    val parts = line.split(",")
+                    if (parts.size >= 6) {
+                        val t = parts[0].toLongOrNull() ?: return@forEachLine
+                        val sec = parts[1].toDoubleOrNull() ?: 0.0
+                        val qx = parts[2].toFloatOrNull() ?: 0f
+                        val qy = parts[3].toFloatOrNull() ?: 0f
+                        val qz = parts[4].toFloatOrNull() ?: 0f
+                        val qw = parts[5].toFloatOrNull() ?: 1f
+                        list.add(WatchRotSample(t, sec, qx, qy, qz, qw))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse Rot CSV.GZ file ${file.name}: ${e.message}")
+        }
+        return list.sortedBy { it.timeNanos }
+    }
+
+    private fun loadWatchSteps(watchDir: File): List<Long> {
+        val binFile = File(watchDir, "WatchSteps.bin")
+        if (binFile.exists()) return parseWatchStepsBin(binFile)
+        val binGzFile = File(watchDir, "WatchSteps.bin.gz")
+        if (binGzFile.exists()) return parseWatchStepsBin(binGzFile)
+        
+        val csvFile = File(watchDir, "WatchSteps.csv")
+        if (csvFile.exists()) return parseWatchStepsCsv(csvFile)
+        val csvGzFile = File(watchDir, "WatchSteps.csv.gz")
+        if (csvGzFile.exists()) return parseWatchStepsCsvGz(csvGzFile)
+        return emptyList()
+    }
+
+    private fun parseWatchStepsBin(file: File): List<Long> {
+        val list = mutableListOf<Long>()
+        if (!file.exists()) return list
+        try {
+            getInputStream(file).use { input ->
+                val bytes = input.readBytes()
+                val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+                while (buffer.remaining() >= 12) {
+                    val t = buffer.long
+                    val sec = buffer.float
+                    list.add(t)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse steps binary file ${file.name}: ${e.message}")
+        }
+        return list
+    }
+
+    private fun parseWatchStepsCsvGz(file: File): List<Long> {
+        val list = mutableListOf<Long>()
+        try {
+            java.io.BufferedReader(java.io.InputStreamReader(java.util.zip.GZIPInputStream(file.inputStream()))).use { br ->
+                var isHeader = true
+                br.forEachLine { line ->
+                    if (isHeader) { isHeader = false; return@forEachLine }
+                    val parts = line.split(",")
+                    if (parts.size >= 2) {
+                        val ts = parts[0].trim().toLongOrNull()
+                        if (ts != null) {
+                            list.add(ts)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse Steps CSV.GZ file ${file.name}: ${e.message}")
+        }
+        return list
+    }
 
     private fun parseWatchIMUCsv(file: File): List<WatchIMUSample> {
         val list = mutableListOf<WatchIMUSample>()

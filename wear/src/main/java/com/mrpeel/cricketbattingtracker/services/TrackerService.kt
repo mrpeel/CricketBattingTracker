@@ -23,7 +23,9 @@ import android.os.Build
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
 import java.io.File
-import java.io.BufferedWriter
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
@@ -69,23 +71,22 @@ class TrackerService : Service(), SensorEventListener {
 
     private data class SensorConfig(
         val type: Int,
-        val fileName: String,
-        val header: String
+        val fileName: String
     )
 
-    private val writers = mutableMapOf<Int, BufferedWriter>()
+    private val streams = mutableMapOf<Int, FileOutputStream>()
 
     private val sensorConfigs = listOf(
-        SensorConfig(Sensor.TYPE_ACCELEROMETER, "WatchAccelerometer.csv", "time,seconds_elapsed,x,y,z\n"),
-        SensorConfig(Sensor.TYPE_GYROSCOPE, "WatchGyroscope.csv", "time,seconds_elapsed,x,y,z\n"),
-        SensorConfig(Sensor.TYPE_GRAVITY, "WatchGravity.csv", "time,seconds_elapsed,x,y,z\n"),
-        SensorConfig(Sensor.TYPE_GAME_ROTATION_VECTOR, "WatchGameOrientation.csv", "time,seconds_elapsed,qx,qy,qz,qw\n"),
-        SensorConfig(Sensor.TYPE_STEP_DETECTOR, "WatchSteps.csv", "time,seconds_elapsed\n"),
-        SensorConfig(Sensor.TYPE_HEART_RATE, "WatchHeartRate.csv", "time,seconds_elapsed,bpm\n"),
-        SensorConfig(Sensor.TYPE_LINEAR_ACCELERATION, "WatchLinearAcceleration.csv", "time,seconds_elapsed,x,y,z\n"),
-        SensorConfig(Sensor.TYPE_MAGNETIC_FIELD, "WatchMagnetometer.csv", "time,seconds_elapsed,x,y,z\n"),
-        SensorConfig(Sensor.TYPE_PRESSURE, "WatchBarometer.csv", "time,seconds_elapsed,pressure\n"),
-        SensorConfig(Sensor.TYPE_STEP_COUNTER, "WatchStepCounter.csv", "time,seconds_elapsed,steps\n")
+        SensorConfig(Sensor.TYPE_ACCELEROMETER, "WatchAccelerometer.bin"),
+        SensorConfig(Sensor.TYPE_GYROSCOPE, "WatchGyroscope.bin"),
+        SensorConfig(Sensor.TYPE_GRAVITY, "WatchGravity.bin"),
+        SensorConfig(Sensor.TYPE_GAME_ROTATION_VECTOR, "WatchGameOrientation.bin"),
+        SensorConfig(Sensor.TYPE_STEP_DETECTOR, "WatchSteps.bin"),
+        SensorConfig(Sensor.TYPE_HEART_RATE, "WatchHeartRate.bin"),
+        SensorConfig(Sensor.TYPE_LINEAR_ACCELERATION, "WatchLinearAcceleration.bin"),
+        SensorConfig(Sensor.TYPE_MAGNETIC_FIELD, "WatchMagnetometer.bin"),
+        SensorConfig(Sensor.TYPE_PRESSURE, "WatchBarometer.bin"),
+        SensorConfig(Sensor.TYPE_STEP_COUNTER, "WatchStepCounter.bin")
     )
 
     override fun onCreate() {
@@ -159,11 +160,11 @@ class TrackerService : Service(), SensorEventListener {
                 val sensor = sensorManager.getDefaultSensor(config.type)
                 if (sensor != null) {
                     try {
-                        val writer = File(sessionDir, config.fileName).bufferedWriter()
-                        writer.write(config.header)
-                        writers[config.type] = writer
+                        val file = File(sessionDir, config.fileName)
+                        val stream = FileOutputStream(file)
+                        streams[config.type] = stream
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to create writer for ${config.fileName}", e)
+                        Log.e(TAG, "Failed to create stream for ${config.fileName}", e)
                     }
                 }
             }
@@ -310,17 +311,17 @@ class TrackerService : Service(), SensorEventListener {
             }
         }
         
-        // Clean up and close all dynamic log writers
-        for ((type, writer) in writers) {
+        // Clean up and close all dynamic log streams
+        for ((type, stream) in streams) {
             try {
-                writer.flush()
-                writer.close()
-                Log.d(TAG, "Closed raw log writer for sensor type $type")
+                stream.flush()
+                stream.close()
+                Log.d(TAG, "Closed raw log stream for sensor type $type")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to close raw log writer for sensor type $type", e)
+                Log.e(TAG, "Failed to close raw log stream for sensor type $type", e)
             }
         }
-        writers.clear()
+        streams.clear()
 
         // Zip and transfer to phone over GMS ChannelClient
         if (!shouldDiscard) {
@@ -424,44 +425,52 @@ class TrackerService : Service(), SensorEventListener {
 
         // Dynamic background thread logging for full watch sensor stack
         if (enableRawLogging) {
-            val writer = writers[type]
-            if (writer != null) {
+            val stream = streams[type]
+            if (stream != null) {
                 try {
                     if (sessionStartNanos == 0L) sessionStartNanos = ts
-                    val elapsedSecs = (ts - sessionStartNanos) / 1_000_000_000.0
+                    val elapsedSecs = ((ts - sessionStartNanos) / 1_000_000_000.0).toFloat()
                     
-                    val csvLine = when (type) {
-                        Sensor.TYPE_ROTATION_VECTOR,
-                        Sensor.TYPE_GAME_ROTATION_VECTOR,
-                        Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR -> {
+                    when (type) {
+                        Sensor.TYPE_GAME_ROTATION_VECTOR -> {
                             val qw = if (vals.size > 3) vals[3]
                                      else kotlin.math.sqrt(kotlin.math.max(0.0f, 1.0f - vals[0]*vals[0] - vals[1]*vals[1] - vals[2]*vals[2]))
-                            String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2], qw)
-                        }
-                        Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED,
-                        Sensor.TYPE_GYROSCOPE_UNCALIBRATED,
-                        Sensor.TYPE_ACCELEROMETER_UNCALIBRATED -> {
-                            val x = vals.getOrNull(0) ?: 0f
-                            val y = vals.getOrNull(1) ?: 0f
-                            val z = vals.getOrNull(2) ?: 0f
-                            val bx = vals.getOrNull(3) ?: 0f
-                            val by = vals.getOrNull(4) ?: 0f
-                            val bz = vals.getOrNull(5) ?: 0f
-                            String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, x, y, z, bx, by, bz)
+                            
+                            val buffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
+                            buffer.putLong(ts)
+                            buffer.putFloat(elapsedSecs)
+                            buffer.putFloat(vals[0]) // qx
+                            buffer.putFloat(vals[1]) // qy
+                            buffer.putFloat(vals[2]) // qz
+                            buffer.putFloat(qw)      // qw
+                            stream.write(buffer.array())
                         }
                         Sensor.TYPE_HEART_RATE,
                         Sensor.TYPE_PRESSURE,
                         Sensor.TYPE_STEP_COUNTER -> {
-                            String.format(java.util.Locale.US, "%d,%.6f,%.6f\n", ts, elapsedSecs, vals[0])
+                            val buffer = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+                            buffer.putLong(ts)
+                            buffer.putFloat(elapsedSecs)
+                            buffer.putFloat(vals[0])
+                            stream.write(buffer.array())
                         }
                         Sensor.TYPE_STEP_DETECTOR -> {
-                            String.format(java.util.Locale.US, "%d,%.6f\n", ts, elapsedSecs)
+                            val buffer = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+                            buffer.putLong(ts)
+                            buffer.putFloat(elapsedSecs)
+                            stream.write(buffer.array())
                         }
                         else -> {
-                            String.format(java.util.Locale.US, "%d,%.6f,%.6f,%.6f,%.6f\n", ts, elapsedSecs, vals[0], vals[1], vals[2])
+                            // Standard 3-axis Float sensors: Accel, Gyro, Gravity, LinAcc, Mag
+                            val buffer = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
+                            buffer.putLong(ts)
+                            buffer.putFloat(elapsedSecs)
+                            buffer.putFloat(vals[0])
+                            buffer.putFloat(vals[1])
+                            buffer.putFloat(vals[2])
+                            stream.write(buffer.array())
                         }
                     }
-                    writer.write(csvLine)
                 } catch (e: Exception) {
                     // Fail silently to prevent exception looping under high frequency events
                 }

@@ -50,6 +50,90 @@ def resolve_sensor_path(session_dir, baseName):
         return path + ".gz"
     return path
 
+def load_watch_sensor(session_dir, baseName):
+    """Load watch sensor telemetry file in either binary (.bin/.bin.gz) or CSV (.csv/.csv.gz) formats."""
+    # Strip extension from baseName to be safe
+    baseName_clean = baseName.replace(".csv", "").replace(".bin", "")
+    
+    bin_path = os.path.join(session_dir, baseName_clean + ".bin")
+    bin_gz_path = bin_path + ".gz"
+    path_to_load = bin_gz_path if os.path.exists(bin_gz_path) else (bin_path if os.path.exists(bin_path) else None)
+    
+    if path_to_load:
+        import gzip
+        if path_to_load.endswith(".gz"):
+            with gzip.open(path_to_load, "rb") as f:
+                raw_bytes = f.read()
+        else:
+            with open(path_to_load, "rb") as f:
+                raw_bytes = f.read()
+                
+        if "GameOrientation" in baseName_clean or "Orientation" in baseName_clean:
+            # 28 bytes: Long (i8), Float (f4) x 5
+            dtype = np.dtype([
+                ('time', '<i8'),
+                ('seconds_elapsed', '<f4'),
+                ('qx', '<f4'),
+                ('qy', '<f4'),
+                ('qz', '<f4'),
+                ('qw', '<f4')
+            ])
+        elif "Steps" in baseName_clean and "StepCounter" not in baseName_clean:
+            # 12 bytes: Long (i8), Float (f4)
+            dtype = np.dtype([
+                ('time', '<i8'),
+                ('seconds_elapsed', '<f4')
+            ])
+        elif "HeartRate" in baseName_clean:
+            # 16 bytes: Long (i8), Float (f4) x 2
+            dtype = np.dtype([
+                ('time', '<i8'),
+                ('seconds_elapsed', '<f4'),
+                ('bpm', '<f4')
+            ])
+        elif "Barometer" in baseName_clean:
+            # 16 bytes: Long (i8), Float (f4) x 2
+            dtype = np.dtype([
+                ('time', '<i8'),
+                ('seconds_elapsed', '<f4'),
+                ('pressure', '<f4')
+            ])
+        elif "StepCounter" in baseName_clean:
+            # 16 bytes: Long (i8), Float (f4) x 2
+            dtype = np.dtype([
+                ('time', '<i8'),
+                ('seconds_elapsed', '<f4'),
+                ('steps', '<f4')
+            ])
+        else:
+            # 24 bytes: Long (i8), Float (f4) x 4
+            dtype = np.dtype([
+                ('time', '<i8'),
+                ('seconds_elapsed', '<f4'),
+                ('x', '<f4'),
+                ('y', '<f4'),
+                ('z', '<f4')
+            ])
+            
+        rec_size = dtype.itemsize
+        num_recs = len(raw_bytes) // rec_size
+        valid_bytes = raw_bytes[:num_recs * rec_size]
+        
+        arr = np.frombuffer(valid_bytes, dtype=dtype)
+        df = pd.DataFrame(arr)
+        df['time'] = df['time'].astype('int64')
+        return df
+        
+    # Fallback to CSV
+    csv_path = os.path.join(session_dir, baseName_clean + ".csv")
+    csv_gz_path = csv_path + ".gz"
+    path_to_load = csv_gz_path if os.path.exists(csv_gz_path) else (csv_path if os.path.exists(csv_path) else None)
+    
+    if path_to_load:
+        return pd.read_csv(path_to_load)
+        
+    return pd.DataFrame()
+
 def compress_audio_in_place(audio_path):
     if not audio_path or not os.path.exists(audio_path):
         return audio_path
@@ -79,10 +163,10 @@ def compress_audio_in_place(audio_path):
     return audio_path
 
 def compress_session_csvs(session_dir):
-    print("\n🤐 Compressing raw session CSV files to Gzip...")
+    print("\n🤐 Compressing raw session logs to Gzip...")
     compressed_count = 0
     for filename in os.listdir(session_dir):
-        if filename.startswith("Watch") and filename.endswith(".csv"):
+        if filename.startswith("Watch") and (filename.endswith(".csv") or filename.endswith(".bin")):
             csv_path = os.path.join(session_dir, filename)
             gz_path = csv_path + ".gz"
             try:
@@ -137,15 +221,9 @@ def append_to_combined_parquet(session_dir, parquet_dir):
     
     appended_count = 0
     for name, fname in sensor_mappings:
-        csv_path = os.path.join(session_dir, fname)
-        gz_path = csv_path + ".gz"
-        path_to_load = gz_path if os.path.exists(gz_path) else (csv_path if os.path.exists(csv_path) else None)
-        if not path_to_load:
-            continue
-            
         try:
-            df = pd.read_csv(path_to_load)
-            if len(df) == 0:
+            df = load_watch_sensor(session_dir, fname)
+            if df.empty:
                 continue
                 
             df['session_id'] = session_id
@@ -927,16 +1005,11 @@ def main():
     audio_path = compress_audio_in_place(audio_path)
             
     # 4. Load Gyroscope sensor file (needed for MMSS conversion and offset alignment)
-    gyro_path = resolve_sensor_path(session_dir, "WatchGyroscope.csv")
-    accel_path = resolve_sensor_path(session_dir, "WatchAccelerometer.csv")
-    gravity_path = resolve_sensor_path(session_dir, "WatchGravity.csv")
-    orient_path = resolve_sensor_path(session_dir, "WatchOrientation.csv")
-    
-    if not os.path.exists(gyro_path):
-        print(f"❌ ERROR: Gyroscope sensor file missing from session log: {gyro_path}")
+    df_gyro = load_watch_sensor(session_dir, "WatchGyroscope")
+    if df_gyro.empty:
+        print(f"❌ ERROR: Gyroscope sensor file missing or empty in session log.")
         sys.exit(1)
         
-    df_gyro = pd.read_csv(gyro_path)
     df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
     start_time_ns = df_gyro.iloc[0]['time']
     start_time_ms = int(start_time_ns / 1_000_000)
@@ -1031,12 +1104,12 @@ def main():
     sync_tap_offset = None
     sync_tap_drift_rate = 0.0
     
-    if offset is None and os.path.exists(accel_path):
+    df_acc = load_watch_sensor(session_dir, "WatchAccelerometer")
+    if offset is None and not df_acc.empty:
         temp_wav = None
         try:
             print("🔍 Scanning for sync tap sequences (5 taps in < 5s) in sensor and audio logs...")
             # 1. Read accelerometer data
-            df_acc = pd.read_csv(accel_path)
             acc_times = df_acc['seconds_elapsed'].to_numpy()
             acc_mags = np.sqrt(df_acc['x']**2 + df_acc['y']**2 + df_acc['z']**2)
             
@@ -1671,17 +1744,22 @@ def main():
     print(f"\n✅ Ground-truth aligned file saved: {aligned_csv_path}")
     
     # 7. Extract training segments (6-second window around each impact)
-    df_accel = pd.read_csv(accel_path)
-    df_gravity = pd.read_csv(gravity_path)
+    df_accel = load_watch_sensor(session_dir, "WatchAccelerometer")
+    df_gravity = load_watch_sensor(session_dir, "WatchGravity")
     
     # Load Game Rotation Vector or fallback orientation
-    game_orient_path = resolve_sensor_path(session_dir, "WatchGameOrientation.csv")
-    if os.path.exists(game_orient_path):
-        df_orient = pd.read_csv(game_orient_path)
-        print(f"📖 Loaded {os.path.basename(game_orient_path)} for bat orientation")
+    df_orient = load_watch_sensor(session_dir, "WatchGameOrientation")
+    if df_orient.empty:
+        df_orient = load_watch_sensor(session_dir, "WatchOrientation")
+        print("📖 Loaded WatchOrientation for bat orientation (fallback)")
     else:
-        df_orient = pd.read_csv(orient_path)
-        print(f"📖 Loaded {os.path.basename(orient_path)} for bat orientation (fallback)")
+        print("📖 Loaded WatchGameOrientation for bat orientation")
+        
+    df_steps = load_watch_sensor(session_dir, "WatchSteps")
+    if df_steps.empty:
+        df_steps = None
+    else:
+        print("📖 Loaded WatchSteps for walking steps check")
         
     print("📈 Computing Blade and Launch angles at impact...")
     df_aligned = add_angle_stats_to_aligned_shots(df_aligned, df_orient)
@@ -2090,12 +2168,11 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         print(f"  Polar GYRO: {len(df_polar_gyro)} samples, {df_polar_gyro['seconds_elapsed'].iloc[-1]:.1f}s duration")
 
     # 2. Load watch accelerometer for tap detection
-    watch_accel_path = resolve_sensor_path(session_dir, "WatchAccelerometer.csv")
-    if not os.path.exists(watch_accel_path):
-        print("⚠️ WatchAccelerometer.csv not found. Skipping Polar alignment.")
+    df_watch_acc = load_watch_sensor(session_dir, "WatchAccelerometer")
+    if df_watch_acc.empty:
+        print("⚠️ WatchAccelerometer file not found. Skipping Polar alignment.")
         return
 
-    df_watch_acc = pd.read_csv(watch_accel_path)
     watch_acc_times = df_watch_acc['seconds_elapsed'].to_numpy()
     watch_acc_mags = np.sqrt(df_watch_acc['x']**2 + df_watch_acc['y']**2 + df_watch_acc['z']**2)
 
