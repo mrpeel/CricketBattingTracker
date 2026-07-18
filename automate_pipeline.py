@@ -217,12 +217,42 @@ def pull_latest_session_from_phone(phone_id, dest_dir):
     phone_base = "/sdcard/Android/data/com.mrpeel.cricketbattingtracker/files/watch_sessions"
     cmd = ["adb", "-s", phone_id, "shell", "ls", phone_base]
     res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0 or not res.stdout.strip():
-        print("❌ ERROR: No session directories found on the Phone.")
-        return None
+    incoming_base = "/sdcard/Android/data/com.mrpeel.cricketbattingtracker/files/watch_sessions_incoming"
+    sessions = []
+    if res.returncode == 0 and res.stdout.strip():
+        sessions = [s.strip() for s in res.stdout.split("\n") if s.strip() and (s.startswith("session-") or s.startswith("session_"))]
         
-    sessions = [s.strip() for s in res.stdout.split("\n") if s.strip() and (s.startswith("session-") or s.startswith("session_"))]
     if not sessions:
+        incoming_cmd = ["adb", "-s", phone_id, "shell", "ls", incoming_base]
+        inc_res = subprocess.run(incoming_cmd, capture_output=True, text=True)
+        if inc_res.returncode == 0 and "temp_session_raw.zip" in inc_res.stdout:
+            print("⚠️ Found unprocessed raw session ZIP in incoming directory on phone. Pulling fallback...")
+            phone_path = f"{incoming_base}/temp_session_raw.zip"
+            now_str = datetime.datetime.now().strftime("session_%Y-%m-%d_%H-%M-%S")
+            local_zip_path = os.path.join(dest_dir, now_str + ".zip")
+            
+            if os.path.exists(local_zip_path):
+                if os.path.isdir(local_zip_path):
+                    import shutil
+                    shutil.rmtree(local_zip_path)
+                else:
+                    os.remove(local_zip_path)
+                    
+            print(f"📥 Pulling incoming watch session ZIP: {phone_path} → {local_zip_path}")
+            subprocess.run(["adb", "-s", phone_id, "pull", phone_path, local_zip_path], check=True)
+            
+            local_session_dir = os.path.join(dest_dir, now_str)
+            os.makedirs(local_session_dir, exist_ok=True)
+            print(f"📦 Unzipping session file locally: {local_zip_path} → {local_session_dir}")
+            import zipfile
+            with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(local_session_dir)
+            os.remove(local_zip_path)
+            
+            print("🧹 Cleaning raw incoming session on phone...")
+            subprocess.run(["adb", "-s", phone_id, "shell", f"rm -rf {phone_path}"], check=True)
+            return local_session_dir
+            
         print("❌ ERROR: No session directories found on the Phone.")
         return None
         

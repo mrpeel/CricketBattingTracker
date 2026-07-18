@@ -28,6 +28,23 @@ import java.util.Locale
 class DataSyncListenerService : WearableListenerService() {
     private val TAG = "DataSyncListener"
 
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "DataSyncListenerService onCreate: checking for unprocessed incoming sessions...")
+        val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
+        val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
+        if (tempZipFile.exists() && tempZipFile.length() > 0) {
+            Log.d(TAG, "Found unprocessed session ZIP on service start. Processing...")
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    unzipAndProcessIncomingSession(tempZipFile)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error unzipping and processing incoming session on start", e)
+                }
+            }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "com.mrpeel.cricketbattingtracker.INJECT_TIMELINE") {
             try {

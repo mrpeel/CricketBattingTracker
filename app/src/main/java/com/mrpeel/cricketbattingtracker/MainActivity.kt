@@ -1,6 +1,7 @@
 package com.mrpeel.cricketbattingtracker
 
 import android.content.Intent
+import android.util.Log
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -329,6 +330,14 @@ class MainActivity : ComponentActivity() {
         triggerForegroundLocationResolution()
         checkHealthConnectPermissions()
         com.mrpeel.cricketbattingtracker.services.AudioRecordManager.refreshRecordings(this)
+        
+        // Explicitly start DataSyncListenerService to self-heal any stuck incoming sessions
+        try {
+            val serviceIntent = Intent(this, com.mrpeel.cricketbattingtracker.services.DataSyncListenerService::class.java)
+            startService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start DataSyncListenerService: ${e.message}")
+        }
 
         setContent {
             val timeline by viewModel.currentTimeline.collectAsState()
