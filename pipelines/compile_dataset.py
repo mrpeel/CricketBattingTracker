@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
 import os
 import re
+import sys
 import json
 import numpy as np
 import pandas as pd
 from scipy.stats import skew as scipy_skew
 
+# Allow importing from project root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from automate_pipeline import load_watch_sensor
+
 # ─── Configuration ────────────────────────────────────────────────────────────
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 NON_SWING_TYPES = {'facing up', 'no shot', 'leave', 'evade', 'evasion'}
+
+# 6 Polar bottom-hand features (imputed to 0.0 when Polar is absent)
+POLAR_FEATURE_COLS = [
+    'bottom_hand_gyro_peak',
+    'bottom_hand_acc_peak',
+    'bottom_hand_gyro_ratio',
+    'bottom_hand_acc_ratio',
+    'bottom_hand_time_lead_ms',
+    'bottom_hand_sync_score',
+]
 
 # Augmented synthetic training data directory (never used for evaluation)
 AUG_DIR = os.path.join(BASE_DIR, "augmented_training_data")
@@ -68,33 +83,55 @@ def average_quats(qx_arr, qy_arr, qz_arr, qw_arr):
 
 V_LOCAL = np.array([0.0, -1.0, 0.0])  # bat forearm unit vector
 
-# ─── Sensor loading ──────────────────────────────────────────────────────────
+# ─── Sensor loading (binary-aware via load_watch_sensor) ─────────────────────
 def load_all_sensors(session_dir):
+    """Load all watch IMU sensors using load_watch_sensor() which handles both
+    .csv.gz and .bin.gz binary formats transparently."""
     sensors = {}
-    for name, fname in [
-        ("gyro",        "WatchGyroscope.csv"),
-        ("accel",       "WatchAccelerometer.csv"),
-        ("gravity",     "WatchGravity.csv"),
-        ("linacc",      "WatchLinearAcceleration.csv"),
-        ("mag",         "WatchMagnetometer.csv"),
-        ("game_orient", "WatchGameOrientation.csv"),
-        ("orient",      "WatchOrientation.csv")
+    for name, base_name in [
+        ("gyro",        "WatchGyroscope"),
+        ("accel",       "WatchAccelerometer"),
+        ("gravity",     "WatchGravity"),
+        ("linacc",      "WatchLinearAcceleration"),
+        ("mag",         "WatchMagnetometer"),
+        ("game_orient", "WatchGameOrientation"),
+        ("orient",      "WatchOrientation")
     ]:
-        path = os.path.join(session_dir, fname)
-        gz_path = path + ".gz"
-        if os.path.exists(gz_path):
-            df = pd.read_csv(gz_path)
-            if len(df) > 0:
-                sensors[name] = df
-        elif os.path.exists(path):
-            df = pd.read_csv(path)
-            if len(df) > 0:
-                sensors[name] = df
+        df = load_watch_sensor(session_dir, base_name)
+        if not df.empty and len(df) > 0:
+            sensors[name] = df
     for name in ["gyro", "accel", "gravity", "mag", "linacc"]:
         if name in sensors:
             df = sensors[name]
             df['mag_total'] = np.sqrt(df['x']**2 + df['y']**2 + df['z']**2)
     return sensors
+
+
+def measure_session_hz(session_dir, n_samples=500):
+    """Estimate the watch gyro sampling rate for this session."""
+    df = load_watch_sensor(session_dir, "WatchGyroscope")
+    if df.empty or len(df) < 2:
+        return 50
+    sub = df.head(n_samples)
+    duration = sub['seconds_elapsed'].iloc[-1] - sub['seconds_elapsed'].iloc[0]
+    return round((len(sub) - 1) / duration) if duration > 0 else 50
+
+
+def get_data_profile(session_dir):
+    """Return data profile tag and measured Hz for this session."""
+    hz = measure_session_hz(session_dir)
+    polar_dir = os.path.join(session_dir, "PolarSense")
+    has_polar = os.path.isdir(polar_dir) and any(
+        f.endswith('.csv') or f.endswith('.csv.gz')
+        for f in os.listdir(polar_dir)
+    ) if os.path.isdir(polar_dir) else False
+    if not has_polar:
+        profile = "50hz_watch" if hz <= 75 else "100hz_watch"
+    elif hz <= 75:
+        profile = "50hz_watch_polar"
+    else:
+        profile = "100hz_watch_polar"
+    return profile, hz, has_polar
 
 # ─── Feature extraction ──────────────────────────────────────────────────────
 def extract_shot_features(sensors, t_shot):
@@ -305,10 +342,14 @@ def main():
             
         df_aligned = pd.read_csv(aligned_path)
         sensors = load_all_sensors(session_dir)
-        
+
         if "gyro" not in sensors:
             print(f"  ⚠️ Warning: gyro sensor CSV missing, skipping.")
             continue
+
+        # Detect data profile for this session
+        data_profile, watch_hz, has_polar = get_data_profile(session_dir)
+        print(f"  Profile: {data_profile} ({watch_hz}Hz, {'Polar' if has_polar else 'watch-only'})")
             
         session_date = parse_session_date(session_id)
         
@@ -390,8 +431,21 @@ def main():
             feats_row["shot_number"] = row["shot_number"]
             feats_row["shot_type"] = shot_type
             feats_row["normalized_gt"] = normalized_gt
+            feats_row["quality"] = str(row.get("quality", ""))
+            feats_row["data_profile"] = data_profile
+            feats_row["watch_hz"] = watch_hz
             feats_row["pred_current"] = pred
             feats_row["is_correct"] = is_correct
+
+            # Append 6 Polar features (already computed per-row by automate_pipeline;
+            # imputed to 0.0 for sessions without Polar data)
+            for col in POLAR_FEATURE_COLS:
+                val = row.get(col, np.nan)
+                if val is None or (isinstance(val, float) and np.isnan(val)):
+                    feats_row[col] = 0.0
+                else:
+                    feats_row[col] = float(val)
+
             all_features_rows.append(feats_row)
 
     # ─── Load augmented synthetic training data ────────────────────────────────

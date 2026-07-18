@@ -243,7 +243,11 @@ def get_offline_classifier_stats():
         's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
         's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
         's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
-        's3_planeRatio', 's3_gyro_y_min'
+        's3_planeRatio', 's3_gyro_y_min',
+        # 6 Polar bottom-hand features (0.0 when absent)
+        'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
+        'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
+        'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
     ]
 
     X = df_swings[features].fillna(df_swings[features].median())
@@ -293,33 +297,39 @@ def get_offline_classifier_stats():
 
 def main():
     print("============================================================")
-    # 0. Generate synthetic augmented training data from real sensor windows.
-    #    This clears and regenerates augmented_training_data/ on every run.
-    #    Synthetic data is NEVER used for evaluation — only for training features.
+    # Step 0: Generate synthetic augmented training data
     run_script(os.path.join(ROOT_DIR, "pipelines/augment_training_data.py"))
 
-    # 1. Compile updated dataset (real sessions + augmented synthetic rows)
+    # Step 1: Run alignment evaluation — improves impact timestamps using Polar 500Hz
+    # and writes alignment_pipeline_report.md with threshold/algorithm findings.
+    run_script(os.path.join(ROOT_DIR, "pipelines/evaluate_shot_alignment.py"))
+
+    # Step 2: Compile updated dataset (real sessions + augmented synthetic rows)
+    # Now includes data_profile, watch_hz, quality, and 6 Polar features per row.
     run_script(os.path.join(ROOT_DIR, "pipelines/compile_dataset.py"))
 
-    # 1.5. Optimize bottom-hand enhancement thresholds
+    # Step 3: Optimize bottom-hand enhancement thresholds
     run_script(os.path.join(ROOT_DIR, "pipelines/optimize_shot_enhancement.py"))
     
-    # 2. Run Wear OS unit tests to evaluate the existing model against the updated dataset
+    # Step 4: Run Wear OS unit tests to evaluate the existing model (baseline)
     print("⏳ Evaluating existing model against the updated dataset...")
     run_gradle_tests(only_scorecard=True)
-    
+
     scorecard_path = find_scorecard_file()
     if not scorecard_path:
         print("❌ ERROR: Could not locate scorecard after initial evaluation.")
         sys.exit(1)
-        
+
     print(f"📋 Parsed baseline scorecard for existing model: {scorecard_path}")
     before_stats = get_grouped_stats(scorecard_path)
-    
-    # 3. Retrain model and transpile to overwrite GeneratedForest.kt
+
+    # Step 5: Retrain 20-feature model and transpile to GeneratedForest.kt (wear + app)
     run_script(os.path.join(ROOT_DIR, "pipelines/generate_kotlin_forest.py"))
-    
-    # 4. Run Wear OS unit tests to evaluate the new model against the updated dataset
+
+    # Step 6: Train quality classifier (Python-side only; not transpiled to Kotlin)
+    run_script(os.path.join(ROOT_DIR, "pipelines/train_quality_classifier.py"))
+
+    # Step 7: Run Wear OS unit tests to evaluate the new model
     print("⏳ Evaluating new model against the updated dataset...")
     run_gradle_tests()
     
@@ -401,19 +411,77 @@ def main():
                 f.write(f"| {cat} | {cls_data['gt']} | {cls_data['cv_acc']:.1%} | {cls_data['train_acc']:.1%} |\n")
             f.write(f"| **OVERALL** | **{offline_stats['total_swings']}** | **{offline_stats['overall_cv']:.1%}** | **{offline_stats['overall_train']:.1%}** |\n\n")
 
-        # Add Section 4: Polar Sense (Bottom Hand) Integration
-        f.write("## 4. Polar Sense (Bottom Hand) Integration\n")
-        f.write("Polar Sense bottom-hand telemetry runs at a high sampling rate (~418Hz vs. the watch's 50Hz) to capture high-resolution impact transients and release mechanics. These metrics are used by the companion app's `ShotEnhancementEngine` as a post-classification refinement layer.\n\n")
-        config_path = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/ShotEnhancementConfig.kt"
-        if os.path.exists(config_path):
-            f.write("### Active Refinement Thresholds (Auto-Optimized):\n")
-            with open(config_path, "r") as cfg:
-                for line in cfg:
-                    if "const val" in line:
-                        f.write(f"- `{line.strip()}`\n")
-            f.write("\n")
+        # Section 4: Data-Profile Breakdown
+        f.write("## 4. Classification Accuracy by Data Profile\n")
+        f.write("The RF model was trained on all data profiles simultaneously. Polar features are imputed to 0.0 for watch-only sessions, so the model learns to classify confidently with or without Polar data.\n\n")
+
+        features_csv = "/Users/neilkloot/Code/Batting Sensor Stats/combined_features.csv"
+        try:
+            import pandas as pd
+            import numpy as np
+            from sklearn.ensemble import RandomForestClassifier
+            from sklearn.preprocessing import LabelEncoder
+
+            df_full = pd.read_csv(features_csv)
+            df_swings = df_full[df_full['normalized_gt'] != 'NON-SWING'].copy()
+
+            feature_cols = [
+                's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
+                's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
+                's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
+                's3_planeRatio', 's3_gyro_y_min',
+                'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
+                'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
+                'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+            ]
+            X_all = df_swings[feature_cols].fillna(0.0)
+            y_all = df_swings['normalized_gt'].values
+            le2 = LabelEncoder()
+            y_enc2 = le2.fit_transform(y_all)
+            rf2 = RandomForestClassifier(n_estimators=100, max_depth=7, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
+            rf2.fit(X_all, y_enc2)
+            y_pred2 = le2.inverse_transform(rf2.predict(X_all))
+            df_swings = df_swings.copy()
+            df_swings['_pred'] = y_pred2
+
+            profiles = df_swings['data_profile'].unique() if 'data_profile' in df_swings.columns else []
+            if len(profiles) > 0:
+                f.write("| Data Profile | Shots | Overall Acc | DRIVE | PULL | CUT | GLANCE | POWER | SLOG | SWEEP | GUIDE |\n")
+                f.write("|---|---|---|---|---|---|---|---|---|---|---|\n")
+                classes_to_show = ["DRIVE/DEFENCE", "PULL/HOOK", "CUT/PUNCH", "GLANCE/FLICK", "POWER DRIVE", "SLOG", "SWEEP", "DEFLECTION/GUIDE"]
+                for profile in sorted(profiles):
+                    mask = df_swings['data_profile'] == profile
+                    sub = df_swings[mask]
+                    overall_acc = (sub['_pred'] == sub['normalized_gt']).mean() if len(sub) > 0 else 0.0
+                    row_parts = [profile, str(len(sub)), f"{overall_acc:.0%}"]
+                    for cls in classes_to_show:
+                        cls_mask = sub['normalized_gt'] == cls
+                        if cls_mask.sum() > 0:
+                            acc = (sub.loc[cls_mask, '_pred'] == cls).mean()
+                            row_parts.append(f"{acc:.0%}")
+                        else:
+                            row_parts.append("n/a")
+                    f.write("| " + " | ".join(row_parts) + " |\n")
+                f.write("\n> [!NOTE]\n> These accuracy figures are **training-set fit** (diagnostic only). "
+                        "Authoritative performance is from `SwingDetectorGroundTruthTest` scorecard above.\n\n")
+            else:
+                f.write("*data_profile column not found in combined_features.csv — re-run compile_dataset.py*\n\n")
+        except Exception as e:
+            f.write(f"*Could not generate data-profile breakdown: {e}*\n\n")
+
+        # Section 5: Alignment Health
+        alignment_report = os.path.join(ROOT_DIR, "alignment_pipeline_report.md")
+        if os.path.exists(alignment_report):
+            f.write("## 5. Alignment Health Summary\n")
+            with open(alignment_report, 'r') as ar:
+                alignment_content = ar.read()
+            # Extract just the key summaries
+            for line in alignment_content.split('\n'):
+                if any(kw in line for kw in ['**Sessions Processed', 'Polar Timestamp', 'Recommended threshold', 'Recommended algorithm', 'Total shots missed']):
+                    f.write(f"{line}\n")
+            f.write(f"\n*Full alignment report: [alignment_pipeline_report.md](alignment_pipeline_report.md)*\n\n")
         else:
-            f.write("*(No bottom-hand refinement configurations found)*\n\n")
+            f.write("## 5. Alignment Health Summary\n*Run `evaluate_shot_alignment.py` to generate alignment report.*\n\n")
         
         f.write("## Detailed Verification Log\n")
         f.write("- Model successfully retrained on `combined_features.csv`.\n")

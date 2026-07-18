@@ -163,12 +163,15 @@ object PhoneSwingDetector {
                     var bottomTimeLeadMs = 0L
                     var bottomSyncScore = 0f
 
-                    // Enrich with Polar if present
+                    // Enrich with Polar if present: compute 6 Polar features and
+                    // re-classify using the full 20-feature RF model.
+                    // The RF was trained with Polar features imputed to 0.0 when absent,
+                    // so this naturally handles both watch-only and Polar-enriched sessions.
                     if (alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()) {
                         val polarPeakTimeMs = alignment.watchToPolarMs(wTimeMs)
                         val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
                         val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
-                        
+
                         val pAccPeak = if (polarAccWin.isNotEmpty()) polarAccWin.maxOf { it.mag } else 0f
                         val pGyroPeak = if (polarGyroWin.isNotEmpty()) polarGyroWin.maxOf { it.mag } else 0f
                         val watchGyroPeak = getGyroPeak(watchGyro, (wTimeMs - watchStartMs - 1000L) * 1_000_000L, (wTimeMs - watchStartMs + 1000L) * 1_000_000L)
@@ -176,35 +179,6 @@ object PhoneSwingDetector {
                         val accRatio = if (watchAcc.isNotEmpty()) {
                             val wAccPeak = watchAcc.filter { it.timeNanos in ((wTimeMs - watchStartMs - 1000L)*1_000_000L)..((wTimeMs - watchStartMs + 1000L)*1_000_000L) }.maxOfOrNull { it.mag } ?: 1f
                             pAccPeak / wAccPeak
-                        } else 0f
-
-                        if (finalShotType == "DRIVE/DEFENCE") {
-                            if (gyroRatio > ShotEnhancementConfig.DRIVE_TO_POWER_GYRO_RATIO && pAccPeak > ShotEnhancementConfig.DRIVE_TO_POWER_ACC_PEAK) {
-                                finalShotType = "POWER DRIVE"
-                            }
-                        } else if (finalShotType == "GLANCE/FLICK") {
-                            if (gyroRatio < ShotEnhancementConfig.FLICK_TO_GUIDE_GYRO_RATIO && pGyroPeak < ShotEnhancementConfig.FLICK_TO_GUIDE_GYRO_PEAK) {
-                                finalShotType = "DEFLECTION/GUIDE"
-                            }
-                        } else if (finalShotType == "PULL/HOOK") {
-                            if (gyroRatio > ShotEnhancementConfig.PULL_TO_SLOG_GYRO_RATIO && pGyroPeak > ShotEnhancementConfig.PULL_TO_SLOG_GYRO_PEAK) {
-                                finalShotType = "SLOG"
-                            }
-                        }
-
-                        val isHit = pAccPeak >= 12.0f
-                        finalPeakAccel = pAccPeak
-                        finalSweetSpot = if (isHit) {
-                            when {
-                                pAccPeak / shot.speedKmh < 2.5f -> "Excellent"
-                                pAccPeak / shot.speedKmh < 3.0f -> "Good"
-                                else -> "Poor"
-                            }
-                        } else "Miss"
-
-                        finalEfficiency = if (isHit) {
-                            val base = 100f - (pAccPeak / shot.speedKmh) * 10f
-                            base.coerceIn(40f, 98f)
                         } else 0f
 
                         val pAccPeakTime = polarAccWin.maxByOrNull { it.mag }?.phoneMs ?: polarPeakTimeMs
@@ -219,7 +193,53 @@ object PhoneSwingDetector {
                         bottomAccRatio = accRatio
                         bottomTimeLeadMs = timeLeadMs
                         bottomSyncScore = syncScore
+
+                        // Re-classify with Polar features fed into the 20-feature RF.
+                        // The RF was trained on this exact feature combination — no heuristic
+                        // override is needed; the model has learnt when Polar signals distinguish
+                        // DRIVE vs POWER DRIVE, FLICK vs GUIDE, PULL vs SLOG etc.
+                        val featuresWithPolar = com.mrpeel.cricketbattingtracker.ml.SwingFeatures(
+                            s1_gyro_y_std       = shot.s1GyroYStd,
+                            s1_gyro_z_std       = shot.s1GyroZStd,
+                            s1_deltaX           = shot.s1DeltaX,
+                            s1_deltaZ           = shot.s1DeltaZ,
+                            s2_gyroMag          = shot.s2GyroMag,
+                            s2_grav_y_mean      = shot.s2GravYMean,
+                            s2_deltaX           = shot.s2DeltaX,
+                            s2_deltaZ           = shot.s2DeltaZ,
+                            s3_rollImpactDeg    = shot.s3RollImpactDeg,
+                            s3_yawImpactDeg     = shot.s3YawImpactDeg,
+                            s3_deltaX           = shot.s3DeltaX,
+                            s3_deltaZ           = shot.s3DeltaZ,
+                            s3_planeRatio       = shot.s3PlaneRatio,
+                            s3_gyro_y_min       = shot.s3GyroYMin,
+                            // Polar features — real values available
+                            bottom_hand_gyro_peak   = pGyroPeak,
+                            bottom_hand_acc_peak    = pAccPeak,
+                            bottom_hand_gyro_ratio  = gyroRatio,
+                            bottom_hand_acc_ratio   = accRatio,
+                            bottom_hand_time_lead_ms = timeLeadMs.toFloat(),
+                            bottom_hand_sync_score  = syncScore
+                        )
+                        finalShotType = com.mrpeel.cricketbattingtracker.ml.GeneratedForest.predict(featuresWithPolar)
+
+                        // Polar-derived sweetspot and efficiency (use Polar accel for better impact force)
+                        val isHit = pAccPeak >= 12.0f
+                        finalPeakAccel = pAccPeak
+                        finalSweetSpot = if (isHit) {
+                            when {
+                                pAccPeak / shot.speedKmh < 2.5f -> "Excellent"
+                                pAccPeak / shot.speedKmh < 3.0f -> "Good"
+                                else -> "Poor"
+                            }
+                        } else "Miss"
+
+                        finalEfficiency = if (isHit) {
+                            val base = 100f - (pAccPeak / shot.speedKmh) * 10f
+                            base.coerceIn(40f, 98f)
+                        } else 0f
                     }
+
 
                     confirmedPass1Shots.add(InningsEvent(
                         inningsId = inningsId,

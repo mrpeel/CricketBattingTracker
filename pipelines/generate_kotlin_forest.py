@@ -7,8 +7,23 @@ from sklearn.preprocessing import LabelEncoder
 
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 FEATURES_CSV = os.path.join(BASE_DIR, "combined_features.csv")
-OUTPUT_KOTLIN = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt"
+# Write to both wear and app modules — they share the same GeneratedForest
+OUTPUT_KOTLIN_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt"
+OUTPUT_KOTLIN_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt"
 PROPOSED_CSV_PATH = os.path.join(BASE_DIR, "proposed_logic_aligned.csv")
+
+# 14 core watch features + 6 Polar bottom-hand features
+# Polar features are imputed to 0.0 during training when Polar is absent;
+# at inference time they default to 0f in SwingFeatures, so watch-only sessions
+# get a seamless prediction without any code change.
+POLAR_FEATURES = [
+    'bottom_hand_gyro_peak',
+    'bottom_hand_acc_peak',
+    'bottom_hand_gyro_ratio',
+    'bottom_hand_acc_ratio',
+    'bottom_hand_time_lead_ms',
+    'bottom_hand_sync_score',
+]
 
 def main():
     if not os.path.exists(FEATURES_CSV):
@@ -18,12 +33,16 @@ def main():
     df = pd.read_csv(FEATURES_CSV)
     df_swings = df[df['normalized_gt'] != 'NON-SWING'].copy()
     
-    # 14 Segmented temporal features
+    # 14 Segmented temporal features + 6 Polar bottom-hand features = 20 total
     features = [
         's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
         's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
         's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
-        's3_planeRatio', 's3_gyro_y_min'
+        's3_planeRatio', 's3_gyro_y_min',
+        # Polar features — 0.0 when Polar is absent (imputed during training)
+        'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
+        'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
+        'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
     ]
     
     X = df_swings[features].fillna(df_swings[features].median())
@@ -158,10 +177,10 @@ def main():
         return "arrayOf(\n        " + ",\n        ".join(formatted_chunks) + "\n    )"
 
     # Transpile the forest to Kotlin
-    print(f"Generating Kotlin Random Forest in {OUTPUT_KOTLIN}...")
-    os.makedirs(os.path.dirname(OUTPUT_KOTLIN), exist_ok=True)
+    print(f"Generating Kotlin Random Forest in {OUTPUT_KOTLIN_WEAR}...")
+    os.makedirs(os.path.dirname(OUTPUT_KOTLIN_WEAR), exist_ok=True)
     
-    with open(OUTPUT_KOTLIN, 'w') as f:
+    with open(OUTPUT_KOTLIN_WEAR, 'w') as f:
         # Write file header
         f.write("// Generated Random Forest Classifier for Cricket Batting Tracker\n")
         f.write(f"// Trained on {len(df_swings)} swings across {df_swings['session_id'].nunique()} trustworthy sessions\n")
@@ -170,10 +189,21 @@ def main():
         f.write("import java.nio.ByteBuffer\n")
         f.write("import java.nio.ByteOrder\n\n")
         
-        # Write data class
+        # Write data class — Polar fields have 0f defaults so watch-only inference
+        # requires no caller change: just call GeneratedForest.predict(features) with
+        # a SwingFeatures that omits the polar fields and they default to 0f.
+        WATCH_FEATURES = [
+            's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
+            's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
+            's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
+            's3_planeRatio', 's3_gyro_y_min',
+        ]
         f.write("data class SwingFeatures(\n")
-        for feat in features:
+        for feat in WATCH_FEATURES:
             f.write(f"    val {feat}: Float,\n")
+        # Polar features are optional with 0f defaults
+        for feat in POLAR_FEATURES:
+            f.write(f"    val {feat}: Float = 0f,\n")
         f.seek(f.tell() - 2)
         f.write("\n)\n\n")
         
@@ -206,10 +236,15 @@ def main():
         f.write("    fun predict(f: SwingFeatures): String {\n")
         f.write(f"        val votes = FloatArray({num_classes})\n")
         f.write("        val features = floatArrayOf(\n")
+        f.write("            // 14 watch features\n")
         f.write("            f.s1_gyro_y_std, f.s1_gyro_z_std, f.s1_deltaX, f.s1_deltaZ,\n")
         f.write("            f.s2_gyroMag, f.s2_grav_y_mean, f.s2_deltaX, f.s2_deltaZ,\n")
         f.write("            f.s3_rollImpactDeg, f.s3_yawImpactDeg, f.s3_deltaX, f.s3_deltaZ,\n")
-        f.write("            f.s3_planeRatio, f.s3_gyro_y_min\n")
+        f.write("            f.s3_planeRatio, f.s3_gyro_y_min,\n")
+        f.write("            // 6 Polar bottom-hand features (0f when Polar absent)\n")
+        f.write("            f.bottom_hand_gyro_peak, f.bottom_hand_acc_peak,\n")
+        f.write("            f.bottom_hand_gyro_ratio, f.bottom_hand_acc_ratio,\n")
+        f.write("            f.bottom_hand_time_lead_ms, f.bottom_hand_sync_score\n")
         f.write("        )\n\n")
         f.write("        for (t in 0 until NUM_TREES) {\n")
         f.write("            var nodeIdx = TREE_OFFSETS[t]\n")
@@ -281,6 +316,12 @@ def main():
         f.write("}\n")
         
     print("✅ Successfully generated GeneratedForest.kt")
+
+    # Copy to app module so both wear and app stay in sync
+    import shutil
+    os.makedirs(os.path.dirname(OUTPUT_KOTLIN_APP), exist_ok=True)
+    shutil.copy2(OUTPUT_KOTLIN_WEAR, OUTPUT_KOTLIN_APP)
+    print(f"✅ Copied to app module: {OUTPUT_KOTLIN_APP}")
     
     # ─── Overwrite proposed_logic_aligned.csv ───
     print(f"Overwriting {PROPOSED_CSV_PATH} with 10-feature RF predictions...")
