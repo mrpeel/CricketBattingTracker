@@ -23,3 +23,23 @@ This document captures resolved bugs, architectural changes, key logical finding
         - `ic_history.xml`: A binder-ring calendar showing an internal trending line chart and a prominent swooping arrow extending out to represent progression history.
         Mapped these assets inside `MainActivity.kt` using Jetpack Compose's `Icon` and `painterResource`.
     *   **Result**: Bottom tab navigation renders with custom abstract vector lines, providing a highly premium, state-of-the-art look.
+
+86. **Pipeline 2: 20-Feature RF Classifier with Inline Polar Integration (July 18, 2026)**:
+    *   **The Problem**: The old RF used 14 watch-only features. Polar features were injected as post-hoc heuristic rule overrides in `PhoneSwingDetector.kt` (if DRIVE && gyroRatio > X → POWER DRIVE). This approach is brittle, untrainable, and discards discriminative Polar signal.
+    *   **The Solution**: Expanded `SwingFeatures` to 20 features (14 watch + 6 Polar: `bottom_hand_gyro_peak`, `bottom_hand_acc_peak`, `bottom_hand_gyro_ratio`, `bottom_hand_acc_ratio`, `bottom_hand_time_lead_ms`, `bottom_hand_sync_score`). Polar fields default to `= 0f` in Kotlin so watch-only inference requires zero caller changes. The RF was trained on heterogeneous data (50Hz/100Hz watch, with/without Polar) with Polar features imputed to 0.0 for watch-only sessions. The heuristic override block in `PhoneSwingDetector.kt` was removed — `GeneratedForest.predict(featuresWithPolar)` is called directly.
+    *   **Key Design Constraint**: The on-watch `SwingDetector.kt` constructs `SwingFeatures` with only 14 fields — Polar defaults to 0f automatically. This is intentional and correct: the watch classifies at 14-feature resolution and the phone re-classifies with the full 20 when Polar data is present.
+    *   **Quality Classifier**: `train_quality_classifier.py` trains a 4-class RF (good/poor/miss/edge) on the same 20-feature vector. CV accuracy 69.7% but class recall for miss (9%) and poor (13%) is low due to severe class imbalance (816 good vs 64 miss). More labelled data for off-centre hits will improve recall.
+    *   **Result**: BUILD SUCCESSFUL. `SwingDetectorGroundTruthTest` passes. `GeneratedForest.kt` retrained on 1,949 swings across 955 sessions; selected config 200 trees depth 8, CV accuracy 61.1%.
+
+87. **Dead Scorecard Antipattern — SwingDetectorGroundTruthTest (July 19, 2026)**:
+    *   **The Problem**: `SwingDetectorGroundTruthTest.kt` was streaming raw sensor events through `SwingDetector.kt` (the retired on-watch classification path) and reporting its output as the system scorecard. This test was measuring a code path that no longer runs in production. All decisions about model quality were based on numbers from a phantom system.
+    *   **Root Cause**: The architecture shifted from on-watch classification to phone-side batch processing (`PhoneSwingDetector.kt`), but the Kotlin test was never updated. It continued reporting "session_20260717: classification 0.23" which was meaningless — the on-watch path with 14 features and Polar=0f scoring a session that was designed for 20-feature phone-side processing.
+    *   **Rule Established**: A test that exercises a retired code path is worse than no test — it actively misinforms. When the architecture changes, tests must change with it immediately. The authoritative evaluation must always exercise the path that runs in production.
+
+88. **Authoritative Scorecard: score_phone_pipeline.py (July 19, 2026)**:
+    *   **The Solution**: `score_phone_pipeline.py` reads `combined_features.csv` and `combined_ground_truth_aligned.csv` — both produced by `compile_dataset.py` from the actual phone pipeline outputs. It fits the 20-feature RF and reports training-set accuracy by session, shot class, and data profile. Writes `phone_pipeline_scorecard.md`.
+    *   **Key Output**: Training-set fit 84.8% overall. Per-class: SWEEP 100%, SLOG 98%, DEFLECTION/GUIDE 90%, POWER DRIVE 88%, CUT/PUNCH 84%, GLANCE/FLICK 83%, DRIVE/DEFENCE 75%, PULL/HOOK 75%. Detection recall 100% (all labelled shots have predictions in the aligned CSV).
+    *   **Slim Kotlin Tests**: `SwingDetectorGroundTruthTest.kt` reduced from 800 lines to 6 integrity tests (model deserialises, Polar defaults work, 20-feature path works, determinism, extreme values). Build time dropped from 41s to 15s.
+    *   **CRITICAL RULE**: Accuracy figures from `phone_pipeline_scorecard.md` are **training-set fit** (the model was trained on this same data). They are diagnostic only. Authoritative generalisation accuracy requires held-out sessions not included in training. Never present training-set accuracy as model performance.
+
+
