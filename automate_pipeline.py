@@ -228,11 +228,26 @@ def pull_latest_session_from_phone(phone_id, dest_dir):
         
     latest_session = sorted(sessions)[-1]
     phone_path = f"{phone_base}/{latest_session}"
-    local_session_dir = os.path.join(dest_dir, latest_session)
-    os.makedirs(local_session_dir, exist_ok=True)
     
-    print(f"📥 Pulling latest phone-synced watch session: {phone_path} → {local_session_dir}/")
-    subprocess.run(["adb", "-s", phone_id, "pull", phone_path + "/.", local_session_dir], check=True)
+    if phone_path.endswith(".zip"):
+        local_zip_path = os.path.join(dest_dir, latest_session)
+        print(f"📥 Pulling latest phone-synced watch session ZIP: {phone_path} → {local_zip_path}")
+        subprocess.run(["adb", "-s", phone_id, "pull", phone_path, local_zip_path], check=True)
+        
+        local_session_dir = os.path.join(dest_dir, latest_session.replace(".zip", ""))
+        os.makedirs(local_session_dir, exist_ok=True)
+        
+        print(f"📦 Unzipping session file locally: {local_zip_path} → {local_session_dir}")
+        import zipfile
+        with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
+            zip_ref.extractall(local_session_dir)
+            
+        os.remove(local_zip_path)
+    else:
+        local_session_dir = os.path.join(dest_dir, latest_session)
+        os.makedirs(local_session_dir, exist_ok=True)
+        print(f"📥 Pulling latest phone-synced watch session: {phone_path} → {local_session_dir}/")
+        subprocess.run(["adb", "-s", phone_id, "pull", phone_path + "/.", local_session_dir], check=True)
     
     # Clean watch sessions directory on phone
     print("🧹 Cleaning raw session directory on phone to free space...")
