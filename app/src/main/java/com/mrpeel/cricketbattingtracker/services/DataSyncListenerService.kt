@@ -599,9 +599,24 @@ class DataSyncListenerService : WearableListenerService() {
             zipFile.delete()
         }
 
+        // Resolve files directory (handle nested folders in zip)
+        var filesDir = watchSessionsDir
+        val subdirs = watchSessionsDir.listFiles()?.filter { it.isDirectory }
+        if (subdirs != null && subdirs.isNotEmpty()) {
+            val candidate = subdirs.firstOrNull { 
+                java.io.File(it, "WatchAccelerometer.bin").exists() || 
+                java.io.File(it, "WatchAccelerometer.bin.gz").exists() ||
+                java.io.File(it, "WatchAccelerometer.csv").exists() ||
+                java.io.File(it, "WatchAccelerometer.csv.gz").exists()
+            }
+            if (candidate != null) {
+                filesDir = candidate
+            }
+        }
+
         // Resolve innings ID by matching watch session timestamp with timeline
         var sessionStartMs: Long? = null
-        val timelineFile = java.io.File(watchSessionsDir, "latest_timeline.txt")
+        val timelineFile = java.io.File(filesDir, "latest_timeline.txt")
         if (timelineFile.exists()) {
             try {
                 timelineFile.forEachLine { line ->
@@ -619,7 +634,7 @@ class DataSyncListenerService : WearableListenerService() {
         }
         
         if (sessionStartMs == null) {
-            val accFile = java.io.File(watchSessionsDir, "WatchAccelerometer.csv")
+            val accFile = java.io.File(filesDir, "WatchAccelerometer.csv")
             if (accFile.exists()) {
                 try {
                     accFile.useLines { lines ->
@@ -653,14 +668,14 @@ class DataSyncListenerService : WearableListenerService() {
         if (polarSessionDir == null) {
             Log.d(TAG, "No Polar session directory found on phone — falling back to watch-only batch processing.")
             try {
-                PhoneSwingDetector.processWatchOnlySession(newInningsId, watchSessionsDir, applicationContext)
+                PhoneSwingDetector.processWatchOnlySession(newInningsId, filesDir, applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "Phone watch-only swing detection batch processing failed", e)
             }
         } else {
             Log.d(TAG, "Found Polar session directory: ${polarSessionDir.absolutePath}")
             try {
-                PhoneSwingDetector.processSession(newInningsId, watchSessionsDir, polarSessionDir, applicationContext)
+                PhoneSwingDetector.processSession(newInningsId, filesDir, polarSessionDir, applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "Phone swing detection batch processing failed", e)
             }
