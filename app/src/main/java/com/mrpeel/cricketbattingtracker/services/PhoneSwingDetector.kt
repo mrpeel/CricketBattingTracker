@@ -68,10 +68,28 @@ object PhoneSwingDetector {
         val dao = database.inningsEventDao()
         dao.deleteTimelineForInningsSync(inningsId)
 
+        val timelineFile = File(watchDir, "latest_timeline.txt")
+        var watchStartWallMs = System.currentTimeMillis() // default fallback
+        if (timelineFile.exists()) {
+            try {
+                timelineFile.forEachLine { line ->
+                    if (line.startsWith("SYSTEM_START:")) {
+                        val regex = Regex("Ts=(\\d+)")
+                        val match = regex.find(line)
+                        if (match != null) {
+                            watchStartWallMs = match.groupValues[1].toLong()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed parsing latest_timeline.txt for SYSTEM_START", e)
+            }
+        }
+
         val watchStartMs = watchAcc.first().timeNanos / 1_000_000L
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
-            timestamp = watchStartMs,
+            timestamp = watchStartWallMs,
             description = "Session Started",
             location = "Net Practice"
         ))
@@ -230,9 +248,10 @@ object PhoneSwingDetector {
                     }
                     val finalPeakAccel = if (bottomAccPeak > 0f) bottomAccPeak else shot.peakAccel
 
+                    val shotWallMs = watchStartWallMs + (wTimeMs - watchStartMs)
                     confirmedPass1Shots.add(InningsEvent(
                         inningsId = inningsId,
-                        timestamp = wTimeMs,
+                        timestamp = shotWallMs,
                         description = "$finalShotType ($finalSweetSpot)",
                         batSpeed = shot.speedKmh,
                         impactForce = finalPeakAccel,
@@ -301,13 +320,14 @@ object PhoneSwingDetector {
         }
 
         for (fShot in forwardShots) {
-            val fShotTimeMs = fShot.impactTimeMs + watchStartMs
+            val relativePass2Ms = fShot.impactTimeMs
             // Only add if it's not close to any Pass 1 shot (min gap of 2 seconds)
-            val isOverlap = confirmedPass1Shots.any { Math.abs(it.timestamp - fShotTimeMs) < 2000L }
+            val isOverlap = confirmedPass1Shots.any { Math.abs((it.timestamp - watchStartWallMs) - relativePass2Ms) < 2000L }
             if (!isOverlap) {
+                val fShotWallMs = watchStartWallMs + relativePass2Ms
                 confirmedPass2Shots.add(InningsEvent(
                     inningsId = inningsId,
-                    timestamp = fShotTimeMs,
+                    timestamp = fShotWallMs,
                     description = "${fShot.shotType} (Miss)",
                     batSpeed = fShot.speedKmh,
                     impactForce = fShot.peakAccel,
@@ -356,9 +376,10 @@ object PhoneSwingDetector {
 
         // Write "Session Ended" marker
         val watchEndMs = watchAcc.last().timeNanos / 1_000_000L
+        val sessionEndWallMs = watchStartWallMs + (watchEndMs - watchStartMs)
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
-            timestamp = watchEndMs,
+            timestamp = sessionEndWallMs,
             description = "Session Ended",
             location = "Net Practice"
         ))
