@@ -180,11 +180,10 @@ def compress_session_csvs(session_dir):
                 print(f"  ❌ Failed to compress {filename}: {e}")
                 if os.path.exists(gz_path):
                     os.remove(gz_path)
-    # Also compress CSV files in PolarSense/ subdirectory
     polar_dir = os.path.join(session_dir, "PolarSense")
     if os.path.isdir(polar_dir):
         for filename in os.listdir(polar_dir):
-            if filename.endswith(".csv"):
+            if filename.endswith(".csv") or filename.endswith(".bin"):
                 csv_path = os.path.join(polar_dir, filename)
                 gz_path = csv_path + ".gz"
                 try:
@@ -2097,9 +2096,14 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         print("⚠️ ground_truth_aligned.csv not found. Skipping Polar feature extraction.")
         return
 
-    # 1. Discover Polar ACC and GYRO CSV files (case-insensitive globbing)
-    polar_acc_files = sorted(glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")))
-    polar_gyro_files = sorted(glob.glob(os.path.join(polar_dir, "*[gG][yY][rR][oO]*.csv*")))
+    # 1. Discover Polar ACC and GYRO CSV/BIN files (case-insensitive globbing)
+    polar_acc_files = sorted(glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")) +
+                             glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.bin*")))
+    polar_gyro_files = sorted(glob.glob(os.path.join(polar_dir, "*[gG][yY][rR][oO]*.csv*")) +
+                              glob.glob(os.path.join(polar_dir, "*[gG][yY][rR][oO]*.bin*")))
+
+    polar_acc_files = sorted(list(set(polar_acc_files)))
+    polar_gyro_files = sorted(list(set(polar_gyro_files)))
 
     if not polar_acc_files and not polar_gyro_files:
         print("⚠️ No Polar ACC or GYRO data files found in PolarSense/. Skipping.")
@@ -2108,43 +2112,68 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     print(f"\n📡 Processing Polar Sense data ({len(polar_acc_files)} ACC, {len(polar_gyro_files)} GYRO files)...")
 
     def load_polar_csv_segments(file_list, sensor_type):
-        """Load and concatenate semicolon-delimited Polar CSV segments.
-        Format: Phone timestamp;sensor timestamp [ns];X;Y;Z
-        Handles both .csv and .csv.gz files."""
+        """Load and concatenate Polar CSV/BIN segments.
+        Handles both .csv/.csv.gz and .bin/.bin.gz files."""
         frames = []
+        dtype = np.dtype([
+            ('phone_ms', '<i8'),
+            ('sensor_ns', '<i8'),
+            ('x', '<f4'),
+            ('y', '<f4'),
+            ('z', '<f4')
+        ])
+        
         for fpath in file_list:
             try:
-                df = pd.read_csv(fpath, sep=';')
-                if len(df.columns) >= 5:
-                    df.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df.columns[5:])
-                    # Convert ISO 8601 string to UTC epoch seconds (adjusting for local timezone offset)
-                    local_offset = datetime.datetime.now().astimezone().utcoffset().total_seconds()
-                    dt = pd.to_datetime(df['phone_timestamp'], errors='coerce')
-                    valid_mask = dt.notna()
-                    df = df[valid_mask].copy()
-                    dt = dt[valid_mask]
-                    df['phone_timestamp'] = dt.map(lambda x: x.timestamp()) - local_offset
+                if ".bin" in fpath:
+                    # Parse binary Polar Sense format (28-byte records)
+                    if fpath.endswith(".gz"):
+                        with gzip.open(fpath, 'rb') as f:
+                            data = f.read()
+                    else:
+                        with open(fpath, 'rb') as f:
+                            data = f.read()
                     
-                    df['sensor_ns'] = pd.to_numeric(df['sensor_ns'], errors='coerce')
-                    df['x'] = pd.to_numeric(df['x'], errors='coerce')
-                    df['y'] = pd.to_numeric(df['y'], errors='coerce')
-                    df['z'] = pd.to_numeric(df['z'], errors='coerce')
+                    arr = np.frombuffer(data, dtype=dtype)
+                    df = pd.DataFrame({
+                        'phone_timestamp': arr['phone_ms'] / 1000.0,
+                        'sensor_ns': arr['sensor_ns'],
+                        'x': arr['x'].astype(float),
+                        'y': arr['y'].astype(float),
+                        'z': arr['z'].astype(float)
+                    })
+                else:
+                    # Fallback to semicolon CSV format
+                    df = pd.read_csv(fpath, sep=';')
+                    if len(df.columns) >= 5:
+                        df.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df.columns[5:])
+                        local_offset = datetime.datetime.now().astimezone().utcoffset().total_seconds()
+                        dt = pd.to_datetime(df['phone_timestamp'], errors='coerce')
+                        valid_mask = dt.notna()
+                        df = df[valid_mask].copy()
+                        dt = dt[valid_mask]
+                        df['phone_timestamp'] = dt.map(lambda x: x.timestamp()) - local_offset
+                        
+                        df['sensor_ns'] = pd.to_numeric(df['sensor_ns'], errors='coerce')
+                        df['x'] = pd.to_numeric(df['x'], errors='coerce')
+                        df['y'] = pd.to_numeric(df['y'], errors='coerce')
+                        df['z'] = pd.to_numeric(df['z'], errors='coerce')
 
-                    # Normalize units to standard Android metrics (mps^2 and rad/s)
-                    if sensor_type == 'ACC':
-                        # Convert milli-g to m/s^2: 1 mg = 0.00980665 m/s^2
-                        df['x'] *= 0.00980665
-                        df['y'] *= 0.00980665
-                        df['z'] *= 0.00980665
-                    elif sensor_type == 'GYRO':
-                        # Convert degrees/sec to radians/sec: 1 dps = pi / 180 rad/s
-                        dps_to_rad = np.pi / 180.0
-                        df['x'] *= dps_to_rad
-                        df['y'] *= dps_to_rad
-                        df['z'] *= dps_to_rad
+                # Normalize units to standard Android metrics (mps^2 and rad/s)
+                if sensor_type == 'ACC':
+                    # Convert milli-g to m/s^2: 1 mg = 0.00980665 m/s^2 (binary logs also write mg)
+                    df['x'] *= 0.00980665
+                    df['y'] *= 0.00980665
+                    df['z'] *= 0.00980665
+                elif sensor_type == 'GYRO':
+                    # Convert degrees/sec to radians/sec: 1 dps = pi / 180 rad/s
+                    dps_to_rad = np.pi / 180.0
+                    df['x'] *= dps_to_rad
+                    df['y'] *= dps_to_rad
+                    df['z'] *= dps_to_rad
 
-                    df = df.dropna(subset=['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'])
-                    frames.append(df)
+                df = df.dropna(subset=['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'])
+                frames.append(df)
             except Exception as e:
                 print(f"  ⚠️ Failed to load {os.path.basename(fpath)}: {e}")
         if not frames:

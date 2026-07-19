@@ -122,7 +122,7 @@ def get_data_profile(session_dir):
     hz = measure_session_hz(session_dir)
     polar_dir = os.path.join(session_dir, "PolarSense")
     has_polar = os.path.isdir(polar_dir) and any(
-        f.endswith('.csv') or f.endswith('.csv.gz')
+        f.endswith('.csv') or f.endswith('.csv.gz') or f.endswith('.bin') or f.endswith('.bin.gz')
         for f in os.listdir(polar_dir)
     ) if os.path.isdir(polar_dir) else False
     if not has_polar:
