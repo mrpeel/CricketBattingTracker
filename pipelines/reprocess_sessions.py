@@ -52,11 +52,11 @@ def run_cmd(args):
 
 def pull_database():
     print("⏳ Pulling database from phone...")
-    ok, _ = run_cmd(["adb", "shell", f"run-as {PACKAGE_NAME} cp {REMOTE_DB_PATH} {TMP_REMOTE_PATH}"])
+    ok, _ = run_cmd(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} cp {REMOTE_DB_PATH} {TMP_REMOTE_PATH}"])
     if not ok:
         print("❌ Failed to copy database on device. Make sure device is connected, unlocked, and app is debuggable.")
         return False
-    ok, _ = run_cmd(["adb", "pull", TMP_REMOTE_PATH, LOCAL_DB_PATH])
+    ok, _ = run_cmd(["adb", "-d", "pull", TMP_REMOTE_PATH, LOCAL_DB_PATH])
     if not ok:
         print("❌ Failed to pull database file to Mac.")
         return False
@@ -65,23 +65,23 @@ def pull_database():
 
 def push_database():
     print("⏳ Pushing database back to phone...")
-    ok, _ = run_cmd(["adb", "push", LOCAL_DB_PATH, TMP_REMOTE_PATH])
+    ok, _ = run_cmd(["adb", "-d", "push", LOCAL_DB_PATH, TMP_REMOTE_PATH])
     if not ok:
         print("❌ Failed to push database to /data/local/tmp.")
         return False
-    ok, _ = run_cmd(["adb", "shell", f"run-as {PACKAGE_NAME} cp {TMP_REMOTE_PATH} {REMOTE_DB_PATH}"])
+    ok, _ = run_cmd(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} cp {TMP_REMOTE_PATH} {REMOTE_DB_PATH}"])
     if not ok:
         print("❌ Failed to restore database on device.")
         return False
-    run_cmd(["adb", "shell", f"run-as {PACKAGE_NAME} rm -f {REMOTE_DB_PATH}-wal {REMOTE_DB_PATH}-journal"])
-    run_cmd(["adb", "shell", f"rm -f {TMP_REMOTE_PATH}"])
+    run_cmd(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} rm -f {REMOTE_DB_PATH}-wal {REMOTE_DB_PATH}-journal"])
+    run_cmd(["adb", "-d", "shell", f"rm -f {TMP_REMOTE_PATH}"])
     print("✅ Database successfully restored on device.")
     return True
 
 def restart_app():
     print("⏳ Restarting app on phone...")
-    run_cmd(["adb", "shell", f"am force-stop {PACKAGE_NAME}"])
-    run_cmd(["adb", "shell", f"monkey -p {PACKAGE_NAME} -c android.intent.category.LAUNCHER 1"])
+    run_cmd(["adb", "-d", "shell", f"am force-stop {PACKAGE_NAME}"])
+    run_cmd(["adb", "-d", "shell", f"monkey -p {PACKAGE_NAME} -c android.intent.category.LAUNCHER 1"])
     print("✅ App restarted successfully.")
 
 def train_classifiers():
