@@ -1708,15 +1708,16 @@ def main():
         and s['sensor_narr_time_seconds'] >= -5.0 
         and s['sensor_narr_time_seconds'] <= gyro_duration + 5.0
     ]
+    if len(aligned_shots) == 0:
+        raise RuntimeError("❌ Alignment failed: Zero shots parsed or aligned.")
     if len(active_swings) == 0:
         print("\n" + "="*80)
-        print("❌ ALIGNMENT ERROR: Zero active swings found within watch logging duration!")
-        print("   This indicates that the watch tracking and the audio recording do not overlap.")
+        print("⚠️ Warning: Zero attacking active swings found within watch logging duration.")
+        print("   Proceeding since sync taps or fallback shots were aligned.")
         print("="*80 + "\n")
-        raise RuntimeError("❌ Alignment failed: Zero active swings overlap with the watch logging duration.")
         
     fallback_swings = [s for s in active_swings if s['is_fallback']]
-    fallback_rate = len(fallback_swings) / len(active_swings)
+    fallback_rate = len(fallback_swings) / len(active_swings) if len(active_swings) > 0 else 0.0
     
     print(f"\n📊 Alignment Validation check:")
     print(f"   Active swings:         {len(active_swings)}")
