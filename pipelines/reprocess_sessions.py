@@ -52,31 +52,45 @@ def run_cmd(args):
 
 def pull_database():
     print("⏳ Pulling database from phone...")
-    ok, _ = run_cmd(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} cp {REMOTE_DB_PATH} {TMP_REMOTE_PATH}"])
-    if not ok:
-        print("❌ Failed to copy database on device. Make sure device is connected, unlocked, and app is debuggable.")
+    try:
+        # Use shell piping to write binary directly to LOCAL_DB_PATH
+        with open(LOCAL_DB_PATH, "wb") as f:
+            res = subprocess.run(
+                ["adb", "-d", "shell", f"run-as {PACKAGE_NAME} cat databases/cricket_tracker_database"],
+                stdout=f,
+                stderr=subprocess.PIPE
+            )
+        if res.returncode != 0:
+            print(f"❌ Failed to stream database from phone: {res.stderr.decode()}")
+            return False
+        print(f"✅ Successfully pulled database to: {LOCAL_DB_PATH}")
+        return True
+    except Exception as e:
+        print(f"❌ Pull failed: {e}")
         return False
-    ok, _ = run_cmd(["adb", "-d", "pull", TMP_REMOTE_PATH, LOCAL_DB_PATH])
-    if not ok:
-        print("❌ Failed to pull database file to Mac.")
-        return False
-    print(f"✅ Successfully pulled database to: {LOCAL_DB_PATH}")
-    return True
 
 def push_database():
     print("⏳ Pushing database back to phone...")
-    ok, _ = run_cmd(["adb", "-d", "push", LOCAL_DB_PATH, TMP_REMOTE_PATH])
-    if not ok:
-        print("❌ Failed to push database to /data/local/tmp.")
+    try:
+        # Stream LOCAL_DB_PATH back to the device databases directory using dd
+        with open(LOCAL_DB_PATH, "rb") as f:
+            res = subprocess.run(
+                ["adb", "-d", "shell", f"run-as {PACKAGE_NAME} dd of=databases/cricket_tracker_database"],
+                stdin=f,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+        if res.returncode != 0:
+            print(f"❌ Failed to restore database on phone: {res.stderr.decode()}")
+            return False
+        
+        # Clean up database journal files to prevent SQLite version mismatches
+        subprocess.run(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} rm -f databases/cricket_tracker_database-wal databases/cricket_tracker_database-shm databases/cricket_tracker_database-journal"])
+        print("✅ Database successfully restored on device.")
+        return True
+    except Exception as e:
+        print(f"❌ Push failed: {e}")
         return False
-    ok, _ = run_cmd(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} cp {TMP_REMOTE_PATH} {REMOTE_DB_PATH}"])
-    if not ok:
-        print("❌ Failed to restore database on device.")
-        return False
-    run_cmd(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} rm -f {REMOTE_DB_PATH}-wal {REMOTE_DB_PATH}-journal"])
-    run_cmd(["adb", "-d", "shell", f"rm -f {TMP_REMOTE_PATH}"])
-    print("✅ Database successfully restored on device.")
-    return True
 
 def restart_app():
     print("⏳ Restarting app on phone...")
@@ -243,6 +257,10 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual, 
                       ("WatchGravity", "gravity"), ("WatchGameOrientation", "game_orient")]:
         df = load_watch_sensor(session_dir, name)
         if df is not None and not df.empty:
+            if "x" in df.columns and "y" in df.columns and "z" in df.columns:
+                mag_vals = np.sqrt(df["x"]**2 + df["y"]**2 + df["z"]**2)
+                df["mag"] = mag_vals
+                df["mag_total"] = mag_vals
             sensors[key] = df
 
     if "gyro" not in sensors or "game_orient" not in sensors:
