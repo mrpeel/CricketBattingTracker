@@ -151,11 +151,6 @@ object PhoneSwingDetector {
 
                 val shot = detectedShot
                 if (shot != null) {
-                    var finalShotType = shot.shotType
-                    var finalPeakAccel = shot.peakAccel
-                    var finalSweetSpot = shot.sweetSpot
-                    var finalEfficiency = shot.efficiency
-
                     var bottomGyroPeak = 0f
                     var bottomAccPeak = 0f
                     var bottomGyroRatio = 0f
@@ -163,10 +158,7 @@ object PhoneSwingDetector {
                     var bottomTimeLeadMs = 0L
                     var bottomSyncScore = 0f
 
-                    // Enrich with Polar if present: compute 6 Polar features and
-                    // re-classify using the full 20-feature RF model.
-                    // The RF was trained with Polar features imputed to 0.0 when absent,
-                    // so this naturally handles both watch-only and Polar-enriched sessions.
+                    // Extract Polar telemetry if available
                     if (alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()) {
                         val polarPeakTimeMs = alignment.watchToPolarMs(wTimeMs)
                         val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
@@ -193,58 +185,55 @@ object PhoneSwingDetector {
                         bottomAccRatio = accRatio
                         bottomTimeLeadMs = timeLeadMs
                         bottomSyncScore = syncScore
-
-                        // Re-classify with Polar features fed into the 20-feature RF.
-                        // The RF was trained on this exact feature combination — no heuristic
-                        // override is needed; the model has learnt when Polar signals distinguish
-                        // DRIVE vs POWER DRIVE, FLICK vs GUIDE, PULL vs SLOG etc.
-                        val featuresWithPolar = com.mrpeel.cricketbattingtracker.ml.SwingFeatures(
-                            s1_gyro_y_std       = shot.s1GyroYStd,
-                            s1_gyro_z_std       = shot.s1GyroZStd,
-                            s1_deltaX           = shot.s1DeltaX,
-                            s1_deltaZ           = shot.s1DeltaZ,
-                            s2_gyroMag          = shot.s2GyroMag,
-                            s2_grav_y_mean      = shot.s2GravYMean,
-                            s2_deltaX           = shot.s2DeltaX,
-                            s2_deltaZ           = shot.s2DeltaZ,
-                            s3_rollImpactDeg    = shot.s3RollImpactDeg,
-                            s3_yawImpactDeg     = shot.s3YawImpactDeg,
-                            s3_deltaX           = shot.s3DeltaX,
-                            s3_deltaZ           = shot.s3DeltaZ,
-                            s3_planeRatio       = shot.s3PlaneRatio,
-                            s3_gyro_y_min       = shot.s3GyroYMin,
-                            // Polar features — real values available
-                            bottom_hand_gyro_peak   = pGyroPeak,
-                            bottom_hand_acc_peak    = pAccPeak,
-                            bottom_hand_gyro_ratio  = gyroRatio,
-                            bottom_hand_acc_ratio   = accRatio,
-                            bottom_hand_time_lead_ms = timeLeadMs.toFloat(),
-                            bottom_hand_sync_score  = syncScore
-                        )
-                        finalShotType = com.mrpeel.cricketbattingtracker.ml.GeneratedForest.predict(featuresWithPolar)
-
-                        // Polar-derived sweetspot and efficiency (use Polar accel for better impact force)
-                        val isHit = pAccPeak >= 12.0f
-                        finalPeakAccel = pAccPeak
-                        finalSweetSpot = if (isHit) {
-                            when {
-                                pAccPeak / shot.speedKmh < 2.5f -> "Excellent"
-                                pAccPeak / shot.speedKmh < 3.0f -> "Good"
-                                else -> "Poor"
-                            }
-                        } else "Miss"
-
-                        finalEfficiency = if (isHit) {
-                            val base = 100f - (pAccPeak / shot.speedKmh) * 10f
-                            base.coerceIn(40f, 98f)
-                        } else 0f
                     }
 
+                    // 20-Feature classification (watch-only defaults to 0f bottom hand fields)
+                    val features = com.mrpeel.cricketbattingtracker.ml.SwingFeatures(
+                        s1_gyro_y_std       = shot.s1GyroYStd,
+                        s1_gyro_z_std       = shot.s1GyroZStd,
+                        s1_deltaX           = shot.s1DeltaX,
+                        s1_deltaZ           = shot.s1DeltaZ,
+                        s2_gyroMag          = shot.s2GyroMag,
+                        s2_grav_y_mean      = shot.s2GravYMean,
+                        s2_deltaX           = shot.s2DeltaX,
+                        s2_deltaZ           = shot.s2DeltaZ,
+                        s3_rollImpactDeg    = shot.s3RollImpactDeg,
+                        s3_yawImpactDeg     = shot.s3YawImpactDeg,
+                        s3_deltaX           = shot.s3DeltaX,
+                        s3_deltaZ           = shot.s3DeltaZ,
+                        s3_planeRatio       = shot.s3PlaneRatio,
+                        s3_gyro_y_min       = shot.s3GyroYMin,
+                        bottom_hand_gyro_peak   = bottomGyroPeak,
+                        bottom_hand_acc_peak    = bottomAccPeak,
+                        bottom_hand_gyro_ratio  = bottomGyroRatio,
+                        bottom_hand_acc_ratio   = bottomAccRatio,
+                        bottom_hand_time_lead_ms = bottomTimeLeadMs.toFloat(),
+                        bottom_hand_sync_score  = bottomSyncScore
+                    )
+
+                    val finalShotType = com.mrpeel.cricketbattingtracker.ml.GeneratedForest.predict(features)
+                    val predictedQuality = com.mrpeel.cricketbattingtracker.ml.GeneratedQualityForest.predict(features)
+
+                    // Map RF predicted quality to UI properties
+                    val finalSweetSpot = when (predictedQuality) {
+                        "good" -> "Excellent"
+                        "poor" -> "Poor"
+                        "miss" -> "Miss"
+                        "edge" -> "Edge"
+                        else -> "Good"
+                    }
+                    val finalEfficiency = when (predictedQuality) {
+                        "good" -> 90f
+                        "poor" -> 60f
+                        "edge" -> 40f
+                        else -> 0f
+                    }
+                    val finalPeakAccel = if (bottomAccPeak > 0f) bottomAccPeak else shot.peakAccel
 
                     confirmedPass1Shots.add(InningsEvent(
                         inningsId = inningsId,
                         timestamp = wTimeMs,
-                        description = "${finalShotType} (${finalSweetSpot})",
+                        description = "$finalShotType ($finalSweetSpot)",
                         batSpeed = shot.speedKmh,
                         impactForce = finalPeakAccel,
                         impactTimeMs = shot.impactTimeMs,

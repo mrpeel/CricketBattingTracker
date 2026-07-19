@@ -220,4 +220,42 @@ class SwingDetectorGroundTruthTest {
         assertTrue("Extreme high values should return a valid class", resHigh in VALID_CLASSES)
         assertTrue("Extreme low values should return a valid class", resLow in VALID_CLASSES)
     }
+
+    // ---------------------------------------------------------------------------
+    // Test 7: GeneratedQualityForest predicts valid quality class (good/poor/miss/edge)
+    // ---------------------------------------------------------------------------
+    @Test
+    fun testQualityModelPredictsValidClass() {
+        val VALID_QUALITY = setOf("good", "poor", "miss", "edge")
+        
+        // Good swing features (high efficiency features)
+        val features = SwingFeatures(
+            s1_gyro_y_std            = 1.10f,
+            s1_gyro_z_std            = 0.85f,
+            s1_deltaX                = -0.08f,
+            s1_deltaZ                = 0.04f,
+            s2_gyroMag               = 6.2f,
+            s2_grav_y_mean           = 0.30f,
+            s2_deltaX                = -0.25f,
+            s2_deltaZ                = 0.15f,
+            s3_rollImpactDeg         = 12.0f,
+            s3_yawImpactDeg          = -7.0f,
+            s3_deltaX                = -0.35f,
+            s3_deltaZ                = 0.20f,
+            s3_planeRatio            = 0.88f,
+            s3_gyro_y_min            = -5.3f,
+            bottom_hand_gyro_peak    = 8.4f,
+            bottom_hand_acc_peak     = 28.5f,
+            bottom_hand_gyro_ratio   = 1.35f,
+            bottom_hand_acc_ratio    = 1.12f,
+            bottom_hand_time_lead_ms = -45.0f,
+            bottom_hand_sync_score   = 82.0f
+        )
+        val quality = GeneratedQualityForest.predict(features)
+        assertTrue("Expected valid quality string, got: '$quality'", quality in VALID_QUALITY)
+
+        // Quality prediction determinism
+        val secondCall = GeneratedQualityForest.predict(features)
+        assertEquals("Quality prediction must be deterministic", quality, secondCall)
+    }
 }
