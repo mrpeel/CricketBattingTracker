@@ -66,7 +66,7 @@ echo ""
 echo "📦 Building Release APKs (this may take a minute)..."
 export JAVA_HOME="$HOME/.jdk/jdk-17"
 export PATH="$JAVA_HOME/bin:$PATH"
-./gradlew assembleRelease -x lint -x lintVitalRelease -x test --no-daemon
+./gradlew assembleRelease -x lint -x test --no-daemon
 # 3. Deploy to Watch
 if [ "$WATCH_FOUND" = true ]; then
     echo ""
