@@ -125,15 +125,21 @@ python3 pipelines/score_phone_pipeline.py
 - **How it works**: Reads `combined_features.csv` + `combined_ground_truth_aligned.csv`, scores the active 20-feature models, and prints class and data profile breakdowns (Watch-only 50Hz, Watch 50Hz + Polar, Watch 100Hz + Polar).
 
 ### Scenario C: Reprocess and Sync Historical Phone Data
-If you have trained new models and want to retrospectively re-classify all historical shots stored in the companion app's local database:
+If you have retrained the models and want to retrospectively re-process all historical sessions (identifying missing shots, filtering phantom shots, and re-classifying shot types and quality on the phone):
 ```bash
 python3 pipelines/reprocess_sessions.py
 ```
 - **How it works**:
   1. Pulls the `cricket_tracker_database` SQLite database from the connected phone using ADB.
-  2. Runs predictions for both Shot Type and Shot Quality on every shot in the database using the latest 20-feature models.
-  3. Updates shot labels, maps qualities (`good`, `poor`, `miss`, `edge`) to app-compatible fields, and appends a `"✨ Updated"` badge to descriptions.
-  4. Pushes the modified SQLite database back to the app's databases directory on the phone and restarts the app.
+  2. Scans local raw directories (`live_watch_sessions/session-*`) on your Mac to identify both existing and missing sessions on the phone.
+  3. For each session:
+     - Deletes previous shot event records from SQLite (ensuring a clean reconstruction).
+     - Parses the session name to derive the exact start timestamp (`inningsId`).
+     - If the session does not exist in SQLite, it registers the session, initializing the location to `"26 Aldinga Street, Blackburn South"`.
+     - Re-runs prominence peak detection (using the optimized watch gyro threshold or Polar accelerometer threshold) to re-identify impact candidates.
+     - Extracts the 20 features for each shot and applies the retrained Shot Type and Shot Quality models.
+     - Re-saves updated shots, mapping quality buckets (`good`, `poor`, `miss`, `edge`) to UI parameters and adding a `"✨ Updated"` badge to descriptions.
+  4. Restores the modified SQLite database back to the app databases container on the phone and restarts the app.
 
 > [!WARNING]
 > Accuracy figures in `phone_pipeline_scorecard.md` are **training-set fit** (diagnostic).
