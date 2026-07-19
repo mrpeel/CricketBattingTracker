@@ -272,7 +272,8 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
 
     # Check Polar data (if alignment exists in session)
     polar_peak_accel_threshold = 24.5
-    watch_peak_accel_threshold = 18.0
+    # Target Watch Gyro for watch-only peak detection (matching Kotlin/PhoneSwingDetector fix)
+    watch_peak_gyro_threshold = 4.0
     
     # Check if this session folder has Polar Sense CSV logs to run Polar Accel peak detection
     has_polar = False
@@ -284,34 +285,26 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
             polar_acc_file = files[0]
             has_polar = True
 
-    # 1st Pass: Shockwave peak detection on Accelerometer (matching Kotlin/PhoneSwingDetector)
+    # 1st Pass: Candidates identification
     if has_polar and polar_acc_file:
         try:
-            # Load Polar Accel to find shockwave peaks
             df_p = pd.read_csv(polar_acc_file, sep=';')
             df_p.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df_p.columns[5:])
             df_p['sensor_ns'] = pd.to_numeric(df_p['sensor_ns'], errors='coerce')
-            # Normalize to m/s² from mg
             df_p['mag'] = np.sqrt(pd.to_numeric(df_p['x'], errors='coerce')**2 + 
                                   pd.to_numeric(df_p['y'], errors='coerce')**2 + 
                                   pd.to_numeric(df_p['z'], errors='coerce')**2) * 0.00980665
             df_p = df_p.dropna(subset=['sensor_ns', 'mag']).sort_values('sensor_ns').reset_index(drop=True)
             
             p_mags = df_p['mag'].values
-            p_ns = df_p['sensor_ns'].values
-            
-            # Find shockwave peaks on Polar Accel (500Hz)
             polar_peaks, _ = find_peaks(p_mags, height=polar_peak_accel_threshold, distance=750) # min 1.5s gap at 500Hz
             
-            # Snap/align back to watch times
             detected_shots = []
             gt_csv = os.path.join(session_dir, "ground_truth_aligned.csv")
             if os.path.exists(gt_csv):
                 df_gt = pd.read_csv(gt_csv)
-                # Parse aligned timestamps
                 for _, row in df_gt.iterrows():
                     t_shot = float(row['impact_time_seconds'])
-                    # Find closest watch gyro sample index to this timestamp
                     close_idx = np.argmin(np.abs(gyro_times - t_shot))
                     ts_ns = int(accel_ns[close_idx])
                     
@@ -354,14 +347,14 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
                     })
                 return detected_shots
         except Exception as e:
-            print(f"  ⚠️ Failed Polar loading for alignment: {e}. Falling back to Watch Accel.")
+            print(f"  ⚠️ Failed Polar loading for alignment: {e}. Falling back to Watch Gyro.")
 
-    # Fallback/Watch-only: Find shockwave peaks on Watch Accelerometer (50Hz)
-    peaks, _ = find_peaks(accel_mags, height=watch_peak_accel_threshold, distance=75) # min 1.5s gap at 50Hz
+    # Fallback/Watch-only: Find peaks on Watch Gyroscope magnitude (matching PhoneSwingDetector target fix)
+    peaks, _ = find_peaks(gyro_mags, height=watch_peak_gyro_threshold, distance=75) # min 1.5s gap at 50Hz
     detected_shots = []
 
     for p in peaks:
-        t_shot = float(accel_times[p])
+        t_shot = float(gyro_times[p])
         ts_ns = int(accel_ns[p])
         
         # Verify stance stability to filter walk wiggles
@@ -379,9 +372,7 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
         qual_enc = rf_qual.predict([feat_vector])[0]
         quality = le_qual.inverse_transform([qual_enc])[0]
         
-        # Find closest gyro sample to impact for speed calculation
-        close_gyro_idx = np.argmin(np.abs(gyro_times - t_shot))
-        bat_speed = float(gyro_mags[close_gyro_idx] * 4.5)
+        bat_speed = float(gyro_mags[p] * 4.5)
         
         detected_shots.append({
             "timestamp_offset_s": t_shot,
@@ -408,13 +399,17 @@ def main():
     conn = sqlite3.connect(LOCAL_DB_PATH)
     cursor = conn.cursor()
     
-    session_dirs = sorted(glob.glob(os.path.join(SESSIONS_DIR, "session-*")))
+    # Target both dash (-) and underscore (_) folders
+    session_dirs = sorted(glob.glob(os.path.join(SESSIONS_DIR, "session-*")) + 
+                          glob.glob(os.path.join(SESSIONS_DIR, "session_*")))
+    session_dirs = sorted(list(set(session_dirs)))
+    
     print(f"\n📂 Scanning {len(session_dirs)} local sessions on Mac...")
+    summary_stats = []
 
     for sdir in session_dirs:
         session_name = os.path.basename(sdir)
-        # Parse timestamp safely via regex
-        m = re.match(r"session-(\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", session_name)
+        m = re.match(r"session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", session_name)
         if m:
             parts = [int(x) for x in m.groups()]
             dt = datetime.datetime(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
@@ -422,22 +417,20 @@ def main():
         else:
             session_start_ms = int(os.path.getmtime(sdir) * 1000)
 
-        innings_id = session_start_ms
-        print(f"🎬 Processing session {session_name} (Innings ID: {innings_id})...")
-
-        # 1. Delete previous shot events for this session if it already exists
-        cursor.execute("DELETE FROM innings_events WHERE inningsId = ?", (innings_id,))
+        # De-duplicate: Delete any existing sessions in database within 5 minutes of this folder timestamp
+        cursor.execute("DELETE FROM innings_events WHERE inningsId BETWEEN ? AND ?", 
+                       (session_start_ms - 300000, session_start_ms + 300000))
         
-        # 2. Re-run peak detection and classifications
+        # Re-run peak detection and classifications
         shots = process_single_session_raw(sdir, rf_type, le_type, rf_qual, le_qual)
         
-        # 3. Write Session Started marker
+        # Write Session Started marker
         cursor.execute("""
             INSERT INTO innings_events (inningsId, timestamp, description, location)
             VALUES (?, ?, 'Session Started', '26 Aldinga Street, Blackburn South')
-        """, (innings_id, session_start_ms))
+        """, (session_start_ms, session_start_ms))
 
-        # 4. Insert each shot
+        # Insert each shot
         for i, shot in enumerate(shots, 1):
             shot_time_ms = session_start_ms + int(shot["timestamp_offset_s"] * 1000)
             
@@ -475,7 +468,7 @@ def main():
                     ?, ?
                 )
             """, (
-                innings_id, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], shot["shot_type"], efficiency,
+                session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], shot["shot_type"], efficiency,
                 f.get('bottom_hand_gyro_peak'), f.get('bottom_hand_acc_peak'), f.get('bottom_hand_gyro_ratio'), f.get('bottom_hand_acc_ratio'), f.get('bottom_hand_time_lead_ms'), f.get('bottom_hand_sync_score'),
                 f.get('s1_gyro_y_std'), f.get('s1_gyro_z_std'), f.get('s1_deltaX'), f.get('s1_deltaZ'),
                 f.get('s2_gyroMag'), f.get('s2_grav_y_mean'), f.get('s2_deltaX'), f.get('s2_deltaZ'),
@@ -483,19 +476,48 @@ def main():
                 f.get('s3_planeRatio'), f.get('s3_gyro_y_min')
             ))
             
-        # 5. Write Session Ended marker
+        # Write Session Ended marker
         session_end_ms = session_start_ms + (int(shots[-1]["timestamp_offset_s"] * 1000) if shots else 10000)
         cursor.execute("""
             INSERT INTO innings_events (inningsId, timestamp, description, location)
             VALUES (?, ?, 'Session Ended', '26 Aldinga Street, Blackburn South')
-        """, (innings_id, session_end_ms))
+        """, (session_start_ms, session_end_ms))
         
-        print(f"   Processed {len(shots)} shots. Location set to: 26 Aldinga Street, Blackburn South")
+        # Calculate statistics
+        if shots:
+            avg_spd = np.mean([s["bat_speed"] for s in shots])
+            max_spd = np.max([s["bat_speed"] for s in shots])
+            qual_counts = pd.Series([s["quality"] for s in shots]).value_counts().to_dict()
+        else:
+            avg_spd, max_spd, qual_counts = 0.0, 0.0, {}
+
+        summary_stats.append({
+            "name": session_name,
+            "id": session_start_ms,
+            "shots": len(shots),
+            "avg_speed": avg_spd,
+            "max_speed": max_spd,
+            "quals": qual_counts
+        })
+
+    # Delete any duplicate residual sessions from previous buggy runs (July 18 14:48 old ID)
+    cursor.execute("DELETE FROM innings_events WHERE inningsId = 1784350117308")
 
     conn.commit()
     conn.close()
     
-    print("\n⏳ Uploading updated database back to the phone...")
+    # Print Summary Statistics Table
+    print("\n" + "="*80)
+    print("📊 SESSION RE-PRODUCING RUN SCORECARD")
+    print("="*80)
+    print(f"{'Session Directory':<32} | {'Innings ID':<15} | {'Shots':<5} | {'Avg Spd':<7} | {'Max Spd':<7} | {'Quality distribution'}")
+    print("-"*105)
+    for s in summary_stats:
+        q_str = ", ".join([f"{k}:{v}" for k, v in s["quals"].items()])
+        print(f"{s['name']:<32} | {s['id']:<15} | {s['shots']:<5} | {s['avg_speed']:<7.1f} | {s['max_speed']:<7.1f} | {q_str}")
+    print("="*80 + "\n")
+    
+    print("⏳ Uploading updated database back to the phone...")
     if push_database():
         restart_app()
 
