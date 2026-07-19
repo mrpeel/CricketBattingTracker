@@ -124,7 +124,19 @@ python3 pipelines/score_phone_pipeline.py
 ```
 - **How it works**: Reads `combined_features.csv` + `combined_ground_truth_aligned.csv`, scores the active 20-feature models, and prints class and data profile breakdowns (Watch-only 50Hz, Watch 50Hz + Polar, Watch 100Hz + Polar).
 
+### Scenario C: Reprocess and Sync Historical Phone Data
+If you have trained new models and want to retrospectively re-classify all historical shots stored in the companion app's local database:
+```bash
+python3 pipelines/reprocess_sessions.py
+```
+- **How it works**:
+  1. Pulls the `cricket_tracker_database` SQLite database from the connected phone using ADB.
+  2. Runs predictions for both Shot Type and Shot Quality on every shot in the database using the latest 20-feature models.
+  3. Updates shot labels, maps qualities (`good`, `poor`, `miss`, `edge`) to app-compatible fields, and appends a `"✨ Updated"` badge to descriptions.
+  4. Pushes the modified SQLite database back to the app's databases directory on the phone and restarts the app.
+
 > [!WARNING]
 > Accuracy figures in `phone_pipeline_scorecard.md` are **training-set fit** (diagnostic).
 > Held-out session accuracy is the only true measure of model generalisation.
+
 
