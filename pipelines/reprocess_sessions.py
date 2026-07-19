@@ -172,7 +172,7 @@ def extract_features_single_shot(sensors, t_shot):
     feats = {col: 0.0 for col in FEATURE_COLS}
     acc = sensors.get("accel")
     gyro = sensors.get("gyro")
-    orient = sensors.get("game_orient") or sensors.get("orientation")
+    orient = sensors.get("game_orient") if sensors.get("game_orient") is not None else sensors.get("orientation")
     grav = sensors.get("gravity")
     
     if orient is None or len(orient) < 5:
