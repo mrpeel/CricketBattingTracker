@@ -8,18 +8,19 @@ import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import java.io.BufferedWriter
+import java.io.BufferedOutputStream
 import java.io.File
-import java.io.FileWriter
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
  * Foreground service for Polar Sense BLE streaming.
- * Writes raw ACC and GYRO data to CSV files in app-specific storage.
- * Lifecycle is managed by PolarSenseManager; the service just provides
- * the foreground notification and CSV file I/O.
+ * Writes raw ACC and GYRO data to binary files (.bin) in app-specific storage.
+ * Each record is 28 bytes: PhoneMS (Long, 8B) + SensorNS (Long, 8B) + X (Float, 4B) + Y (Float, 4B) + Z (Float, 4B)
  */
 class PolarSenseService : Service() {
     companion object {
@@ -30,9 +31,9 @@ class PolarSenseService : Service() {
         const val ACTION_STOP = "POLAR_STOP"
     }
 
-    private var accWriter: BufferedWriter? = null
-    private var gyroWriter: BufferedWriter? = null
-    private var magWriter: BufferedWriter? = null
+    private var accStream: BufferedOutputStream? = null
+    private var gyroStream: BufferedOutputStream? = null
+    private var magStream: BufferedOutputStream? = null
     private var sessionDir: File? = null
 
     override fun onCreate() {
@@ -44,7 +45,7 @@ class PolarSenseService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 startForegroundWithNotification()
-                startCsvWriting()
+                startBinaryWriting()
                 PolarSenseManager.initialize(this)
                 PolarSenseManager.connect(this)
             }
@@ -53,7 +54,7 @@ class PolarSenseService : Service() {
                 if (shouldDiscard) {
                     discardSessionData()
                 } else {
-                    stopCsvWriting()
+                    stopBinaryWriting()
                 }
                 PolarSenseManager.stopStreaming()
                 PolarSenseManager.disconnect()
@@ -61,9 +62,8 @@ class PolarSenseService : Service() {
                 stopSelf()
             }
             else -> {
-                // Default: start
                 startForegroundWithNotification()
-                startCsvWriting()
+                startBinaryWriting()
                 PolarSenseManager.initialize(this)
                 PolarSenseManager.connect(this)
             }
@@ -71,36 +71,33 @@ class PolarSenseService : Service() {
         return START_STICKY
     }
 
-    private fun startCsvWriting() {
+    private fun startBinaryWriting() {
         val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
         val dir = File(getExternalFilesDir("polar_sessions"), "polar_session_$timestamp")
         dir.mkdirs()
         sessionDir = dir
 
-        // ACC CSV — semicolon-delimited for Polar Sensor Logger compatibility
-        val accFile = File(dir, "PolarAccelerometer.csv")
-        accWriter = BufferedWriter(FileWriter(accFile))
-        accWriter?.write("Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]")
-        accWriter?.newLine()
+        val accFile = File(dir, "PolarAccelerometer.bin")
+        accStream = BufferedOutputStream(FileOutputStream(accFile))
 
-        // GYRO CSV — semicolon-delimited
-        val gyroFile = File(dir, "PolarGyroscope.csv")
-        gyroWriter = BufferedWriter(FileWriter(gyroFile))
-        gyroWriter?.write("Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]")
-        gyroWriter?.newLine()
+        val gyroFile = File(dir, "PolarGyroscope.bin")
+        gyroStream = BufferedOutputStream(FileOutputStream(gyroFile))
 
-        // MAG CSV — semicolon-delimited
-        val magFile = File(dir, "PolarMagnetometer.csv")
-        magWriter = BufferedWriter(FileWriter(magFile))
-        magWriter?.write("Phone timestamp;sensor timestamp [ns];X [uT];Y [uT];Z [uT]")
-        magWriter?.newLine()
+        val magFile = File(dir, "PolarMagnetometer.bin")
+        magStream = BufferedOutputStream(FileOutputStream(magFile))
 
         // Wire up callbacks from PolarSenseManager
+        val buffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
+
         PolarSenseManager.onAccSample = { phoneMs, sensorNs, x, y, z ->
             try {
-                val phoneTs = formatPhoneTimestamp(phoneMs)
-                accWriter?.write("$phoneTs;$sensorNs;$x;$y;$z")
-                accWriter?.newLine()
+                buffer.clear()
+                buffer.putLong(phoneMs)
+                buffer.putLong(sensorNs)
+                buffer.putFloat(x)
+                buffer.putFloat(y)
+                buffer.putFloat(z)
+                accStream?.write(buffer.array())
             } catch (e: Exception) {
                 Log.e(TAG, "ACC write error: ${e.message}")
             }
@@ -108,9 +105,13 @@ class PolarSenseService : Service() {
 
         PolarSenseManager.onGyroSample = { phoneMs, sensorNs, x, y, z ->
             try {
-                val phoneTs = formatPhoneTimestamp(phoneMs)
-                gyroWriter?.write("$phoneTs;$sensorNs;${String.format(Locale.US, "%.6f", x)};${String.format(Locale.US, "%.6f", y)};${String.format(Locale.US, "%.6f", z)}")
-                gyroWriter?.newLine()
+                buffer.clear()
+                buffer.putLong(phoneMs)
+                buffer.putLong(sensorNs)
+                buffer.putFloat(x)
+                buffer.putFloat(y)
+                buffer.putFloat(z)
+                gyroStream?.write(buffer.array())
             } catch (e: Exception) {
                 Log.e(TAG, "GYRO write error: ${e.message}")
             }
@@ -118,47 +119,51 @@ class PolarSenseService : Service() {
 
         PolarSenseManager.onMagSample = { phoneMs, sensorNs, x, y, z ->
             try {
-                val phoneTs = formatPhoneTimestamp(phoneMs)
-                magWriter?.write("$phoneTs;$sensorNs;${String.format(Locale.US, "%.6f", x)};${String.format(Locale.US, "%.6f", y)};${String.format(Locale.US, "%.6f", z)}")
-                magWriter?.newLine()
+                buffer.clear()
+                buffer.putLong(phoneMs)
+                buffer.putLong(sensorNs)
+                buffer.putFloat(x)
+                buffer.putFloat(y)
+                buffer.putFloat(z)
+                magStream?.write(buffer.array())
             } catch (e: Exception) {
                 Log.e(TAG, "MAG write error: ${e.message}")
             }
         }
 
-        Log.d(TAG, "CSV writers opened: $dir")
+        Log.d(TAG, "Binary streams opened: $dir")
     }
 
-    private fun stopCsvWriting(compress: Boolean = true) {
+    private fun stopBinaryWriting(compress: Boolean = true) {
         PolarSenseManager.onAccSample = null
         PolarSenseManager.onGyroSample = null
         PolarSenseManager.onMagSample = null
 
         try {
-            accWriter?.flush()
-            accWriter?.close()
+            accStream?.flush()
+            accStream?.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error closing ACC writer: ${e.message}")
+            Log.e(TAG, "Error closing ACC stream: ${e.message}")
         }
-        accWriter = null
+        accStream = null
 
         try {
-            gyroWriter?.flush()
-            gyroWriter?.close()
+            gyroStream?.flush()
+            gyroStream?.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error closing GYRO writer: ${e.message}")
+            Log.e(TAG, "Error closing GYRO stream: ${e.message}")
         }
-        gyroWriter = null
+        gyroStream = null
 
         try {
-            magWriter?.flush()
-            magWriter?.close()
+            magStream?.flush()
+            magStream?.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error closing MAG writer: ${e.message}")
+            Log.e(TAG, "Error closing MAG stream: ${e.message}")
         }
-        magWriter = null
+        magStream = null
 
-        Log.d(TAG, "CSV writers closed. Session dir: ${sessionDir?.absolutePath}")
+        Log.d(TAG, "Binary streams closed. Session dir: ${sessionDir?.absolutePath}")
 
         if (compress) {
             sessionDir?.let { dir ->
@@ -176,9 +181,8 @@ class PolarSenseService : Service() {
         }
     }
 
-    /** Delete session data files (for DISCARD flow). */
     fun discardSessionData() {
-        stopCsvWriting(compress = false)
+        stopBinaryWriting(compress = false)
         sessionDir?.let { dir ->
             if (dir.exists()) {
                 dir.deleteRecursively()
@@ -207,14 +211,10 @@ class PolarSenseService : Service() {
         }
     }
 
-    private fun formatPhoneTimestamp(epochMs: Long): String {
-        return SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US).format(Date(epochMs))
-    }
-
     private fun startForegroundWithNotification() {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Polar Sense Streaming")
-            .setContentText("Bottom hand sensor — 52Hz ACC + GYRO")
+            .setContentText("Bottom hand sensor — 52Hz ACC + GYRO (Binary)")
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setOngoing(true)
             .build()
@@ -237,7 +237,7 @@ class PolarSenseService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        stopCsvWriting()
+        stopBinaryWriting()
         PolarSenseManager.stopStreaming()
         PolarSenseManager.disconnect()
         super.onDestroy()

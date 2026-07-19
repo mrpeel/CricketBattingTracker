@@ -777,8 +777,53 @@ object PhoneSwingDetector {
     private fun parsePolarCsv(file: File, isGyro: Boolean): List<PolarSample> {
         val list = mutableListOf<PolarSample>()
         if (!file.exists()) return list
+
+        if (file.name.endsWith(".bin") || file.name.contains(".bin")) {
+            try {
+                val stream = if (file.name.endsWith(".gz")) {
+                    java.util.zip.GZIPInputStream(file.inputStream())
+                } else {
+                    file.inputStream()
+                }
+                stream.use { input ->
+                    val bytes = ByteArray(28)
+                    val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+                    while (true) {
+                        var bytesRead = 0
+                        while (bytesRead < 28) {
+                            val r = input.read(bytes, bytesRead, 28 - bytesRead)
+                            if (r == -1) break
+                            bytesRead += r
+                        }
+                        if (bytesRead < 28) break
+                        buffer.rewind()
+                        val phoneMs = buffer.long
+                        val sensorNs = buffer.long
+                        var x = buffer.float
+                        var y = buffer.float
+                        var z = buffer.float
+
+                        if (isGyro) {
+                            val dpsToRad = (Math.PI / 180.0).toFloat()
+                            x *= dpsToRad
+                            y *= dpsToRad
+                            z *= dpsToRad
+                        } else {
+                            x *= 0.00980665f
+                            y *= 0.00980665f
+                            z *= 0.00980665f
+                        }
+                        val mag = sqrt(x*x + y*y + z*z)
+                        list.add(PolarSample(phoneMs, sensorNs, x, y, z, mag))
+                    }
+                }
+                return list.sortedBy { it.sensorNs }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse binary Polar file ${file.name}: ${e.message}, falling back to CSV parser")
+            }
+        }
+
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US)
-        
         val reader = if (file.name.endsWith(".gz")) {
             java.io.BufferedReader(java.io.InputStreamReader(java.util.zip.GZIPInputStream(file.inputStream())))
         } else {
