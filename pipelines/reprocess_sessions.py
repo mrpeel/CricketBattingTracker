@@ -270,13 +270,12 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual, 
         # Extract features
         feats = extract_features_single_shot(sensors, t_shot)
         
-        # Check Polar data (if alignment exists in session)
-        polar_gyro_peak = 0f
-        polar_acc_peak = 0f
-        polar_gyro_ratio = 0f
-        polar_acc_ratio = 0f
-        polar_time_lead_ms = 0f
-        polar_sync_score = 0f
+        polar_gyro_peak = 0.0
+        polar_acc_peak = 0.0
+        polar_gyro_ratio = 0.0
+        polar_acc_ratio = 0.0
+        polar_time_lead_ms = 0.0
+        polar_sync_score = 0.0
         
         # Load from ground_truth_aligned.csv if present for bottom hand alignment data
         gt_csv = os.path.join(session_dir, "ground_truth_aligned.csv")
@@ -314,7 +313,7 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual, 
         
         # Biomechanical defaults derived from features
         bat_speed = float(gyro_mags[p] * 4.5)
-        impact_force = float(polar_acc_peak if polar_acc_peak > 0f else np.nan)
+        impact_force = float(polar_acc_peak if polar_acc_peak > 0.0 else np.nan)
         
         detected_shots.append({
             "timestamp_offset_s": t_shot,
