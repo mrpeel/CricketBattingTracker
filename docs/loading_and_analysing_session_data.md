@@ -84,54 +84,47 @@ If Gemini transcription fails or if you need to rerun the alignment step without
 
 ---
 
-## 3. Combined Multi-Session Dataset Compilation
+## 3. Retraining and Transpilation Pipeline (Recommended Flow)
 
-To train the companion app's classifiers, individual sessions are compiled into a unified dataset:
+The easiest way to update, transpile, and verify the model is to run the end-to-end orchestration pipeline. **This script runs all steps automatically** (including dataset compilation, threshold optimization, model retraining, code transpilation, and scoring). You do not need to run the underlying scripts manually.
 
-```bash
-python3 pipelines/compile_dataset.py
-```
-
-- **How it works**:
-  The script scans trusted session directories, loads the binary `.bin.gz` files (or fallback `.csv.gz`), rotates coordinates relative to the confirmed rest stance quaternion (`qStance`), extracts the 20 features, and maps them against ground truth labels.
-- **Outputs Generated**:
-  - `combined_features.csv`: A dataset of all trustworthy swing shots (imputing Polar features to `0.0` when absent).
-  - `combined_ground_truth_aligned.csv`: A compiled list of all physical swings and their timestamps.
-
----
-
-## 4. Model Retraining and Transpilation Pipeline
-
-To quickly retrain the companion app's models and sync the latest configuration:
+To retrain the classifiers on the compiled dataset:
 
 ```bash
 python3 pipelines/model_update_pipeline.py
 ```
 
-### Steps Executed Automatically:
-
-1. **Retrain Models**: Trains both a 200-tree Shot Type Random Forest model and a 100-tree Shot Quality Random Forest model.
-2. **Transpile Classifiers**: Transpiles the trees into flat-array hex-packed Kotlin code files:
-   - `GeneratedForest.kt` (Shot Type classifier)
-   - `GeneratedQualityForest.kt` (Shot Quality classifier)
-   - `SwingFeatures.kt` (Data class defining the 20-feature signature, with Polar fields defaulting to `0f` for watch-only backward compatibility)
-3. **Sync Detection Thresholds**: Reads `optimized_detection_config.json` (produced during alignment evaluation) and writes `ShotEnhancementConfig.kt`, updating the companion app's watch gyro detection threshold to match optimal parameters.
-4. **Deploy Check**: Automatically copies the Kotlin classes to both `wear` and `app` modules and runs local JUnit model integrity tests.
+### Steps Executed Automatically by the Pipeline:
+1. **`evaluate_shot_alignment.py`**: Improves impact timestamps and generates optimal gyro detection thresholds.
+2. **`compile_dataset.py`**: Compiles raw watch `.bin.gz` logs and Polar telemetry into unified CSV files.
+3. **`optimize_shot_enhancement.py`**: Calculates optimized reclassification thresholds.
+4. **`score_phone_pipeline.py` (Before)**: Captures baseline performance metrics using current logic.
+5. **`generate_kotlin_forest.py`**: Trains both the Shot Type Random Forest model and Shot Quality Random Forest model, transpiles them to Kotlin (`GeneratedForest.kt`, `GeneratedQualityForest.kt`, `SwingFeatures.kt`), and writes the optimized watch gyro threshold to `ShotEnhancementConfig.kt` in the `app` module.
+6. **`train_quality_classifier.py`**: Trains the Python quality model for historical re-scoring.
+7. **Gradle Tests & Integrity Verification**: Automatically executes the local JUnit test suite (`SwingDetectorGroundTruthTest`) to verify compilation and determinism.
+8. **`score_phone_pipeline.py` (After)**: Generates the updated side-by-side performance delta report (`model_update_analysis.md`).
 
 ---
 
-## 5. Authoritative Performance Scorecard
+## 4. Isolated / Manual Script Execution (Optional)
 
-The performance scorecard is evaluated offline using the actual phone pipeline output:
+In specific scenarios, such as isolated troubleshooting or feature analysis, you can run components of the pipeline manually.
 
+### Scenario A: Recompile the Dataset Manually
+If you want to regenerate `combined_features.csv` and `combined_ground_truth_aligned.csv` to inspect features without retraining any models:
+```bash
+python3 pipelines/compile_dataset.py
+```
+- **How it works**: Scans trusted session directories, loads binary `.bin.gz` logs, rotates coordinates relative to the confirmed rest stance quaternion (`qStance`), extracts the 20 features, and maps them against ground truth labels.
+
+### Scenario B: Score the Current Models Manually
+If you want to generate a performance scorecard (`phone_pipeline_scorecard.md`) for the current model in the workspace without triggering retraining:
 ```bash
 python3 pipelines/score_phone_pipeline.py
 ```
-
-- Reads `combined_features.csv` + `combined_ground_truth_aligned.csv`.
-- Scores the retrained 20-feature RF models.
-- Generates `phone_pipeline_scorecard.md` broken down by session, shot class, and data profile (`50hz_watch`, `50hz_watch_polar`, `100hz_watch_polar`).
+- **How it works**: Reads `combined_features.csv` + `combined_ground_truth_aligned.csv`, scores the active 20-feature models, and prints class and data profile breakdowns (Watch-only 50Hz, Watch 50Hz + Polar, Watch 100Hz + Polar).
 
 > [!WARNING]
 > Accuracy figures in `phone_pipeline_scorecard.md` are **training-set fit** (diagnostic).
 > Held-out session accuracy is the only true measure of model generalisation.
+
