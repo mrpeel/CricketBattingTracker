@@ -23,8 +23,14 @@ PHONE_ID=""
 WATCH_ID=""
 
 for DEV in $DEVICES; do
-    # Try to determine if it's a watch or phone (simplified check)
-    IS_WATCH=$(adb -s $DEV shell getprop ro.build.characteristics)
+    # Try to determine if it's a watch or phone
+    IS_WATCH=$(adb -s $DEV shell getprop ro.build.characteristics 2>/dev/null)
+    if [ -z "$IS_WATCH" ]; then
+        # Check fallback: some devices might not have getprop responding if authorization dialog is showing
+        echo "⚠️ Warning: Device $DEV is not responding to property query. Skipping classification."
+        continue
+    fi
+    
     if [[ "$IS_WATCH" == *"watch"* ]]; then
         if [ "$WATCH_FOUND" = false ]; then
             WATCH_FOUND=true
