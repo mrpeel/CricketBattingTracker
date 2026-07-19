@@ -129,7 +129,7 @@ object PhoneSwingDetector {
             }
         } else {
             // Find impact peaks in Watch ACC
-            val watchPeaks = detectWatchImpactPeaks(watchAcc, threshold = ShotEnhancementConfig.WATCH_SHOCKWAVE_THRESHOLD)
+            val watchPeaks = detectWatchImpactPeaks(watchGyro, threshold = ShotEnhancementConfig.WATCH_SHOCKWAVE_THRESHOLD)
             watchImpactTimesMs.addAll(watchPeaks)
         }
 
