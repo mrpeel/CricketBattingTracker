@@ -398,12 +398,22 @@ def pull_audio_from_phone(phone_id, dest_dir):
     
     audio_files = []
     for path in paths:
-        cmd = ["adb", "-s", phone_id, "shell", f"find {path} -name '*.m4a' -o -name '*.mp3' 2>/dev/null"]
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode == 0 and res.stdout.strip():
-            for line in res.stdout.split("\n"):
-                if line.strip():
-                    audio_files.append(line.strip())
+        # If accessing the app's package folder, use ls directly since find is blocked on Android 11+
+        if "com.mrpeel.cricketbattingtracker" in path:
+            cmd = ["adb", "-s", phone_id, "shell", f"ls '{path}' 2>/dev/null"]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0 and res.stdout.strip():
+                for line in res.stdout.split("\n"):
+                    line = line.strip()
+                    if line.endswith(".m4a") or line.endswith(".mp3"):
+                        audio_files.append(os.path.join(path, line))
+        else:
+            cmd = ["adb", "-s", phone_id, "shell", f"find '{path}' -name '*.m4a' -o -name '*.mp3' 2>/dev/null"]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0 and res.stdout.strip():
+                for line in res.stdout.split("\n"):
+                    if line.strip():
+                        audio_files.append(line.strip())
                     
     if not audio_files:
         print("⚠️ No audio files found automatically on the phone.")
