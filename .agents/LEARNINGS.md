@@ -47,3 +47,9 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **The Solution**: Refactored `automate_pipeline.py` to use `scipy.signal.find_peaks` with prominence >= 0.5 rad/s. Implemented dynamic distance calculation `distance = max(3, int(fs * 0.1))` based on session sampling frequency to ensure a consistent 100ms spacing. Built a 2-stage window alignment search: primary threshold >= 4.00 rad/s to catch high-velocity swings, falling back to a recovery threshold >= 0.75 rad/s for slow/defensive shots.
     *   **Result**: Successfully aligned 35 sessions, identifying 5 low-confidence sessions (MAE >= 1.50s) to be manual-offset overridden or excluded from training.
 
+90. **Shot-Specific expected lags & P75 Deviation Metric (July 20, 2026)**:
+    *   **The Problem**: A static expected lag assumption of 2.5 seconds was skewed by follow-through durations (e.g. Straight/Power Drives having 3.5-4.5s lag) and crouched/rotational shots (e.g. Sweeps having under 2.0s lag). Further, using the average (MAE) was highly vulnerable to outliers from delayed user voice comments.
+    *   **The Solution**: Modified `evaluate_shot_alignment.py` to map expected lag targets dynamically based on the shot category (e.g. 4.5s for Straight Drives, 2.0s for Sweeps, 3.5s for Power Drives). Replaced the mean absolute error with the 75th percentile of absolute deviations (`P75 Dev`) for the confidence thresholds, rendering the scoring robust to isolated late narrations.
+    *   **Result**: Rebuilt the evaluation report with `P75 Dev` stats accurately flagging sequence-level matching anomalies without penalizing normal biomechanical narration delays.
+
+
