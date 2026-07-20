@@ -18,9 +18,11 @@ import wave
 import re
 import numpy as np
 import pandas as pd
+from scipy.signal import find_peaks
 
 import gzip
 import shutil
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Pitch Analytix Pro Data Collection Pipeline")
@@ -1026,6 +1028,28 @@ def main():
     start_time_ms = int(start_time_ns / 1_000_000)
     gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
 
+    # Precalculate all raw gyroscope peaks in the session using scipy find_peaks with prominence >= 0.5 rad/s.
+    # Set peak distance to ~0.1s minimum gap based on sampling frequency.
+    print("📈 Precalculating gyroscope sensor peaks via scipy prominence...")
+    times = df_gyro['seconds_elapsed'].to_numpy()
+    mags = df_gyro['mag'].to_numpy()
+    
+    # Calculate sample rate (fs) to dynamically scale distance parameter
+    total_time = times[-1] - times[0]
+    fs = len(df_gyro) / total_time if total_time > 0 else 50.0
+    peak_distance = max(3, int(fs * 0.1))  # 100ms minimum spacing
+    
+    peak_indices, _ = find_peaks(mags, prominence=0.5, distance=peak_distance)
+    session_peaks = []
+    for idx in peak_indices:
+        session_peaks.append({
+            'time': float(times[idx]),
+            'mag': float(mags[idx]),
+            'is_fallback': False
+        })
+    print(f"   Found {len(session_peaks)} prominence peaks (prominence >= 0.5 rad/s, min spacing={peak_distance} samples).")
+
+
     # 5. Call local Whisper or Gemini to transcribe & parse shot timings (or load local cache if exists)
     narrations_cache_path = os.path.join(session_dir, "narrations_raw.json")
 
@@ -1311,27 +1335,9 @@ def main():
             print(f"   (center={search_center:+.3f}s, range=\u00b1{search_range}s)")
             print(f"   ⚠️  Scoring is based ONLY on raw sensor peak matches — no watch detections used.")
 
-            # Precalculate all raw gyroscope peaks in the session to avoid slow pandas queries in the loop.
-            # A peak is defined as a local maximum with mag >= 3.0 in a 1.0s window.
-            print("📈 Precalculating gyroscope sensor peaks...")
-            times = df_gyro['seconds_elapsed'].to_numpy()
-            mags = df_gyro['mag'].to_numpy()
-            
-            precalculated_peaks = []
-            candidate_indices = np.where(mags >= 3.0)[0]
-            for idx in candidate_indices:
-                t = times[idx]
-                mag = mags[idx]
-                w_start = np.searchsorted(times, t - 0.5)
-                w_end = np.searchsorted(times, t + 0.5, side='right')
-                if mag >= np.max(mags[w_start:w_end]):
-                    # Avoid duplicate/near peaks
-                    if not any(abs(t - p['time']) < 1.0 for p in precalculated_peaks):
-                        precalculated_peaks.append({
-                            'time': t,
-                            'mag': mag,
-                            'is_fallback': False
-                        })
+            # Filter the globally precalculated prominence peaks for grid search candidates >= 3.0 rad/s
+            print("📈 Filtering gyroscope sensor peaks for grid search candidates >= 3.0 rad/s...")
+            precalculated_peaks = [p for p in session_peaks if p['mag'] >= 3.0]
             print(f"   Found {len(precalculated_peaks)} candidate peaks >= 3.0 rad/s.")
 
             def evaluate_offset_and_drift(o, d):
@@ -1570,23 +1576,27 @@ def main():
                 'is_fallback': True
             })
         else:
-            window = df_gyro[(df_gyro['seconds_elapsed'] >= sensor_narr_t - 6.0) & (df_gyro['seconds_elapsed'] <= sensor_narr_t + 7.0)]
+            # 2-stage threshold filter based on globally precalculated prominence peaks in the window
+            window_peaks = [
+                p for p in session_peaks
+                if sensor_narr_t - 6.0 <= p['time'] <= sensor_narr_t + 7.0
+            ]
+            
+            # Stage 1: Try primary threshold >= 4.00 rad/s
+            stage1_peaks = [p for p in window_peaks if p['mag'] >= 4.00]
+            
             peaks = []
-            if len(window) > 0:
-                sorted_samples = window.sort_values(by='mag', ascending=False)
-                for _, row in sorted_samples.iterrows():
-                    pt = row['seconds_elapsed']
-                    pmag = row['mag']
-                    if pmag < 1.5:
-                        continue
-                    if not any(abs(pt - p['time']) < 1.0 for p in peaks):
-                        peaks.append({
-                            'time': pt,
-                            'mag': pmag,
-                            'is_fallback': False
-                        })
-                        if len(peaks) >= 5:
-                            break
+            if len(stage1_peaks) > 0:
+                # Sort by magnitude descending and take top 5
+                sorted_peaks = sorted(stage1_peaks, key=lambda x: x['mag'], reverse=True)[:5]
+                peaks.extend(sorted_peaks)
+            else:
+                # Stage 2: Recovery threshold >= 0.75 rad/s
+                stage2_peaks = [p for p in window_peaks if p['mag'] >= 0.75]
+                if len(stage2_peaks) > 0:
+                    sorted_peaks = sorted(stage2_peaks, key=lambda x: x['mag'], reverse=True)[:5]
+                    peaks.extend(sorted_peaks)
+                    
             cands.extend(peaks)
             cands.append({
                 'time': sensor_narr_t - 2.5,
