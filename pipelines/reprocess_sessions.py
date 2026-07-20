@@ -452,7 +452,16 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
             "features": feats
         })
         
-    return detected_shots
+    # Apply 5.0s NMS (Non-Maximum Suppression) on raw detected shots to prevent double triggers
+    pruned_shots = []
+    for shot in sorted(detected_shots, key=lambda x: x["timestamp_offset_s"]):
+        dup_idx = next((i for i, x in enumerate(pruned_shots) if abs(x["timestamp_offset_s"] - shot["timestamp_offset_s"]) < 5.0), -1)
+        if dup_idx != -1:
+            if shot["bat_speed"] > pruned_shots[dup_idx]["bat_speed"]:
+                pruned_shots[dup_idx] = shot
+        else:
+            pruned_shots.append(shot)
+    return pruned_shots
 
 def main():
     if not os.path.exists(FEATURES_CSV):

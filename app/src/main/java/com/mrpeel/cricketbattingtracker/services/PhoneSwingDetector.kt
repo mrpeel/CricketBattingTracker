@@ -360,8 +360,24 @@ object PhoneSwingDetector {
             }
         }
 
-        // E. Combine all shots, sort chronologically, and write to database
-        val finalShots = (confirmedPass1Shots + confirmedPass2Shots).sortedBy { it.timestamp }
+        // E. Combine all shots, sort chronologically, and apply NMS (Non-Maximum Suppression) with 5.0s window
+        val allCandidates = (confirmedPass1Shots + confirmedPass2Shots).sortedBy { it.timestamp }
+        val finalShots = mutableListOf<InningsEvent>()
+        
+        for (cand in allCandidates) {
+            val dupIdx = finalShots.indexOfFirst { Math.abs(it.timestamp - cand.timestamp) < 5000L }
+            if (dupIdx != -1) {
+                val existing = finalShots[dupIdx]
+                val existingSpeed = existing.batSpeed ?: 0f
+                val candSpeed = cand.batSpeed ?: 0f
+                if (candSpeed > existingSpeed) {
+                    finalShots[dupIdx] = cand
+                }
+            } else {
+                finalShots.add(cand)
+            }
+        }
+        
         var shotCount = 0
         var maxSpeed = 0f
         
