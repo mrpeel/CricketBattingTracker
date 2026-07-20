@@ -462,7 +462,7 @@ class MainActivity : ComponentActivity() {
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
 
-                                            val syncStartedAtMs = remember(selectedSession?.id) { System.currentTimeMillis() }
+                                            val syncStartedAtMs = remember(selectedSessionId) { System.currentTimeMillis() }
                                             val elapsedMinutes = (System.currentTimeMillis() - syncStartedAtMs) / 60_000L
                                             if (elapsedMinutes >= 5) {
                                                 Spacer(modifier = Modifier.height(24.dp))

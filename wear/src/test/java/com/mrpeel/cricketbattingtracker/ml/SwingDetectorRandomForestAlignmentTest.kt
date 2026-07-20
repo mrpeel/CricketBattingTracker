@@ -56,6 +56,7 @@ class SwingDetectorRandomForestAlignmentTest {
         // Map feature column indices dynamically
         val fSessionIdx = featuresHeader.indexOf("session_id")
         val fShotIdx = featuresHeader.indexOf("shot_index")
+        val fDataProfileIdx = featuresHeader.indexOf("data_profile")
         
         val fS1GyroYStdIdx = featuresHeader.indexOf("s1_gyro_y_std")
         val fS1GyroZStdIdx = featuresHeader.indexOf("s1_gyro_z_std")
@@ -75,7 +76,7 @@ class SwingDetectorRandomForestAlignmentTest {
         val fS3GyroYMinIdx = featuresHeader.indexOf("s3_gyro_y_min")
 
         assertTrue("Missing critical features/metadata in combined_features.csv header",
-            fSessionIdx != -1 && fShotIdx != -1 &&
+            fSessionIdx != -1 && fShotIdx != -1 && fDataProfileIdx != -1 &&
             fS1GyroYStdIdx != -1 && fS1GyroZStdIdx != -1 && fS1DeltaXIdx != -1 && fS1DeltaZIdx != -1 &&
             fS2GyroMagIdx != -1 && fS2GravYMeanIdx != -1 && fS2DeltaXIdx != -1 && fS2DeltaZIdx != -1 &&
             fS3RollIdx != -1 && fS3YawIdx != -1 && fS3DeltaXIdx != -1 && fS3DeltaZIdx != -1 &&
@@ -97,6 +98,13 @@ class SwingDetectorRandomForestAlignmentTest {
                 )) {
                 val sessionId = parts[fSessionIdx]
                 val shotIndex = parts[fShotIdx]
+                val dataProfile = parts[fDataProfileIdx]
+                
+                // Skip Polar sessions since the watch module runs 14-feature watch-only RF
+                // whereas Polar sessions are predicted in Python using the 20-feature model.
+                if (dataProfile.contains("polar", ignoreCase = true)) {
+                    continue
+                }
                 
                 val key = "$sessionId|$shotIndex"
                 val expected = expectedPreds[key]

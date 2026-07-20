@@ -1,6 +1,6 @@
 # Shot Alignment Pipeline Report
 
-**Generated:** 2026-07-20 20:29:38
+**Generated:** 2026-07-20 21:14:13
 
 **Sessions Processed:** 35  |  **With Polar:** 4  |  **Total Swing Shots:** 1983  |  **Polar Timestamp Refinements:** 134
 

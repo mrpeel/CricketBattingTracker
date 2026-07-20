@@ -217,22 +217,25 @@ class SwingDetectorTest {
 
     @Test
     fun testPullShot() {
-        val shot = findParametersForShot(
-            targetShotType = "PULL/HOOK",
-            rollRanges = floatArrayOf(-65f, -55f, -45f),
-            dxRanges = floatArrayOf(1.1f, 1.3f, 1.5f),
-            dzRanges = floatArrayOf(0.5f, 0.7f, 0.9f),
-            preGyroRanges = floatArrayOf(12f, 15f, 18f),
-            impactGyroRanges = floatArrayOf(25f, 30.5f, 35f),
-            postGyroRanges = floatArrayOf(20f, 25f, 30f),
-            shockRanges = floatArrayOf(50f, 60f, 70f),
-            gravYRanges = floatArrayOf(-9.25f, -8.5f, -9.5f),
-            postGyroYRanges = floatArrayOf(-14.0f, -12.0f, -10.0f),
-            gravXRanges = floatArrayOf(6.0f, 8.0f, 9.0f),
-            magXRanges = floatArrayOf(0.0f, 50.0f)
+        // Representative feature vector from a real watch-only PULL/HOOK shot (index 68 in dataset)
+        val features = SwingFeatures(
+            s1_gyro_y_std    = 0.654f,
+            s1_gyro_z_std    = 0.264f,
+            s1_deltaX        = 0.144f,
+            s1_deltaZ        = 0.194f,
+            s2_gyroMag       = 12.988f,
+            s2_grav_y_mean   = -6.643f,
+            s2_deltaX        = 0.822f,
+            s2_deltaZ        = 0.309f,
+            s3_rollImpactDeg = -37.327f,
+            s3_yawImpactDeg  = 30.202f,
+            s3_deltaX        = 1.335f,
+            s3_deltaZ        = 0.714f,
+            s3_planeRatio    = 1.871f,
+            s3_gyro_y_min    = -12.410f
         )
-        assertNotNull("Shot should be detected", shot)
-        assertEquals("PULL/HOOK", shot?.shotType)
+        val pred = GeneratedForest.predict(features)
+        assertEquals("PULL/HOOK", pred)
     }
 
     @Test

@@ -1030,25 +1030,84 @@ object PhoneSwingDetector {
         }
     }
 
-    private fun detectWatchImpactPeaks(samples: List<WatchIMUSample>, threshold: Float): List<Long> {
-        val peaks = mutableListOf<Long>()
-        val minGapMs = 1500L
+    private fun calculateProminence(mags: FloatArray, peakIdx: Int): Float {
+        val peakVal = mags[peakIdx]
         
-        val candidates = samples.indices.filter { samples[it].mag >= threshold }
-        for (idx in candidates) {
-            val s = samples[idx]
-            val sTimeMs = s.timeNanos / 1_000_000L
-            val wStart = samples.binarySearchBy((sTimeMs - 500L) * 1_000_000L) { it.timeNanos }.let { if (it < 0) -(it + 1) else it }
-            val wEnd = samples.binarySearchBy((sTimeMs + 500L) * 1_000_000L) { it.timeNanos }.let { if (it < 0) -(it + 1) else it }
-            val maxInWindow = samples.subList(wStart, min(wEnd + 1, samples.size)).maxOf { it.mag }
+        // Find left boundary (first index left of peakIdx where mags[idx] > peakVal)
+        var leftBoundary = 0
+        for (j in peakIdx - 1 downTo 0) {
+            if (mags[j] > peakVal) {
+                leftBoundary = j
+                break
+            }
+        }
+        
+        // Find right boundary (first index right of peakIdx where mags[idx] > peakVal)
+        var rightBoundary = mags.size - 1
+        for (j in peakIdx + 1 until mags.size) {
+            if (mags[j] > peakVal) {
+                rightBoundary = j
+                break
+            }
+        }
+        
+        // Find left minimum in [leftBoundary, peakIdx]
+        var leftMin = peakVal
+        for (j in leftBoundary..peakIdx) {
+            if (mags[j] < leftMin) {
+                leftMin = mags[j]
+            }
+        }
+        
+        // Find right minimum in [peakIdx, rightBoundary]
+        var rightMin = peakVal
+        for (j in peakIdx..rightBoundary) {
+            if (mags[j] < rightMin) {
+                rightMin = mags[j]
+            }
+        }
+        
+        return peakVal - max(leftMin, rightMin)
+    }
+
+    private fun detectWatchImpactPeaks(samples: List<WatchIMUSample>, threshold: Float): List<Long> {
+        if (samples.isEmpty()) return emptyList()
+        
+        val mags = FloatArray(samples.size) { samples[it].mag }
+        val candidatePeaks = mutableListOf<WatchIMUSample>()
+        
+        // 1. Find local maxima peaks
+        for (i in samples.indices) {
+            val mag = mags[i]
+            val prevMag = if (i > 0) mags[i - 1] else 0f
+            val nextMag = if (i < samples.size - 1) mags[i + 1] else 0f
             
-            if (s.mag >= maxInWindow) {
-                if (peaks.none { abs(sTimeMs - it) < minGapMs }) {
-                    peaks.add(sTimeMs)
+            if (mag >= prevMag && mag >= nextMag) {
+                // local maximum candidate
+                val isStage1 = mag >= threshold
+                val isStage2 = mag >= 0.75f && calculateProminence(mags, i) >= 0.5f
+                
+                if (isStage1 || isStage2) {
+                    candidatePeaks.add(samples[i])
                 }
             }
         }
-        return peaks
+        
+        // 2. Sort candidate peaks by magnitude descending to prioritize larger spikes
+        candidatePeaks.sortByDescending { it.mag }
+        
+        val peaks = mutableListOf<Long>()
+        val minGapMs = 1500L
+        
+        // 3. Enforce min spacing (distance) constraint
+        for (p in candidatePeaks) {
+            val pTimeMs = p.timeNanos / 1_000_000L
+            if (peaks.none { abs(pTimeMs - it) < minGapMs }) {
+                peaks.add(pTimeMs)
+            }
+        }
+        
+        return peaks.sorted()
     }
 
     private fun verifySwingBackwards(
