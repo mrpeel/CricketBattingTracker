@@ -371,27 +371,49 @@ def get_alignment_confidence(session_dir, df_aligned, df_gyro):
     gyro_times = df_gyro['seconds_elapsed'].values
     gyro_mags  = df_gyro['mag'].values
 
-    lags = []  # deviation from expected 2.5s lead
+    lags = []  # deviation from expected shot-specific lag
     matched = 0
     for _, row in swing_rows.iterrows():
         t = float(row['impact_time_seconds'])
         mask = (gyro_times >= t - 2.5) & (gyro_times <= t + 2.5)
         if mask.any() and gyro_mags[mask].max() >= WATCH_GYRO_THRESHOLD:
             matched += 1
-            # Expected: impact is ~2.5s before narration
+            # Expected: shot-specific lag before narration
             narr_t = float(row.get('sensor_narr_time_seconds', t + 2.5))
-            expected_impact = narr_t - 2.5
+            shot_type = row.get('shot_type', '')
+            
+            # Shot-specific expected lag based on biomechanics
+            st = str(shot_type).lower()
+            if "straight drive" in st:
+                expected_lag = 4.5
+            elif "power drive" in st:
+                expected_lag = 3.5
+            elif "sweep" in st:
+                expected_lag = 2.0
+            elif "push" in st or "punch" in st:
+                expected_lag = 3.0
+            elif "slog" in st or "cut" in st or "guide" in st or "pull" in st:
+                expected_lag = 2.8
+            elif "flick" in st or "cover drive" in st or "on drive" in st:
+                expected_lag = 2.7
+            else:
+                expected_lag = 2.5
+                
+            expected_impact = narr_t - expected_lag
             lags.append(abs(t - expected_impact))
 
     match_rate = matched / len(swing_rows) if len(swing_rows) > 0 else 0.0
     mae = float(np.mean(lags)) if lags else 999.0
-    # Confidence: high match rate + small deviation from expected 2.5s lead
-    confidence = "HIGH"   if (match_rate >= 0.85 and mae < 0.8) else \
-                 "MEDIUM" if (match_rate >= 0.70 and mae < 1.5) else "LOW"
+    p75_dev = float(np.percentile(lags, 75)) if lags else 999.0
+    
+    # Confidence: high match rate + small 75th percentile deviation from expected lag
+    confidence = "HIGH"   if (match_rate >= 0.85 and p75_dev < 1.0) else \
+                 "MEDIUM" if (match_rate >= 0.70 and p75_dev < 2.0) else "LOW"
 
     return {
         "match_rate": match_rate,
         "mae_s": mae,
+        "p75_dev": p75_dev,
         "fallback_rate": fallback_rate,
         "confidence": confidence,
         "n_swings": len(swing_rows),
@@ -458,7 +480,7 @@ def main():
         conf = get_alignment_confidence(session_dir, df_aligned, df_gyro)
         if conf["confidence"] == "LOW":
             low_confidence.append(session_id)
-        print(f"  Alignment: {conf['confidence']} (match={conf['match_rate']:.0%}, MAE={conf['mae_s']:.2f}s, fallback={conf['fallback_rate']:.0%})")
+        print(f"  Alignment: {conf['confidence']} (match={conf['match_rate']:.0%}, P75 Dev={conf['p75_dev']:.2f}s, MAE={conf['mae_s']:.2f}s, fallback={conf['fallback_rate']:.0%})")
 
         # Polar offset — use identity if not available (polar features already in aligned CSV)
         polar_slope, polar_intercept = 1.0, 0.0
@@ -503,6 +525,7 @@ def main():
             "n_swings":     conf["n_swings"],
             "match_rate":   conf["match_rate"],
             "mae_s":        conf["mae_s"],
+            "p75_dev":      conf["p75_dev"],
             "fallback_rate": conf["fallback_rate"],
             "confidence":   conf["confidence"],
             "polar_refined": refined,
@@ -525,11 +548,11 @@ def main():
 
         # Section 1: Session confidence table
         f.write("## 1. Per-Session Alignment Confidence\n\n")
-        f.write("| Session | Profile | Hz | Swings | Match Rate | MAE (s) | Fallback | Confidence | Polar Refined |\n")
-        f.write("|---|---|---|---|---|---|---|---|---|\n")
+        f.write("| Session | Profile | Hz | Swings | Match Rate | P75 Dev (s) | MAE (s) | Fallback | Confidence | Polar Refined |\n")
+        f.write("|---|---|---|---|---|---|---|---|---|---|\n")
         for r in all_session_results:
             f.write(f"| {r['session_id']} | {r['data_profile']} | {r['watch_hz']} "
-                    f"| {r['n_swings']} | {r['match_rate']:.0%} | {r['mae_s']:.2f} "
+                    f"| {r['n_swings']} | {r['match_rate']:.0%} | {r['p75_dev']:.2f} | {r['mae_s']:.2f} "
                     f"| {r['fallback_rate']:.0%} | {r['confidence']} "
                     f"| {'✅ ' + str(r['polar_refined']) if r['polar_refined'] > 0 else '—'} |\n")
 

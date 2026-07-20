@@ -1,51 +1,51 @@
 # Shot Alignment Pipeline Report
 
-**Generated:** 2026-07-20 17:55:58
+**Generated:** 2026-07-20 19:50:24
 
 **Sessions Processed:** 35  |  **With Polar:** 4  |  **Total Swing Shots:** 1983  |  **Polar Timestamp Refinements:** 134
 
 ## 1. Per-Session Alignment Confidence
 
-| Session | Profile | Hz | Swings | Match Rate | MAE (s) | Fallback | Confidence | Polar Refined |
-|---|---|---|---|---|---|---|---|---|
-| session-2026-05-31_10-06-52 | 50hz_watch | 50 | 6 | 100% | 1.29 | 50% | MEDIUM | — |
-| session-2026-05-31_14-12-10 | 50hz_watch | 50 | 47 | 94% | 1.01 | 23% | MEDIUM | — |
-| session-2026-06-01_12-23-38 | 50hz_watch | 50 | 68 | 94% | 0.81 | 62% | MEDIUM | — |
-| session-2026-06-05_12-29-59 | 50hz_watch | 50 | 22 | 100% | 1.40 | 9% | MEDIUM | — |
-| session-2026-06-07_14-34-24 | 50hz_watch | 50 | 49 | 100% | 1.30 | 20% | MEDIUM | — |
-| session-2026-06-08_12-22-26 | 50hz_watch | 50 | 60 | 100% | 7.46 | 20% | LOW | — |
-| session-2026-06-09_12-16-49 | 50hz_watch | 50 | 63 | 100% | 1.97 | 38% | LOW | — |
-| session-2026-06-11_12-27-53 | 50hz_watch | 50 | 56 | 96% | 1.15 | 29% | MEDIUM | — |
-| session-2026-06-12_12-24-37 | 50hz_watch | 50 | 77 | 95% | 1.36 | 17% | MEDIUM | — |
-| session-2026-06-13_10-59-04 | 50hz_watch | 50 | 43 | 95% | 1.35 | 26% | MEDIUM | — |
-| session-2026-06-14_13-16-12 | 50hz_watch | 50 | 71 | 96% | 1.39 | 7% | MEDIUM | — |
-| session-2026-06-15_12-21-37 | 50hz_watch | 50 | 21 | 95% | 1.00 | 5% | MEDIUM | — |
-| session-2026-06-16_15-39-33 | 50hz_watch | 50 | 54 | 100% | 0.82 | 94% | MEDIUM | — |
-| session-2026-06-18_12-23-09 | 50hz_watch | 50 | 76 | 89% | 1.26 | 13% | MEDIUM | — |
-| session-2026-06-21_13-53-17 | 50hz_watch | 50 | 113 | 94% | 1.29 | 12% | MEDIUM | — |
-| session-2026-06-22_12-27-26 | 50hz_watch | 50 | 46 | 93% | 1.16 | 37% | MEDIUM | — |
-| session-2026-06-23_12-24-48 | 50hz_watch | 50 | 66 | 91% | 1.20 | 33% | MEDIUM | — |
-| session-2026-06-25_12-25-07 | 50hz_watch | 50 | 67 | 97% | 1.20 | 27% | MEDIUM | — |
-| session-2026-06-26_12-22-13 | 50hz_watch | 50 | 63 | 98% | 1.04 | 48% | MEDIUM | — |
-| session-2026-06-27_14-12-40 | 50hz_watch | 50 | 38 | 84% | 0.79 | 53% | MEDIUM | — |
-| session-2026-06-28_11-28-09 | 50hz_watch | 50 | 36 | 92% | 1.07 | 22% | MEDIUM | — |
-| session-2026-06-29_12-21-45 | 50hz_watch | 50 | 65 | 100% | 1.32 | 23% | MEDIUM | — |
-| session-2026-07-02_12-38-53 | 50hz_watch | 50 | 66 | 97% | 1.36 | 26% | MEDIUM | — |
-| session-2026-07-04_12-19-20 | 50hz_watch | 50 | 56 | 100% | 1.19 | 36% | MEDIUM | — |
-| session-2026-07-05_16-27-16 | 50hz_watch | 50 | 40 | 95% | 1.29 | 22% | MEDIUM | — |
-| session-2026-07-06_12-25-05 | 50hz_watch | 50 | 39 | 90% | 1.31 | 15% | MEDIUM | — |
-| session-2026-07-07_15-10-50 | 50hz_watch | 50 | 57 | 95% | 1.13 | 9% | MEDIUM | — |
-| session-2026-07-09_12-19-05 | 50hz_watch | 50 | 45 | 96% | 1.32 | 13% | MEDIUM | — |
-| session-2026-07-10_12-30-15 | 50hz_watch | 50 | 59 | 98% | 1.51 | 2% | LOW | — |
-| session-2026-07-11_12-51-39 | 50hz_watch_polar | 50 | 61 | 100% | 1.68 | 2% | LOW | ✅ 11 |
-| session-2026-07-12_11-23-59 | 50hz_watch_polar | 50 | 66 | 98% | 1.46 | 6% | MEDIUM | ✅ 17 |
-| session-2026-07-13_12-17-57 | 50hz_watch | 50 | 71 | 99% | 1.06 | 21% | MEDIUM | — |
-| session-2026-07-17_12-30-41 | 50hz_watch_polar | 50 | 67 | 94% | 1.13 | 45% | MEDIUM | ✅ 38 |
-| session-2026-07-18_13-44-09 | 100hz_watch_polar | 100 | 107 | 98% | 1.12 | 23% | MEDIUM | ✅ 68 |
-| session_2026-07-20_12-42-16 | 50hz_watch | 100 | 42 | 93% | 1.80 | 12% | LOW | — |
+| Session | Profile | Hz | Swings | Match Rate | P75 Dev (s) | MAE (s) | Fallback | Confidence | Polar Refined |
+|---|---|---|---|---|---|---|---|---|---|
+| session-2026-05-31_10-06-52 | 50hz_watch | 50 | 6 | 100% | 2.01 | 1.29 | 50% | LOW | — |
+| session-2026-05-31_14-12-10 | 50hz_watch | 50 | 47 | 94% | 1.75 | 1.11 | 23% | MEDIUM | — |
+| session-2026-06-01_12-23-38 | 50hz_watch | 50 | 68 | 94% | 1.31 | 0.88 | 62% | MEDIUM | — |
+| session-2026-06-05_12-29-59 | 50hz_watch | 50 | 22 | 100% | 1.91 | 1.59 | 9% | MEDIUM | — |
+| session-2026-06-07_14-34-24 | 50hz_watch | 50 | 49 | 100% | 1.68 | 1.27 | 20% | MEDIUM | — |
+| session-2026-06-08_12-22-26 | 50hz_watch | 50 | 60 | 100% | 8.97 | 7.09 | 20% | LOW | — |
+| session-2026-06-09_12-16-49 | 50hz_watch | 50 | 63 | 100% | 1.95 | 1.28 | 38% | MEDIUM | — |
+| session-2026-06-11_12-27-53 | 50hz_watch | 50 | 56 | 96% | 1.83 | 1.13 | 29% | MEDIUM | — |
+| session-2026-06-12_12-24-37 | 50hz_watch | 50 | 77 | 95% | 1.91 | 1.30 | 17% | MEDIUM | — |
+| session-2026-06-13_10-59-04 | 50hz_watch | 50 | 43 | 95% | 1.83 | 1.30 | 26% | MEDIUM | — |
+| session-2026-06-14_13-16-12 | 50hz_watch | 50 | 71 | 96% | 1.90 | 1.37 | 7% | MEDIUM | — |
+| session-2026-06-15_12-21-37 | 50hz_watch | 50 | 21 | 95% | 1.51 | 0.95 | 5% | MEDIUM | — |
+| session-2026-06-16_15-39-33 | 50hz_watch | 50 | 54 | 100% | 1.12 | 0.82 | 94% | MEDIUM | — |
+| session-2026-06-18_12-23-09 | 50hz_watch | 50 | 76 | 89% | 2.04 | 1.35 | 13% | LOW | — |
+| session-2026-06-21_13-53-17 | 50hz_watch | 50 | 113 | 94% | 1.84 | 1.26 | 12% | MEDIUM | — |
+| session-2026-06-22_12-27-26 | 50hz_watch | 50 | 46 | 93% | 1.62 | 1.17 | 37% | MEDIUM | — |
+| session-2026-06-23_12-24-48 | 50hz_watch | 50 | 66 | 91% | 1.66 | 1.18 | 33% | MEDIUM | — |
+| session-2026-06-25_12-25-07 | 50hz_watch | 50 | 67 | 97% | 1.79 | 1.17 | 27% | MEDIUM | — |
+| session-2026-06-26_12-22-13 | 50hz_watch | 50 | 63 | 98% | 1.37 | 1.04 | 48% | MEDIUM | — |
+| session-2026-06-27_14-12-40 | 50hz_watch | 50 | 38 | 84% | 1.39 | 0.93 | 53% | MEDIUM | — |
+| session-2026-06-28_11-28-09 | 50hz_watch | 50 | 36 | 92% | 1.52 | 1.22 | 22% | MEDIUM | — |
+| session-2026-06-29_12-21-45 | 50hz_watch | 50 | 65 | 100% | 1.86 | 1.13 | 23% | MEDIUM | — |
+| session-2026-07-02_12-38-53 | 50hz_watch | 50 | 66 | 97% | 1.86 | 1.32 | 26% | MEDIUM | — |
+| session-2026-07-04_12-19-20 | 50hz_watch | 50 | 56 | 100% | 1.39 | 1.09 | 36% | MEDIUM | — |
+| session-2026-07-05_16-27-16 | 50hz_watch | 50 | 40 | 95% | 1.67 | 1.17 | 22% | MEDIUM | — |
+| session-2026-07-06_12-25-05 | 50hz_watch | 50 | 39 | 90% | 1.88 | 1.29 | 15% | MEDIUM | — |
+| session-2026-07-07_15-10-50 | 50hz_watch | 50 | 57 | 95% | 1.72 | 1.10 | 9% | MEDIUM | — |
+| session-2026-07-09_12-19-05 | 50hz_watch | 50 | 45 | 96% | 1.94 | 1.20 | 13% | MEDIUM | — |
+| session-2026-07-10_12-30-15 | 50hz_watch | 50 | 59 | 98% | 1.94 | 1.40 | 2% | MEDIUM | — |
+| session-2026-07-11_12-51-39 | 50hz_watch_polar | 50 | 61 | 100% | 2.28 | 1.59 | 2% | LOW | ✅ 11 |
+| session-2026-07-12_11-23-59 | 50hz_watch_polar | 50 | 66 | 98% | 2.08 | 1.41 | 6% | LOW | ✅ 17 |
+| session-2026-07-13_12-17-57 | 50hz_watch | 50 | 71 | 99% | 1.79 | 1.02 | 21% | MEDIUM | — |
+| session-2026-07-17_12-30-41 | 50hz_watch_polar | 50 | 67 | 94% | 1.91 | 1.21 | 45% | MEDIUM | ✅ 38 |
+| session-2026-07-18_13-44-09 | 100hz_watch_polar | 100 | 107 | 98% | 1.83 | 1.18 | 23% | MEDIUM | ✅ 68 |
+| session_2026-07-20_12-42-16 | 50hz_watch | 100 | 42 | 93% | 2.89 | 1.95 | 12% | LOW | — |
 
 > [!WARNING]
-> **Low-confidence sessions requiring manual review:** session-2026-06-08_12-22-26, session-2026-06-09_12-16-49, session-2026-07-10_12-30-15, session-2026-07-11_12-51-39, session_2026-07-20_12-42-16
+> **Low-confidence sessions requiring manual review:** session-2026-05-31_10-06-52, session-2026-06-08_12-22-26, session-2026-06-18_12-23-09, session-2026-07-11_12-51-39, session-2026-07-12_11-23-59, session_2026-07-20_12-42-16
 
 ## 2. 1st Pass Detection — Threshold Sensitivity
 
@@ -110,5 +110,5 @@ Polar data at 500Hz provides ±2ms timestamp resolution vs. ±20ms from the 50Hz
 
 1. Update `WATCH_GYRO_THRESHOLD` in `automate_pipeline.py` from `1.5` to `4.00` rad/s
 2. Consider replacing threshold-based peak detection with `scipy peak prominence` in `automate_pipeline.py`
-3. Manually review low-confidence sessions and consider re-running `automate_pipeline.py`: session-2026-06-08_12-22-26, session-2026-06-09_12-16-49, session-2026-07-10_12-30-15, session-2026-07-11_12-51-39, session_2026-07-20_12-42-16
+3. Manually review low-confidence sessions and consider re-running `automate_pipeline.py`: session-2026-05-31_10-06-52, session-2026-06-08_12-22-26, session-2026-06-18_12-23-09, session-2026-07-11_12-51-39, session-2026-07-12_11-23-59, session_2026-07-20_12-42-16
 4. Consider adopting a 2-stage detection threshold: primary=4.00 rad/s, recovery=0.75 rad/s for shots initially missed (potential recovery: 46 shots)
