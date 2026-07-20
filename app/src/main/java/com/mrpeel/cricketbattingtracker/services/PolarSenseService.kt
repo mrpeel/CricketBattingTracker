@@ -94,9 +94,9 @@ class PolarSenseService : Service() {
                 buffer.clear()
                 buffer.putLong(phoneMs)
                 buffer.putLong(sensorNs)
-                buffer.putFloat(x)
-                buffer.putFloat(y)
-                buffer.putFloat(z)
+                buffer.putFloat(x.toFloat())
+                buffer.putFloat(y.toFloat())
+                buffer.putFloat(z.toFloat())
                 accStream?.write(buffer.array())
             } catch (e: Exception) {
                 Log.e(TAG, "ACC write error: ${e.message}")

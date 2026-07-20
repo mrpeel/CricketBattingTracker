@@ -419,10 +419,12 @@ def pull_audio_from_phone(phone_id, dest_dir):
     # (e.g., session-2026-07-17_12-30-41)
     session_name = os.path.basename(dest_dir)
     session_time = None
-    match = re.match(r"session-(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})", session_name)
+    match = re.match(r"session[-_](\d{4}-\d{2}-\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", session_name)
     if match:
         try:
-            dt = datetime.datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
+            date_str = match.group(1)
+            h, m, s = match.group(2), match.group(3), match.group(4)
+            dt = datetime.datetime.strptime(f"{date_str}_{h}-{m}-{s}", "%Y-%m-%d_%H-%M-%S")
             session_time = int(dt.timestamp())
             print(f"🕒 Parsed session start time from directory name: {dt} (timestamp: {session_time})")
         except Exception as e:
@@ -440,8 +442,8 @@ def pull_audio_from_phone(phone_id, dest_dir):
         if res.returncode == 0 and res.stdout.strip():
             try:
                 mtime = int(res.stdout.strip())
-                # Ignore files not recorded within 30 minutes of the session
-                if abs(mtime - session_time) > 1800:
+                # Ignore files not recorded within 2 hours of the session
+                if abs(mtime - session_time) > 7200:
                     continue
                 if mtime > newest_time:
                     newest_time = mtime
