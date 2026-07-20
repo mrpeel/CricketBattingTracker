@@ -42,4 +42,8 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Slim Kotlin Tests**: `SwingDetectorGroundTruthTest.kt` reduced from 800 lines to 6 integrity tests (model deserialises, Polar defaults work, 20-feature path works, determinism, extreme values). Build time dropped from 41s to 15s.
     *   **CRITICAL RULE**: Accuracy figures from `phone_pipeline_scorecard.md` are **training-set fit** (the model was trained on this same data). They are diagnostic only. Authoritative generalisation accuracy requires held-out sessions not included in training. Never present training-set accuracy as model performance.
 
+89. **Scipy Peak Prominence & 2-Stage Hysteresis Alignment (July 20, 2026)**:
+    *   **The Problem**: Static amplitude watch gyro threshold (1.5 rad/s) suffered from a 94% false-positive rate on non-swings during dataset alignment, while missing slow defensive strokes or late-cuts if set higher.
+    *   **The Solution**: Refactored `automate_pipeline.py` to use `scipy.signal.find_peaks` with prominence >= 0.5 rad/s. Implemented dynamic distance calculation `distance = max(3, int(fs * 0.1))` based on session sampling frequency to ensure a consistent 100ms spacing. Built a 2-stage window alignment search: primary threshold >= 4.00 rad/s to catch high-velocity swings, falling back to a recovery threshold >= 0.75 rad/s for slow/defensive shots.
+    *   **Result**: Successfully aligned 35 sessions, identifying 5 low-confidence sessions (MAE >= 1.50s) to be manual-offset overridden or excluded from training.
 
