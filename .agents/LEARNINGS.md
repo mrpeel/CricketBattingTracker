@@ -50,6 +50,7 @@ This document captures resolved bugs, architectural changes, key logical finding
 90. **Shot-Specific expected lags & P75 Deviation Metric (July 20, 2026)**:
     *   **The Problem**: A static expected lag assumption of 2.5 seconds was skewed by follow-through durations (e.g. Straight/Power Drives having 3.5-4.5s lag) and crouched/rotational shots (e.g. Sweeps having under 2.0s lag). Further, using the average (MAE) was highly vulnerable to outliers from delayed user voice comments.
     *   **The Solution**: Modified `evaluate_shot_alignment.py` to map expected lag targets dynamically based on the shot category (e.g. 4.5s for Straight Drives, 2.0s for Sweeps, 3.5s for Power Drives). Replaced the mean absolute error with the 75th percentile of absolute deviations (`P75 Dev`) for the confidence thresholds, rendering the scoring robust to isolated late narrations.
-    *   **Result**: Rebuilt the evaluation report with `P75 Dev` stats accurately flagging sequence-level matching anomalies without penalizing normal biomechanical narration delays.
+    *   **Result**: Rebuilt the evaluation report with `P75 Dev` stats accurately flagging sequence-level matching anomalies without penalizing normal biomechanical narration delays. Additionally calibrated Polar-active sessions by adding a $+150$ms expected lag offset (compensating for bottom-hand physical lead over the wrist gyro) and dynamically relaxing the confidence thresholds (HIGH $\le 1.3$s, MEDIUM $\le 2.4$s) to eliminate false-positive LOW ratings on historical Polar logs.
+
 
 
