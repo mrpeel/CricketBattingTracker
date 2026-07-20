@@ -1,130 +1,124 @@
-# Batting top-hand biomechanics
+# Batting Top-Hand Biomechanics & Classification Pipeline
 
-## Class 1 - Drive/Defence
-**The Radial-to-Ulnar Uncocking Class (The Linear Extension)**
-* **Defining Biomechanics:** The stroke begins during the backlift with the top wrist in radial deviation (cocked upward/toward the thumb). During the downswing, the dominant movement is a rapid, controlled transition into ulnar deviation (uncocking the wrist downwards) aligned with an extended lead elbow. The top-hand wrist remains locked laterally, preventing the bat face from closing or rolling, ensuring the face stays vertical and "straight" through the impact zone.
-* **Shots in this Class:**
-  * Straight Drive
-  * Cover Drive  
-  * Off Drive
-  * On Drive
-  * Forward Defensive
-  * Back-foot Defensive
+This document details the biomechanical classification categories, feature extraction representation, and the offline processing pipeline implemented within the Pitch Analytix Pro companion phone application.
 
-## Class 2 - Glance/Flicks
-**The Pronation & Controlled Flexion Class (The Rolling Wrist)**
-* **Defining Biomechanics:** This class relies on a combination of forearm pronation (rotating the radius bone over the ulna, turning the palm downward/backward) and active wrist flexion right at the moment of impact. Instead of staying locked along a straight line, the top wrist dynamically flexes to close the face of the bat, rolling over the ball to manipulate its trajectory downwards and across the body.
-* **Shots in this Class:**
-  * Flick Shot (off the pads)
-  * Leg Glance
-  * On-Glance
-  * Traditional Sweep Shot
+---
 
-## Class 3 - Cut/Punch
-**The Isometric Rigid Lever Class (Horizontal Alignment)**
-* **Defining Biomechanics:** The top wrist stays locked and rigid in a flat horizontal plane, holding static radial-to-neutral deviation to withstand impact forces without buckling. Features a short kinetic path, minimal forearm rotation, and a flat trajectory while keeping the hands close to the body line.
-* **Shots in this Class:**
-  * Square Cut
-  * Cut
-  * Back-foot Punch (to the off-side)
+## 🤖 Machine Learning Models & Output Classes
 
-## Class 4 - Pull/Hook
-**Transverse-to-Vertical Roll**
-* **Defining Biomechanics:** Starts with an extended horizontal lever but forces rapid top-wrist pronation and flexion to roll over the ball at release. Characterized by massive arm extension, a broad circular arc, and a distinct downward or high-to-low hand follow-through to control the ball's height.
-* **Shots in this Class:**
-  * Pull Shot
-  * Hook Shot
+All swing detection and classification runs as an offline batch job on the Android phone app via two Random Forest classifiers.
 
-## Class 5 - Deflection/Guide
-**The Supination & Late Extension Class (The Open-Face Deflection)**
-* **Defining Biomechanics:** This class is defined by late forearm supination (turning the palm upward/forward) combined with subtle wrist extension or radial deviation just before or during contact. Instead of driving through the ball, the top hand actively guides and opens the bat face, intentionally altering the angle of impact to use the ball's pace and deflect it behind the linear plane of the batter.
-* **Shots in this Class:**
-  * Late Cut
-  * Square Upper Cut
-  * Steer / Glide (to third man)
-  * Guide
+### 1. Shot Type Classifier ([GeneratedForest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt))
+Classifies verified active swings into one of **8 output classes** using a 20-feature input vector:
 
-## Class 6 - Power Shot
-**The Accelerated Extension-Flexion Class (The High-Velocity Release)**
-* **Defining Biomechanics:** Common in modern power-hitting, this class features an extreme range of motion. It begins with severe radial deviation and extension during a high backlift. Upon downswing, it maximizes bat-head speed through a violent, whipping release of ulnar deviation, transitioning instantly into a full post-impact flexion and forearm rotation as the momentum forces a complete release of the hands. The wrist does not anchor the shot; it acts as the final "crack of the whip" to elevate the ball.
-* **Shots in this Class:**
-  * Lofted Straight/Cover Drive
-  * Slog Sweep
-  * Switch Hit / Reverse Sweep (where top/bottom hand roles mirror mid-swing)
-  * Helicopter Shot
-  * Power shot
+*   **`DRIVE/DEFENCE`**
+    *   *Biomechanics*: Radial-to-ulnar uncocking wrist movement aligned with a straight, vertical bat face. Keeps the face straight through impact.
+    *   *Shots*: Straight Drive, Cover Drive, Off Drive, On Drive, Forward Defensive, Back-foot Defensive.
+*   **`GLANCE/FLICK`**
+    *   *Biomechanics*: Controlled wrist flexion and forearm pronation right at impact. Dynamically closes the bat face to direct the ball down and across the body.
+    *   *Shots*: Flick Shot (off pads), Leg Glance, On-Glance.
+*   **`CUT/PUNCH`**
+    *   *Biomechanics*: Isometric rigid wrist lockdown in a flat horizontal plane. Short kinetic path, minimal forearm rotation, and hand positioning close to the body.
+    *   *Shots*: Square Cut, Cut, Back-foot Punch.
+*   **`PULL/HOOK`**
+    *   *Biomechanics*: Broad horizontal/transverse circular arc starting with an extended lever, forcing rapid top-wrist pronation and a downward follow-through.
+    *   *Shots*: Pull Shot, Hook Shot.
+*   **`DEFLECTION/GUIDE`**
+    *   *Biomechanics*: Supination and late wrist extension just before contact. Relies on the ball's pace, opening the blade angle to deflect behind the batsman.
+    *   *Shots*: Late Cut, Square Upper Cut, Glide/Steer.
+*   **`POWER DRIVE`**
+    *   *Biomechanics*: Accelerated vertical downswing with high-velocity release and extensive post-impact follow-through to loft and elevate the drive.
+    *   *Shots*: Lofted Straight/Cover Drive.
+*   **`SLOG`**
+    *   *Biomechanics*: High-velocity horizontal/vertical swing release targeting maximum power with a broad release arc.
+    *   *Shots*: Slog, Helicopter Shot.
+*   **`SWEEP`**
+    *   *Biomechanics*: Low-to-ground crouching swing utilizing rotational torso torque and forearm roll.
+    *   *Shots*: Traditional Sweep, Slog Sweep, Reverse Sweep/Switch Hit.
 
-## State 7 - Facing Up
-**The Static Isometric Baseline**
-* **Defining Biomechanics:** The top hand experiences low-level, continuous isometric contraction to support the dead weight of the bat against gravity. The wrist is held in a position of slight radial deviation and mild pronation to angle the bat blade toward first slip and slightly upward. The state is structurally passive, showing high spatial angular consistency paired with a slow, ultra-low-frequency (0.5–2 Hz) micro-sway.
-* **Activities in this Class:**
-  * Stance / Waiting for delivery
+### 2. Shot Quality Classifier ([GeneratedQualityForest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedQualityForest.kt))
+Evaluates the execution quality of the swing based on the same 20-feature input vector, outputting one of **3 classes** mapped in the UI to specific descriptors and efficiency ratings:
 
-## State 8 - Walking Around
-**The Low-g Chaotic Drift**
-* **Defining Biomechanics:** Characterized by a lack of muscle tension or fixed skeletal bracing. The top hand exhibits relaxed, passive manipulation with erratic, multi-axis rotational shifts. Forearm pronation and supination occur randomly as the player changes direction, gestures, or alters their grip while moving at low velocities.
-* **Activities in this Class:**
-  * Walking between overs
-  * Adjusting equipment / Gardening the pitch
-  * Moving into fielding positions
+| Classifier Output | UI Display | Swing Efficiency Rating |
+| :--- | :--- | :--- |
+| **`good`** | Excellent | 90% |
+| **`poor`** | Poor | 60% |
+| **`miss`** | Miss | 0% |
 
-## State 9 - Running
-**The High-g Periodic Cadence**
-* **Defining Biomechanics:** The top hand and forearm act as a dynamic counterweight to the lower-body running stride. The wrist is locked isometrically in a neutral or slightly extended plane to hold the bat clear of the ground. The entire upper extremity experiences highly rhythmic, high-amplitude periodic acceleration spikes caused by foot-strike shocks traveling up the skeleton, tightly matching the user's running cadence (2–4 Hz spikes).
-* **Activities in this Class:**
-  * Running between wickets
-  * Sprinting to field a ball
+*Note: Legacy maps also register `edge` -> Edge (40% efficiency) for backward compatibility.*
 
+---
 
-### Expanded Top-Hand Kinematics & State Matrix
+## 📊 Extracted Kinematic Features ([SwingFeatures.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingFeatures.kt))
 
-| State / Shot Class | Linear Acceleration ($a$) Profile | Angular Velocity ($\omega$ / Gyro) Profile | Classifier Identification Trick (Top-Hand Only) |
-| :--- | :--- | :--- | :--- |
-| **Facing Up (Stance)** | **Near Zero.** Minimal linear movement. | **Ultra-Low Frequency.** Steady, static tilt vector with a gentle 0.5–2 Hz micro-sway. | Look for a 2–4 second baseline window of absolute stillness or rhythmic sway right before a spike. |
-| **Walking Around** | Low-g, random, disconnected drifting. | Erratic, slow rotational shifts as the player looks around or adjusts equipment. | Non-rhythmic, low-amplitude noise across all axes. No distinct peak forces. |
-| **Running (Between Wickets)** | **High-g, highly rhythmic periodic spikes** (vertical and forward axes). | Moderate, rhythmic swinging matching running cadence. | High-frequency cadence matching foot strikes (2–4 Hz spikes) that persist for several seconds. |
-| **1. Drive/Defence** <br>*(Straight/Cover Drive)* | Moderate-to-high linear acceleration on a single downward vector. | Sharp, clean angular spike on a single plane; **abrupt deceleration** at contact. | Linear downswing followed by an immediate impact shockwave, with zero rotational wrist rollover. |
-| **2. Glance/Flicks** <br>*(Flick / Sweep)* | Moderate, tight linear path close to the body. | **Explosive, late rotational spike** right at the impact timestamp. | Look for rapid forearm pronation (roll) that peaks precisely during or immediately after the deceleration shockwave. |
-| **3. Cut/Punch** <br>*(Square/Late Cut)* | High, short linear burst moving laterally across the body. | **Isometric lockdown.** Gyro shifts rapidly in space but the relative wrist angle remains completely rigid. | A brief, violent horizontal slash where spatial orientation changes fast, but the wrist axis shows zero flex. |
-| **4. Pull/Hook** <br>*(Pull / Hook Shot)* | **Massive, sustained linear acceleration** over a broad, sweeping arc. | High angular velocity that transitions from a horizontal plane to a sharp downward/low roll. | Huge, sweeping g-forces on the horizontal plane coupled with late high-to-low forearm rotation. |
-| **5. Deflection/Guide** <br>*(Late Cut / Glide)* | Very low linear acceleration; passive path. | Sudden, late angular tilt change right before the ball arrives. | The hand remains relatively still, but the gyro registers a sharp, deliberate opening of the blade angle just before impact. |
-| **6. Power Shot** <br>*(Slog Sweep / Lofted Drive)* | **Off-the-charts, explosive peak linear acceleration.** | Violent, unrestricted angular velocity that continues on a **low-to-high vertical arc**. | Peak velocity occurs *after* impact as the hands release overhead. Total absence of high-to-low capping or braking forces. |
+The models ingest a consolidated **20-feature vector** containing 14 top-hand (watch) features and 6 optional bottom-hand (Polar) features. When Polar sensor data is absent, the bottom-hand fields automatically default to `0f`.
 
-## Classifier logic decision tree
+### Top-Hand Wrist Features (Watch-Only)
+*   **Segment 1 (Backswing)**:
+    *   `s1_gyro_y_std`: Standard deviation of gyroscope Y-axis.
+    *   `s1_gyro_z_std`: Standard deviation of gyroscope Z-axis.
+    *   `s1_deltaX`: Angular displacement/rotation around X-axis.
+    *   `s1_deltaZ`: Angular displacement/rotation around Z-axis.
+*   **Segment 2 (Downswing)**:
+    *   `s2_gyroMag`: Peak magnitude of the gyroscope vector.
+    *   `s2_grav_y_mean`: Average Y-axis gravity component (defines absolute bat orientation).
+    *   `s2_deltaX`: Downswing rotation around X-axis.
+    *   `s2_deltaZ`: Downswing rotation around Z-axis.
+*   **Segment 3 (Contact & Follow-through)**:
+    *   `s3_rollImpactDeg`: Estimated roll angle at impact.
+    *   `s3_yawImpactDeg`: Estimated yaw angle at impact.
+    *   `s3_deltaX`: Follow-through rotation around X-axis.
+    *   `s3_deltaZ`: Follow-through rotation around Z-axis.
+    *   `s3_planeRatio`: Straightness/flatness ratio of the swing plane.
+    *   `s3_gyro_y_min`: Minimum gyroscope Y-axis reading (wrist release velocity).
 
- [ STAGE 1: THE BASELINE FILTER ]
-Check a rolling 3-second window of data.
- ├── IF Linear Acceleration (a) ≈ 0 AND Gyro has a 0.5-2 Hz micro-oscillation:
- │    └── LABEL: "Facing Up (Stance)" -> Use this to lock the baseline gravity vector.
- ├── IF Low-g, chaotic, non-rhythmic, multi-axis changes present:
- │    └── LABEL: "Walking Around"
- └── IF High-g, highly rhythmic, periodic spikes (2-4 Hz cadence) persist for greater than 1.5 seconds:
-      └── LABEL: "Running Between Wickets"
+### Bottom-Hand Features (Polar Verity Sense)
+*   `bottom_hand_gyro_peak`: Peak gyroscope magnitude on bottom hand.
+*   `bottom_hand_acc_peak`: Peak accelerometer magnitude on bottom hand.
+*   `bottom_hand_gyro_ratio`: Ratio of bottom-hand peak gyro to top-hand peak gyro.
+*   `bottom_hand_acc_ratio`: Ratio of bottom-hand peak accelerometer to top-hand peak accelerometer.
+*   `bottom_hand_time_lead_ms`: Relative lead/lag (in milliseconds) of bottom-hand peak impact over top-hand peak.
+*   `bottom_hand_sync_score`: Weighted alignment metric ($1.0 - \text{timePenalty} \times 0.6 - \text{ratioPenalty} \times 0.4$) mapped to a $[0, 100]$ score.
 
+---
 
-[ STAGE 2: THE SHOT WINDOW TRIGGER ]
-If the state is NOT Stance, Walking, or Running, watch for a sudden, massive departure 
-from the baseline gravity vector (The Backlift).
- └── IF Linear Acceleration (a) spikes past a defined high-velocity threshold:
-      └── OPEN: "Shot Window" (Capture data from t-minus 200ms to t-plus 600ms around peak impact shockwave)
+## ⚙️ Companion App Processing Pipeline ([PhoneSwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/PhoneSwingDetector.kt))
 
-[ STAGE 3: SHOT CLASS DIFFERENTIATION ]
-Analyze the kinematic signature exclusively within the captured "Shot Window":
+Processing runs entirely offline on the companion phone after the watch delivers a zipped session folder containing the binary logs.
 
- ├── PATH A: Low-to-Moderate Linear Acceleration
- │    └── IF Linear Acceleration is low AND Gyro shows a sharp, late opening/tilt change right at impact:
- │         └── CLASSIFY: "5. The Deflectors"
- │
- ├── PATH B: High Linear Acceleration along a Vertical Plane
- │    ├── IF Gyro shows zero rotational roll + an abrupt, sharp deceleration spike at impact:
- │    │    └── CLASSIFY: "1. The 'V' Drivers"
- │    └── IF Gyro shows violent, unrestricted low-to-high angular velocity with peak acceleration AFTER impact:
- │         └── CLASSIFY: "6. The Power Launchers"
- │
- └── PATH C: High Linear Acceleration along a Horizontal/Transverse Plane
-      ├── IF Gyro registers rapid, active forearm pronation (high-to-low wrist roll) right at impact:
-      │    └── CLASSIFY: "4. The Extended Pullers"
-      ├── IF Gyro registers a late, explosive rotational spike close to the body line on a tight path:
-      │    └── CLASSIFY: "2. The Wristy Manipulators"
-      └── IF Gyro shows absolute isometric lockdown (zero rotational wrist roll through the entirety of the slash):
-           └── CLASSIFY: "3. The Pocket Cutters"
+### Step 1: Clock Drift Alignment
+If a Polar directory is present, the app matches sync-tap sequences recorded at the start of the session (using physical bat ground taps). A linear regression models the relation:
+$$\text{Polar\_phoneMs} = \text{watch\_wallMs} \times (1 + \text{driftRate}) + \text{offsetMs}$$
+This aligns the sub-millisecond timelines of the two devices.
+
+### Step 2: Pass 1 — Peak Shockwave Candidates
+Candidate swing locations are generated by scanning for peaks:
+*   **Polar Active**: Scans Polar accelerometer data for peaks exceeding `POLAR_SHOCKWAVE_THRESHOLD`.
+*   **Watch Only**: Scans watch gyroscope data for peaks exceeding `WATCH_SHOCKWAVE_THRESHOLD` ($4.00\text{ rad/s}$) or peaks crossing a secondary recovery threshold ($0.75\text{ rad/s}$) if they exhibit a topological prominence $\ge 0.50\text{ rad/s}$.
+
+### Step 3: Backward Kinematics Validation
+Each candidate peak must satisfy two backward-looking criteria to filter out walking/equipment adjustments:
+1.  **Backswing Validation**: Gyroscope magnitude must peak $\ge 4.0\text{ rad/s}$ in the window $[-1.5\text{s}, -0.15\text{s}]$ before the impact peak.
+2.  **Stance/Stillness Validation**: The standard deviation of the orientation quaternions must remain rigid ($\le 0.12$) over the window $[-2.5\text{s}, -1.0\text{s}]$ before the impact peak.
+
+### Step 4: Random Forest Inference
+If a candidate passes validation, a $3.0$-second window ($2.5$s lookback, $0.5$s look-ahead) is streamed into a local `SwingDetector` workspace to extract features. The 20 features are passed to `GeneratedForest` and `GeneratedQualityForest` to classify the shot type and quality.
+
+### Step 5: Pass 2 — Fallback Gap Scan (Misses)
+To capture misses or swings that failed the strict stance/backswing validation in Pass 1, a standard forward-pass of the 4-state `SwingDetector` machine runs over the entire watch data. Any detected swings that do not overlap within $2.0$ seconds of a Pass 1 shot are registered as a **"Miss"** with $0\%$ efficiency.
+
+### Step 6: Non-Maximum Suppression (NMS)
+Finally, all candidates from Pass 1 and Pass 2 are sorted chronologically. If multiple detections occur within a $5.0$-second window, only the candidate with the highest estimated bat speed is preserved.
+
+---
+
+## 🏃 Non-Shot Baseline States
+
+These states are filtered out by the phone app's stance gate validation and pre-shot checks, avoiding false positives:
+
+*   **Facing Up (Stance)**
+    *   *Biomechanics*: Static isometric baseline supporting the weight of the bat. Characterized by stable gravity vectors and gentle $0.5\text{--}2\text{ Hz}$ micro-oscillations. Used to calibrate the orientation matrix.
+*   **Walking Around**
+    *   *Biomechanics*: Low-g, multi-axis, non-rhythmic drift as the player shifts grip or adjusts equipment.
+*   **Running (Between Wickets)**
+    *   *Biomechanics*: High-g, highly rhythmic periodic acceleration spikes matching running cadence ($2\text{--}4\text{ Hz}$ spikes).
