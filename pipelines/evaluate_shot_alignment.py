@@ -371,6 +371,8 @@ def get_alignment_confidence(session_dir, df_aligned, df_gyro):
     gyro_times = df_gyro['seconds_elapsed'].values
     gyro_mags  = df_gyro['mag'].values
 
+    has_polar = os.path.isdir(os.path.join(session_dir, 'PolarSense'))
+
     lags = []  # deviation from expected shot-specific lag
     matched = 0
     for _, row in swing_rows.iterrows():
@@ -399,6 +401,11 @@ def get_alignment_confidence(session_dir, df_aligned, df_gyro):
             else:
                 expected_lag = 2.5
                 
+            # If Polar is active, physical impact is detected earlier on the forearm
+            # than watch wrist gyro, shifting expected narration lag longer by ~150ms
+            if has_polar:
+                expected_lag += 0.15
+                
             expected_impact = narr_t - expected_lag
             lags.append(abs(t - expected_impact))
 
@@ -407,8 +414,11 @@ def get_alignment_confidence(session_dir, df_aligned, df_gyro):
     p75_dev = float(np.percentile(lags, 75)) if lags else 999.0
     
     # Confidence: high match rate + small 75th percentile deviation from expected lag
-    confidence = "HIGH"   if (match_rate >= 0.85 and p75_dev < 1.0) else \
-                 "MEDIUM" if (match_rate >= 0.70 and p75_dev < 2.0) else "LOW"
+    p75_threshold_high = 1.3 if has_polar else 1.0
+    p75_threshold_med = 2.4 if has_polar else 2.0
+    
+    confidence = "HIGH"   if (match_rate >= 0.85 and p75_dev < p75_threshold_high) else \
+                 "MEDIUM" if (match_rate >= 0.70 and p75_dev < p75_threshold_med) else "LOW"
 
     return {
         "match_rate": match_rate,

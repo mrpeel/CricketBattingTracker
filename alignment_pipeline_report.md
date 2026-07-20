@@ -1,6 +1,6 @@
 # Shot Alignment Pipeline Report
 
-**Generated:** 2026-07-20 19:50:24
+**Generated:** 2026-07-20 20:29:38
 
 **Sessions Processed:** 35  |  **With Polar:** 4  |  **Total Swing Shots:** 1983  |  **Polar Timestamp Refinements:** 134
 
@@ -37,15 +37,15 @@
 | session-2026-07-07_15-10-50 | 50hz_watch | 50 | 57 | 95% | 1.72 | 1.10 | 9% | MEDIUM | — |
 | session-2026-07-09_12-19-05 | 50hz_watch | 50 | 45 | 96% | 1.94 | 1.20 | 13% | MEDIUM | — |
 | session-2026-07-10_12-30-15 | 50hz_watch | 50 | 59 | 98% | 1.94 | 1.40 | 2% | MEDIUM | — |
-| session-2026-07-11_12-51-39 | 50hz_watch_polar | 50 | 61 | 100% | 2.28 | 1.59 | 2% | LOW | ✅ 11 |
-| session-2026-07-12_11-23-59 | 50hz_watch_polar | 50 | 66 | 98% | 2.08 | 1.41 | 6% | LOW | ✅ 17 |
-| session-2026-07-13_12-17-57 | 50hz_watch | 50 | 71 | 99% | 1.79 | 1.02 | 21% | MEDIUM | — |
-| session-2026-07-17_12-30-41 | 50hz_watch_polar | 50 | 67 | 94% | 1.91 | 1.21 | 45% | MEDIUM | ✅ 38 |
-| session-2026-07-18_13-44-09 | 100hz_watch_polar | 100 | 107 | 98% | 1.83 | 1.18 | 23% | MEDIUM | ✅ 68 |
-| session_2026-07-20_12-42-16 | 50hz_watch | 100 | 42 | 93% | 2.89 | 1.95 | 12% | LOW | — |
+| session-2026-07-11_12-51-39 | 50hz_watch_polar | 50 | 61 | 100% | 2.28 | 1.56 | 2% | MEDIUM | ✅ 11 |
+| session-2026-07-12_11-23-59 | 50hz_watch_polar | 50 | 66 | 98% | 2.14 | 1.41 | 6% | MEDIUM | ✅ 17 |
+| session-2026-07-13_12-17-57 | 50hz_watch | 50 | 71 | 99% | 1.66 | 1.01 | 21% | MEDIUM | — |
+| session-2026-07-17_12-30-41 | 50hz_watch_polar | 50 | 67 | 94% | 1.91 | 1.25 | 45% | MEDIUM | ✅ 38 |
+| session-2026-07-18_13-44-09 | 100hz_watch_polar | 100 | 107 | 98% | 1.87 | 1.21 | 23% | MEDIUM | ✅ 68 |
+| session_2026-07-20_12-42-16 | 50hz_watch | 100 | 42 | 93% | 2.74 | 1.92 | 12% | LOW | — |
 
 > [!WARNING]
-> **Low-confidence sessions requiring manual review:** session-2026-05-31_10-06-52, session-2026-06-08_12-22-26, session-2026-06-18_12-23-09, session-2026-07-11_12-51-39, session-2026-07-12_11-23-59, session_2026-07-20_12-42-16
+> **Low-confidence sessions requiring manual review:** session-2026-05-31_10-06-52, session-2026-06-08_12-22-26, session-2026-06-18_12-23-09, session_2026-07-20_12-42-16
 
 ## 2. 1st Pass Detection — Threshold Sensitivity
 
@@ -110,5 +110,5 @@ Polar data at 500Hz provides ±2ms timestamp resolution vs. ±20ms from the 50Hz
 
 1. Update `WATCH_GYRO_THRESHOLD` in `automate_pipeline.py` from `1.5` to `4.00` rad/s
 2. Consider replacing threshold-based peak detection with `scipy peak prominence` in `automate_pipeline.py`
-3. Manually review low-confidence sessions and consider re-running `automate_pipeline.py`: session-2026-05-31_10-06-52, session-2026-06-08_12-22-26, session-2026-06-18_12-23-09, session-2026-07-11_12-51-39, session-2026-07-12_11-23-59, session_2026-07-20_12-42-16
+3. Manually review low-confidence sessions and consider re-running `automate_pipeline.py`: session-2026-05-31_10-06-52, session-2026-06-08_12-22-26, session-2026-06-18_12-23-09, session_2026-07-20_12-42-16
 4. Consider adopting a 2-stage detection threshold: primary=4.00 rad/s, recovery=0.75 rad/s for shots initially missed (potential recovery: 46 shots)
