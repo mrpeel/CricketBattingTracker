@@ -148,23 +148,6 @@ def train_classifiers():
     rf_dual_qual.fit(X_dual_qual, y_qual_enc)
 
     return rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual
-        if "good" in val or "okay" in val or "ok" in val or "excellent" in val:
-            return "good"
-        if "poor" in val or "bad" in val:
-            return "poor"
-        if "miss" in val:
-            return "miss"
-        if "edge" in val:
-            return "edge"
-        return "good"
-    y_qual = df_quality['quality'].apply(clean_quality).values
-    X_qual = df_quality[FEATURE_COLS].fillna(0.0)
-    le_qual = LabelEncoder()
-    y_qual_enc = le_qual.fit_transform(y_qual)
-    rf_qual = RandomForestClassifier(n_estimators=100, max_depth=6, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
-    rf_qual.fit(X_qual, y_qual_enc)
-    
-    return rf_type, le_type, rf_qual, le_qual
 
 def average_quats(qxs, qys, qzs, qws):
     sum_q = np.zeros(4)
