@@ -369,7 +369,7 @@ def main():
 
         # Section 4: Data-Profile Breakdown
         f.write("## 4. Classification Accuracy by Data Profile\n")
-        f.write("The RF model was trained on all data profiles simultaneously. Polar features are imputed to 0.0 for watch-only sessions, so the model learns to classify confidently with or without Polar data.\n\n")
+        f.write("The system employs a **Dual-Model Routing Architecture**: Watch-only sessions (Match Day) route to `GeneratedTopForest` (14 features), while dual-sensor sessions (Net Practice) route to `GeneratedDualForest` (26 features).\n\n")
 
         features_csv = "/Users/neilkloot/Code/Batting Sensor Stats/combined_features.csv"
         try:
@@ -381,11 +381,13 @@ def main():
             df_full = pd.read_csv(features_csv)
             df_swings = df_full[df_full['normalized_gt'] != 'NON-SWING'].copy()
 
-            feature_cols = [
+            top_cols = [
                 's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
                 's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
                 's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
                 's3_planeRatio', 's3_gyro_y_min',
+            ]
+            dual_cols = top_cols + [
                 'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
                 'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
                 'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
@@ -393,26 +395,38 @@ def main():
                 's2_bottom_acc_mean', 's2_dynamic_ratio_slope',
                 's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
             ]
-            X_all = df_swings[feature_cols].fillna(0.0)
+
+            X_top = df_swings[top_cols].fillna(0.0)
+            X_dual = df_swings[dual_cols].fillna(0.0)
             y_all = df_swings['normalized_gt'].values
+
             le2 = LabelEncoder()
             y_enc2 = le2.fit_transform(y_all)
-            rf2 = RandomForestClassifier(n_estimators=100, max_depth=7, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
-            rf2.fit(X_all, y_enc2)
-            y_pred2 = le2.inverse_transform(rf2.predict(X_all))
-            df_swings = df_swings.copy()
-            df_swings['_pred'] = y_pred2
 
-            profiles = df_swings['data_profile'].unique() if 'data_profile' in df_swings.columns else []
+            rf_top2 = RandomForestClassifier(n_estimators=200, max_depth=8, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
+            rf_top2.fit(X_top, y_enc2)
+
+            rf_dual2 = RandomForestClassifier(n_estimators=200, max_depth=8, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
+            rf_dual2.fit(X_dual, y_enc2)
+
+            is_polar_mask = df_swings['data_profile'].astype(str).str.contains('polar', case=False, na=False)
+            y_pred_top2 = le2.inverse_transform(rf_top2.predict(X_top))
+            y_pred_dual2 = le2.inverse_transform(rf_dual2.predict(X_dual))
+
+            df_swings = df_swings.copy()
+            df_swings['_pred'] = np.where(is_polar_mask, y_pred_dual2, y_pred_top2)
+
+            raw_profiles = [p for p in df_swings['data_profile'].unique() if pd.notna(p)]
+            profiles = sorted(raw_profiles)
             if len(profiles) > 0:
                 f.write("| Data Profile | Shots | Overall Acc | DRIVE | PULL | CUT | GLANCE | POWER | SLOG | SWEEP | GUIDE |\n")
                 f.write("|---|---|---|---|---|---|---|---|---|---|---|\n")
                 classes_to_show = ["DRIVE/DEFENCE", "PULL/HOOK", "CUT/PUNCH", "GLANCE/FLICK", "POWER DRIVE", "SLOG", "SWEEP", "DEFLECTION/GUIDE"]
-                for profile in sorted(profiles):
+                for profile in profiles:
                     mask = df_swings['data_profile'] == profile
                     sub = df_swings[mask]
                     overall_acc = (sub['_pred'] == sub['normalized_gt']).mean() if len(sub) > 0 else 0.0
-                    row_parts = [profile, str(len(sub)), f"{overall_acc:.0%}"]
+                    row_parts = [str(profile), str(len(sub)), f"{overall_acc:.0%}"]
                     for cls in classes_to_show:
                         cls_mask = sub['normalized_gt'] == cls
                         if cls_mask.sum() > 0:
@@ -421,8 +435,7 @@ def main():
                         else:
                             row_parts.append("n/a")
                     f.write("| " + " | ".join(row_parts) + " |\n")
-                f.write("\n> [!NOTE]\n> These accuracy figures are **training-set fit** (diagnostic only). "
-                        "Authoritative performance is from `SwingDetectorGroundTruthTest` scorecard above.\n\n")
+                f.write("\n> [!NOTE]\n> These accuracy figures are **training-set fit** (diagnostic only).\n\n")
             else:
                 f.write("*data_profile column not found in combined_features.csv — re-run compile_dataset.py*\n\n")
         except Exception as e:

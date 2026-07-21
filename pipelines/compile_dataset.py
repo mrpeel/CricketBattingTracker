@@ -39,7 +39,7 @@ base_live_dir = os.path.join(BASE_DIR, "live_watch_sessions")
 if os.path.exists(base_live_dir):
     TRUSTWORTHY_SESSIONS = sorted([
         d for d in os.listdir(base_live_dir)
-        if d.startswith("session-") and os.path.isdir(os.path.join(base_live_dir, d))
+        if (d.startswith("session-") or d.startswith("session_")) and os.path.isdir(os.path.join(base_live_dir, d))
     ])
 else:
     TRUSTWORTHY_SESSIONS = []

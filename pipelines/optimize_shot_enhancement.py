@@ -27,7 +27,7 @@ def load_polar_ground_truth():
     all_shots = []
     sessions = sorted([
         d for d in os.listdir(base_live_dir)
-        if d.startswith("session-") and os.path.isdir(os.path.join(base_live_dir, d))
+        if (d.startswith("session-") or d.startswith("session_")) and os.path.isdir(os.path.join(base_live_dir, d))
     ])
 
     for session_id in sessions:

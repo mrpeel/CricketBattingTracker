@@ -1,6 +1,6 @@
 # Model Update & Retraining Performance Analysis
 
-**Generated:** 2026-07-21 17:37:09
+**Generated:** 2026-07-21 18:03:46
 
 ## Executive Summary
 This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.
@@ -14,8 +14,8 @@ How many ground-truth swing shots were covered by the phone pipeline across all 
 
 | Metric | Before | After | Change |
 |---|---|---|---|
-| **Total Ground Truth Shots** | 1305 | 1305 | +0 |
-| **Shots Identified (TP)** | 1305 | 1305 | +0 |
+| **Total Ground Truth Shots** | 1385 | 1385 | +0 |
+| **Shots Identified (TP)** | 1385 | 1385 | +0 |
 | **Missed (FN)** | 0 | 0 | +0 |
 | **Detection Recall** | 100.0% | 100.0% | +0.0% |
 | **Overall Classification Accuracy** | 80.2% | 80.2% | +0.0% |
@@ -29,14 +29,14 @@ Below is the classification accuracy comparison for each normalized shot type ca
 
 | Shot Type | Ground Truth Count | Accuracy (Before ➔ After) |
 |---|---|---|
-| CUT/PUNCH | 422 | 87.4% ➔ 87.4% (0.00) ⚪ |
+| CUT/PUNCH | 423 | 87.0% ➔ 87.0% (0.00) ⚪ |
 | DEFLECTION/GUIDE | 428 | 76.2% ➔ 76.2% (0.00) ⚪ |
-| DRIVE/DEFENCE | 470 | 73.4% ➔ 73.4% (0.00) ⚪ |
-| GLANCE/FLICK | 399 | 79.4% ➔ 79.4% (0.00) ⚪ |
-| POWER DRIVE | 140 | 85.0% ➔ 85.0% (0.00) ⚪ |
-| PULL/HOOK | 393 | 67.9% ➔ 67.9% (0.00) ⚪ |
+| DRIVE/DEFENCE | 488 | 75.4% ➔ 75.4% (0.00) ⚪ |
+| GLANCE/FLICK | 433 | 77.6% ➔ 77.6% (0.00) ⚪ |
+| POWER DRIVE | 140 | 85.7% ➔ 85.7% (0.00) ⚪ |
+| PULL/HOOK | 401 | 67.1% ➔ 67.1% (0.00) ⚪ |
 | SLOG | 330 | 94.2% ➔ 94.2% (0.00) ⚪ |
-| SWEEP | 95 | 98.9% ➔ 98.9% (0.00) ⚪ |
+| SWEEP | 114 | 98.2% ➔ 98.2% (0.00) ⚪ |
 
 ## Legend
 - 🟢: Significant performance improvement (> +0.005)
@@ -48,22 +48,27 @@ Below is the classification accuracy for the newly retrained model evaluated on 
 
 | Shot Type | Ground Truth Count | CV Accuracy (Generalizable) | Training Fit Accuracy |
 |---|---|---|---|
-| CUT/PUNCH | 422 | 68.7% | 82.0% |
-| DEFLECTION/GUIDE | 428 | 57.0% | 68.9% |
-| DRIVE/DEFENCE | 470 | 60.4% | 70.0% |
-| GLANCE/FLICK | 399 | 56.9% | 71.9% |
-| POWER DRIVE | 140 | 30.7% | 78.6% |
-| PULL/HOOK | 393 | 52.9% | 63.6% |
-| SLOG | 330 | 76.4% | 91.8% |
-| SWEEP | 95 | 44.2% | 97.9% |
-| **OVERALL** | **2677** | **59.4%** | **75.2%** |
+| CUT/PUNCH | 423 | 68.6% | 83.0% |
+| DEFLECTION/GUIDE | 428 | 57.9% | 69.9% |
+| DRIVE/DEFENCE | 488 | 61.9% | 69.1% |
+| GLANCE/FLICK | 433 | 57.3% | 70.9% |
+| POWER DRIVE | 140 | 28.6% | 75.0% |
+| PULL/HOOK | 401 | 53.4% | 62.8% |
+| SLOG | 330 | 75.2% | 89.4% |
+| SWEEP | 114 | 58.8% | 96.5% |
+| **OVERALL** | **2757** | **60.1%** | **74.6%** |
 
 ## 4. Classification Accuracy by Data Profile
-The RF model was trained on all data profiles simultaneously. Polar features are imputed to 0.0 for watch-only sessions, so the model learns to classify confidently with or without Polar data.
+The system employs a **Dual-Model Routing Architecture**: Watch-only sessions (Match Day) route to `GeneratedTopForest` (14 features), while dual-sensor sessions (Net Practice) route to `GeneratedDualForest` (26 features).
 
 | Data Profile | Shots | Overall Acc | DRIVE | PULL | CUT | GLANCE | POWER | SLOG | SWEEP | GUIDE |
 |---|---|---|---|---|---|---|---|---|---|---|
-*Could not generate data-profile breakdown: '<' not supported between instances of 'float' and 'str'*
+| 100hz_watch_polar | 148 | 94% | 90% | 94% | 100% | 93% | 100% | 100% | 100% | 91% |
+| 50hz_watch | 1090 | 76% | 75% | 68% | 88% | 67% | 81% | 94% | 100% | 69% |
+| 50hz_watch_polar | 147 | 78% | 89% | 70% | n/a | 65% | n/a | 95% | n/a | n/a |
+
+> [!NOTE]
+> These accuracy figures are **training-set fit** (diagnostic only).
 
 ## 5. Alignment Health Summary
 **Sessions Processed:** 38  |  **With Polar:** 4  |  **Total Swing Shots:** 2238  |  **Polar Timestamp Refinements:** 145
