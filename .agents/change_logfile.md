@@ -4,6 +4,7 @@ This file archives completed catalog items from `ACTIVE_CONTEXT.md` to conserve 
 
 | Feature ID | Feature Name | Description | Status | Verification Method |
 |---|---|---|---|---|
+| B-021 | Lossless Compression & Parquet Alignment | Implement voice-optimized mono audio compression, Gzip-compressed watch sensor files, native Kotlin GZIP streams, and transition adversarial analysis sweeps to partitioned Parquet database. | **Completed** | Parity checks, Kotlin unit tests, and post-session Parquet report generated successfully |
 | B-022 | Sync Tap Alignment | Implement physical 5-tap alignment (5 taps in < 5 seconds) to calibrate both audio narration timelines and video recording streams with watch accelerometer peaks | **Completed** | Run `test_sync_tap.py` and backwards compatibility checks on raw datasets |
 | B-017 | Video Session foundations | Implement 120fps video capture + passive watch sensor recording and ADB sync pull utility | **Completed** | Manual E2E on phone + watch; `video_analysis_poc.py` execution |
 | B-018 | Direct Gemini & 2D Alignment | Revert to direct Gemini audio transcription and implement a 2D Joint Offset and Linear Drift Rate Optimization grid search to mathematically align narration timelines precisely to WearOS sensors. | **Completed** | Parity check and WearOS unit tests successful, 0 prediction mismatches. |

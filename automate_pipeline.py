@@ -1249,9 +1249,10 @@ def main():
             print(f"   Detected {len(accel_sequences)} accelerometer sync sequences.")
             print(f"   Detected {len(audio_sequences)} audio sync sequences.")
             
-            # Match sequences sequentially using dynamic offset projection
+            # Match sequences sequentially using dynamic offset projection with pattern validation
             matched_pairs = []
             current_offset = baseline_offset
+            used_acc_sequences = set()
             
             for aud_seq in audio_sequences:
                 aud_t = aud_seq[0]
@@ -1262,13 +1263,26 @@ def main():
                 best_diff = 30.0
                 for acc_seq in accel_sequences:
                     acc_t = acc_seq[0]
+                    acc_seq_tuple = tuple(acc_seq)
+                    if acc_seq_tuple in used_acc_sequences:
+                        continue
+                        
                     diff = abs(acc_t - projected_sensor_t)
                     if diff < best_diff:
-                        best_diff = diff
-                        best_match = acc_seq
+                        # Validate the pattern gaps match:
+                        gaps_acc = [acc_seq[j] - acc_seq[j-1] for j in range(1, 5)]
+                        gaps_aud = [aud_seq[j] - aud_seq[j-1] for j in range(1, 5)]
+                        gap_diffs = [abs(gaps_acc[j] - gaps_aud[j]) for j in range(4)]
+                        max_gap_diff = max(gap_diffs)
+                        mae_gaps = sum(gap_diffs) / 4.0
+                        
+                        if max_gap_diff <= 0.15 and mae_gaps <= 0.10:
+                            best_diff = diff
+                            best_match = acc_seq
                 
                 if best_match is not None:
                     matched_pairs.append((aud_seq, best_match))
+                    used_acc_sequences.add(tuple(best_match))
                     # Update local tracking offset for the next sequence projection
                     current_offset = best_match[0] - aud_t
             
