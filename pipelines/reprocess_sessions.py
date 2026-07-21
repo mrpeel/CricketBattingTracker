@@ -39,14 +39,20 @@ PACKAGE_NAME = "com.mrpeel.cricketbattingtracker"
 REMOTE_DB_PATH = f"/data/data/{PACKAGE_NAME}/databases/cricket_tracker_database"
 TMP_REMOTE_PATH = "/data/local/tmp/cricket_tracker_database"
 
-FEATURE_COLS = [
+TOP_FEATURE_COLS = [
     's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
     's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
     's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
     's3_planeRatio', 's3_gyro_y_min',
+]
+
+DUAL_FEATURE_COLS = TOP_FEATURE_COLS + [
     'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
     'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
     'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+    's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+    's2_bottom_acc_mean', 's2_dynamic_ratio_slope',
+    's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
 ]
 
 sys.path.append(ROOT_DIR)
@@ -102,22 +108,46 @@ def restart_app():
     print("✅ App restarted successfully.")
 
 def train_classifiers():
-    print("⏳ Training classifiers on compiled dataset...")
+    print("⏳ Training Dual-Model classifiers on compiled dataset...")
     df = pd.read_csv(FEATURES_CSV)
     df_swings = df[df['normalized_gt'] != 'NON-SWING'].copy()
     
-    # Train Type
-    X = df_swings[FEATURE_COLS].fillna(0.0)
     y_type = df_swings['normalized_gt'].values
     le_type = LabelEncoder()
     y_type_enc = le_type.fit_transform(y_type)
-    rf_type = RandomForestClassifier(n_estimators=200, max_depth=8, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
-    rf_type.fit(X, y_type_enc)
-    
-    # Train Quality
+
+    # Top-Hand (14-feature)
+    X_top = df_swings[TOP_FEATURE_COLS].fillna(0.0)
+    rf_top_type = RandomForestClassifier(n_estimators=200, max_depth=8, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
+    rf_top_type.fit(X_top, y_type_enc)
+
+    # Dual-Hand (26-feature)
+    X_dual = df_swings[DUAL_FEATURE_COLS].fillna(0.0)
+    rf_dual_type = RandomForestClassifier(n_estimators=200, max_depth=8, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
+    rf_dual_type.fit(X_dual, y_type_enc)
+
+    # Quality Classifiers
     df_quality = df_swings[df_swings['quality'].notna() & (df_swings['quality'] != '')].copy()
     def clean_quality(q):
         val = str(q).lower().strip()
+        if 'good' in val or 'excellent' in val or 'okay' in val: return 'good'
+        if 'poor' in val or 'edge' in val: return 'poor'
+        if 'miss' in val or 'non' in val: return 'miss'
+        return 'good'
+    df_quality['quality_norm'] = df_quality['quality'].apply(clean_quality)
+    y_qual = df_quality['quality_norm'].values
+    le_qual = LabelEncoder()
+    y_qual_enc = le_qual.fit_transform(y_qual)
+
+    X_top_qual = df_quality[TOP_FEATURE_COLS].fillna(0.0)
+    rf_top_qual = RandomForestClassifier(n_estimators=100, max_depth=6, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
+    rf_top_qual.fit(X_top_qual, y_qual_enc)
+
+    X_dual_qual = df_quality[DUAL_FEATURE_COLS].fillna(0.0)
+    rf_dual_qual = RandomForestClassifier(n_estimators=100, max_depth=6, class_weight='balanced_subsample', random_state=42, n_jobs=-1)
+    rf_dual_qual.fit(X_dual_qual, y_qual_enc)
+
+    return rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual
         if "good" in val or "okay" in val or "ok" in val or "excellent" in val:
             return "good"
         if "poor" in val or "bad" in val:
@@ -248,12 +278,26 @@ def extract_features_single_shot(sensors, t_shot):
             
     return feats
 
-def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
-    """Processes a raw session directory, running peak detection and predicting shots."""
-    # 0. CHECK NARRATION FILE FIRST: If ground_truth_aligned.csv exists, load it directly!
+def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual):
+    """Processes a raw session directory, running peak detection and predicting shots with Dual-Model Routing."""
     gt_csv = os.path.join(session_dir, "ground_truth_aligned.csv")
     
-    # Load watch sensors (needed for both ground-truth and raw runs)
+    # Check if this session folder has Polar Sense CSV or Binary logs
+    has_polar = False
+    polar_acc_file = None
+    polar_dir = os.path.join(session_dir, "PolarSense")
+    if os.path.isdir(polar_dir):
+        files = glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")) + \
+                glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.bin*"))
+        files = list(set(files))
+        if files:
+            polar_acc_file = files[0]
+            has_polar = True
+
+    rf_type = rf_dual_type if has_polar else rf_top_type
+    rf_qual = rf_dual_qual if has_polar else rf_top_qual
+    feature_cols = DUAL_FEATURE_COLS if has_polar else TOP_FEATURE_COLS
+
     sensors = {}
     for name, key in [("WatchAccelerometer", "accel"), ("WatchGyroscope", "gyro"), 
                       ("WatchGravity", "gravity"), ("WatchGameOrientation", "game_orient")]:
@@ -284,7 +328,6 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
         for _, row in df_gt.iterrows():
             t_shot = float(row['impact_time_seconds'])
             
-            # Filter out non-batting swings ('facing up', 'no shot', etc.)
             st_lower = str(row['shot_type']).lower()
             if any(term in st_lower for term in ["facing up", "no shot", "leave", "evade"]):
                 continue
@@ -301,6 +344,12 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
             polar_acc_ratio = float(row.get("bottom_hand_acc_ratio", 0.0))
             polar_time_lead_ms = float(row.get("bottom_hand_time_lead_ms", 0.0))
             polar_sync_score = float(row.get("bottom_hand_sync_score", 0.0))
+            s1_bottom_gyro_mag = float(row.get("s1_bottom_gyro_mag", 0.0))
+            s1_bottom_deltaZ = float(row.get("s1_bottom_deltaZ", 0.0))
+            s2_bottom_acc_mean = float(row.get("s2_bottom_acc_mean", 0.0))
+            s2_dynamic_ratio_slope = float(row.get("s2_dynamic_ratio_slope", 0.0))
+            s3_bottom_pronation_deg = float(row.get("s3_bottom_pronation_deg", 0.0))
+            s3_bottom_gyro_y_min = float(row.get("s3_bottom_gyro_y_min", 0.0))
 
             feats.update({
                 'bottom_hand_gyro_peak': polar_gyro_peak,
@@ -309,9 +358,15 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
                 'bottom_hand_acc_ratio': polar_acc_ratio,
                 'bottom_hand_time_lead_ms': polar_time_lead_ms,
                 'bottom_hand_sync_score': polar_sync_score,
+                's1_bottom_gyro_mag': s1_bottom_gyro_mag,
+                's1_bottom_deltaZ': s1_bottom_deltaZ,
+                's2_bottom_acc_mean': s2_bottom_acc_mean,
+                's2_dynamic_ratio_slope': s2_dynamic_ratio_slope,
+                's3_bottom_pronation_deg': s3_bottom_pronation_deg,
+                's3_bottom_gyro_y_min': s3_bottom_gyro_y_min,
             })
             
-            feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in FEATURE_COLS]
+            feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
             
             type_enc = rf_type.predict([feat_vector])[0]
             shot_type = le_type.inverse_transform([type_enc])[0]
@@ -394,7 +449,7 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
                 ts_ns = int(accel_ns[close_idx]) if len(accel_ns) > close_idx else 0
                 
                 feats = extract_features_single_shot(sensors, t_shot)
-                feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in FEATURE_COLS]
+                feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
                 
                 type_enc = rf_type.predict([feat_vector])[0]
                 shot_type = le_type.inverse_transform([type_enc])[0]
@@ -432,7 +487,7 @@ def process_single_session_raw(session_dir, rf_type, le_type, rf_qual, le_qual):
             continue
             
         feats = extract_features_single_shot(sensors, t_shot)
-        feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in FEATURE_COLS]
+        feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
         
         type_enc = rf_type.predict([feat_vector])[0]
         shot_type = le_type.inverse_transform([type_enc])[0]
@@ -468,7 +523,7 @@ def main():
         print(f"❌ compile_dataset.py must be run first to generate {FEATURES_CSV}")
         sys.exit(1)
         
-    rf_type, le_type, rf_qual, le_qual = train_classifiers()
+    rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual = train_classifiers()
 
     if not pull_database():
         sys.exit(1)
@@ -500,7 +555,7 @@ def main():
             session_start_ms = int(os.path.getmtime(sdir) * 1000)
         
         # Re-run peak detection and classifications
-        shots = process_single_session_raw(sdir, rf_type, le_type, rf_qual, le_qual)
+        shots = process_single_session_raw(sdir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual)
         
         # Write Session Started marker
         c.execute("""
