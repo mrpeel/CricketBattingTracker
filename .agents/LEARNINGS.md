@@ -6,31 +6,6 @@ This document captures resolved bugs, architectural changes, key logical finding
 
 ## 💡 Technical Decisions & Discoveries
 
-84. **Phone-Bound Batch Processing Architecture (July 17, 2026)**:
-    *   **The Problem**: Real-time swing detection and Random Forest classification on the watch app consumed battery and were fragile during game days when the watch disconnected from the phone boundary. Additionally, the Polar Verity Sense's 16MB internal storage can only buffer high-frequency 416Hz IMU data for ~10 minutes, making offline Polar recording infeasible.
-    *   **The Solution**: Transitioned the architecture to phone-side batch processing:
-        *   **Watch**: Registers sensors at `SENSOR_DELAY_FASTEST`, disables active `SwingDetector` loops, and packages the raw session directory as a ZIP archive on stop, streaming it to the phone via GMS `ChannelClient` path `/raw_session_data`.
-        *   **Phone**: `DataSyncListenerService` unzips watch logs, locates the latest Polar folder, and triggers `PhoneSwingDetector` to execute linear alignment regression, Polar impact peak detection (> 24.5 m/s²), stance look-back window geodesic search, feature extraction, Random Forest classification, and video clipping entirely offline.
-        *   **Python Pipeline**: Modified `automate_pipeline.py` to pull consolidated watch + Polar folders directly from the phone companion app's path, bypassing slow watch Wi-Fi ADB.
-        *   **Phone UI**: Added a circular progress loading indicator on the session details screen if raw logs are still unzipping and batch processing is in progress.
-    *   **Result**: Watch battery usage is minimized, data alignment is preserved, and the system functions seamlessly offline on game days with processing consolidated on the phone.
-
-85. **Custom Minimalist Navigation Vector Drawables (July 18, 2026)**:
-    *   **The Problem**: The phone companion app's bottom navigation bar used generic emojis ("📊", "🎙️", "📋") which looked simple and unpolished, falling short of premium UI design aesthetics.
-    *   **The Solution**: Created three high-fidelity, clean minimalist vector XML drawables in `res/drawable/` matching the user's uploaded spec:
-        - `ic_dashboard.xml`: A side-facing cricket helmet with ear guards and jaw grill protection, combined with wave lines representing telemetry streams.
-        - `ic_record.xml`: A geometric, faceted cricket ball outline detailing seams and facets, including a solid "REC" recording indicator.
-        - `ic_history.xml`: A binder-ring calendar showing an internal trending line chart and a prominent swooping arrow extending out to represent progression history.
-        Mapped these assets inside `MainActivity.kt` using Jetpack Compose's `Icon` and `painterResource`.
-    *   **Result**: Bottom tab navigation renders with custom abstract vector lines, providing a highly premium, state-of-the-art look.
-
-86. **Pipeline 2: 20-Feature RF Classifier with Inline Polar Integration (July 18, 2026)**:
-    *   **The Problem**: The old RF used 14 watch-only features. Polar features were injected as post-hoc heuristic rule overrides in `PhoneSwingDetector.kt` (if DRIVE && gyroRatio > X → POWER DRIVE). This approach is brittle, untrainable, and discards discriminative Polar signal.
-    *   **The Solution**: Expanded `SwingFeatures` to 20 features (14 watch + 6 Polar: `bottom_hand_gyro_peak`, `bottom_hand_acc_peak`, `bottom_hand_gyro_ratio`, `bottom_hand_acc_ratio`, `bottom_hand_time_lead_ms`, `bottom_hand_sync_score`). Polar fields default to `= 0f` in Kotlin so watch-only inference requires zero caller changes. The RF was trained on heterogeneous data (50Hz/100Hz watch, with/without Polar) with Polar features imputed to 0.0 for watch-only sessions. The heuristic override block in `PhoneSwingDetector.kt` was removed — `GeneratedForest.predict(featuresWithPolar)` is called directly.
-    *   **Key Design Constraint**: The on-watch `SwingDetector.kt` constructs `SwingFeatures` with only 14 fields — Polar defaults to 0f automatically. This is intentional and correct: the watch classifies at 14-feature resolution and the phone re-classifies with the full 20 when Polar data is present.
-    *   **Quality Classifier**: `train_quality_classifier.py` trains a 4-class RF (good/poor/miss/edge) on the same 20-feature vector. CV accuracy 69.7% but class recall for miss (9%) and poor (13%) is low due to severe class imbalance (816 good vs 64 miss). More labelled data for off-centre hits will improve recall.
-    *   **Result**: BUILD SUCCESSFUL. `SwingDetectorGroundTruthTest` passes. `GeneratedForest.kt` retrained on 1,949 swings across 955 sessions; selected config 200 trees depth 8, CV accuracy 61.1%.
-
 87. **Dead Scorecard Antipattern — SwingDetectorGroundTruthTest (July 19, 2026)**:
     *   **The Problem**: `SwingDetectorGroundTruthTest.kt` was streaming raw sensor events through `SwingDetector.kt` (the retired on-watch classification path) and reporting its output as the system scorecard. This test was measuring a code path that no longer runs in production. All decisions about model quality were based on numbers from a phantom system.
     *   **Root Cause**: The architecture shifted from on-watch classification to phone-side batch processing (`PhoneSwingDetector.kt`), but the Kotlin test was never updated. It continued reporting "session_20260717: classification 0.23" which was meaningless — the on-watch path with 14 features and Polar=0f scoring a session that was designed for 20-feature phone-side processing.
@@ -67,6 +42,9 @@ This document captures resolved bugs, architectural changes, key logical finding
         3.  Fixed a pre-existing UI compilation error in `MainActivity.kt` where `selectedSession?.id` was referenced instead of `selectedSessionId`.
     *   **Result**: All unit tests in the project now compile and pass cleanly (`BUILD SUCCESSFUL`).
 
-
-
-
+93. **Decoupled Two-Stage Narration Pipeline (July 21, 2026)**:
+    *   **The Problem**: Audio transcriptions were processed in a single stage where Gemini parsed raw audio directly into a structured JSON schema while applying phonetic correction rules. In a noisy training environment, this was fragile and prone to rule overgeneralization (e.g., Gemini transcribing "flick shot" as "click shot" or "touch shot", and the phonetic rule rewriting it to "cut shot", or defaulting to "Defence/Block"). Additionally, fixing transcription errors required editing the prompt/code and re-running expensive API calls.
+    *   **The Solution**: Decoupled the narration pipeline into two stages:
+        *   **Stage 1 (Gemini)**: Transcribes the audio into a simple, literal plain-text file `raw_transcript.txt` containing only timestamps and transcribed words.
+        *   **Stage 2 (Local Python)**: Deterministically parses the plain-text file, sequentially indexing shots, inheriting bat selections, and applying phonetic mappings (`"click shot"` $\rightarrow$ `"Flick"`, `"sweet shot"` $\rightarrow$ `"Sweep"`, `"touch shot"` $\rightarrow$ `"Cut shot"`) to output `narrations_raw.json`.
+    *   **Result**: Transcription is robust, rule collisions are eliminated, and today's flick shot sessions align correctly. The user can now manually edit `raw_transcript.txt` to fix any future mishearings locally without making new API calls.

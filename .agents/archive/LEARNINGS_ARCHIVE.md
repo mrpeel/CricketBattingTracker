@@ -673,3 +673,28 @@ Compiled across 312 swings from the 6 trustworthy sessions (from 30 May 2026 to 
     *   **The Problem**: Bottom-hand (Polar Sense) telemetry force and gyro ratios were calculated incorrectly, reporting values over 20,000%. This occurred because of a units mismatch: the watch sensor records acceleration in $\text{m/s}^2$ and gyroscope in $\text{rad/s}$, while the Polar Sense SDK outputs accelerometer in milli-g (mg) and gyroscope in degrees/second (dps).
     *   **The Solution**: Normalized the units in both `ShotEnhancementEngine.kt` and `automate_pipeline.py` by scaling Polar Accelerometer by `0.00980665f` (mg to $\text{m/s}^2$) and Polar Gyroscope by `(Math.PI / 180.0).toFloat()` (dps to $\text{rad/s}$). Updated Polar tap sequence detection threshold from 2,500mg to `24.5` $\text{m/s}^2$ to match the scaled unit.
     *   **Result**: Telemetry ratios are now correctly normalized around 1.0 to 1.3, providing accurate dominance ratios in the app UI.
+
+84. **Phone-Bound Batch Processing Architecture (July 17, 2026)**:
+    *   **The Problem**: Real-time swing detection and Random Forest classification on the watch app consumed battery and were fragile during game days when the watch disconnected from the phone boundary. Additionally, the Polar Verity Sense's 16MB internal storage can only buffer high-frequency 416Hz IMU data for ~10 minutes, making offline Polar recording infeasible.
+    *   **The Solution**: Transitioned the architecture to phone-side batch processing:
+        *   **Watch**: Registers sensors at `SENSOR_DELAY_FASTEST`, disables active `SwingDetector` loops, and packages the raw session directory as a ZIP archive on stop, streaming it to the phone via GMS `ChannelClient` path `/raw_session_data`.
+        *   **Phone**: `DataSyncListenerService` unzips watch logs, locates the latest Polar folder, and triggers `PhoneSwingDetector` to execute linear alignment regression, Polar impact peak detection (> 24.5 m/s²), stance look-back window geodesic search, feature extraction, Random Forest classification, and video clipping entirely offline.
+        *   **Python Pipeline**: Modified `automate_pipeline.py` to pull consolidated watch + Polar folders directly from the phone companion app's path, bypassing slow watch Wi-Fi ADB.
+        *   **Phone UI**: Added a circular progress loading indicator on the session details screen if raw logs are still unzipping and batch processing is in progress.
+    *   **Result**: Watch battery usage is minimized, data alignment is preserved, and the system functions seamlessly offline on game days with processing consolidated on the phone.
+
+85. **Custom Minimalist Navigation Vector Drawables (July 18, 2026)**:
+    *   **The Problem**: The phone companion app's bottom navigation bar used generic emojis ("📊", "🎙️", "📋") which looked simple and unpolished, falling short of premium UI design aesthetics.
+    *   **The Solution**: Created three high-fidelity, clean minimalist vector XML drawables in `res/drawable/` matching the user's uploaded spec:
+        - `ic_dashboard.xml`: A side-facing cricket helmet with ear guards and jaw grill protection, combined with wave lines representing telemetry streams.
+        - `ic_record.xml`: A geometric, faceted cricket ball outline detailing seams and facets, including a solid "REC" recording indicator.
+        - `ic_history.xml`: A binder-ring calendar showing an internal trending line chart and a trending swooping arrow extending out to represent progression history.
+        Mapped these assets inside `MainActivity.kt` using Jetpack Compose's `Icon` and `painterResource`.
+    *   **Result**: Bottom tab navigation renders with custom abstract vector lines, providing a highly premium, state-of-the-art look.
+
+86. **Pipeline 2: 20-Feature RF Classifier with Inline Polar Integration (July 18, 2026)**:
+    *   **The Problem**: The old RF used 14 watch-only features. Polar features were injected as post-hoc heuristic rule overrides in `PhoneSwingDetector.kt` (if DRIVE && gyroRatio > X → POWER DRIVE). This approach is brittle, untrainable, and discards discriminative Polar signal.
+    *   **The Solution**: Expanded `SwingFeatures` to 20 features (14 watch + 6 Polar: `bottom_hand_gyro_peak`, `bottom_hand_acc_peak`, `bottom_hand_gyro_ratio`, `bottom_hand_acc_ratio`, `bottom_hand_time_lead_ms`, `bottom_hand_sync_score`). Polar fields default to `= 0f` in Kotlin so watch-only inference requires zero caller changes. The RF was trained on heterogeneous data (50Hz/100Hz watch, with/without Polar) with Polar features imputed to 0.0 for watch-only sessions. The heuristic override block in `PhoneSwingDetector.kt` was removed — `GeneratedForest.predict(featuresWithPolar)` is called directly.
+    *   **Key Design Constraint**: The on-watch `SwingDetector.kt` constructs `SwingFeatures` with only 14 fields — Polar defaults to 0f automatically. This is intentional and correct: the watch classifies at 14-feature resolution and the phone re-classifies with the full 20 when Polar data is present.
+    *   **Quality Classifier**: `train_quality_classifier.py` trains a 4-class RF (good/poor/miss/edge) on the same 20-feature vector. CV accuracy 69.7% but class recall for miss (9%) and poor (13%) is low due to severe class imbalance (816 good vs 64 miss). More labelled data for off-centre hits will improve recall.
+    *   **Result**: BUILD SUCCESSFUL. `SwingDetectorGroundTruthTest` passes. `GeneratedForest.kt` retrained on 1,949 swings across 955 sessions; selected config 200 trees depth 8, CV accuracy 61.1%.
