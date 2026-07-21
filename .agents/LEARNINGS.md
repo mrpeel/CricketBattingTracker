@@ -57,3 +57,12 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Dual-Sensor Path (Net Practice)**: Routes to `GeneratedDualForest.kt` (26 features) and `GeneratedDualQualityForest.kt` (26 features), adding 6 new segmented Polar metrics (`s1_bottom_gyro_mag`, `s1_bottom_deltaZ`, `s2_bottom_acc_mean`, `s2_dynamic_ratio_slope`, `s3_bottom_pronation_deg`, `s3_bottom_gyro_y_min`).
         *   **Kotlin & Pipeline Integration**: Transpiled all four models plus backward-compatible `GeneratedForest` and `GeneratedQualityForest` alias objects into `wear` and `app` modules. Updated `PhoneSwingDetector.kt` to extract segmented Polar features when Polar logs are present and route dynamically. Increased Gradle JVM heap memory (`org.gradle.jvmargs=-Xmx4096m`) to compile transpiled forest models without OOM errors.
     *   **Result**: All unit tests pass cleanly (`BUILD SUCCESSFUL`). `model_update_pipeline.py` executes end-to-end and outputs complete performance metrics in `model_update_analysis.md`.
+
+95. **Session Directory Naming & Data Profile Breakdown Fix (July 21, 2026)**:
+    *   **The Problem**:
+        1. `compile_dataset.py` filtered session folders using `d.startswith("session-")`. Recent sessions (such as `session_2026-07-20_12-42-16`, containing 19 sweep shots) used an underscore `session_`, causing them to be excluded from dataset compilation and scorecards.
+        2. `model_update_pipeline.py` Section 4 threw a `TypeError: '<' not supported between instances of 'float' and 'str'` when sorting profile values that included `NaN`.
+    *   **The Solution**:
+        1. Updated session directory listing logic in `compile_dataset.py`, `optimize_shot_enhancement.py`, and `score_phone_pipeline.py` to match both `session-` and `session_` prefixes.
+        2. Updated `model_update_pipeline.py` Section 4 to handle Dual-Model Routing, filter `NaN` profiles before sorting, and render clean markdown tables.
+    *   **Result**: Included July 20 and July 21 sessions, expanding 100Hz watch + Polar evaluated shots from 69 to 148 (including 20 sweeps with 100% classification accuracy). Section 4 now generates cleanly without errors.
