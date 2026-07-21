@@ -24,11 +24,6 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
-            packaging {
-                jniLibs {
-                    useLegacyPackaging = true
-                }
-            }
         }
     }
     compileOptions {
@@ -43,11 +38,6 @@ android {
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
-    }
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
     }
 }
 
@@ -72,8 +62,8 @@ dependencies {
     // Health Connect
     implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
 
-    // CameraX — video recording
-    val cameraxVersion = "1.3.4"
+    // CameraX — video recording (1.4.1+ for 16 KB alignment support)
+    val cameraxVersion = "1.4.1"
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")

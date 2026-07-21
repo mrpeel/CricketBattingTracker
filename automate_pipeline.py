@@ -2176,6 +2176,9 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         def inter_tap_pattern(seq):
             return [seq[j+1] - seq[j] for j in range(len(seq)-1)]
 
+        polar_t0_phone = df_polar_acc['phone_timestamp'].iloc[0]
+        expected_offset = watch_start_epoch - offset - polar_t0_phone if (watch_start_epoch is not None and offset is not None) else 0.0
+
         used_polar = set()
         for w_seq in watch_tap_seqs:
             w_pattern = inter_tap_pattern(w_seq)
@@ -2183,6 +2186,10 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             best_score = float('inf')
             for p_idx, p_seq in enumerate(polar_tap_seqs):
                 if p_idx in used_polar:
+                    continue
+                # Enforce clock offset constraint (taps must be within 3.0s of expected offset)
+                diff = p_seq[0] - w_seq[0]
+                if abs(diff - expected_offset) > 3.0:
                     continue
                 p_pattern = inter_tap_pattern(p_seq)
                 # Score = sum of absolute differences in inter-tap intervals
@@ -2356,15 +2363,16 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         if len(s2_gyro) >= 2 and not np.isnan(watch_gyro_mag) and watch_gyro_mag > 0:
             g_start = s2_gyro['mag'].iloc[0]
             g_end = s2_gyro['mag'].iloc[-1]
-            slope = (g_end - g_start) / (s2_gyro['seconds_elapsed'].iloc[-1] - s2_gyro['seconds_elapsed'].iloc[0] + 1e-5)
-            s2_dynamic_ratio_slope.append(round(float(slope / watch_gyro_mag), 3))
+            s2_slope = (g_end - g_start) / (s2_gyro['seconds_elapsed'].iloc[-1] - s2_gyro['seconds_elapsed'].iloc[0] + 1e-5)
+            s2_dynamic_ratio_slope.append(round(float(s2_slope / watch_gyro_mag), 3))
         else:
             s2_dynamic_ratio_slope.append(np.nan)
 
         # Segment 3: Follow-through [-0.05s, +0.30s]
         s3_gyro = df_polar_gyro[(df_polar_gyro['seconds_elapsed'] >= polar_t - 0.05) & (df_polar_gyro['seconds_elapsed'] <= polar_t + 0.30)] if df_polar_gyro is not None else pd.DataFrame()
         if len(s3_gyro) > 0:
-            pronation = np.trapz(s3_gyro['y'].values, s3_gyro['seconds_elapsed'].values) * (180.0 / np.pi) if len(s3_gyro) >= 2 else 0.0
+            trapz_func = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+            pronation = trapz_func(s3_gyro['y'].values, s3_gyro['seconds_elapsed'].values) * (180.0 / np.pi) if (len(s3_gyro) >= 2 and trapz_func is not None) else 0.0
             s3_bottom_pronation_deg.append(round(float(pronation), 2))
             s3_bottom_gyro_y_min.append(round(float(s3_gyro['y'].min()), 2))
         else:

@@ -350,11 +350,12 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
             })
             
             feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
+            df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
             
-            type_enc = rf_type.predict([feat_vector])[0]
+            type_enc = rf_type.predict(df_feat)[0]
             shot_type = le_type.inverse_transform([type_enc])[0]
             
-            qual_enc = rf_qual.predict([feat_vector])[0]
+            qual_enc = rf_qual.predict(df_feat)[0]
             quality = le_qual.inverse_transform([qual_enc])[0]
             
             bat_speed = float(gyro_mags[close_idx] * 4.5)
@@ -433,11 +434,12 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 
                 feats = extract_features_single_shot(sensors, t_shot)
                 feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
+                df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
                 
-                type_enc = rf_type.predict([feat_vector])[0]
+                type_enc = rf_type.predict(df_feat)[0]
                 shot_type = le_type.inverse_transform([type_enc])[0]
                 
-                qual_enc = rf_qual.predict([feat_vector])[0]
+                qual_enc = rf_qual.predict(df_feat)[0]
                 quality = le_qual.inverse_transform([qual_enc])[0]
                 
                 bat_speed = float(gyro_mags[close_idx] * 4.5) if len(gyro_mags) > close_idx else 0.0
@@ -471,11 +473,12 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
             
         feats = extract_features_single_shot(sensors, t_shot)
         feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
+        df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
         
-        type_enc = rf_type.predict([feat_vector])[0]
+        type_enc = rf_type.predict(df_feat)[0]
         shot_type = le_type.inverse_transform([type_enc])[0]
         
-        qual_enc = rf_qual.predict([feat_vector])[0]
+        qual_enc = rf_qual.predict(df_feat)[0]
         quality = le_qual.inverse_transform([qual_enc])[0]
         
         bat_speed = float(gyro_mags[p] * 4.5)
@@ -566,17 +569,18 @@ def main():
 
             desc = f"{shot['shot_type']} ({sweet_spot}) ✨ Reprocessed"
             f = shot["features"]
+            impact_time_ms = int(shot.get("impact_time_ms", 350))
 
             c.execute("""
                 INSERT INTO innings_events (
-                    inningsId, timestamp, description, batSpeed, impactForce, shotType, efficiency, location,
+                    inningsId, timestamp, description, batSpeed, impactForce, impactTimeMs, shotType, efficiency, location,
                     bottom_hand_gyro_peak, bottom_hand_acc_peak, bottom_hand_gyro_ratio, bottom_hand_acc_ratio, bottom_hand_time_lead_ms, bottom_hand_sync_score,
                     swing_feature_s1_gyro_y_std, swing_feature_s1_gyro_z_std, swing_feature_s1_delta_x, swing_feature_s1_delta_z,
                     swing_feature_s2_gyro_mag, swing_feature_s2_grav_y_mean, swing_feature_s2_delta_x, swing_feature_s2_delta_z,
                     swing_feature_s3_roll_deg, swing_feature_s3_yaw_deg, swing_feature_s3_delta_x, swing_feature_s3_delta_z,
                     swing_feature_s3_plane_ratio, swing_feature_s3_gyro_y_min
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, '26 Aldinga Street, Blackburn South',
+                    ?, ?, ?, ?, ?, ?, ?, ?, '26 Aldinga Street, Blackburn South',
                     ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
@@ -584,7 +588,7 @@ def main():
                     ?, ?
                 )
             """, (
-                session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], shot["shot_type"], efficiency,
+                session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], impact_time_ms, shot["shot_type"], efficiency,
                 f.get('bottom_hand_gyro_peak'), f.get('bottom_hand_acc_peak'), f.get('bottom_hand_gyro_ratio'), f.get('bottom_hand_acc_ratio'), f.get('bottom_hand_time_lead_ms'), f.get('bottom_hand_sync_score'),
                 f.get('s1_gyro_y_std'), f.get('s1_gyro_z_std'), f.get('s1_deltaX'), f.get('s1_deltaZ'),
                 f.get('s2_gyroMag'), f.get('s2_grav_y_mean'), f.get('s2_deltaX'), f.get('s2_deltaZ'),

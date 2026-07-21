@@ -69,24 +69,9 @@ object PhoneSwingDetector {
         dao.deleteTimelineForInningsSync(inningsId)
 
         val timelineFile = File(watchDir, "latest_timeline.txt")
-        var watchStartWallMs = System.currentTimeMillis() // default fallback
-        if (timelineFile.exists()) {
-            try {
-                timelineFile.forEachLine { line ->
-                    if (line.startsWith("SYSTEM_START:")) {
-                        val regex = Regex("Ts=(\\d+)")
-                        val match = regex.find(line)
-                        if (match != null) {
-                            watchStartWallMs = match.groupValues[1].toLong()
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed parsing latest_timeline.txt for SYSTEM_START", e)
-            }
-        }
+        val watchStartWallMs = parseSessionStartWallMs(watchDir)
+        val watchStartSensorNs = watchAcc.first().timeNanos
 
-        val watchStartMs = watchAcc.first().timeNanos / 1_000_000L
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
             timestamp = watchStartWallMs,
@@ -101,7 +86,7 @@ object PhoneSwingDetector {
 
         if (polarDir != null && polarDir.exists()) {
             val timelineFile = File(watchDir, "latest_timeline.txt")
-            val watchTapSequences = parseWatchTapSequences(timelineFile)
+            val watchTapSequences = parseWatchTapSequences(timelineFile, watchStartSensorNs, watchStartWallMs)
             
             val polarAccFile = polarDir.listFiles()?.firstOrNull { it.name.contains("PolarAccelerometer") }
             val polarGyroFile = polarDir.listFiles()?.firstOrNull { it.name.contains("PolarGyroscope") }
@@ -119,29 +104,39 @@ object PhoneSwingDetector {
         }
 
         // B. PASS 1: Identify Candidates from Shockwaves
-        val watchImpactTimesMs = mutableListOf<Long>()
+        // Candidate pairs: Pair(targetSensorNs, polarPhoneMs?)
+        data class CandidateShot(val targetSensorNs: Long, val polarPhoneMs: Long?)
+        val candidateShots = mutableListOf<CandidateShot>()
+
         if (alignment != null && polarAcc.isNotEmpty()) {
             // Find impact peaks in Polar ACC
             val polarPeaks = detectImpactPeaks(polarAcc, threshold = ShotEnhancementConfig.POLAR_SHOCKWAVE_THRESHOLD)
             for (pPeak in polarPeaks) {
-                val wTimeMs = alignment.polarToWatchMs(pPeak)
-                watchImpactTimesMs.add(wTimeMs)
+                val watchWallMs = alignment.polarToWatchMs(pPeak)
+                val relOffsetMs = watchWallMs - watchStartWallMs
+                val targetSensorNs = watchStartSensorNs + (relOffsetMs * 1_000_000L)
+                candidateShots.add(CandidateShot(targetSensorNs, pPeak))
             }
         } else {
-            // Find impact peaks in Watch ACC
-            val watchPeaks = detectWatchImpactPeaks(watchGyro, threshold = ShotEnhancementConfig.WATCH_SHOCKWAVE_THRESHOLD)
-            watchImpactTimesMs.addAll(watchPeaks)
+            // Find impact peaks in Watch Gyro
+            val watchPeaksSensorNs = detectWatchImpactPeaks(watchGyro, threshold = ShotEnhancementConfig.WATCH_SHOCKWAVE_THRESHOLD)
+            for (ns in watchPeaksSensorNs) {
+                candidateShots.add(CandidateShot(ns, null))
+            }
         }
 
         // C. Filter Pass 1 Candidates through Backward Verification & Run SwingDetector
         val confirmedPass1Shots = mutableListOf<InningsEvent>()
 
-        for (wTimeMs in watchImpactTimesMs) {
+        for (cand in candidateShots) {
+            val targetSensorNs = cand.targetSensorNs
+            val polarPeakTimeMs = cand.polarPhoneMs
+
             // Validate backward-looking stance and swing signatures
-            if (verifySwingBackwards(wTimeMs, watchStartMs, watchGyro, watchRot)) {
-                // Feed event chunk for this window [wTimeMs - 2.5s, wTimeMs + 0.5s]
-                val tStart = (wTimeMs - watchStartMs - 2500L) * 1_000_000L
-                val tEnd = (wTimeMs - watchStartMs + 500L) * 1_000_000L
+            if (verifySwingBackwards(targetSensorNs, watchGyro, watchRot)) {
+                // Feed event chunk for this window [targetSensorNs - 2.5s, targetSensorNs + 0.5s]
+                val tStart = targetSensorNs - 2_500_000_000L
+                val tEnd = targetSensorNs + 500_000_000L
                 
                 // Stream window events to SwingDetector
                 val windowEvents = mutableListOf<WatchSensorEvent>()
@@ -182,20 +177,19 @@ object PhoneSwingDetector {
                     var s3BottomPronationDeg = 0f
                     var s3BottomGyroYMin = 0f
 
-                    val hasPolarData = alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()
+                    val hasPolarData = alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty() && polarPeakTimeMs != null
 
                     // Extract Polar telemetry if available
-                    if (hasPolarData && alignment != null) {
-                        val polarPeakTimeMs = alignment.watchToPolarMs(wTimeMs)
+                    if (hasPolarData && polarPeakTimeMs != null) {
                         val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
                         val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
 
                         val pAccPeak = if (polarAccWin.isNotEmpty()) polarAccWin.maxOf { it.mag } else 0f
                         val pGyroPeak = if (polarGyroWin.isNotEmpty()) polarGyroWin.maxOf { it.mag } else 0f
-                        val watchGyroPeak = getGyroPeak(watchGyro, (wTimeMs - watchStartMs - 1000L) * 1_000_000L, (wTimeMs - watchStartMs + 1000L) * 1_000_000L)
+                        val watchGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 1_000_000_000L, targetSensorNs + 1_000_000_000L)
                         val gyroRatio = if (watchGyroPeak > 0.01f) pGyroPeak / watchGyroPeak else 0f
                         val accRatio = if (watchAcc.isNotEmpty()) {
-                            val wAccPeak = watchAcc.filter { it.timeNanos in ((wTimeMs - watchStartMs - 1000L)*1_000_000L)..((wTimeMs - watchStartMs + 1000L)*1_000_000L) }.maxOfOrNull { it.mag } ?: 1f
+                            val wAccPeak = watchAcc.filter { it.timeNanos in (targetSensorNs - 1_000_000_000L)..(targetSensorNs + 1_000_000_000L) }.maxOfOrNull { it.mag } ?: 1f
                             pAccPeak / wAccPeak
                         } else 0f
 
@@ -301,14 +295,17 @@ object PhoneSwingDetector {
                     }
                     val finalPeakAccel = if (bottomAccPeak > 0f) bottomAccPeak else shot.peakAccel
 
-                    val shotWallMs = watchStartWallMs + (wTimeMs - watchStartMs)
+                    val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L
+                    val shotWallMs = watchStartWallMs + relShotMs
+                    val reactionTimeMs = if (shot.impactTimeMs > 0L) shot.impactTimeMs else 350L
+
                     confirmedPass1Shots.add(InningsEvent(
                         inningsId = inningsId,
                         timestamp = shotWallMs,
                         description = "$finalShotType ($finalSweetSpot)",
                         batSpeed = shot.speedKmh,
                         impactForce = finalPeakAccel,
-                        impactTimeMs = shot.impactTimeMs,
+                        impactTimeMs = reactionTimeMs,
                         shotType = finalShotType,
                         efficiency = finalEfficiency,
                         backliftAngle = shot.backliftAngle,
@@ -445,7 +442,7 @@ object PhoneSwingDetector {
 
         // Write "Session Ended" marker
         val watchEndMs = watchAcc.last().timeNanos / 1_000_000L
-        val sessionEndWallMs = watchStartWallMs + (watchEndMs - watchStartMs)
+        val sessionEndWallMs = watchStartWallMs + (watchEndMs - (watchStartSensorNs / 1_000_000L))
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
             timestamp = sessionEndWallMs,
@@ -935,23 +932,21 @@ object PhoneSwingDetector {
         return list.sortedBy { it.sensorNs }
     }
 
-    private fun parseWatchTapSequences(file: File): List<Pair<Long, List<Long>>> {
+    private fun parseWatchTapSequences(file: File, watchStartSensorNs: Long, watchStartWallMs: Long): List<Pair<Long, List<Long>>> {
         val list = mutableListOf<Pair<Long, List<Long>>>()
         if (!file.exists()) return list
         file.bufferedReader().use { br ->
             br.forEachLine { line ->
                 if (line.startsWith("TAP_SEQ:")) {
                     try {
-                        val tsMatch = Regex("Ts=(\\d+)").find(line)
-                        val wallClockMs = tsMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-                        
                         val tapNanos = mutableListOf<Long>()
                         for (i in 1..5) {
                             val tMatch = Regex("T$i=(\\d+)").find(line)
                             tMatch?.groupValues?.get(1)?.toLongOrNull()?.let { tapNanos.add(it) }
                         }
-                        if (tapNanos.size == 5 && wallClockMs > 0) {
-                            list.add(Pair(wallClockMs, tapNanos))
+                        if (tapNanos.size == 5) {
+                            val trueWallMs = watchStartWallMs + (tapNanos[4] - watchStartSensorNs) / 1_000_000L
+                            list.add(Pair(trueWallMs, tapNanos))
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to parse TAP_SEQ line: $line", e)
@@ -1048,6 +1043,11 @@ object PhoneSwingDetector {
             for (pIdx in polarTaps.indices) {
                 val polarSeq = polarTaps[pIdx]
                 if (polarSeq.size != 5) continue
+                
+                // Enforce clock offset constraint (taps must be within 3.0s of each other)
+                val diff = polarSeq[4].toDouble() - watchAnchorMs.toDouble()
+                if (abs(diff) > 3000.0) continue
+                
                 val polarIntervals = (0 until 4).map { (polarSeq[it + 1] - polarSeq[it]).toDouble() }
 
                 val error = watchIntervals.zip(polarIntervals) { w, p -> abs(w - p) }.sum()
@@ -1154,9 +1154,8 @@ object PhoneSwingDetector {
         
         // 3. Enforce min spacing (distance) constraint
         for (p in candidatePeaks) {
-            val pTimeMs = p.timeNanos / 1_000_000L
-            if (peaks.none { abs(pTimeMs - it) < minGapMs }) {
-                peaks.add(pTimeMs)
+            if (peaks.none { abs((p.timeNanos - it) / 1_000_000L) < minGapMs }) {
+                peaks.add(p.timeNanos)
             }
         }
         
@@ -1164,24 +1163,21 @@ object PhoneSwingDetector {
     }
 
     private fun verifySwingBackwards(
-        impactTimeMs: Long,
-        watchStartMs: Long,
+        impactSensorNs: Long,
         watchGyro: List<WatchIMUSample>,
         watchRot: List<WatchRotSample>
     ): Boolean {
-        val watchTimeNanos = (impactTimeMs - watchStartMs) * 1_000_000L
-        
         // 1. Verify Backswing
-        val backswingStart = watchTimeNanos - 1_500_000_000L
-        val backswingEnd = watchTimeNanos - 150_000_000L
+        val backswingStart = impactSensorNs - 1_500_000_000L
+        val backswingEnd = impactSensorNs - 150_000_000L
         val bsGyroSamples = watchGyro.filter { it.timeNanos in backswingStart..backswingEnd }
         if (bsGyroSamples.isEmpty()) return false
         val peakGyro = bsGyroSamples.maxOf { it.mag }
         if (peakGyro < 4.0f) return false
         
         // 2. Verify Stance
-        val stanceStart = watchTimeNanos - 2_500_000_000L
-        val stanceEnd = watchTimeNanos - 1_000_000_000L
+        val stanceStart = impactSensorNs - 2_500_000_000L
+        val stanceEnd = impactSensorNs - 1_000_000_000L
         val stanceRotSamples = watchRot.filter { it.timeNanos in stanceStart..stanceEnd }
         if (stanceRotSamples.size < 5) return false
         
@@ -1198,5 +1194,42 @@ object PhoneSwingDetector {
         if (stdDev > 0.12f) return false
         
         return true
+    }
+
+    private fun parseSessionStartWallMs(watchDir: File): Long {
+        val timelineFile = File(watchDir, "latest_timeline.txt")
+        if (timelineFile.exists()) {
+            try {
+                var startTs: Long? = null
+                timelineFile.forEachLine { line ->
+                    if (startTs == null && line.startsWith("SYSTEM_START:")) {
+                        val regex = Regex("Ts=(\\d+)")
+                        val match = regex.find(line)
+                        if (match != null) {
+                            startTs = match.groupValues[1].toLongOrNull()
+                        }
+                    }
+                }
+                if (startTs != null) return startTs!!
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed parsing latest_timeline.txt for SYSTEM_START", e)
+            }
+        }
+
+        val folderName = watchDir.name
+        val regex = Regex("session[-_](\\d{4})-(\\d{2})-(\\d{2})_(\\d{2})[-_](\\d{2})[-_](\\d{2})")
+        val match = regex.find(folderName)
+        if (match != null) {
+            try {
+                val (year, month, day, hour, min, sec) = match.destructured
+                val cal = java.util.Calendar.getInstance()
+                cal.set(year.toInt(), month.toInt() - 1, day.toInt(), hour.toInt(), min.toInt(), sec.toInt())
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                return cal.timeInMillis
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed parsing timestamp from folder name: $folderName", e)
+            }
+        }
+        return if (watchDir.lastModified() > 0) watchDir.lastModified() else System.currentTimeMillis()
     }
 }

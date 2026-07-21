@@ -2032,7 +2032,7 @@ fun TimelineItem(
                             color = Color.White,
                             letterSpacing = 0.5.sp
                         )
-                        if (event.bottom_hand_sync_score != null) {
+                        if (event.bottom_hand_gyro_ratio != null || event.bottom_hand_sync_score != null) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "🧤",
@@ -2116,7 +2116,7 @@ fun TimelineItem(
                     }
                 }
 
-                if (expanded && event.bottom_hand_sync_score != null) {
+                if (expanded && (event.bottom_hand_gyro_ratio != null || event.bottom_hand_sync_score != null)) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
                     Spacer(modifier = Modifier.height(8.dp))
@@ -2132,19 +2132,6 @@ fun TimelineItem(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        val score = event.bottom_hand_sync_score
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("SYNC SCORE", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                            Text("${score.toInt()}/100", fontSize = 14.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            LinearProgressIndicator(
-                                progress = { score / 100f },
-                                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = Color.White.copy(alpha = 0.05f)
-                            )
-                        }
-
                         val lead = event.bottom_hand_time_lead_ms ?: 0L
                         val leadText = if (lead > 0) "+${lead}ms" else "${lead}ms"
                         val leadColor = when {

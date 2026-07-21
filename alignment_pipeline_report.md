@@ -1,31 +1,31 @@
 # Shot Alignment Pipeline Report
 
-**Generated:** 2026-07-21 18:02:16
+**Generated:** 2026-07-22 06:00:32
 
-**Sessions Processed:** 38  |  **With Polar:** 4  |  **Total Swing Shots:** 2238  |  **Polar Timestamp Refinements:** 145
+**Sessions Processed:** 38  |  **With Polar:** 6  |  **Total Swing Shots:** 2238  |  **Polar Timestamp Refinements:** 231
 
 ## 1. Per-Session Alignment Confidence
 
 | Session | Profile | Hz | Swings | Match Rate | P75 Dev (s) | MAE (s) | Fallback | Confidence | Polar Refined |
 |---|---|---|---|---|---|---|---|---|---|
-| session-2026-05-30_15-04-41 | 50hz_watch | 50 | 139 | 100% | 1.10 | 0.75 | 29% | MEDIUM | — |
+| session-2026-05-30_15-04-41 | 50hz_watch | 50 | 139 | 100% | 1.10 | 0.76 | 29% | MEDIUM | — |
 | session-2026-05-31_10-06-52 | 50hz_watch | 50 | 6 | 100% | 2.01 | 1.29 | 50% | LOW | — |
-| session-2026-05-31_14-12-10 | 50hz_watch | 50 | 76 | 99% | 1.86 | 1.26 | 26% | MEDIUM | — |
+| session-2026-05-31_14-12-10 | 50hz_watch | 50 | 76 | 99% | 1.86 | 1.29 | 26% | MEDIUM | — |
 | session-2026-06-01_12-23-38 | 50hz_watch | 50 | 68 | 94% | 1.31 | 0.88 | 62% | MEDIUM | — |
 | session-2026-06-05_12-29-59 | 50hz_watch | 50 | 22 | 100% | 1.91 | 1.59 | 9% | MEDIUM | — |
 | session-2026-06-07_14-34-24 | 50hz_watch | 50 | 49 | 100% | 1.68 | 1.27 | 20% | MEDIUM | — |
 | session-2026-06-08_12-22-26 | 50hz_watch | 50 | 60 | 100% | 8.97 | 7.09 | 20% | LOW | — |
 | session-2026-06-09_12-16-49 | 50hz_watch | 50 | 63 | 100% | 1.95 | 1.28 | 38% | MEDIUM | — |
-| session-2026-06-11_12-27-53 | 50hz_watch | 50 | 56 | 100% | 2.05 | 1.31 | 30% | LOW | — |
+| session-2026-06-11_12-27-53 | 50hz_watch | 50 | 56 | 100% | 2.11 | 1.33 | 30% | LOW | — |
 | session-2026-06-12_12-24-37 | 50hz_watch | 50 | 77 | 95% | 1.91 | 1.30 | 17% | MEDIUM | — |
 | session-2026-06-13_10-59-04 | 50hz_watch | 50 | 43 | 95% | 1.83 | 1.30 | 26% | MEDIUM | — |
 | session-2026-06-14_13-16-12 | 50hz_watch | 50 | 71 | 96% | 1.90 | 1.37 | 7% | MEDIUM | — |
 | session-2026-06-15_12-21-37 | 50hz_watch | 50 | 21 | 95% | 1.51 | 0.95 | 5% | MEDIUM | — |
 | session-2026-06-16_15-39-33 | 50hz_watch | 50 | 54 | 100% | 1.12 | 0.82 | 94% | MEDIUM | — |
 | session-2026-06-18_12-23-09 | 50hz_watch | 50 | 76 | 89% | 2.04 | 1.35 | 13% | LOW | — |
-| session-2026-06-19_12-25-55 | 50hz_watch | 50 | 61 | 100% | 1.43 | 0.95 | 48% | MEDIUM | — |
+| session-2026-06-19_12-25-55 | 50hz_watch | 50 | 61 | 100% | 1.43 | 0.96 | 48% | MEDIUM | — |
 | session-2026-06-21_13-53-17 | 50hz_watch | 50 | 67 | 100% | 1.41 | 0.98 | 6% | MEDIUM | — |
-| session-2026-06-22_12-27-26 | 50hz_watch | 50 | 68 | 100% | 1.60 | 1.03 | 32% | MEDIUM | — |
+| session-2026-06-22_12-27-26 | 50hz_watch | 50 | 68 | 100% | 1.60 | 1.04 | 32% | MEDIUM | — |
 | session-2026-06-23_12-24-48 | 50hz_watch | 50 | 66 | 91% | 1.66 | 1.18 | 33% | MEDIUM | — |
 | session-2026-06-25_12-25-07 | 50hz_watch | 50 | 67 | 97% | 1.79 | 1.17 | 27% | MEDIUM | — |
 | session-2026-06-26_12-22-13 | 50hz_watch | 50 | 63 | 98% | 1.37 | 1.04 | 48% | MEDIUM | — |
@@ -44,8 +44,8 @@
 | session-2026-07-13_12-17-57 | 50hz_watch | 50 | 71 | 99% | 1.66 | 1.01 | 21% | MEDIUM | — |
 | session-2026-07-17_12-30-41 | 50hz_watch_polar | 50 | 67 | 94% | 1.91 | 1.25 | 45% | MEDIUM | ✅ 38 |
 | session-2026-07-18_13-44-09 | 100hz_watch_polar | 100 | 107 | 99% | 1.93 | 1.27 | 32% | MEDIUM | ✅ 79 |
-| session_2026-07-20_12-42-16 | 50hz_watch | 100 | 42 | 93% | 2.74 | 1.92 | 12% | LOW | — |
-| session_2026-07-21_12-43-37 | 50hz_watch | 100 | 68 | 100% | 2.16 | 1.54 | 24% | MEDIUM | — |
+| session_2026-07-20_12-42-16 | 100hz_watch_polar | 100 | 42 | 93% | 2.74 | 1.92 | 12% | LOW | ✅ 29 |
+| session_2026-07-21_12-43-37 | 100hz_watch_polar | 100 | 68 | 100% | 2.16 | 1.54 | 24% | MEDIUM | ✅ 57 |
 
 > [!WARNING]
 > **Low-confidence sessions requiring manual review:** session-2026-05-31_10-06-52, session-2026-06-08_12-22-26, session-2026-06-11_12-27-53, session-2026-06-18_12-23-09, session_2026-07-20_12-42-16
@@ -105,7 +105,7 @@ Results across all sessions (2238 swing shots).
 
 ## 5. Polar Timestamp Refinement Summary
 
-Impact timestamps refined using 500Hz Polar accelerometer: **145 shots** across 4 Polar sessions.
+Impact timestamps refined using 500Hz Polar accelerometer: **231 shots** across 6 Polar sessions.
 
 Polar data at 500Hz provides ±2ms timestamp resolution vs. ±20ms from the 50Hz watch gyro. The updated `ground_truth_aligned.csv` files now contain the best available impact timestamps for all sessions.
 

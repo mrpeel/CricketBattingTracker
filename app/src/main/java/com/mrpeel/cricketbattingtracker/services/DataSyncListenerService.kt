@@ -634,26 +634,23 @@ class DataSyncListenerService : WearableListenerService() {
         }
         
         if (sessionStartMs == null) {
-            val accFile = java.io.File(filesDir, "WatchAccelerometer.csv")
-            if (accFile.exists()) {
+            val folderName = if (filesDir.name.startsWith("session")) filesDir.name else watchSessionsDir.name
+            val regex = Regex("session[-_](\\d{4})-(\\d{2})-(\\d{2})_(\\d{2})[-_](\\d{2})[-_](\\d{2})")
+            val match = regex.find(folderName)
+            if (match != null) {
                 try {
-                    accFile.useLines { lines ->
-                        val firstSample = lines.drop(1).firstOrNull()
-                        if (firstSample != null) {
-                            val parts = firstSample.split(",")
-                            if (parts.isNotEmpty()) {
-                                val timeNanos = parts[0].toLongOrNull()
-                                if (timeNanos != null) {
-                                    sessionStartMs = timeNanos / 1_000_000L
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {}
+                    val (year, month, day, hour, min, sec) = match.destructured
+                    val cal = java.util.Calendar.getInstance()
+                    cal.set(year.toInt(), month.toInt() - 1, day.toInt(), hour.toInt(), min.toInt(), sec.toInt())
+                    cal.set(java.util.Calendar.MILLISECOND, 0)
+                    sessionStartMs = cal.timeInMillis
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed parsing timestamp from folder name: $folderName", e)
+                }
             }
         }
 
-        val resolvedStartMs = sessionStartMs ?: System.currentTimeMillis()
+        val resolvedStartMs = sessionStartMs ?: if (filesDir.lastModified() > 0) filesDir.lastModified() else System.currentTimeMillis()
         val newInningsId = dao.findInningsIdNearTime(resolvedStartMs)
             ?: ((dao.getLatestInningsId() ?: 0) + 1)
 

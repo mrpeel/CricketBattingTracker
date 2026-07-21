@@ -78,21 +78,44 @@ def load_polar_acc(session_dir):
     polar_dir = os.path.join(session_dir, "PolarSense")
     if not os.path.isdir(polar_dir):
         return None
-    files = sorted(glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")))
+    files = sorted(glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")) + \
+                   glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.bin*")))
+    files = list(set(files))
     if not files:
         return None
     frames = []
     for fpath in files:
         try:
-            df = pd.read_csv(fpath, sep=';')
-            if len(df.columns) >= 5:
-                df.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df.columns[5:])
-                df['sensor_ns'] = pd.to_numeric(df['sensor_ns'], errors='coerce')
-                df['x'] = pd.to_numeric(df['x'], errors='coerce') * 0.00980665  # mg → m/s²
-                df['y'] = pd.to_numeric(df['y'], errors='coerce') * 0.00980665
-                df['z'] = pd.to_numeric(df['z'], errors='coerce') * 0.00980665
-                df = df.dropna(subset=['sensor_ns', 'x', 'y', 'z'])
+            if ".bin" in fpath:
+                import gzip
+                opener = gzip.open if fpath.endswith(".gz") else open
+                with opener(fpath, 'rb') as f:
+                    data = f.read()
+                arr = np.frombuffer(data, dtype=np.dtype([
+                    ('phone_ms', '<i8'),
+                    ('sensor_ns', '<i8'),
+                    ('x', '<f4'),
+                    ('y', '<f4'),
+                    ('z', '<f4')
+                ]))
+                df = pd.DataFrame({
+                    'phone_timestamp': arr['phone_ms'] / 1000.0,
+                    'sensor_ns': arr['sensor_ns'],
+                    'x': arr['x'].astype(float) * 0.00980665,  # mg → m/s²
+                    'y': arr['y'].astype(float) * 0.00980665,
+                    'z': arr['z'].astype(float) * 0.00980665
+                })
                 frames.append(df)
+            else:
+                df = pd.read_csv(fpath, sep=';')
+                if len(df.columns) >= 5:
+                    df.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df.columns[5:])
+                    df['sensor_ns'] = pd.to_numeric(df['sensor_ns'], errors='coerce')
+                    df['x'] = pd.to_numeric(df['x'], errors='coerce') * 0.00980665  # mg → m/s²
+                    df['y'] = pd.to_numeric(df['y'], errors='coerce') * 0.00980665
+                    df['z'] = pd.to_numeric(df['z'], errors='coerce') * 0.00980665
+                    df = df.dropna(subset=['sensor_ns', 'x', 'y', 'z'])
+                    frames.append(df)
         except Exception:
             pass
     if not frames:
