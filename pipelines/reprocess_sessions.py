@@ -184,7 +184,7 @@ def rotate_vector(q, v):
     ])
 
 def extract_features_single_shot(sensors, t_shot):
-    feats = {col: 0.0 for col in FEATURE_COLS}
+    feats = {col: 0.0 for col in DUAL_FEATURE_COLS}
     acc = sensors.get("accel")
     gyro = sensors.get("gyro")
     orient = sensors.get("game_orient") if sensors.get("game_orient") is not None else sensors.get("orientation")
