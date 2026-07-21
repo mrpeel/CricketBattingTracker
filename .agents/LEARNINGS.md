@@ -49,3 +49,11 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Comprehensive Bat Inheritance**: Recognizes `"Iron Bat"` / `"Eye In"`, `"Gray Nicolls Giant"`, and `"Game Bat"`, persisting bat state across subsequent shots while ignoring round headers.
         *   **Edge & Defense Fallbacks**: Ensures edge and miss events (e.g. `"Forward edge"`) map to `Defence/Block` with `poor` or `miss` quality rather than being dropped.
     *   **Result**: Zero events dropped, exact bat tracking verified, and all 135 narration items cleanly generated into `narrations_raw.json`.
+
+94. **Dual-Model Routing Architecture & 26-Feature Classification (July 21, 2026)**:
+    *   **The Problem**: Single combined 20-feature model suffered from imputation skew during match-day watch-only sessions (where Polar data is absent). Furthermore, global Polar metrics lacked temporal segmentation across backswing, downswing, and follow-through phases.
+    *   **The Solution**: Implemented a **Dual-Model Routing Architecture**:
+        *   **Watch-Only Path (Match Day)**: Routes to `GeneratedTopForest.kt` (14 features) and `GeneratedTopQualityForest.kt` (14 features).
+        *   **Dual-Sensor Path (Net Practice)**: Routes to `GeneratedDualForest.kt` (26 features) and `GeneratedDualQualityForest.kt` (26 features), adding 6 new segmented Polar metrics (`s1_bottom_gyro_mag`, `s1_bottom_deltaZ`, `s2_bottom_acc_mean`, `s2_dynamic_ratio_slope`, `s3_bottom_pronation_deg`, `s3_bottom_gyro_y_min`).
+        *   **Kotlin & Pipeline Integration**: Transpiled all four models plus backward-compatible `GeneratedForest` and `GeneratedQualityForest` alias objects into `wear` and `app` modules. Updated `PhoneSwingDetector.kt` to extract segmented Polar features when Polar logs are present and route dynamically. Increased Gradle JVM heap memory (`org.gradle.jvmargs=-Xmx4096m`) to compile transpiled forest models without OOM errors.
+    *   **Result**: All unit tests pass cleanly (`BUILD SUCCESSFUL`). `model_update_pipeline.py` executes end-to-end and outputs complete performance metrics in `model_update_analysis.md`.
