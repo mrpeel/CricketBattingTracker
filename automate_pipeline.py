@@ -738,82 +738,77 @@ def process_and_format_events(shot_events):
     shot_counter = 1
     
     for event in shot_events:
-        full_text = event["text"]
+        full_text = event["text"].strip()
         text_lower = full_text.lower()
         
-        # Phonetic corrections
-        if "click shot" in text_lower:
-            text_lower = text_lower.replace("click shot", "flick shot")
-        if "sweet shot" in text_lower:
-            text_lower = text_lower.replace("sweet shot", "sweep shot")
-        if "touch shot" in text_lower:
-            text_lower = text_lower.replace("touch shot", "cut shot")
-        if "touch" in text_lower:
-            text_lower = text_lower.replace("touch", "cut")
-        if "full shot" in text_lower:
-            text_lower = text_lower.replace("full shot", "pull shot")
-            
-        # Bat switches
-        if any(w in text_lower for w in ["giant", "nicolls", "nichs"]):
-            current_bat = "Gray Nicolls Giant"
-        elif "eye in" in text_lower:
+        # 1. Bat Recognition (Check for bat switch announcements)
+        if any(w in text_lower for w in ["iron bat", "eye in", "thin bat", "light bat"]):
             current_bat = "Eye In"
-        elif any(w in text_lower for w in ["game bat", "game day bat", "normal game bat"]):
+        elif any(w in text_lower for w in ["giant", "nicolls", "nichs", "heavy bat"]):
+            current_bat = "Gray Nicolls Giant"
+        elif any(w in text_lower for w in ["game bat", "game day bat", "normal bat", "standard bat"]):
             current_bat = "Game bat"
             
-        # Map shot type
+        # If the line is ONLY a bat switch announcement or round header (e.g. "Round one, Iron Bat", "End of round"), skip shot creation
+        if any(header in text_lower for header in ["round ", "end of round", "end of session"]) and not any(s in text_lower for s in ["drive", "cut", "flick", "pull", "shot", "defense", "defence", "facing"]):
+            continue
+
+        # 2. Shot Type Mapping
         shot_type = None
-        if "facing up" in text_lower:
+        
+        # Stance / Non-swing events
+        if "facing up" in text_lower or "ready" in text_lower or "facing" in text_lower:
             shot_type = "Facing up"
         elif "no shot" in text_lower:
             shot_type = "No shot"
-        elif "leave" in text_lower:
+        elif "leave" in text_lower or "left" in text_lower:
             shot_type = "Leave"
-        elif "evade" in text_lower or "evasion" in text_lower:
+        elif "evade" in text_lower or "evasion" in text_lower or "ducked" in text_lower or "swayed" in text_lower:
             shot_type = "Evade"
-        elif "guide" in text_lower or "glide" in text_lower or "steer" in text_lower:
-            shot_type = "Guide"
+            
+        # Specific stroke types
         elif "power drive" in text_lower:
             shot_type = "Power drive"
-        elif "slog" in text_lower or "power shot" in text_lower or "power hit" in text_lower or "loft" in text_lower:
-            shot_type = "Slog"
-        elif "cover drive" in text_lower:
+        elif "cover drive" in text_lower or "cover" in text_lower:
             shot_type = "Cover drive"
-        elif "straight drive" in text_lower:
+        elif "straight drive" in text_lower or "straight" in text_lower:
             shot_type = "Straight drive"
         elif "off drive" in text_lower:
             shot_type = "Off drive"
         elif "on drive" in text_lower:
             shot_type = "On drive"
-        elif "pull" in text_lower or "full" in text_lower:
+        elif "slog" in text_lower or "power shot" in text_lower or "power hit" in text_lower or "lofted" in text_lower:
+            shot_type = "Slog"
+        elif re.search(r"\b(pull|full)\b", text_lower):
             shot_type = "Pull shot"
         elif "hook" in text_lower:
             shot_type = "Hook shot"
-        elif "cut" in text_lower:
-            shot_type = "Cut shot"
-        elif "flick" in text_lower:
+        elif re.search(r"\b(flick|click)\b", text_lower):
             shot_type = "Flick"
         elif "glance" in text_lower:
             shot_type = "Leg glance"
-        elif "sweep" in text_lower:
+        elif re.search(r"\b(sweep|sweet)\b", text_lower):
             shot_type = "Sweep"
-        elif "push" in text_lower:
-            shot_type = "Push"
+        elif re.search(r"\b(cut|square cut|late cut)\b", text_lower):
+            shot_type = "Cut shot"
         elif "punch" in text_lower:
             shot_type = "Punch"
-        elif "defense" in text_lower or "defence" in text_lower or "defensive" in text_lower or "block" in text_lower:
+        elif "push" in text_lower:
+            shot_type = "Push"
+        elif "guide" in text_lower or "glide" in text_lower or "steer" in text_lower:
+            shot_type = "Guide"
+        elif any(d in text_lower for d in ["defense", "defence", "defensive", "block", "forward edge"]):
             shot_type = "Defence/Block"
-        elif "half" in text_lower or "have" in text_lower:
-            shot_type = "Off drive"
             
-        # If the shot_type is not determined, check if it seems like a defense
+        # Fallback for generic/ambiguous shot utterances (e.g. "Edge", "Good", "Missed")
         if shot_type is None:
-            if any(q in text_lower for q in ["good", "okay", "ok", "poor", "excellent", "perfect"]):
+            if any(q in text_lower for q in ["good", "okay", "ok", "poor", "excellent", "perfect", "edge", "edged", "miss", "missed"]):
                 shot_type = "Defence/Block"
             else:
+                # Unrecognized administrative utterance — skip
                 continue
                 
-        # Determine shot_number
+        # 3. Determine Shot Number
         is_swing = shot_type not in ["Facing up", "No shot", "Leave", "Evade"]
         if is_swing:
             shot_num = shot_counter
@@ -821,15 +816,15 @@ def process_and_format_events(shot_events):
         else:
             shot_num = None
             
-        # Quality
+        # 4. Quality Rating Extraction
         quality = "good"
-        if "excellent" in text_lower or "perfect" in text_lower:
+        if any(q in text_lower for q in ["excellent", "perfect", "nailed", "smoked"]):
             quality = "excellent"
-        elif "poor" in text_lower or "bad" in text_lower or "edge" in text_lower or "edged" in text_lower:
+        elif any(q in text_lower for q in ["poor", "bad", "edge", "edged"]):
             quality = "poor"
-        elif "miss" in text_lower or "no" in text_lower:
+        elif any(q in text_lower for q in ["miss", "missed", "beaten"]):
             quality = "miss"
-        elif "okay" in text_lower or "decent" in text_lower or "so, so" in text_lower:
+        elif any(q in text_lower for q in ["okay", "ok", "decent", "average"]):
             quality = "okay"
             
         formatted_shots.append({
