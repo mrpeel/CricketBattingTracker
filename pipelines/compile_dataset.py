@@ -15,7 +15,7 @@ from automate_pipeline import load_watch_sensor
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 NON_SWING_TYPES = {'facing up', 'no shot', 'leave', 'evade', 'evasion'}
 
-# 6 Polar bottom-hand features (imputed to 0.0 when Polar is absent)
+# 12 Polar bottom-hand features (imputed to 0.0 when Polar is absent)
 POLAR_FEATURE_COLS = [
     'bottom_hand_gyro_peak',
     'bottom_hand_acc_peak',
@@ -23,6 +23,12 @@ POLAR_FEATURE_COLS = [
     'bottom_hand_acc_ratio',
     'bottom_hand_time_lead_ms',
     'bottom_hand_sync_score',
+    's1_bottom_gyro_mag',
+    's1_bottom_deltaZ',
+    's2_bottom_acc_mean',
+    's2_dynamic_ratio_slope',
+    's3_bottom_pronation_deg',
+    's3_bottom_gyro_y_min',
 ]
 
 # Augmented synthetic training data directory (never used for evaluation)

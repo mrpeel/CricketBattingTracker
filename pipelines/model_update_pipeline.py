@@ -72,6 +72,9 @@ def get_grouped_stats(filepath):
         'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
         'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
         'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+        's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+        's2_bottom_acc_mean', 's2_dynamic_ratio_slope',
+        's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
     ]
 
     df_feat = pd.read_csv(features_csv)
@@ -192,10 +195,12 @@ def get_offline_classifier_stats():
         's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
         's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
         's3_planeRatio', 's3_gyro_y_min',
-        # 6 Polar bottom-hand features (0.0 when absent)
         'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
         'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
         'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+        's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+        's2_bottom_acc_mean', 's2_dynamic_ratio_slope',
+        's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
     ]
 
     X = df_swings[features].fillna(df_swings[features].median())
@@ -384,6 +389,9 @@ def main():
                 'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
                 'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
                 'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+                's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+                's2_bottom_acc_mean', 's2_dynamic_ratio_slope',
+                's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
             ]
             X_all = df_swings[feature_cols].fillna(0.0)
             y_all = df_swings['normalized_gt'].values

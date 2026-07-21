@@ -175,9 +175,17 @@ object PhoneSwingDetector {
                     var bottomAccRatio = 0f
                     var bottomTimeLeadMs = 0L
                     var bottomSyncScore = 0f
+                    var s1BottomGyroMag = 0f
+                    var s1BottomDeltaZ = 0f
+                    var s2BottomAccMean = 0f
+                    var s2DynamicRatioSlope = 0f
+                    var s3BottomPronationDeg = 0f
+                    var s3BottomGyroYMin = 0f
+
+                    val hasPolarData = alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()
 
                     // Extract Polar telemetry if available
-                    if (alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()) {
+                    if (hasPolarData && alignment != null) {
                         val polarPeakTimeMs = alignment.watchToPolarMs(wTimeMs)
                         val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
                         val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
@@ -203,9 +211,40 @@ object PhoneSwingDetector {
                         bottomAccRatio = accRatio
                         bottomTimeLeadMs = timeLeadMs
                         bottomSyncScore = syncScore
+
+                        // Segmented Polar extraction
+                        val s1Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
+                        if (s1Gyro.isNotEmpty()) {
+                            s1BottomGyroMag = s1Gyro.maxOf { it.mag }
+                            s1BottomDeltaZ = s1Gyro.maxOf { it.z } - s1Gyro.minOf { it.z }
+                        }
+
+                        val s2Acc = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
+                        if (s2Acc.isNotEmpty()) {
+                            s2BottomAccMean = s2Acc.map { it.mag }.average().toFloat()
+                        }
+
+                        val s2Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
+                        if (s2Gyro.size >= 2 && watchGyroPeak > 0.01f) {
+                            val gStart = s2Gyro.first().mag
+                            val gEnd = s2Gyro.last().mag
+                            val dtSec = (s2Gyro.last().phoneMs - s2Gyro.first().phoneMs) / 1000f + 1e-4f
+                            s2DynamicRatioSlope = ((gEnd - gStart) / dtSec) / watchGyroPeak
+                        }
+
+                        val s3Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
+                        if (s3Gyro.isNotEmpty()) {
+                            var trapz = 0f
+                            for (i in 1 until s3Gyro.size) {
+                                val dt = (s3Gyro[i].phoneMs - s3Gyro[i-1].phoneMs) / 1000f
+                                trapz += 0.5f * (s3Gyro[i].y + s3Gyro[i-1].y) * dt
+                            }
+                            s3BottomPronationDeg = trapz * (180f / Math.PI.toFloat())
+                            s3BottomGyroYMin = s3Gyro.minOf { it.y }
+                        }
                     }
 
-                    // 20-Feature classification (watch-only defaults to 0f bottom hand fields)
+                    // 26-Feature classification
                     val features = com.mrpeel.cricketbattingtracker.ml.SwingFeatures(
                         s1_gyro_y_std       = shot.s1GyroYStd,
                         s1_gyro_z_std       = shot.s1GyroZStd,
@@ -226,11 +265,25 @@ object PhoneSwingDetector {
                         bottom_hand_gyro_ratio  = bottomGyroRatio,
                         bottom_hand_acc_ratio   = bottomAccRatio,
                         bottom_hand_time_lead_ms = bottomTimeLeadMs.toFloat(),
-                        bottom_hand_sync_score  = bottomSyncScore
+                        bottom_hand_sync_score  = bottomSyncScore,
+                        s1_bottom_gyro_mag      = s1BottomGyroMag,
+                        s1_bottom_deltaZ        = s1BottomDeltaZ,
+                        s2_bottom_acc_mean      = s2BottomAccMean,
+                        s2_dynamic_ratio_slope  = s2DynamicRatioSlope,
+                        s3_bottom_pronation_deg = s3BottomPronationDeg,
+                        s3_bottom_gyro_y_min   = s3BottomGyroYMin
                     )
 
-                    val finalShotType = com.mrpeel.cricketbattingtracker.ml.GeneratedForest.predict(features)
-                    val predictedQuality = com.mrpeel.cricketbattingtracker.ml.GeneratedQualityForest.predict(features)
+                    val finalShotType = if (hasPolarData) {
+                        com.mrpeel.cricketbattingtracker.ml.GeneratedDualForest.predict(features)
+                    } else {
+                        com.mrpeel.cricketbattingtracker.ml.GeneratedTopForest.predict(features)
+                    }
+                    val predictedQuality = if (hasPolarData) {
+                        com.mrpeel.cricketbattingtracker.ml.GeneratedDualQualityForest.predict(features)
+                    } else {
+                        com.mrpeel.cricketbattingtracker.ml.GeneratedTopQualityForest.predict(features)
+                    }
 
                     // Map RF predicted quality to UI properties
                     val finalSweetSpot = when (predictedQuality) {

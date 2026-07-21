@@ -2243,6 +2243,12 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     bottom_hand_acc_ratio = []
     bottom_hand_time_lead_ms = []
     bottom_hand_sync_score = []
+    s1_bottom_gyro_mag = []
+    s1_bottom_deltaZ = []
+    s2_bottom_acc_mean = []
+    s2_dynamic_ratio_slope = []
+    s3_bottom_pronation_deg = []
+    s3_bottom_gyro_y_min = []
 
     polar_duration = df_polar_acc['seconds_elapsed'].iloc[-1]
 
@@ -2258,6 +2264,12 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             bottom_hand_acc_ratio.append(np.nan)
             bottom_hand_time_lead_ms.append(np.nan)
             bottom_hand_sync_score.append(np.nan)
+            s1_bottom_gyro_mag.append(np.nan)
+            s1_bottom_deltaZ.append(np.nan)
+            s2_bottom_acc_mean.append(np.nan)
+            s2_dynamic_ratio_slope.append(np.nan)
+            s3_bottom_pronation_deg.append(np.nan)
+            s3_bottom_gyro_y_min.append(np.nan)
             continue
 
         # Extract ±1s Polar window around impact
@@ -2322,18 +2334,61 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         else:
             bottom_hand_sync_score.append(np.nan)
 
+        # --- Segmented Polar Features ---
+        # Segment 1: Backswing [-0.80s, -0.20s]
+        s1_acc = df_polar_acc[(df_polar_acc['seconds_elapsed'] >= polar_t - 0.80) & (df_polar_acc['seconds_elapsed'] <= polar_t - 0.20)]
+        s1_gyro = df_polar_gyro[(df_polar_gyro['seconds_elapsed'] >= polar_t - 0.80) & (df_polar_gyro['seconds_elapsed'] <= polar_t - 0.20)] if df_polar_gyro is not None else pd.DataFrame()
+        if len(s1_gyro) > 0:
+            s1_bottom_gyro_mag.append(round(float(s1_gyro['mag'].max()), 2))
+            s1_bottom_deltaZ.append(round(float(s1_gyro['z'].max() - s1_gyro['z'].min()), 2))
+        else:
+            s1_bottom_gyro_mag.append(np.nan)
+            s1_bottom_deltaZ.append(np.nan)
+
+        # Segment 2: Downswing [-0.20s, -0.05s]
+        s2_acc = df_polar_acc[(df_polar_acc['seconds_elapsed'] >= polar_t - 0.20) & (df_polar_acc['seconds_elapsed'] <= polar_t - 0.05)]
+        s2_gyro = df_polar_gyro[(df_polar_gyro['seconds_elapsed'] >= polar_t - 0.20) & (df_polar_gyro['seconds_elapsed'] <= polar_t - 0.05)] if df_polar_gyro is not None else pd.DataFrame()
+        if len(s2_acc) > 0:
+            s2_bottom_acc_mean.append(round(float(s2_acc['mag'].mean()), 2))
+        else:
+            s2_bottom_acc_mean.append(np.nan)
+
+        if len(s2_gyro) >= 2 and not np.isnan(watch_gyro_mag) and watch_gyro_mag > 0:
+            g_start = s2_gyro['mag'].iloc[0]
+            g_end = s2_gyro['mag'].iloc[-1]
+            slope = (g_end - g_start) / (s2_gyro['seconds_elapsed'].iloc[-1] - s2_gyro['seconds_elapsed'].iloc[0] + 1e-5)
+            s2_dynamic_ratio_slope.append(round(float(slope / watch_gyro_mag), 3))
+        else:
+            s2_dynamic_ratio_slope.append(np.nan)
+
+        # Segment 3: Follow-through [-0.05s, +0.30s]
+        s3_gyro = df_polar_gyro[(df_polar_gyro['seconds_elapsed'] >= polar_t - 0.05) & (df_polar_gyro['seconds_elapsed'] <= polar_t + 0.30)] if df_polar_gyro is not None else pd.DataFrame()
+        if len(s3_gyro) > 0:
+            pronation = np.trapz(s3_gyro['y'].values, s3_gyro['seconds_elapsed'].values) * (180.0 / np.pi) if len(s3_gyro) >= 2 else 0.0
+            s3_bottom_pronation_deg.append(round(float(pronation), 2))
+            s3_bottom_gyro_y_min.append(round(float(s3_gyro['y'].min()), 2))
+        else:
+            s3_bottom_pronation_deg.append(np.nan)
+            s3_bottom_gyro_y_min.append(np.nan)
+
     df_aligned['bottom_hand_gyro_peak'] = bottom_hand_gyro_peak
     df_aligned['bottom_hand_acc_peak'] = bottom_hand_acc_peak
     df_aligned['bottom_hand_gyro_ratio'] = bottom_hand_gyro_ratio
     df_aligned['bottom_hand_acc_ratio'] = bottom_hand_acc_ratio
     df_aligned['bottom_hand_time_lead_ms'] = bottom_hand_time_lead_ms
     df_aligned['bottom_hand_sync_score'] = bottom_hand_sync_score
+    df_aligned['s1_bottom_gyro_mag'] = s1_bottom_gyro_mag
+    df_aligned['s1_bottom_deltaZ'] = s1_bottom_deltaZ
+    df_aligned['s2_bottom_acc_mean'] = s2_bottom_acc_mean
+    df_aligned['s2_dynamic_ratio_slope'] = s2_dynamic_ratio_slope
+    df_aligned['s3_bottom_pronation_deg'] = s3_bottom_pronation_deg
+    df_aligned['s3_bottom_gyro_y_min'] = s3_bottom_gyro_y_min
 
     df_aligned.to_csv(aligned_csv_path, index=False)
 
     valid_count = df_aligned['bottom_hand_acc_peak'].notna().sum()
     total_count = len(df_aligned)
-    print(f"\n✅ Polar Sense features appended to ground_truth_aligned.csv ({valid_count}/{total_count} shots with Polar data)")
+    print(f"\n✅ Polar Sense features (12 features) appended to ground_truth_aligned.csv ({valid_count}/{total_count} shots with Polar data)")
 
 def normalize_shot_class(shot_name):
 

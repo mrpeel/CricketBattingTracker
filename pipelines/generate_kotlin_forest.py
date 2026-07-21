@@ -11,29 +11,43 @@ from sklearn.preprocessing import LabelEncoder
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 FEATURES_CSV = os.path.join(BASE_DIR, "combined_features.csv")
 CONFIG_JSON = os.path.join(BASE_DIR, "optimized_detection_config.json")
+PROPOSED_CSV_PATH = os.path.join(BASE_DIR, "proposed_logic_aligned.csv")
 
-# Outputs for Shot Type Model
-OUTPUT_TYPE_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt"
-OUTPUT_TYPE_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt"
+# Outputs for Top-Hand Models (14 features)
+OUTPUT_TOP_TYPE_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedTopForest.kt"
+OUTPUT_TOP_TYPE_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedTopForest.kt"
+OUTPUT_TOP_QUAL_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedTopQualityForest.kt"
+OUTPUT_TOP_QUAL_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedTopQualityForest.kt"
 
-# Outputs for Shot Quality Model
-OUTPUT_QUALITY_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedQualityForest.kt"
-OUTPUT_QUALITY_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedQualityForest.kt"
+# Outputs for Dual-Hand Models (26 features)
+OUTPUT_DUAL_TYPE_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedDualForest.kt"
+OUTPUT_DUAL_TYPE_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedDualForest.kt"
+OUTPUT_DUAL_QUAL_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedDualQualityForest.kt"
+OUTPUT_DUAL_QUAL_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedDualQualityForest.kt"
+
+# Legacy Fallback/Alias Outputs
+OUTPUT_LEGACY_TYPE_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt"
+OUTPUT_LEGACY_TYPE_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt"
+OUTPUT_LEGACY_QUAL_WEAR = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedQualityForest.kt"
+OUTPUT_LEGACY_QUAL_APP  = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedQualityForest.kt"
 
 # Output for Detection Config
 OUTPUT_CONFIG_APP = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/ShotEnhancementConfig.kt"
 
-PROPOSED_CSV_PATH = os.path.join(BASE_DIR, "proposed_logic_aligned.csv")
-
-FEATURE_COLS = [
+TOP_FEATURE_COLS = [
     's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
     's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
     's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
     's3_planeRatio', 's3_gyro_y_min',
-    # Polar features — 0.0 when Polar is absent (imputed during training)
+]
+
+DUAL_FEATURE_COLS = TOP_FEATURE_COLS + [
     'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
     'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
     'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+    's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+    's2_bottom_acc_mean', 's2_dynamic_ratio_slope',
+    's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
 ]
 
 def to_kotlin_string_array(hex_str, chunk_char_limit=16000):
@@ -75,7 +89,6 @@ def serialize_forest(rf, num_classes):
                 left_node_id = tree.children_left[node_id]
                 right_node_id = tree.children_right[node_id]
                 
-                # Recurse
                 left_child_idx = build_node(left_node_id)
                 right_child_idx = build_node(right_node_id)
                 
@@ -106,7 +119,7 @@ def serialize_forest(rf, num_classes):
         "leaf_probabilities_hex": leaf_probabilities_hex
     }
 
-def transpile_to_kotlin(hex_data, class_names, file_path, class_name):
+def transpile_to_kotlin(hex_data, class_names, file_path, class_name, feature_cols):
     num_classes = len(class_names)
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     
@@ -116,7 +129,6 @@ def transpile_to_kotlin(hex_data, class_names, file_path, class_name):
         f.write("import java.nio.ByteBuffer\n")
         f.write("import java.nio.ByteOrder\n\n")
         
-        # Write object header
         f.write(f"object {class_name} {{\n")
         f.write("    private val CLASSES = arrayOf(\n")
         for name in class_names:
@@ -142,16 +154,14 @@ def transpile_to_kotlin(hex_data, class_names, file_path, class_name):
         f.write("    fun predict(f: SwingFeatures): String {\n")
         f.write(f"        val votes = FloatArray({num_classes})\n")
         f.write("        val features = floatArrayOf(\n")
-        f.write("            // 14 watch features\n")
-        f.write("            f.s1_gyro_y_std, f.s1_gyro_z_std, f.s1_deltaX, f.s1_deltaZ,\n")
-        f.write("            f.s2_gyroMag, f.s2_grav_y_mean, f.s2_deltaX, f.s2_deltaZ,\n")
-        f.write("            f.s3_rollImpactDeg, f.s3_yawImpactDeg, f.s3_deltaX, f.s3_deltaZ,\n")
-        f.write("            f.s3_planeRatio, f.s3_gyro_y_min,\n")
-        f.write("            // 6 Polar bottom-hand features (0f when Polar absent)\n")
-        f.write("            f.bottom_hand_gyro_peak, f.bottom_hand_acc_peak,\n")
-        f.write("            f.bottom_hand_gyro_ratio, f.bottom_hand_acc_ratio,\n")
-        f.write("            f.bottom_hand_time_lead_ms, f.bottom_hand_sync_score\n")
+        feat_accessors = [f"f.{col}" for col in feature_cols]
+        for i in range(0, len(feat_accessors), 4):
+            line_str = ", ".join(feat_accessors[i:i+4])
+            if i + 4 < len(feat_accessors):
+                line_str += ","
+            f.write(f"            {line_str}\n")
         f.write("        )\n\n")
+        
         f.write("        for (t in 0 until NUM_TREES) {\n")
         f.write("            var nodeIdx = TREE_OFFSETS[t]\n")
         f.write("            while (true) {\n")
@@ -220,9 +230,22 @@ def transpile_to_kotlin(hex_data, class_names, file_path, class_name):
         f.write("    }\n")
         f.write("}\n")
 
+def transpile_alias(file_path, class_name, target_class_name):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "w") as f:
+        f.write(f"""// Auto-generated backward-compatible alias
+package com.mrpeel.cricketbattingtracker.ml
+
+object {class_name} {{
+    const val NUM_TREES = 200
+
+    fun predict(f: SwingFeatures): String {{
+        return {target_class_name}.predict(f)
+    }}
+}}
+""")
+
 def transpile_swing_features_class():
-    """Ensure SwingFeatures data class is defined at wear/ml/SwingFeatures.kt,
-    exposing both watch and Polar properties."""
     path = "/Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingFeatures.kt"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
@@ -230,7 +253,7 @@ def transpile_swing_features_class():
 
 /**
  * Extracted kinematic swing features for machine learning models.
- * Exposes 14 watch-side fields and 6 Polar Sense (bottom hand) fields.
+ * Exposes 14 watch-side fields and 12 Polar Sense (bottom hand) fields.
  * Polar fields have default values of 0f so watch-only inference works seamlessly.
  */
 data class SwingFeatures(
@@ -249,16 +272,21 @@ data class SwingFeatures(
     val s3_deltaZ: Float,
     val s3_planeRatio: Float,
     val s3_gyro_y_min: Float,
-    // 6 Polar bottom-hand features (default 0f when Polar absent)
+    // 12 Polar bottom-hand features (default 0f when Polar absent)
     val bottom_hand_gyro_peak: Float = 0f,
     val bottom_hand_acc_peak: Float = 0f,
     val bottom_hand_gyro_ratio: Float = 0f,
     val bottom_hand_acc_ratio: Float = 0f,
     val bottom_hand_time_lead_ms: Float = 0f,
-    val bottom_hand_sync_score: Float = 0f
+    val bottom_hand_sync_score: Float = 0f,
+    val s1_bottom_gyro_mag: Float = 0f,
+    val s1_bottom_deltaZ: Float = 0f,
+    val s2_bottom_acc_mean: Float = 0f,
+    val s2_dynamic_ratio_slope: Float = 0f,
+    val s3_bottom_pronation_deg: Float = 0f,
+    val s3_bottom_gyro_y_min: Float = 0f
 )
 """)
-    # Sync to app module
     app_path = "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingFeatures.kt"
     os.makedirs(os.path.dirname(app_path), exist_ok=True)
     shutil.copy2(path, app_path)
@@ -271,37 +299,27 @@ def main():
     df = pd.read_csv(FEATURES_CSV)
     df_swings = df[df['normalized_gt'] != 'NON-SWING'].copy()
     
-    X = df_swings[FEATURE_COLS].fillna(0.0)
-
-    # 1. Train & Transpile SHOT TYPE Model
-    print("\nTraining Shot Type Random Forest model...")
+    # 1. Train & Transpile TOP-HAND Models (14 features)
+    print("\n--- Training Top-Hand Models (14 features) ---")
+    X_top = df_swings[TOP_FEATURE_COLS].fillna(0.0)
     y_type = df_swings['normalized_gt'].values
     le_type = LabelEncoder()
     y_type_enc = le_type.fit_transform(y_type)
     
-    rf_type = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=8,
-        class_weight='balanced_subsample',
-        random_state=42,
-        n_jobs=-1
+    rf_top_type = RandomForestClassifier(
+        n_estimators=200, max_depth=8,
+        class_weight='balanced_subsample', random_state=42, n_jobs=-1
     )
-    rf_type.fit(X, y_type_enc)
+    rf_top_type.fit(X_top, y_type_enc)
     
-    print("Transpiling GeneratedForest.kt...")
-    hex_type = serialize_forest(rf_type, len(le_type.classes_))
+    print("Transpiling GeneratedTopForest.kt...")
+    hex_top_type = serialize_forest(rf_top_type, len(le_type.classes_))
     transpile_swing_features_class()
-    transpile_to_kotlin(hex_type, list(le_type.classes_), OUTPUT_TYPE_WEAR, "GeneratedForest")
-    os.makedirs(os.path.dirname(OUTPUT_TYPE_APP), exist_ok=True)
-    shutil.copy2(OUTPUT_TYPE_WEAR, OUTPUT_TYPE_APP)
-    print("✅ Transpiled GeneratedForest.kt to both modules.")
-
-    # 2. Train & Transpile SHOT QUALITY Model
-    print("\nTraining Shot Quality Random Forest model...")
-    # Drop rows that don't have quality populated or are NON-SWING
-    df_quality = df_swings[df_swings['quality'].notna() & (df_swings['quality'] != '')].copy()
+    transpile_to_kotlin(hex_top_type, list(le_type.classes_), OUTPUT_TOP_TYPE_WEAR, "GeneratedTopForest", TOP_FEATURE_COLS)
+    shutil.copy2(OUTPUT_TOP_TYPE_WEAR, OUTPUT_TOP_TYPE_APP)
     
-    # Standardize quality labels
+    # Top-Hand Quality
+    df_quality = df_swings[df_swings['quality'].notna() & (df_swings['quality'] != '')].copy()
     def clean_quality(q):
         val = str(q).lower().strip()
         if "good" in val or "okay" in val or "ok" in val or "excellent" in val:
@@ -312,33 +330,63 @@ def main():
             return "miss"
         if "edge" in val:
             return "edge"
-        return "good" # default fallback
+        return "good"
         
     y_qual = df_quality['quality'].apply(clean_quality).values
-    X_qual = df_quality[FEATURE_COLS].fillna(0.0)
+    X_top_qual = df_quality[TOP_FEATURE_COLS].fillna(0.0)
 
     le_qual = LabelEncoder()
     y_qual_enc = le_qual.fit_transform(y_qual)
     
-    rf_qual = RandomForestClassifier(
-        n_estimators=100,
-        max_depth=6,
-        class_weight='balanced_subsample',
-        random_state=42,
-        n_jobs=-1
+    rf_top_qual = RandomForestClassifier(
+        n_estimators=100, max_depth=6,
+        class_weight='balanced_subsample', random_state=42, n_jobs=-1
     )
-    rf_qual.fit(X_qual, y_qual_enc)
+    rf_top_qual.fit(X_top_qual, y_qual_enc)
     
-    print("Transpiling GeneratedQualityForest.kt...")
-    hex_qual = serialize_forest(rf_qual, len(le_qual.classes_))
-    transpile_to_kotlin(hex_qual, list(le_qual.classes_), OUTPUT_QUALITY_WEAR, "GeneratedQualityForest")
-    os.makedirs(os.path.dirname(OUTPUT_QUALITY_APP), exist_ok=True)
-    shutil.copy2(OUTPUT_QUALITY_WEAR, OUTPUT_QUALITY_APP)
-    print("✅ Transpiled GeneratedQualityForest.kt to both modules.")
+    print("Transpiling GeneratedTopQualityForest.kt...")
+    hex_top_qual = serialize_forest(rf_top_qual, len(le_qual.classes_))
+    transpile_to_kotlin(hex_top_qual, list(le_qual.classes_), OUTPUT_TOP_QUAL_WEAR, "GeneratedTopQualityForest", TOP_FEATURE_COLS)
+    shutil.copy2(OUTPUT_TOP_QUAL_WEAR, OUTPUT_TOP_QUAL_APP)
 
-    # 3. Export optimized detection config
+    # 2. Train & Transpile DUAL-HAND Models (26 features)
+    print("\n--- Training Dual-Hand Models (26 features) ---")
+    X_dual = df_swings[DUAL_FEATURE_COLS].fillna(0.0)
+    rf_dual_type = RandomForestClassifier(
+        n_estimators=200, max_depth=8,
+        class_weight='balanced_subsample', random_state=42, n_jobs=-1
+    )
+    rf_dual_type.fit(X_dual, y_type_enc)
+    
+    print("Transpiling GeneratedDualForest.kt...")
+    hex_dual_type = serialize_forest(rf_dual_type, len(le_type.classes_))
+    transpile_to_kotlin(hex_dual_type, list(le_type.classes_), OUTPUT_DUAL_TYPE_WEAR, "GeneratedDualForest", DUAL_FEATURE_COLS)
+    shutil.copy2(OUTPUT_DUAL_TYPE_WEAR, OUTPUT_DUAL_TYPE_APP)
+    
+    # Dual-Hand Quality
+    X_dual_qual = df_quality[DUAL_FEATURE_COLS].fillna(0.0)
+    rf_dual_qual = RandomForestClassifier(
+        n_estimators=100, max_depth=6,
+        class_weight='balanced_subsample', random_state=42, n_jobs=-1
+    )
+    rf_dual_qual.fit(X_dual_qual, y_qual_enc)
+    
+    print("Transpiling GeneratedDualQualityForest.kt...")
+    hex_dual_qual = serialize_forest(rf_dual_qual, len(le_qual.classes_))
+    transpile_to_kotlin(hex_dual_qual, list(le_qual.classes_), OUTPUT_DUAL_QUAL_WEAR, "GeneratedDualQualityForest", DUAL_FEATURE_COLS)
+    shutil.copy2(OUTPUT_DUAL_QUAL_WEAR, OUTPUT_DUAL_QUAL_APP)
+
+    # 3. Transpile Legacy Alias Objects (pointing to Top-Hand models for default watch routing)
+    transpile_alias(OUTPUT_LEGACY_TYPE_WEAR, "GeneratedForest", "GeneratedTopForest")
+    shutil.copy2(OUTPUT_LEGACY_TYPE_WEAR, OUTPUT_LEGACY_TYPE_APP)
+    transpile_alias(OUTPUT_LEGACY_QUAL_WEAR, "GeneratedQualityForest", "GeneratedTopQualityForest")
+    shutil.copy2(OUTPUT_LEGACY_QUAL_WEAR, OUTPUT_LEGACY_QUAL_APP)
+
+    print("✅ Transpiled all Top-Hand, Dual-Hand, and Legacy alias models to wear and app modules.")
+
+    # 4. Sync optimized detection config
     print("\nSyncing optimized detection thresholds...")
-    watch_gyro_threshold = 1.5 # default
+    watch_gyro_threshold = 1.5
     if os.path.exists(CONFIG_JSON):
         try:
             with open(CONFIG_JSON, "r") as jf:
@@ -347,10 +395,7 @@ def main():
             print(f"  * Loaded optimized watch gyro threshold from JSON: {watch_gyro_threshold:.2f} rad/s")
         except Exception as e:
             print(f"⚠️ Failed to parse {CONFIG_JSON}, using default threshold: {e}")
-    else:
-        print("  * optimized_detection_config.json not found — using default threshold")
 
-    # Write ShotEnhancementConfig.kt
     os.makedirs(os.path.dirname(OUTPUT_CONFIG_APP), exist_ok=True)
     with open(OUTPUT_CONFIG_APP, "w") as f:
         f.write(f"""package com.mrpeel.cricketbattingtracker.services
@@ -366,10 +411,14 @@ object ShotEnhancementConfig {{
 """)
     print(f"✅ Generated ShotEnhancementConfig.kt at: {OUTPUT_CONFIG_APP}")
 
-    # 4. Update proposed_logic_aligned.csv
-    print(f"\nOverwriting {PROPOSED_CSV_PATH} with 20-feature RF predictions...")
-    y_pred = rf_type.predict(X)
-    proposed_preds = le_type.inverse_transform(y_pred)
+    # 5. Update proposed_logic_aligned.csv using Dual-Model Routing
+    print(f"\nOverwriting {PROPOSED_CSV_PATH} with Dual-Model predictions...")
+    is_polar_mask = df_swings['data_profile'].astype(str).str.contains('polar', case=False, na=False)
+    
+    y_pred_top = le_type.inverse_transform(rf_top_type.predict(X_top))
+    y_pred_dual = le_type.inverse_transform(rf_dual_type.predict(X_dual))
+    
+    proposed_preds = np.where(is_polar_mask, y_pred_dual, y_pred_top)
     
     combined_gt_path = os.path.join(BASE_DIR, "combined_ground_truth_aligned.csv")
     if os.path.exists(combined_gt_path):
@@ -404,7 +453,7 @@ object ShotEnhancementConfig {{
         }, inplace=True)
         
         df_proposed_gt.to_csv(PROPOSED_CSV_PATH, index=False)
-        print(f"✅ Successfully updated proposed_logic_aligned.csv")
+        print(f"✅ Successfully updated proposed_logic_aligned.csv with Dual-Model predictions")
 
 if __name__ == "__main__":
     main()

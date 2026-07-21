@@ -49,9 +49,19 @@ class SwingDetectorGroundTruthTest {
             s3_gyro_y_min    = -8.5f
         )
         val result = GeneratedForest.predict(features)
+        val resultTop = GeneratedTopForest.predict(features)
+        val resultDual = GeneratedDualForest.predict(features)
         assertTrue(
             "Expected a valid shot class, got: '$result'",
             result in VALID_CLASSES
+        )
+        assertTrue(
+            "Expected a valid top shot class, got: '$resultTop'",
+            resultTop in VALID_CLASSES
+        )
+        assertTrue(
+            "Expected a valid dual shot class, got: '$resultDual'",
+            resultDual in VALID_CLASSES
         )
     }
 

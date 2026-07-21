@@ -1,7 +1,7 @@
 # Phone Pipeline Performance Scorecard
-**Generated:** 2026-07-20 21:15:29  
+**Generated:** 2026-07-21 17:37:09  
 **Source of truth:** `combined_features.csv` + `combined_ground_truth_aligned.csv`  
-**Sessions evaluated:** 1031  
+**Sessions evaluated:** 1408  
 **Model:** 20-feature Random Forest (200 trees, depth 8, heterogeneous training)
 
 > [!IMPORTANT]
@@ -18,68 +18,70 @@
 
 | Metric | Value |
 |---|---|
-| **Ground Truth Swing Shots** | 1053 |
-| **Shots Identified by Pipeline** | 1053 |
+| **Ground Truth Swing Shots** | 1305 |
+| **Shots Identified by Pipeline** | 1305 |
 | **Shots Missed (False Negatives)** | 0 |
 | **Recall (Coverage)** | 100.0% |
 | **Precision** | *Not measurable from offline files — requires raw detection log* |
 
 ## 2. Overall Shot Classification
 
-**Overall accuracy (training-set diagnostic): 82.9%**
+**Overall accuracy (training-set diagnostic): 80.4%**
 
 | Shot Class | Ground Truth Count | Accuracy |
 |---|---|---|
-| CUT/PUNCH | 219 | 84% |
-| DEFLECTION/GUIDE | 329 | 89% |
-| DRIVE/DEFENCE | 380 | 72% |
-| GLANCE/FLICK | 296 | 78% |
-| POWER DRIVE | 155 | 85% |
-| PULL/HOOK | 300 | 76% |
-| SLOG | 283 | 96% |
-| SWEEP | 88 | 97% |
+| CUT/PUNCH | 422 | 87% |
+| DEFLECTION/GUIDE | 428 | 77% |
+| DRIVE/DEFENCE | 470 | 74% |
+| GLANCE/FLICK | 399 | 79% |
+| POWER DRIVE | 140 | 85% |
+| PULL/HOOK | 393 | 67% |
+| SLOG | 330 | 95% |
+| SWEEP | 95 | 99% |
 
 ## 3. Breakdown by Data Profile
 
 This shows how well the model performs on each data combination,
 demonstrating that heterogeneous training generalises across all profiles.
 
-### Watch 100Hz + Polar (`100hz_watch_polar`)  — 53 shots
+### Watch 100Hz + Polar (`100hz_watch_polar`)  — 69 shots
 
-**Overall accuracy: 98.1%**
+**Overall accuracy: 91.3%**
 
 | Shot Class | Count | Accuracy |
 |---|---|---|
-| CUT/PUNCH | 9 | 100% |
+| CUT/PUNCH | 14 | 100% |
 | DEFLECTION/GUIDE | 11 | 100% |
-| DRIVE/DEFENCE | 20 | 100% |
+| DRIVE/DEFENCE | 22 | 91% |
+| GLANCE/FLICK | 8 | 62% |
 | POWER DRIVE | 1 | 100% |
-| PULL/HOOK | 3 | 67% |
-| SWEEP | 9 | 100% |
+| PULL/HOOK | 10 | 90% |
+| SLOG | 2 | 100% |
+| SWEEP | 1 | 100% |
 
-### Watch-only 50Hz (`50hz_watch`)  — 853 shots
+### Watch-only 50Hz (`50hz_watch`)  — 1089 shots
 
-**Overall accuracy: 75.8%**
+**Overall accuracy: 74.4%**
 
 | Shot Class | Count | Accuracy |
 |---|---|---|
-| CUT/PUNCH | 81 | 88% |
-| DEFLECTION/GUIDE | 99 | 87% |
-| DRIVE/DEFENCE | 324 | 69% |
-| GLANCE/FLICK | 104 | 66% |
-| POWER DRIVE | 37 | 78% |
-| PULL/HOOK | 126 | 74% |
-| SLOG | 73 | 93% |
-| SWEEP | 9 | 89% |
+| CUT/PUNCH | 120 | 88% |
+| DEFLECTION/GUIDE | 131 | 63% |
+| DRIVE/DEFENCE | 412 | 72% |
+| GLANCE/FLICK | 127 | 69% |
+| POWER DRIVE | 37 | 73% |
+| PULL/HOOK | 155 | 70% |
+| SLOG | 87 | 93% |
+| SWEEP | 20 | 100% |
 
 ### Watch 50Hz + Polar (`50hz_watch_polar`)  — 147 shots
 
-**Overall accuracy: 82.3%**
+**Overall accuracy: 74.8%**
 
 | Shot Class | Count | Accuracy |
 |---|---|---|
-| DRIVE/DEFENCE | 36 | 83% |
-| GLANCE/FLICK | 20 | 65% |
-| PULL/HOOK | 70 | 83% |
-| SLOG | 21 | 95% |
+| DRIVE/DEFENCE | 36 | 86% |
+| GLANCE/FLICK | 20 | 60% |
+| PULL/HOOK | 70 | 69% |
+| SLOG | 21 | 90% |
 
