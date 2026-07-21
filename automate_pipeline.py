@@ -577,10 +577,6 @@ class ProgressSpinner:
         self.stop_event.set()
         self.thread.join()
 
-
-
-
-
 def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     """Transcribe audio using Gemini. Only the preferred_model is tried.
     If it is unavailable (quota / 429 / 503), one retry after 30 s is attempted.
@@ -622,8 +618,6 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
             f"   Re-run with --model <available-model> once it becomes accessible."
         )
 
-    whisper_segments = None
-
     print(f"📤 Uploading {os.path.basename(audio_path)} to Gemini...")
     uploaded_file = client.files.upload(file=audio_path)
     print(f"File uploaded successfully. Storage URI: {uploaded_file.name}")
@@ -636,68 +630,14 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     if uploaded_file.state.name == "FAILED":
         raise Exception("Gemini audio processing failed.")
 
-    from pydantic import BaseModel
-    from typing import List, Optional
-
-    class NarrationItem(BaseModel):
-        timestamp_seconds: float
-        shot_number: Optional[int] = None
-        shot_type: str
-        rating: Optional[str] = None
-        bat: Optional[str] = None
-        narrated_text: str
-
-    class NarrationList(BaseModel):
-        narrations: List[NarrationItem]
-
-    print("🎙️ Preparing prompt with biomechanics constraints...")
-    prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "gemini_narration_prompt.md")
+    print("🎙️ Preparing prompt for raw transcript...")
+    prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "gemini_raw_transcript_prompt.md")
     if os.path.exists(prompt_path):
         with open(prompt_path, "r") as f:
-            prompt_base = f.read().strip()
-        print(f"📖 Loaded narration transcription prompt from {prompt_path}")
+            prompt = f.read().strip()
+        print(f"📖 Loaded raw transcript prompt from {prompt_path}")
     else:
-        prompt_base = (
-            "You are an expert audio transcription assistant.\n"
-            "Analyze the provided audio recording of a cricket batting practice.\n"
-            "The batsman narrates his shots after playing them, speaking clearly in one of these formats:\n"
-            "1. \"Shot [number] [Shot Type] [Rating]\" (for example: \"Shot 1 Cover drive Excellent\" or \"Shot 12 Pull shot Good\").\n"
-            "2. \"[Number] [Shot Type] [Rating]\" (for example: \"One, push shot, good\" or \"Twelve, pull shot, excellent\").\n"
-            "3. For a normal shot, the expected flow of audio is: \"facing up\" -> gap to play shot -> {shot type} {shot rating}.\n"
-            "4. For balls where no shot is played, the expected flow of audio is: \"facing up\" -> \"no shot\", \"leave\", or \"evade\".\n\n"
-            "The audio contains long periods of silence, ball impact noises, and background sounds. Ignore all silence and background noise.\n\n"
-            "Search the entire audio file for all spoken narrations matching the pattern.\n"
-            "The batsman may refer to the following expected shot types (grouped by biomechanical class):\n"
-            "- Drive/Defence: \"Straight Drive\", \"Cover Drive\", \"Off Drive\", \"On Drive\", \"Forward Defensive\", \"Back-foot Defensive\", \"Push Shot\" (or \"Push\")\n"
-            "- Glance/Flicks: \"Flick Shot\", \"Leg Glance\", \"On-Glance\", \"Traditional Sweep Shot\" (or \"Sweep\")\n"
-            "- Cut/Punch: \"Square Cut\", \"Cut\", \"Back-foot Punch\"\n"
-            "- Pull/Hook: \"Pull Shot\", \"Hook Shot\"\n"
-            "- Deflection/Guide: \"Late Cut\", \"Square Upper Cut\", \"Steer / Glide\", \"Guide\"\n"
-            "- Slog: \"Lofted Straight Drive\", \"Lofted Cover Drive\", \"Slog Sweep\", \"Switch Hit\", \"Reverse Sweep\", \"Helicopter Shot\", \"Slog\", \"Power shot\"\n"
-            "- Power Drive: \"Power drive\"\n"
-            "- Balls with no shot played: \"No shot\", \"Leave\", \"Evade\", \"Evasion\"\n\n"
-            "The batter uses three types of bats and narrates when he changes or selects them:\n"
-            "- 'Gray Nicolls Giant' (or 'Giant', heavy bat)\n"
-            "- 'Eye in bat' (or 'Eye In', thin light bat)\n"
-            "- 'Game bat' (or 'Game day bat', normal bat)\n\n"
-            "The batsman will rate the shot quality using one of these rating words:\n"
-            "\"Excellent\", \"Good\", \"Poor\", \"Miss\", \"Okay\", \"Decent\", \"Edge\", \"Edged\"\n\n"
-            "## Phonetic Corrections:\n"
-            "- **CRITICAL**: The batter will never narrate \"touch shot\" or \"touch\". If you hear \"touch shot\" or \"touch\", this is a phonetic mishearing of \"cut shot\" or \"cut\". Always transcribe it as \"Cut\" or \"Square Cut\" depending on context.\n"
-            "- **CRITICAL**: If you see or hear \"how are you\", \"how are you?\", \"how are you good\", or similar in the Whisper text, this is a phonetic mishearing of \"Power drive\". Always transcribe it as \"Power drive\" (e.g. \"Power drive Good\" or \"Power drive Okay\").\n"
-            "- If you hear \"division\" or \"defensive\", ensure it maps to one of the defensive categories (e.g. \"Forward Defensive\" or \"Back-foot Defensive\").\n"
-            "- If you hear \"EB giant\", this is a mishearing of \"Facing up\" or metadata phrase. Ensure it matches expected terms.\n\n"
-            "Scan the audio carefully from start to finish to capture every single one of the shots played (up to approximately Shot 69 or 72). "
-            "Do not skip shots, do not hallucinate repetitive entries in silence, and output only the matching list."
-        )
-    schema_instruction = (
-        "\n\nOutput the result as a JSON object matching the response schema: a list of narration items. "
-        "Each item must contain `timestamp_seconds` (float, e.g. 3.45 or 12.18), `shot_number` (int, or null for stance/admin/non-numbered events), "
-        "`shot_type` (str, e.g. 'Facing up', 'Cover Drive', 'Cut', 'Leg Glance', etc.), `rating` (str, e.g. 'good', 'ok', or null), "
-        "`bat` (str, e.g. 'Gray Nicolls Giant', 'Eye In', 'Game bat', or null), and `narrated_text` (str, the exact transcribed text of the utterance)."
-    )
-
-    prompt = prompt_base + schema_instruction
+        raise RuntimeError(f"❌ Could not find raw transcript prompt at {prompt_path}")
 
     # --- Single-model strict call with one retry on quota/availability errors ---
     RETRY_WAIT_SECONDS = 30
@@ -705,15 +645,11 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     last_err = None
     for attempt in range(1, 3):  # attempt 1, then attempt 2 after a wait
         try:
-            msg = f"🎙️ Requesting structured transcription from {model_name} (attempt {attempt}/2)"
+            msg = f"🎙️ Requesting raw transcription from {model_name} (attempt {attempt}/2)"
             with ProgressSpinner(msg):
                 response = client.models.generate_content(
                     model=model_name,
-                    contents=[uploaded_file, prompt],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=NarrationList,
-                    ),
+                    contents=[uploaded_file, prompt]
                 )
             print(f"✅ Transcription succeeded with {model_name}.")
             break
@@ -726,7 +662,6 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
                 print(f"   ⏳ Waiting {RETRY_WAIT_SECONDS}s before retrying...")
                 time.sleep(RETRY_WAIT_SECONDS)
             else:
-                # Non-quota error, or second attempt also failed — halt immediately
                 break
 
     if response is None:
@@ -750,155 +685,82 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     except:
         pass
         
-    text_transcript = response.text
-    print("Parsing transcription text...")
-    
-    shot_events = []
-    parsed_structured = False
-    
-    try:
-        data = json.loads(text_transcript)
-        items = data.get("narrations", [])
-        if items:
-            for item in items:
-                shot_num_raw = item.get("shot_number")
-                shot_events.append({
-                    "shot_number": int(shot_num_raw) if shot_num_raw is not None else None,
-                    "timestamp_seconds": float(item.get("timestamp_seconds", 0.0)),
-                    "texts": [item.get("narrated_text", "")],
-                    "bat": item.get("bat")
-                })
-            parsed_structured = True
-            print(f"✅ Successfully parsed {len(shot_events)} shots via Pydantic response_schema.")
-    except Exception as e:
-        print(f"⚠️ Failed to parse structured JSON ({e}). Attempting robust regex recovery...")
-        try:
-            blocks = re.findall(r'\{[^{}]+\}', text_transcript)
-            items = []
-            for b in blocks:
-                if "timestamp_seconds" in b and "shot_type" in b:
-                    t_match = re.search(r'"timestamp_seconds"\s*:\s*([\d\.]+)', b)
-                    n_match = re.search(r'"shot_number"\s*:\s*(\d+)', b)
-                    st_match = re.search(r'"shot_type"\s*:\s*"([^"]*)"', b)
-                    bat_match = re.search(r'"bat"\s*:\s*"([^"]*)"', b)
-                    txt_match = re.search(r'"narrated_text"\s*:\s*"([^"]*)"', b)
-                    
-                    if t_match and st_match:
-                        items.append({
-                            "timestamp_seconds": float(t_match.group(1)),
-                            "shot_number": int(n_match.group(1)) if n_match else None,
-                            "shot_type": st_match.group(1),
-                            "bat": bat_match.group(1) if bat_match else None,
-                            "narrated_text": txt_match.group(1) if txt_match else ""
-                        })
-            if items:
-                for item in items:
-                    shot_num_raw = item.get("shot_number")
-                    shot_events.append({
-                        "shot_number": int(shot_num_raw) if shot_num_raw is not None else None,
-                        "timestamp_seconds": float(item.get("timestamp_seconds", 0.0)),
-                        "texts": [item.get("narrated_text", "")],
-                        "bat": item.get("bat")
-                    })
-                parsed_structured = True
-                print(f"✅ Successfully recovered {len(shot_events)} shots via robust regex object parser.")
-        except Exception as recovery_err:
-            print(f"❌ Robust recovery parser also failed: {recovery_err}")
-            
-    if not parsed_structured:
-        # Fallback to legacy regex parsing
-        def extract_time_and_text(line):
-            m_time = re.search(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?\b", line)
-            if not m_time:
-                return None, None
-                
-            minutes = int(m_time.group(1))
-            seconds = int(m_time.group(2))
-            centiseconds = int(m_time.group(3)) if m_time.group(3) else 0
-            if m_time.group(4):
-                decimals = float(f"0.{m_time.group(4)}")
-                time_sec = minutes * 60 + seconds + decimals
-            else:
-                time_sec = minutes * 60 + seconds + centiseconds / 100.0
-                
-            end_idx = m_time.end()
-            text = line[end_idx:].strip()
-            text = re.sub(r"^[-\s:\]\.]+", "", text).strip()
-            
-            return time_sec, text
-            
-        lines = text_transcript.split('\n')
-        current_shot = None
-        
-        for line in lines:
-            time_sec, text = extract_time_and_text(line)
-            if time_sec is None:
-                continue
-                
-            # Check if this line starts a new Shot
-            shot_match = re.search(r"\b[Ss]hot\s+(\d+)\b", text)
-            if shot_match:
-                shot_num = int(shot_match.group(1))
-                if current_shot:
-                    shot_events.append(current_shot)
-                current_shot = {
-                    "shot_number": shot_num,
-                    "timestamp_seconds": time_sec,
-                    "texts": [text],
-                    "bat": None
-                }
-            else:
-                if current_shot:
-                    if time_sec - current_shot["timestamp_seconds"] <= 8.0:
-                        current_shot["texts"].append(text)
-                    else:
-                        shot_events.append(current_shot)
-                        current_shot = None
-                        
-        if current_shot:
-            shot_events.append(current_shot)
-        
-    return format_gemini_shots(shot_events)
+    return response.text
 
-def format_gemini_shots(shot_events):
+def parse_raw_transcript(raw_text):
+    """Parse literal raw text transcript (Stage 2) with timestamp prefixes
+    and map to standardised JSON schema."""
+    lines = raw_text.splitlines()
+    shot_events = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Match time prefix like "12.35:", "[12.35]:", "1:02.50:", etc.
+        match = re.match(r"^\[?([\d\.:]+)\]?\s*:\s*(.*)$", line)
+        if not match:
+            # Try matching space instead of colon
+            match = re.match(r"^\[?([\d\.:]+)\]?\s+(.*)$", line)
+            
+        if not match:
+            continue
+            
+        time_str, text = match.groups()
+        text = text.strip()
+        
+        # Convert time_str to seconds
+        try:
+            if ":" in time_str:
+                parts = time_str.split(":")
+                if len(parts) == 2:
+                    time_sec = int(parts[0]) * 60 + float(parts[1])
+                elif len(parts) == 3:
+                    time_sec = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+                else:
+                    time_sec = float(time_str)
+            else:
+                time_sec = float(time_str)
+        except ValueError:
+            continue
+            
+        shot_events.append({
+            "timestamp_seconds": time_sec,
+            "text": text
+        })
+        
+    return process_and_format_events(shot_events)
+
+def process_and_format_events(shot_events):
     formatted_shots = []
     current_bat = None
+    shot_counter = 1
+    
     for event in shot_events:
-        full_text = " ".join(event["texts"])
+        full_text = event["text"]
         text_lower = full_text.lower()
         
-        # Phonetic correction post-processing fallback
+        # Phonetic corrections
+        if "click shot" in text_lower:
+            text_lower = text_lower.replace("click shot", "flick shot")
+        if "sweet shot" in text_lower:
+            text_lower = text_lower.replace("sweet shot", "sweep shot")
         if "touch shot" in text_lower:
             text_lower = text_lower.replace("touch shot", "cut shot")
         if "touch" in text_lower:
             text_lower = text_lower.replace("touch", "cut")
+        if "full shot" in text_lower:
+            text_lower = text_lower.replace("full shot", "pull shot")
             
-        # Map Whisper mishearings of "Power hit" (e.g. "Now I hit", "Now hit", "How I hit", "How we hit", "How're you")
-        # and bowling machine hum hallucinations to "power drive"
-        if any(w in text_lower for w in ["now i hit", "now hit", "how i hit", "how we hit", "how to hit", "how we got", "now we hit"]):
-            text_lower = "power drive"
-        elif "how" in text_lower and any(w in text_lower for w in ["you", "are", "okay", "good"]):
-            text_lower = "power drive"
+        # Bat switches
+        if any(w in text_lower for w in ["giant", "nicolls", "nichs"]):
+            current_bat = "Gray Nicolls Giant"
+        elif "eye in" in text_lower:
+            current_bat = "Eye In"
+        elif any(w in text_lower for w in ["game bat", "game day bat", "normal game bat"]):
+            current_bat = "Game bat"
             
-        # Determine bat for this event
-        event_bat = event.get("bat")
-        if event_bat:
-            event_bat_lower = event_bat.lower()
-            if "giant" in event_bat_lower or "nicolls" in event_bat_lower or "nichs" in event_bat_lower:
-                current_bat = "Gray Nicolls Giant"
-            elif "eye in" in event_bat_lower:
-                current_bat = "Eye In"
-            elif "game" in event_bat_lower:
-                current_bat = "Game bat"
-        else:
-            # Fallback to checking text_lower
-            if any(w in text_lower for w in ["giant", "nicolls", "nichs"]):
-                current_bat = "Gray Nicolls Giant"
-            elif "eye in" in text_lower:
-                current_bat = "Eye In"
-            elif any(w in text_lower for w in ["game bat", "game day bat", "normal game bat"]):
-                current_bat = "Game bat"
-                
         # Map shot type
         shot_type = None
         if "facing up" in text_lower:
@@ -944,13 +806,22 @@ def format_gemini_shots(shot_events):
         elif "half" in text_lower or "have" in text_lower:
             shot_type = "Off drive"
             
+        # If the shot_type is not determined, check if it seems like a defense
         if shot_type is None:
-            if event["shot_number"] is not None:
+            if any(q in text_lower for q in ["good", "okay", "ok", "poor", "excellent", "perfect"]):
                 shot_type = "Defence/Block"
             else:
                 continue
+                
+        # Determine shot_number
+        is_swing = shot_type not in ["Facing up", "No shot", "Leave", "Evade"]
+        if is_swing:
+            shot_num = shot_counter
+            shot_counter += 1
+        else:
+            shot_num = None
             
-        # Map quality
+        # Quality
         quality = "good"
         if "excellent" in text_lower or "perfect" in text_lower:
             quality = "excellent"
@@ -963,7 +834,7 @@ def format_gemini_shots(shot_events):
             
         formatted_shots.append({
             "timestamp_seconds": event["timestamp_seconds"],
-            "shot_number": event["shot_number"],
+            "shot_number": shot_num,
             "shot_type": shot_type,
             "quality": quality,
             "bat": current_bat,
@@ -1050,34 +921,47 @@ def main():
     print(f"   Found {len(session_peaks)} prominence peaks (prominence >= 0.5 rad/s, min spacing={peak_distance} samples).")
 
 
-    # 5. Call local Whisper or Gemini to transcribe & parse shot timings (or load local cache if exists)
+    # 5. Call Gemini to transcribe (Stage 1) and parse (Stage 2) shot timings
+    raw_transcript_path = os.path.join(session_dir, "raw_transcript.txt")
     narrations_cache_path = os.path.join(session_dir, "narrations_raw.json")
 
-    # --force-retranscribe: delete stale cache so transcription always re-runs
-    if getattr(args, "force_retranscribe", False) and os.path.exists(narrations_cache_path):
-        print(f"🗑️  --force-retranscribe set: deleting existing cache {narrations_cache_path}")
-        os.remove(narrations_cache_path)
+    # --force-retranscribe: delete stale raw transcript cache and parsed cache so transcription always re-runs
+    if getattr(args, "force_retranscribe", False):
+        if os.path.exists(raw_transcript_path):
+            print(f"🗑️  --force-retranscribe set: deleting existing raw transcript {raw_transcript_path}")
+            os.remove(raw_transcript_path)
+        if os.path.exists(narrations_cache_path):
+            print(f"🗑️  --force-retranscribe set: deleting existing cache {narrations_cache_path}")
+            os.remove(narrations_cache_path)
 
-    if os.path.exists(narrations_cache_path):
-        print(f"📖 Loading cached transcriptions from {narrations_cache_path}...")
-        with open(narrations_cache_path, "r") as f:
-            narrations = json.load(f)
+    raw_text = None
+    if os.path.exists(raw_transcript_path):
+        print(f"📖 Loading cached raw transcript from {raw_transcript_path}...")
+        with open(raw_transcript_path, "r", encoding="utf-8") as f:
+            raw_text = f.read()
     else:
         preferred_model = getattr(args, "model", "gemini-3.5-flash")
         try:
-            narrations = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
-            print(f"Successfully transcribed {len(narrations)} narrations via Gemini ({preferred_model}).")
+            raw_text = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
+            print(f"Successfully transcribed raw audio via Gemini ({preferred_model}).")
         except RuntimeError as e:
-            # RuntimeError from our guard includes full resume instructions
             print(e)
             sys.exit(1)
         except Exception as e:
             print(f"❌ Gemini transcription failed unexpectedly: {e}")
             sys.exit(1)
 
-        # Write raw narrations to session dir
-        with open(narrations_cache_path, "w") as f:
-            json.dump(narrations, f, indent=2)
+        # Save Stage 1 raw transcript
+        with open(raw_transcript_path, "w", encoding="utf-8") as f:
+            f.write(raw_text)
+
+    # Stage 2: Parse raw transcript to produce structured JSON
+    print("Parsing raw transcript...")
+    narrations = parse_raw_transcript(raw_text)
+    
+    # Write parsed narrations to session dir
+    with open(narrations_cache_path, "w") as f:
+        json.dump(narrations, f, indent=2)
 
     # Detect and convert mixed M.SS / raw seconds timestamps to actual elapsed seconds
     if narrations:
