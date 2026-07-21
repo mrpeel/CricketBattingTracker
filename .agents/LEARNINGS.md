@@ -42,9 +42,10 @@ This document captures resolved bugs, architectural changes, key logical finding
         3.  Fixed a pre-existing UI compilation error in `MainActivity.kt` where `selectedSession?.id` was referenced instead of `selectedSessionId`.
     *   **Result**: All unit tests in the project now compile and pass cleanly (`BUILD SUCCESSFUL`).
 
-93. **Decoupled Two-Stage Narration Pipeline (July 21, 2026)**:
-    *   **The Problem**: Audio transcriptions were processed in a single stage where Gemini parsed raw audio directly into a structured JSON schema while applying phonetic correction rules. In a noisy training environment, this was fragile and prone to rule overgeneralization (e.g., Gemini transcribing "flick shot" as "click shot" or "touch shot", and the phonetic rule rewriting it to "cut shot", or defaulting to "Defence/Block"). Additionally, fixing transcription errors required editing the prompt/code and re-running expensive API calls.
-    *   **The Solution**: Decoupled the narration pipeline into two stages:
-        *   **Stage 1 (Gemini)**: Transcribes the audio into a simple, literal plain-text file `raw_transcript.txt` containing only timestamps and transcribed words.
-        *   **Stage 2 (Local Python)**: Deterministically parses the plain-text file, sequentially indexing shots, inheriting bat selections, and applying phonetic mappings (`"click shot"` $\rightarrow$ `"Flick"`, `"sweet shot"` $\rightarrow$ `"Sweep"`, `"touch shot"` $\rightarrow$ `"Cut shot"`) to output `narrations_raw.json`.
-    *   **Result**: Transcription is robust, rule collisions are eliminated, and today's flick shot sessions align correctly. The user can now manually edit `raw_transcript.txt` to fix any future mishearings locally without making new API calls.
+93. **Decoupled Two-Stage Narration Pipeline & Parser Overhaul (July 21, 2026)**:
+    *   **The Problem**: The initial Stage 2 python parser had fragile string matching. It dropped valid narrations containing edge/miss events (e.g. `"Forward edge"`), failed to recognize bat switch announcements like `"Iron Bat"`, and relied on global string replacements (`.replace("touch", "cut")`) which corrupted shot categories.
+    *   **The Solution**: Overhauled `process_and_format_events()` in `automate_pipeline.py`:
+        *   **Regex-based Shot Matching**: Uses word-boundary regex (`\b(flick|click)\b`, `\b(pull|full)\b`) to prevent substring collisions.
+        *   **Comprehensive Bat Inheritance**: Recognizes `"Iron Bat"` / `"Eye In"`, `"Gray Nicolls Giant"`, and `"Game Bat"`, persisting bat state across subsequent shots while ignoring round headers.
+        *   **Edge & Defense Fallbacks**: Ensures edge and miss events (e.g. `"Forward edge"`) map to `Defence/Block` with `poor` or `miss` quality rather than being dropped.
+    *   **Result**: Zero events dropped, exact bat tracking verified, and all 135 narration items cleanly generated into `narrations_raw.json`.
