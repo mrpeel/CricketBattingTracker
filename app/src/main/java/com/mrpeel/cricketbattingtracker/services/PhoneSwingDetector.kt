@@ -287,8 +287,12 @@ object PhoneSwingDetector {
                         "edge" -> "Edge"
                         else -> "Good"
                     }
-                    val watchImpactGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 200_000_000L, targetSensorNs + 100_000_000L)
-                    val finalEfficiency = if (shot.gyroMag > 0.1f) kotlin.math.min(100f, (watchImpactGyroPeak / shot.gyroMag) * 100f) else 90f
+                    val accSpikeWin = watchAcc.filter { it.timeNanos in (targetSensorNs - 150_000_000L)..(targetSensorNs + 100_000_000L) }
+                    val accImpactNs = if (accSpikeWin.isNotEmpty()) accSpikeWin.maxByOrNull { it.mag }?.timeNanos ?: targetSensorNs else targetSensorNs
+                    val downswingGyroWin = watchGyro.filter { it.timeNanos in (targetSensorNs - 300_000_000L)..(targetSensorNs + 100_000_000L) }
+                    val maxDownswingGyro = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.maxOf { it.mag } else 0.01f
+                    val gyroAtImpact = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.minByOrNull { kotlin.math.abs(it.timeNanos - accImpactNs) }?.mag ?: maxDownswingGyro else maxDownswingGyro
+                    val finalEfficiency = if (maxDownswingGyro > 0.1f) kotlin.math.min(100f, (gyroAtImpact / maxDownswingGyro) * 100f) else 90f
                     val finalPeakAccel = if (bottomAccPeak > 0f) bottomAccPeak else shot.peakAccel
 
                     val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L

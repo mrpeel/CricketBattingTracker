@@ -2315,12 +2315,23 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         s3_start_sec_list.append(s3_start_sec)
         s3_end_sec_list.append(s3_end_sec)
 
-        # Dynamic Physical Efficiency & Reaction Time
-        impact_gyro_mag = float(row.get('impact_gyro_mag', 0.0))
-        swing_gyro_win = watch_gyro_mags[(watch_gyro_times >= impact_t - 0.80) & (watch_gyro_times <= impact_t + 0.30)] if len(watch_gyro_times) > 0 else np.array([])
-        max_gyro_mag = float(np.max(swing_gyro_win)) if len(swing_gyro_win) > 0 else impact_gyro_mag
+        # Dynamic Physical Efficiency: ratio of gyro at accel impact spike time to max downswing gyro
+        acc_mask = (watch_acc_times >= impact_t - 0.15) & (watch_acc_times <= impact_t + 0.10) if len(watch_acc_times) > 0 else np.array([])
+        if np.any(acc_mask):
+            impact_acc_t = float(watch_acc_times[acc_mask][np.argmax(watch_acc_mags[acc_mask])])
+        else:
+            impact_acc_t = impact_t
 
-        eff = min(100.0, round((impact_gyro_mag / max_gyro_mag) * 100.0, 1)) if max_gyro_mag > 0.1 else 90.0
+        gyro_mask = (watch_gyro_times >= impact_t - 0.30) & (watch_gyro_times <= impact_t + 0.10) if len(watch_gyro_times) > 0 else np.array([])
+        if np.any(gyro_mask):
+            gyro_sub_times = watch_gyro_times[gyro_mask]
+            gyro_sub_mags = watch_gyro_mags[gyro_mask]
+            max_downswing_gyro = float(np.max(gyro_sub_mags))
+            gyro_at_impact_idx = np.argmin(np.abs(gyro_sub_times - impact_acc_t))
+            impact_gyro = float(gyro_sub_mags[gyro_at_impact_idx])
+            eff = round(min(100.0, (impact_gyro / max_downswing_gyro) * 100.0), 1) if max_downswing_gyro > 0.1 else 90.0
+        else:
+            eff = 90.0
         efficiency_list.append(eff)
 
         # Reaction time: backswing onset (gyro >= 1.0 rad/s) to impact peak
