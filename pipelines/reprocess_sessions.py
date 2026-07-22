@@ -363,9 +363,12 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
             
             qual_enc = rf_qual.predict(df_feat)[0]
             quality = le_qual.inverse_transform([qual_enc])[0]
-            
             bat_speed = float(gyro_mags[close_idx] * 4.5)
-            
+            eff_val = float(row.get("efficiency", 90.0)) if (pd.notna(row.get("efficiency")) and float(row.get("efficiency", 90.0)) > 0) else 90.0
+            react_val = int(row.get("reaction_time_ms", 350)) if (pd.notna(row.get("reaction_time_ms")) and int(row.get("reaction_time_ms", 350)) > 0) else 350
+            feats['efficiency'] = eff_val
+            feats['reaction_time_ms'] = react_val
+
             detected_shots.append({
                 "timestamp_offset_s": t_shot,
                 "timestamp_ns": ts_ns,
@@ -373,6 +376,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 "quality": quality,
                 "bat_speed": bat_speed,
                 "impact_force": polar_acc_peak,
+                "efficiency": eff_val,
+                "impact_time_ms": react_val,
                 "features": feats
             })
         return detected_shots
@@ -450,6 +455,19 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 
                 bat_speed = float(gyro_mags[close_idx] * 4.5) if len(gyro_mags) > close_idx else 0.0
                 
+                acc_mask = (accel_times >= t_shot - 0.15) & (accel_times <= t_shot + 0.10) if len(accel_times) > 0 else np.array([])
+                impact_acc_t = float(accel_times[acc_mask][np.argmax(accel_mags[acc_mask])]) if np.any(acc_mask) else t_shot
+                gyro_mask = (gyro_times >= t_shot - 0.30) & (gyro_times <= t_shot + 0.10) if len(gyro_times) > 0 else np.array([])
+                if np.any(gyro_mask):
+                    max_downswing_gyro = float(np.max(gyro_mags[gyro_mask]))
+                    impact_gyro = float(gyro_mags[np.argmin(np.abs(gyro_times - impact_acc_t))])
+                    eff_val = round(min(100.0, (impact_gyro / max_downswing_gyro) * 100.0), 1) if max_downswing_gyro > 0.1 else 90.0
+                else:
+                    eff_val = 90.0
+                react_val = 350
+                feats['efficiency'] = eff_val
+                feats['reaction_time_ms'] = react_val
+
                 detected_shots.append({
                     "timestamp_offset_s": t_shot,
                     "timestamp_ns": ts_ns,
@@ -457,6 +475,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     "quality": quality,
                     "bat_speed": bat_speed,
                     "impact_force": float(p_mags[p_peak]),
+                    "efficiency": eff_val,
+                    "impact_time_ms": react_val,
                     "features": feats
                 })
             return detected_shots
@@ -488,6 +508,19 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
         quality = le_qual.inverse_transform([qual_enc])[0]
         
         bat_speed = float(gyro_mags[p] * 4.5)
+
+        acc_mask = (accel_times >= t_shot - 0.15) & (accel_times <= t_shot + 0.10) if len(accel_times) > 0 else np.array([])
+        impact_acc_t = float(accel_times[acc_mask][np.argmax(accel_mags[acc_mask])]) if np.any(acc_mask) else t_shot
+        gyro_mask = (gyro_times >= t_shot - 0.30) & (gyro_times <= t_shot + 0.10) if len(gyro_times) > 0 else np.array([])
+        if np.any(gyro_mask):
+            max_downswing_gyro = float(np.max(gyro_mags[gyro_mask]))
+            impact_gyro = float(gyro_mags[np.argmin(np.abs(gyro_times - impact_acc_t))])
+            eff_val = round(min(100.0, (impact_gyro / max_downswing_gyro) * 100.0), 1) if max_downswing_gyro > 0.1 else 90.0
+        else:
+            eff_val = 90.0
+        react_val = 350
+        feats['efficiency'] = eff_val
+        feats['reaction_time_ms'] = react_val
         
         detected_shots.append({
             "timestamp_offset_s": t_shot,
@@ -496,6 +529,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
             "quality": quality,
             "bat_speed": bat_speed,
             "impact_force": float(accel_mags[p]),
+            "efficiency": eff_val,
+            "impact_time_ms": react_val,
             "features": feats
         })
         
