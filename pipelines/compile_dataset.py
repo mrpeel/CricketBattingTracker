@@ -31,6 +31,13 @@ POLAR_FEATURE_COLS = [
     's3_bottom_gyro_y_min',
 ]
 
+TOP_FEATURE_COLS = [
+    's1_gyro_y_std', 's1_gyro_z_std', 's1_deltaX', 's1_deltaZ',
+    's2_gyroMag', 's2_grav_y_mean', 's2_deltaX', 's2_deltaZ',
+    's3_rollImpactDeg', 's3_yawImpactDeg', 's3_deltaX', 's3_deltaZ',
+    's3_planeRatio', 's3_gyro_y_min', 'gyroMag', 'grav_x_max'
+]
+
 # Augmented synthetic training data directory (never used for evaluation)
 AUG_DIR = os.path.join(BASE_DIR, "augmented_training_data")
 
@@ -367,10 +374,27 @@ def main():
             is_non_swing = any(term in shot_type.lower() for term in NON_SWING_TYPES)
             normalized_gt = normalize_shot_class(shot_type)
             
+            t_impact = float(row["impact_time_seconds"])
+            t_impact_ns = int(row["impact_timestamp_ns"]) if ("impact_timestamp_ns" in row and pd.notna(row["impact_timestamp_ns"])) else int(t_impact * 1e9)
+
+            s1_start_ns = row.get("s1_start_ns", t_impact_ns - 800_000_000)
+            s1_end_ns = row.get("s1_end_ns", t_impact_ns - 200_000_000)
+            s1_start_sec = row.get("s1_start_sec", round(t_impact - 0.80, 6))
+            s1_end_sec = row.get("s1_end_sec", round(t_impact - 0.20, 6))
+
+            s2_start_ns = row.get("s2_start_ns", t_impact_ns - 200_000_000)
+            s2_end_ns = row.get("s2_end_ns", t_impact_ns - 50_000_000)
+            s2_start_sec = row.get("s2_start_sec", round(t_impact - 0.20, 6))
+            s2_end_sec = row.get("s2_end_sec", round(t_impact - 0.05, 6))
+
+            s3_start_ns = row.get("s3_start_ns", t_impact_ns - 50_000_000)
+            s3_end_ns = row.get("s3_end_ns", t_impact_ns + 300_000_000)
+            s3_start_sec = row.get("s3_start_sec", round(t_impact - 0.05, 6))
+            s3_end_sec = row.get("s3_end_sec", round(t_impact + 0.30, 6))
+
             # We only evaluate classification on active, normalized shot types
             if is_non_swing or normalized_gt == "Unknown":
-                # Save non-swing rows to aligned output for completeness but without prediction
-                all_aligned_rows.append({
+                non_swing_entry = {
                     "session_id": session_id,
                     "session_date": session_date,
                     "shot_index": row["shot_index"],
@@ -380,19 +404,53 @@ def main():
                     "impact_time_seconds": row["impact_time_seconds"],
                     "impact_timestamp_ns": row["impact_timestamp_ns"],
                     "impact_gyro_mag": row["impact_gyro_mag"],
+                    "s1_start_ns": s1_start_ns,
+                    "s1_end_ns": s1_end_ns,
+                    "s1_start_sec": s1_start_sec,
+                    "s1_end_sec": s1_end_sec,
+                    "s2_start_ns": s2_start_ns,
+                    "s2_end_ns": s2_end_ns,
+                    "s2_start_sec": s2_start_sec,
+                    "s2_end_sec": s2_end_sec,
+                    "s3_start_ns": s3_start_ns,
+                    "s3_end_ns": s3_end_ns,
+                    "s3_start_sec": s3_start_sec,
+                    "s3_end_sec": s3_end_sec,
+                    "efficiency": float(row.get("efficiency", 0.0)),
+                    "reaction_time_ms": int(row.get("reaction_time_ms", 350)),
                     "shot_type": shot_type,
                     "normalized_gt": "NON-SWING",
                     "quality": row["quality"],
                     "narrated_text": row["narrated_text"],
                     "predicted_shot_type": "N/A",
                     "is_correct": "N/A"
-                })
+                }
+                for col in TOP_FEATURE_COLS + POLAR_FEATURE_COLS:
+                    val = row.get(col, 0.0)
+                    non_swing_entry[col] = float(val) if (val is not None and pd.notna(val)) else 0.0
+                all_aligned_rows.append(non_swing_entry)
                 continue
                 
-            # Extract features for this shot
             t_impact = float(row["impact_time_seconds"])
+            t_impact_ns = int(row["impact_timestamp_ns"]) if ("impact_timestamp_ns" in row and pd.notna(row["impact_timestamp_ns"])) else int(t_impact * 1e9)
             feats = extract_shot_features(sensors, t_impact)
-            
+
+            # Extract phase nanoseconds & seconds from row (or compute fallback)
+            s1_start_ns = row.get("s1_start_ns", t_impact_ns - 800_000_000)
+            s1_end_ns = row.get("s1_end_ns", t_impact_ns - 200_000_000)
+            s1_start_sec = row.get("s1_start_sec", round(t_impact - 0.80, 6))
+            s1_end_sec = row.get("s1_end_sec", round(t_impact - 0.20, 6))
+
+            s2_start_ns = row.get("s2_start_ns", t_impact_ns - 200_000_000)
+            s2_end_ns = row.get("s2_end_ns", t_impact_ns - 50_000_000)
+            s2_start_sec = row.get("s2_start_sec", round(t_impact - 0.20, 6))
+            s2_end_sec = row.get("s2_end_sec", round(t_impact - 0.05, 6))
+
+            s3_start_ns = row.get("s3_start_ns", t_impact_ns - 50_000_000)
+            s3_end_ns = row.get("s3_end_ns", t_impact_ns + 300_000_000)
+            s3_start_sec = row.get("s3_start_sec", round(t_impact - 0.05, 6))
+            s3_end_sec = row.get("s3_end_sec", round(t_impact + 0.30, 6))
+
             # Quality control: filter out misaligned wiggles
             g_mag = feats.get('gyroMag', 0.0)
             if normalized_gt in ["SLOG", "POWER DRIVE", "PULL/HOOK", "SWEEP", "CUT/PUNCH", "GLANCE/FLICK"]:
@@ -409,9 +467,15 @@ def main():
             # Predict using currently active logic
             pred = classify_current(feats)
             is_correct = 1 if pred == normalized_gt else 0
+
+            # Calculate physical efficiency & reaction time
+            impact_gyro_mag = float(row.get('impact_gyro_mag', 0.0))
+            max_gyro_mag = float(feats.get('gyroMag', impact_gyro_mag))
+            eff = row.get('efficiency', min(100.0, round((impact_gyro_mag / max_gyro_mag) * 100.0, 1)) if max_gyro_mag > 0.1 else 90.0)
+            react_ms = row.get('reaction_time_ms', 350)
             
-            # Add to aligned rows
-            all_aligned_rows.append({
+            # Add to aligned rows with full transparency (all 26 features + timings)
+            aligned_entry = {
                 "session_id": session_id,
                 "session_date": session_date,
                 "shot_index": row["shot_index"],
@@ -421,13 +485,34 @@ def main():
                 "impact_time_seconds": row["impact_time_seconds"],
                 "impact_timestamp_ns": row["impact_timestamp_ns"],
                 "impact_gyro_mag": row["impact_gyro_mag"],
+                "s1_start_ns": s1_start_ns,
+                "s1_end_ns": s1_end_ns,
+                "s1_start_sec": s1_start_sec,
+                "s1_end_sec": s1_end_sec,
+                "s2_start_ns": s2_start_ns,
+                "s2_end_ns": s2_end_ns,
+                "s2_start_sec": s2_start_sec,
+                "s2_end_sec": s2_end_sec,
+                "s3_start_ns": s3_start_ns,
+                "s3_end_ns": s3_end_ns,
+                "s3_start_sec": s3_start_sec,
+                "s3_end_sec": s3_end_sec,
+                "efficiency": eff,
+                "reaction_time_ms": react_ms,
                 "shot_type": shot_type,
                 "normalized_gt": normalized_gt,
                 "quality": row["quality"],
                 "narrated_text": row["narrated_text"],
                 "predicted_shot_type": pred,
                 "is_correct": is_correct
-            })
+            }
+            # Copy all 26 extracted features into aligned_entry
+            aligned_entry.update(feats)
+            for col in POLAR_FEATURE_COLS:
+                val = row.get(col, np.nan)
+                aligned_entry[col] = float(val) if (val is not None and pd.notna(val)) else 0.0
+
+            all_aligned_rows.append(aligned_entry)
             
             # Combine all features for training / grid search
             feats_row = feats.copy()
@@ -443,8 +528,7 @@ def main():
             feats_row["pred_current"] = pred
             feats_row["is_correct"] = is_correct
 
-            # Append 6 Polar features (already computed per-row by automate_pipeline;
-            # imputed to 0.0 for sessions without Polar data)
+            # Append 12 Polar features (imputed to 0.0 for sessions without Polar data)
             for col in POLAR_FEATURE_COLS:
                 val = row.get(col, np.nan)
                 if val is None or (isinstance(val, float) and np.isnan(val)):

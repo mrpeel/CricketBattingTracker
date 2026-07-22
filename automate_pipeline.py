@@ -2244,6 +2244,21 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     # 7. For each shot, extract Polar window features and append to ground_truth_aligned.csv
     df_aligned = pd.read_csv(aligned_csv_path)
 
+    s1_start_ns_list = []
+    s1_end_ns_list = []
+    s1_start_sec_list = []
+    s1_end_sec_list = []
+    s2_start_ns_list = []
+    s2_end_ns_list = []
+    s2_start_sec_list = []
+    s2_end_sec_list = []
+    s3_start_ns_list = []
+    s3_end_ns_list = []
+    s3_start_sec_list = []
+    s3_end_sec_list = []
+    efficiency_list = []
+    reaction_time_ms_list = []
+
     bottom_hand_gyro_peak = []
     bottom_hand_acc_peak = []
     bottom_hand_gyro_ratio = []
@@ -2259,8 +2274,65 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
 
     polar_duration = df_polar_acc['seconds_elapsed'].iloc[-1]
 
+    # Load Watch Gyro & Accel for full swing calculations
+    df_watch_acc = load_watch_sensor(session_dir, "WatchAccelerometer")
+    df_watch_gyro = load_watch_sensor(session_dir, "WatchGyroscope")
+    watch_acc_times = df_watch_acc['seconds_elapsed'].to_numpy() if not df_watch_acc.empty else np.array([])
+    watch_acc_mags = np.sqrt(df_watch_acc['x']**2 + df_watch_acc['y']**2 + df_watch_acc['z']**2).to_numpy() if not df_watch_acc.empty else np.array([])
+    watch_gyro_times = df_watch_gyro['seconds_elapsed'].to_numpy() if not df_watch_gyro.empty else np.array([])
+    watch_gyro_mags = np.sqrt(df_watch_gyro['x']**2 + df_watch_gyro['y']**2 + df_watch_gyro['z']**2).to_numpy() if not df_watch_gyro.empty else np.array([])
+
     for idx, row in df_aligned.iterrows():
-        impact_t = row['impact_time_seconds']
+        impact_t = float(row['impact_time_seconds'])
+        impact_ns = int(row['impact_timestamp_ns']) if ('impact_timestamp_ns' in row and pd.notna(row['impact_timestamp_ns'])) else int(impact_t * 1e9)
+
+        # Compute phase start/end nanoseconds and seconds
+        s1_start_sec = round(impact_t - 0.80, 6)
+        s1_end_sec = round(impact_t - 0.20, 6)
+        s1_start_ns = impact_ns - 800_000_000
+        s1_end_ns = impact_ns - 200_000_000
+
+        s2_start_sec = round(impact_t - 0.20, 6)
+        s2_end_sec = round(impact_t - 0.05, 6)
+        s2_start_ns = impact_ns - 200_000_000
+        s2_end_ns = impact_ns - 50_000_000
+
+        s3_start_sec = round(impact_t - 0.05, 6)
+        s3_end_sec = round(impact_t + 0.30, 6)
+        s3_start_ns = impact_ns - 50_000_000
+        s3_end_ns = impact_ns + 300_000_000
+
+        s1_start_ns_list.append(s1_start_ns)
+        s1_end_ns_list.append(s1_end_ns)
+        s1_start_sec_list.append(s1_start_sec)
+        s1_end_sec_list.append(s1_end_sec)
+        s2_start_ns_list.append(s2_start_ns)
+        s2_end_ns_list.append(s2_end_ns)
+        s2_start_sec_list.append(s2_start_sec)
+        s2_end_sec_list.append(s2_end_sec)
+        s3_start_ns_list.append(s3_start_ns)
+        s3_end_ns_list.append(s3_end_ns)
+        s3_start_sec_list.append(s3_start_sec)
+        s3_end_sec_list.append(s3_end_sec)
+
+        # Dynamic Physical Efficiency & Reaction Time
+        impact_gyro_mag = float(row.get('impact_gyro_mag', 0.0))
+        swing_gyro_win = watch_gyro_mags[(watch_gyro_times >= impact_t - 0.80) & (watch_gyro_times <= impact_t + 0.30)] if len(watch_gyro_times) > 0 else np.array([])
+        max_gyro_mag = float(np.max(swing_gyro_win)) if len(swing_gyro_win) > 0 else impact_gyro_mag
+
+        eff = min(100.0, round((impact_gyro_mag / max_gyro_mag) * 100.0, 1)) if max_gyro_mag > 0.1 else 90.0
+        efficiency_list.append(eff)
+
+        # Reaction time: backswing onset (gyro >= 1.0 rad/s) to impact peak
+        onset_mask = (watch_gyro_times >= impact_t - 0.80) & (watch_gyro_times <= impact_t) & (watch_gyro_mags >= 1.0) if len(watch_gyro_times) > 0 else np.array([])
+        if np.any(onset_mask):
+            onset_t = float(watch_gyro_times[onset_mask][0])
+            react_ms = int(round((impact_t - onset_t) * 1000.0))
+            react_ms = max(150, min(800, react_ms))
+        else:
+            react_ms = 350
+        reaction_time_ms_list.append(react_ms)
+
         polar_t = watch_to_polar_time(impact_t)
 
         # Check if the mapped Polar time falls within the Polar data range
@@ -2279,9 +2351,9 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             s3_bottom_gyro_y_min.append(np.nan)
             continue
 
-        # Extract ±1s Polar window around impact
-        p_start = polar_t - 1.0
-        p_end = polar_t + 1.0
+        # Extract constrained downswing Polar window [-0.20s, +0.10s] around impact
+        p_start = polar_t - 0.20
+        p_end = polar_t + 0.10
 
         # Polar ACC window
         acc_win = df_polar_acc[(df_polar_acc['seconds_elapsed'] >= p_start) & (df_polar_acc['seconds_elapsed'] <= p_end)]
@@ -2315,8 +2387,8 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         else:
             bottom_hand_gyro_ratio.append(np.nan)
 
-        # For acc ratio, watch accel peak in the same ±1s window
-        watch_acc_win_mask = (watch_acc_times >= impact_t - 1.0) & (watch_acc_times <= impact_t + 1.0)
+        # For acc ratio, watch accel peak in downswing window [-0.20s, +0.10s]
+        watch_acc_win_mask = (watch_acc_times >= impact_t - 0.20) & (watch_acc_times <= impact_t + 0.10) if len(watch_acc_times) > 0 else np.array([])
         if np.any(watch_acc_win_mask):
             watch_acc_peak = float(np.max(watch_acc_mags[watch_acc_win_mask]))
         else:
@@ -2327,16 +2399,16 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         else:
             bottom_hand_acc_ratio.append(np.nan)
 
-        # Time lead: how many ms the Polar acc peak leads the watch impact
+        # Time lead: how many ms the Polar acc peak leads the watch impact (positive = Polar before watch)
         if not np.isnan(p_acc_peak_t):
-            time_lead = (polar_t - p_acc_peak_t) * 1000.0  # positive = Polar peak before watch impact
+            time_lead = (polar_t - p_acc_peak_t) * 1000.0
             bottom_hand_time_lead_ms.append(round(time_lead, 1))
         else:
             bottom_hand_time_lead_ms.append(np.nan)
 
-        # Sync score: 1.0 - abs(time_lead)/1000, clamped to [0, 1]
+        # Sync score: 1.0 - abs(time_lead)/500, clamped to [0, 1]
         if not np.isnan(p_acc_peak_t):
-            sync = max(0.0, 1.0 - abs(polar_t - p_acc_peak_t))
+            sync = max(0.0, 1.0 - abs(polar_t - p_acc_peak_t) / 0.5)
             bottom_hand_sync_score.append(round(sync, 3))
         else:
             bottom_hand_sync_score.append(np.nan)
@@ -2379,6 +2451,26 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             s3_bottom_pronation_deg.append(np.nan)
             s3_bottom_gyro_y_min.append(np.nan)
 
+    # Export phase timings & physical metrics
+    df_aligned['s1_start_ns'] = s1_start_ns_list
+    df_aligned['s1_end_ns'] = s1_end_ns_list
+    df_aligned['s1_start_sec'] = s1_start_sec_list
+    df_aligned['s1_end_sec'] = s1_end_sec_list
+
+    df_aligned['s2_start_ns'] = s2_start_ns_list
+    df_aligned['s2_end_ns'] = s2_end_ns_list
+    df_aligned['s2_start_sec'] = s2_start_sec_list
+    df_aligned['s2_end_sec'] = s2_end_sec_list
+
+    df_aligned['s3_start_ns'] = s3_start_ns_list
+    df_aligned['s3_end_ns'] = s3_end_ns_list
+    df_aligned['s3_start_sec'] = s3_start_sec_list
+    df_aligned['s3_end_sec'] = s3_end_sec_list
+
+    df_aligned['efficiency'] = efficiency_list
+    df_aligned['reaction_time_ms'] = reaction_time_ms_list
+
+    # Export Polar features
     df_aligned['bottom_hand_gyro_peak'] = bottom_hand_gyro_peak
     df_aligned['bottom_hand_acc_peak'] = bottom_hand_acc_peak
     df_aligned['bottom_hand_gyro_ratio'] = bottom_hand_gyro_ratio
@@ -2396,7 +2488,7 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
 
     valid_count = df_aligned['bottom_hand_acc_peak'].notna().sum()
     total_count = len(df_aligned)
-    print(f"\n✅ Polar Sense features (12 features) appended to ground_truth_aligned.csv ({valid_count}/{total_count} shots with Polar data)")
+    print(f"\n✅ Polar Sense features & Phase Timings appended to ground_truth_aligned.csv ({valid_count}/{total_count} shots with Polar data)")
 
 def normalize_shot_class(shot_name):
 

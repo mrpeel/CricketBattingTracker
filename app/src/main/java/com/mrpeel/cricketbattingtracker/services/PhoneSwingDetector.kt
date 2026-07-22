@@ -179,24 +179,24 @@ object PhoneSwingDetector {
 
                     val hasPolarData = alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty() && polarPeakTimeMs != null
 
-                    // Extract Polar telemetry if available
+                    // Extract Polar telemetry if available (constrained to downswing window [-200ms, +100ms])
                     if (hasPolarData && polarPeakTimeMs != null) {
-                        val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
-                        val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 1000L)..(polarPeakTimeMs + 1000L) }
+                        val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
+                        val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
 
                         val pAccPeak = if (polarAccWin.isNotEmpty()) polarAccWin.maxOf { it.mag } else 0f
                         val pGyroPeak = if (polarGyroWin.isNotEmpty()) polarGyroWin.maxOf { it.mag } else 0f
-                        val watchGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 1_000_000_000L, targetSensorNs + 1_000_000_000L)
+                        val watchGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 200_000_000L, targetSensorNs + 100_000_000L)
                         val gyroRatio = if (watchGyroPeak > 0.01f) pGyroPeak / watchGyroPeak else 0f
                         val accRatio = if (watchAcc.isNotEmpty()) {
-                            val wAccPeak = watchAcc.filter { it.timeNanos in (targetSensorNs - 1_000_000_000L)..(targetSensorNs + 1_000_000_000L) }.maxOfOrNull { it.mag } ?: 1f
+                            val wAccPeak = watchAcc.filter { it.timeNanos in (targetSensorNs - 200_000_000L)..(targetSensorNs + 100_000_000L) }.maxOfOrNull { it.mag } ?: 1f
                             pAccPeak / wAccPeak
                         } else 0f
 
                         val pAccPeakTime = polarAccWin.maxByOrNull { it.mag }?.phoneMs ?: polarPeakTimeMs
                         val timeLeadMs = pAccPeakTime - polarPeakTimeMs
-                        val timePenalty = min(1.0f, abs(timeLeadMs) / 500f)
-                        val ratioPenalty = min(1.0f, abs(gyroRatio - 1.0f))
+                        val timePenalty = kotlin.math.min(1.0f, kotlin.math.abs(timeLeadMs) / 200f)
+                        val ratioPenalty = kotlin.math.min(1.0f, kotlin.math.abs(gyroRatio - 1.0f))
                         val syncScore = ((1.0f - timePenalty * 0.6f - ratioPenalty * 0.4f) * 100f).coerceIn(0f, 100f)
 
                         bottomGyroPeak = pGyroPeak
@@ -279,7 +279,7 @@ object PhoneSwingDetector {
                         com.mrpeel.cricketbattingtracker.ml.GeneratedTopQualityForest.predict(features)
                     }
 
-                    // Map RF predicted quality to UI properties
+                    // Map RF predicted quality & physical metrics
                     val finalSweetSpot = when (predictedQuality) {
                         "good" -> "Excellent"
                         "poor" -> "Poor"
@@ -287,17 +287,13 @@ object PhoneSwingDetector {
                         "edge" -> "Edge"
                         else -> "Good"
                     }
-                    val finalEfficiency = when (predictedQuality) {
-                        "good" -> 90f
-                        "poor" -> 60f
-                        "edge" -> 40f
-                        else -> 0f
-                    }
+                    val watchImpactGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 200_000_000L, targetSensorNs + 100_000_000L)
+                    val finalEfficiency = if (shot.gyroMag > 0.1f) kotlin.math.min(100f, (watchImpactGyroPeak / shot.gyroMag) * 100f) else 90f
                     val finalPeakAccel = if (bottomAccPeak > 0f) bottomAccPeak else shot.peakAccel
 
                     val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L
                     val shotWallMs = watchStartWallMs + relShotMs
-                    val reactionTimeMs = if (shot.impactTimeMs > 0L) shot.impactTimeMs else 350L
+                    val reactionTimeMs = if (shot.impactTimeMs in 150L..800L) shot.impactTimeMs else 350L
 
                     confirmedPass1Shots.add(InningsEvent(
                         inningsId = inningsId,

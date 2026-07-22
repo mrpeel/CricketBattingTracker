@@ -37,6 +37,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-025 | 6x Synthetic Shot Classifier Augmentation | Scale training variants per shot to 90 and cap to 18x, retraining Random Forest to 86.22% CV accuracy. | **Completed** | Scikit-learn cross validation metrics and watch transpilation successful |
 | B-026 | Video Capture Config & Viewfinder | Integrate camera facing flip, linear zoom control slider, target frame rate selector, and live preview viewfinders. | **Completed** | Gradle assembleDebug builds successfully and camera parameter bindings validated |
 | B-027 | Phone-Bound Batch Processing | Remove real-time detection on watch and move facing up, stance lock, feature extraction, and RF classification entirely to the Phone companion app. | **Completed** | Local file unzipping, database write checks, and Python pipeline phone pull verification |
+| B-028 | Base Data Transparency & Telemetry Overhaul | Add explicit phase start/end nanoseconds and seconds, export all 26 sensor features, calculate physical efficiency, dynamic reaction time, and downswing-constrained Polar peak matching. | **Completed** | Regenerated ground_truth_aligned.csv and combined_ground_truth_aligned.csv with 57 columns and eliminated post-shot tap artifacts |
 
 
 ---

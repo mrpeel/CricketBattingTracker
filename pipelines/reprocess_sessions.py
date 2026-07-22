@@ -72,12 +72,18 @@ def pull_database():
                 stderr=subprocess.PIPE
             )
         if res.returncode != 0:
-            print(f"❌ Failed to stream database from phone: {res.stderr.decode()}")
+            print(f"⚠️ ADB pull failed: {res.stderr.decode().strip()}")
+            if os.path.exists(LOCAL_DB_PATH):
+                print(f"ℹ️ Falling back to existing local database file: {LOCAL_DB_PATH}")
+                return True
             return False
         print(f"✅ Successfully pulled database to: {LOCAL_DB_PATH}")
         return True
     except Exception as e:
-        print(f"❌ Pull failed: {e}")
+        print(f"⚠️ Pull failed: {e}")
+        if os.path.exists(LOCAL_DB_PATH):
+            print(f"ℹ️ Falling back to existing local database file: {LOCAL_DB_PATH}")
+            return True
         return False
 
 def push_database():
@@ -517,7 +523,48 @@ def main():
     conn = sqlite3.connect(LOCAL_DB_PATH)
     c = conn.cursor()
     
-    # 1. WIPE ENTIRE DATABASE EVENT TABLES: Eliminates residual buggy/duplicate sessions!
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS innings_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            inningsId INTEGER,
+            timestamp INTEGER,
+            description TEXT,
+            batSpeed REAL,
+            impactForce REAL,
+            impactTimeMs INTEGER,
+            shotType TEXT,
+            efficiency REAL,
+            backliftAngle REAL,
+            followThroughAngle REAL,
+            wristRollDeg REAL,
+            bladeAngle REAL,
+            bladeClass TEXT,
+            launchAngle REAL,
+            launchClass TEXT,
+            location TEXT,
+            bottom_hand_gyro_peak REAL,
+            bottom_hand_acc_peak REAL,
+            bottom_hand_gyro_ratio REAL,
+            bottom_hand_acc_ratio REAL,
+            bottom_hand_time_lead_ms REAL,
+            bottom_hand_sync_score REAL,
+            swing_feature_s1_gyro_y_std REAL,
+            swing_feature_s1_gyro_z_std REAL,
+            swing_feature_s1_delta_x REAL,
+            swing_feature_s1_delta_z REAL,
+            swing_feature_s2_gyro_mag REAL,
+            swing_feature_s2_grav_y_mean REAL,
+            swing_feature_s2_delta_x REAL,
+            swing_feature_s2_delta_z REAL,
+            swing_feature_s3_roll_deg REAL,
+            swing_feature_s3_yaw_deg REAL,
+            swing_feature_s3_delta_x REAL,
+            swing_feature_s3_delta_z REAL,
+            swing_feature_s3_plane_ratio REAL,
+            swing_feature_s3_gyro_y_min REAL
+        )
+    """)
+    c.execute("CREATE TABLE IF NOT EXISTS heart_rate_events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, bpm REAL)")
     print("🧹 Cleaning phone database events tables to prevent legacy duplicates...")
     c.execute("DELETE FROM innings_events")
     c.execute("DELETE FROM heart_rate_events")
@@ -560,16 +607,10 @@ def main():
                 "edge": "Edge"
             }.get(shot["quality"], "Good")
             
-            efficiency = {
-                "good": 90.0,
-                "poor": 60.0,
-                "edge": 40.0,
-                "miss": 0.0
-            }.get(shot["quality"], 0.0)
-
             desc = f"{shot['shot_type']} ({sweet_spot}) ✨ Reprocessed"
             f = shot["features"]
-            impact_time_ms = int(shot.get("impact_time_ms", 350))
+            efficiency = float(shot.get("efficiency", f.get("efficiency", 90.0)))
+            impact_time_ms = int(shot.get("impact_time_ms", f.get("reaction_time_ms", 350)))
 
             c.execute("""
                 INSERT INTO innings_events (
@@ -602,6 +643,7 @@ def main():
             INSERT INTO innings_events (inningsId, timestamp, description, location)
             VALUES (?, ?, 'Session Ended', '26 Aldinga Street, Blackburn South')
         """, (session_start_ms, session_end_ms))
+        conn.commit()
         
         # Calculate statistics and density heuristics
         duration_minutes = 0.0

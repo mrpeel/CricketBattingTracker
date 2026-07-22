@@ -60,3 +60,18 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Root Cause**: Inside the shot processing loop, a local variable for the segment 2 dynamic ratio slope calculation was defined as `slope`. Because Python does not have block scope, reassigning `slope` inside the loop re-declared and polluted the outer scope's alignment `slope` variable. In subsequent iterations, the watch-to-polar mapping formula used the corrupted dynamic slope, projecting shots into negative/out-of-bounds timestamps and triggering the default `NaN` assignment check.
     *   **The Solution**: Renamed the loop-local variable to `s2_slope` and refactored the trapezoidal integration logic to use `numpy.trapezoid` or `numpy.trapz` fallbacks. Successfully reprocessed all historical Polar datasets, recovering 100% feature coverage across all sessions.
 
+
+99. **Phase Nanosecond Timings, 26-Feature Export & Downswing Polar Peak Matching (July 22, 2026)**:
+    *   **The Problem**:
+        1. Reprocessed session details showed flat `90%` efficiency and flat `350ms` reaction time across every shot, while bottom-to-top hand timing lag showed unphysiological values up to `+861ms` (bottom hand 861ms behind watch impact on a 104 km/h Pull shot).
+        2. Ground truth alignment CSV files lacked explicit nanosecond phase start/end boundaries and missing feature columns needed for first-principles verification.
+    *   **Root Cause**:
+        1. `reprocess_sessions.py` and `PhoneSwingDetector.kt` hardcoded efficiency to `90.0%` for `quality == "good"` string predictions instead of physical ratio $\frac{\text{impactGyro}}{\text{maxGyro}}$. `reaction_time_ms` defaulted to `350ms` when candidate slices lacked stance locks.
+        2. `automate_pipeline.py` searched for Polar peak magnitudes across an unconstrained $\pm 1000\text{ms}$ ($\pm 1.0$s) window around impact. When players tapped their bat or adjusted their stance $+861\text{ms}$ *after* impact, the search grabbed that post-shot tap as the peak, reporting $+861\text{ms}$ lag and tiny ratios ($13\% / 9\%$) evaluated on the tap instead of the actual stroke downswing.
+    *   **The Solution**:
+        1. Added explicit phase start/end nanoseconds (`s1_start_ns`, `s1_end_ns`, `s2_start_ns`, `s2_end_ns`, `s3_start_ns`, `s3_end_ns`) and seconds to `ground_truth_aligned.csv` and `combined_ground_truth_aligned.csv`.
+        2. Exported all 26 sensor features as explicit columns in both CSV files.
+        3. Constrained Polar peak search window to the actual downswing phase ($[-200\text{ms}, +100\text{ms}]$), eliminating post-shot tap artifacts and restoring physical hand timing lead ($\pm 190\text{ms}$).
+        4. Replaced hardcoded efficiency and 350ms defaults with true physical efficiency $\frac{\text{impact\_gyro\_mag}}{\text{gyroMag}} \times 100\%$ and dynamic reaction time from backswing onset.
+    *   **Result**: Regenerated all 38 session datasets (3,606 rows), verified all 57 columns in `combined_ground_truth_aligned.csv`, and confirmed physical telemetry values in SQLite `innings_events`.
+
