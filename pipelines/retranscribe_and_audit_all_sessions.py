@@ -34,7 +34,7 @@ def get_audio_duration_seconds(audio_path):
         pass
     return None
 
-def audit_session(session_dir):
+def audit_session(session_dir, retranscribe=False):
     session_id = os.path.basename(session_dir)
     audio_files = glob.glob(os.path.join(session_dir, "*.m4a")) + glob.glob(os.path.join(session_dir, "*.mp3"))
     if not audio_files:
@@ -48,16 +48,25 @@ def audit_session(session_dir):
     gyro_dur = df_gyro.iloc[-1]['seconds_elapsed'] if not df_gyro.empty else (audio_dur or 9999.0)
 
     raw_transcript_path = os.path.join(session_dir, "raw_transcript.txt")
-    if not os.path.exists(raw_transcript_path):
-        return {
-            "session_id": session_id,
-            "status": "❌ NO RAW TRANSCRIPT",
-            "audio_dur_s": audio_dur,
-            "shots_count": 0,
-            "max_shot_num": 0,
-            "unmapped_phrases": [],
-            "errors": ["raw_transcript.txt missing"]
-        }
+    
+    if retranscribe or not os.path.exists(raw_transcript_path):
+        print(f"🎙️ Transcribing audio narration for {session_id} via Gemini...")
+        from automate_pipeline import transcribe_audio_gemini
+        try:
+            raw_text = transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash")
+            with open(raw_transcript_path, "w", encoding="utf-8") as f:
+                f.write(raw_text)
+            print(f"✅ Saved transcript to {raw_transcript_path}")
+        except Exception as e:
+            return {
+                "session_id": session_id,
+                "status": "❌ TRANSCRIPTION FAILED",
+                "audio_dur_s": audio_dur,
+                "shots_count": 0,
+                "max_shot_num": 0,
+                "unmapped_phrases": [],
+                "errors": [f"Gemini error: {e}"]
+            }
 
     with open(raw_transcript_path, "r", encoding="utf-8") as f:
         raw_text = f.read()
@@ -108,7 +117,17 @@ def audit_session(session_dir):
     }
 
 def main():
-    session_dirs = sorted([d for d in glob.glob(os.path.join(SESSIONS_DIR, "*")) if os.path.isdir(d)])
+    import argparse
+    parser = argparse.ArgumentParser(description="Batch Audio Transcription & Ground-Truth Audit")
+    parser.add_argument("--retranscribe", action="store_true", help="Re-transcribe all sessions via Gemini Stage 1")
+    parser.add_argument("--session-dir", type=str, default=None, help="Optionally audit a specific session directory")
+    args = parser.parse_args()
+
+    if args.session_dir:
+        session_dirs = [args.session_dir]
+    else:
+        session_dirs = sorted([d for d in glob.glob(os.path.join(SESSIONS_DIR, "*")) if os.path.isdir(d)])
+
     print("=" * 110)
     print(f"📊 BATCH AUDIO TRANSCRIPTION & GROUND-TRUTH LEXICON AUDIT ({len(session_dirs)} sessions)")
     print("=" * 110)
@@ -119,7 +138,7 @@ def main():
     passed_count = 0
 
     for s_dir in session_dirs:
-        res = audit_session(s_dir)
+        res = audit_session(s_dir, retranscribe=args.retranscribe)
         if res is None:
             continue
         total_audited += 1
