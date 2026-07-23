@@ -23,6 +23,7 @@ import shutil
 import sqlite3
 import datetime
 import subprocess
+import struct
 import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
@@ -106,6 +107,194 @@ def push_database():
     except Exception as e:
         print(f"❌ Push failed: {e}")
         return False
+
+def parse_watch_imu_bin(filepath):
+    samples = []
+    if not os.path.exists(filepath):
+        return samples
+    with open(filepath, "rb") as f:
+        data = f.read()
+    fmt = "<qffff" # long timeNanos, float sec, float x, float y, float z
+    record_size = struct.calcsize(fmt)
+    for i in range(0, len(data) - record_size + 1, record_size):
+        t, sec, x, y, z = struct.unpack_from(fmt, data, i)
+        mag = np.sqrt(x*x + y*y + z*z)
+        samples.append({"timeNanos": t, "elapsedSecs": sec, "x": x, "y": y, "z": z, "mag": mag})
+    return samples
+
+def parse_watch_rot_bin(filepath):
+    samples = []
+    if not os.path.exists(filepath):
+        return samples
+    with open(filepath, "rb") as f:
+        data = f.read()
+    fmt = "<qfffff" # long timeNanos, float sec, float qx, float qy, float qz, float qw
+    record_size = struct.calcsize(fmt)
+    for i in range(0, len(data) - record_size + 1, record_size):
+        t, sec, qx, qy, qz, qw = struct.unpack_from(fmt, data, i)
+        samples.append({"timeNanos": t, "elapsedSecs": sec, "qx": qx, "qy": qy, "qz": qz, "qw": qw})
+    return samples
+
+def parse_polar_bin(filepath, is_gyro=False):
+    samples = []
+    if not os.path.exists(filepath):
+        return samples
+    with open(filepath, "rb") as f:
+        data = f.read()
+    fmt = "<qqfff" # long phoneMs, long sensorNs, float x, float y, float z
+    record_size = struct.calcsize(fmt)
+    dps_to_rad = np.pi / 180.0
+    for i in range(0, len(data) - record_size + 1, record_size):
+        phone_ms, sensor_ns, x, y, z = struct.unpack_from(fmt, data, i)
+        if is_gyro:
+            x *= dps_to_rad
+            y *= dps_to_rad
+            z *= dps_to_rad
+        else:
+            x *= 0.00980665
+            y *= 0.00980665
+            z *= 0.00980665
+        mag = np.sqrt(x*x + y*y + z*z)
+        samples.append({"phoneMs": phone_ms, "sensorNs": sensor_ns, "x": x, "y": y, "z": z, "mag": mag})
+    return sorted(samples, key=lambda s: s["sensorNs"])
+
+def parse_latest_timeline(timeline_path, watch_start_ns, watch_start_wall_ms):
+    watch_taps = []
+    sys_start_ms = None
+    if not os.path.exists(timeline_path):
+        return sys_start_ms, watch_taps
+    with open(timeline_path, "r") as f:
+        for line in f:
+            if line.startswith("SYSTEM_START:"):
+                m = re.search(r"Ts=(\d+)", line)
+                if m: sys_start_ms = int(m.group(1))
+            elif line.startswith("TAP_SEQ:"):
+                t_matches = re.findall(r"T\d=(\d+)", line)
+                if len(t_matches) == 5:
+                    tap_nanos = [int(x) for x in t_matches]
+                    true_wall_ms = watch_start_wall_ms + (tap_nanos[4] - watch_start_ns) // 1_000_000
+                    watch_taps.append((true_wall_ms, tap_nanos))
+    return sys_start_ms, watch_taps
+
+def detect_polar_tap_sequences(samples):
+    tap_threshold = 25.0
+    min_gap_ms = 200
+    max_gap_ms = 1500
+    max_span_ms = 5000
+
+    phone_times = np.array([s["phoneMs"] for s in samples])
+    mags = np.array([s["mag"] for s in samples])
+
+    candidate_indices = np.where(mags >= tap_threshold)[0]
+    local_peaks = []
+
+    for idx in candidate_indices:
+        s_ms = phone_times[idx]
+        w_start = np.searchsorted(phone_times, s_ms - 150)
+        w_end = np.searchsorted(phone_times, s_ms + 150)
+        max_in_win = np.max(mags[w_start:w_end+1])
+        if mags[idx] >= max_in_win:
+            if not any(abs(s_ms - p["phoneMs"]) < min_gap_ms for p in local_peaks):
+                local_peaks.append(samples[idx])
+
+    sequences = []
+    i = 0
+    while i < len(local_peaks) - 4:
+        seq = local_peaks[i:i+5]
+        total_span = seq[-1]["phoneMs"] - seq[0]["phoneMs"]
+        if total_span <= max_span_ms:
+            valid = True
+            for j in range(1, 5):
+                gap = seq[j]["phoneMs"] - seq[j-1]["phoneMs"]
+                if gap < min_gap_ms or gap > max_gap_ms:
+                    valid = False; break
+            if valid:
+                sequences.append([s["phoneMs"] for s in seq])
+                i += 5
+                continue
+        i += 1
+    return sequences
+
+class TimeAlignment:
+    def __init__(self, offset_ms, drift_rate):
+        self.offset_ms = offset_ms
+        self.drift_rate = drift_rate
+    def polarToWatchMs(self, polar_ms):
+        return int((polar_ms - self.offset_ms) / (1.0 + self.drift_rate))
+
+def match_tap_sequences(watch_taps, polar_taps):
+    if not watch_taps or not polar_taps: return None
+    matches = []
+    for w_anchor_ms, w_seq in watch_taps:
+        watch_intervals = [(w_seq[i+1] - w_seq[i]) / 1_000_000.0 for i in range(4)]
+        best_p_idx = -1
+        best_err = float("inf")
+        for p_idx, p_seq in enumerate(polar_taps):
+            if len(p_seq) != 5: continue
+            diff = float(p_seq[4]) - float(w_anchor_ms)
+            if abs(diff) > 3000.0: continue
+            polar_intervals = [float(p_seq[i+1] - p_seq[i]) for i in range(4)]
+            err = sum(abs(w - p) for w, p in zip(watch_intervals, polar_intervals))
+            if err < best_err:
+                best_err = err
+                best_p_idx = p_idx
+        if best_p_idx >= 0 and best_err < 500.0:
+            matches.append((w_anchor_ms, polar_taps[best_p_idx][4]))
+    if not matches: return None
+    if len(matches) == 1:
+        return TimeAlignment(offset_ms=matches[0][1] - matches[0][0], drift_rate=0.0)
+    else:
+        w_times = np.array([m[0] for m in matches], dtype=float)
+        p_times = np.array([m[1] for m in matches], dtype=float)
+        n = len(w_times)
+        sumX = np.sum(w_times)
+        sumY = np.sum(p_times)
+        sumXY = np.sum(w_times * p_times)
+        sumX2 = np.sum(w_times ** 2)
+        slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX ** 2)
+        intercept = (sumY - slope * sumX) / n
+        return TimeAlignment(offset_ms=intercept, drift_rate=slope - 1.0)
+
+def detect_impact_peaks(samples, threshold=24.5):
+    phone_times = np.array([s["phoneMs"] for s in samples])
+    mags = np.array([s["mag"] for s in samples])
+    candidates = np.where(mags >= threshold)[0]
+    peaks = []
+    min_gap_ms = 1500
+    for idx in candidates:
+        s_ms = phone_times[idx]
+        w_start = np.searchsorted(phone_times, s_ms - 500)
+        w_end = np.searchsorted(phone_times, s_ms + 500)
+        max_in_win = np.max(mags[w_start:w_end+1])
+        if mags[idx] >= max_in_win:
+            if not any(abs(s_ms - p) < min_gap_ms for p in peaks):
+                peaks.append(s_ms)
+    return peaks
+
+def verify_swing_backwards(impact_sensor_ns, watch_gyro, watch_rot):
+    bs_start = impact_sensor_ns - 1_500_000_000
+    bs_end = impact_sensor_ns - 150_000_000
+    bs_gyros = [g["mag"] for g in watch_gyro if bs_start <= g["timeNanos"] <= bs_end]
+    if not bs_gyros or max(bs_gyros) < 4.0:
+        return False, f"backswing_failed (peak={max(bs_gyros) if bs_gyros else 0:.2f} < 4.0)"
+    
+    st_start = impact_sensor_ns - 2_500_000_000
+    st_end = impact_sensor_ns - 1_000_000_000
+    st_rots = [r for r in watch_rot if st_start <= r["timeNanos"] <= st_end]
+    if len(st_rots) < 5:
+        return False, f"stance_insufficient_samples ({len(st_rots)} < 5)"
+    
+    mqx = np.mean([r["qx"] for r in st_rots])
+    mqy = np.mean([r["qy"] for r in st_rots])
+    mqz = np.mean([r["qz"] for r in st_rots])
+    mqw = np.mean([r["qw"] for r in st_rots])
+    
+    devs = [(r["qx"]-mqx)**2 + (r["qy"]-mqy)**2 + (r["qz"]-mqz)**2 + (r["qw"]-mqw)**2 for r in st_rots]
+    std_dev = np.sqrt(sum(devs) / len(st_rots))
+    if std_dev > 0.12:
+        return False, f"stance_failed (stdDev={std_dev:.4f} > 0.12)"
+        
+    return True, "ok"
 
 def restart_app():
     print("⏳ Restarting app on phone...")
@@ -382,65 +571,31 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
             })
         return detected_shots
 
-    # Fallback / Standalone Standby: run raw peak-detection
-    polar_peak_accel_threshold = 24.5
-    watch_peak_gyro_threshold = 4.0
-    
-    # Check if this session folder has Polar Sense CSV or Binary logs
-    has_polar = False
-    polar_acc_file = None
-    polar_dir = os.path.join(session_dir, "PolarSense")
-    if os.path.isdir(polar_dir):
-        files = glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")) + \
-                glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.bin*"))
-        files = list(set(files))
-        if files:
-            polar_acc_file = files[0]
-            has_polar = True
+    # Fallback / Standalone Standby: run proper dual-pass peak-detection
+    watch_acc_samples = parse_watch_imu_bin(os.path.join(session_dir, "WatchAccelerometer.bin"))
+    watch_gyro_samples = parse_watch_imu_bin(os.path.join(session_dir, "WatchGyroscope.bin"))
+    watch_rot_samples = parse_watch_rot_bin(os.path.join(session_dir, "WatchGameOrientation.bin"))
+    polar_acc_samples = parse_polar_bin(os.path.join(session_dir, "PolarSense/PolarAccelerometer.bin"), is_gyro=False) if has_polar else []
+    polar_gyro_samples = parse_polar_bin(os.path.join(session_dir, "PolarSense/PolarGyroscope.bin"), is_gyro=True) if has_polar else []
 
-    if has_polar and polar_acc_file:
-        try:
-            if ".bin" in polar_acc_file:
-                # Parse binary Polar Sense format
-                dtype = np.dtype([
-                    ('phone_ms', '<i8'),
-                    ('sensor_ns', '<i8'),
-                    ('x', '<f4'),
-                    ('y', '<f4'),
-                    ('z', '<f4')
-                ])
-                if polar_acc_file.endswith(".gz"):
-                    with gzip.open(polar_acc_file, 'rb') as f:
-                        data = f.read()
-                else:
-                    with open(polar_acc_file, 'rb') as f:
-                        data = f.read()
-                arr = np.frombuffer(data, dtype=dtype)
-                df_p = pd.DataFrame({
-                    'sensor_ns': arr['sensor_ns'],
-                    'mag': np.sqrt(arr['x']**2 + arr['y']**2 + arr['z']**2) * 0.00980665
-                })
-            else:
-                df_p = pd.read_csv(polar_acc_file, sep=';')
-                df_p.columns = ['phone_timestamp', 'sensor_ns', 'x', 'y', 'z'] + list(df_p.columns[5:])
-                df_p['sensor_ns'] = pd.to_numeric(df_p['sensor_ns'], errors='coerce')
-                df_p['mag'] = np.sqrt(pd.to_numeric(df_p['x'], errors='coerce')**2 + 
-                                      pd.to_numeric(df_p['y'], errors='coerce')**2 + 
-                                      pd.to_numeric(df_p['z'], errors='coerce')**2) * 0.00980665
-            
-            df_p = df_p.dropna(subset=['sensor_ns', 'mag']).sort_values('sensor_ns').reset_index(drop=True)
-            p_mags = df_p['mag'].values
-            polar_peaks, _ = find_peaks(p_mags, height=polar_peak_accel_threshold, distance=750)
-            
-            # Snap to closest watch gyro peaks
-            detected_shots = []
-            for p_peak in polar_peaks:
-                t_shot = float(df_p['sensor_ns'].iloc[p_peak] / 1e9) # rough estimate
-                if len(gyro_times) > 0:
-                    close_idx = np.argmin(np.abs(gyro_times - t_shot))
-                    t_shot = gyro_times[close_idx]
-                else:
-                    close_idx = 0
+    watch_start_ns = watch_acc_samples[0]["timeNanos"] if watch_acc_samples else 0
+    watch_start_wall_ms, watch_taps = parse_latest_timeline(os.path.join(session_dir, "latest_timeline.txt"), watch_start_ns, 1784773335120)
+
+    polar_taps = detect_polar_tap_sequences(polar_acc_samples) if polar_acc_samples else []
+    alignment = match_tap_sequences(watch_taps, polar_taps) if polar_taps else None
+
+    pass1_shots = []
+
+    if alignment is not None and polar_acc_samples:
+        polar_peaks = detect_impact_peaks(polar_acc_samples, threshold=24.5)
+        for p_peak in polar_peaks:
+            w_wall_ms = alignment.polarToWatchMs(p_peak)
+            rel_offset_ms = w_wall_ms - watch_start_wall_ms
+            target_sensor_ns = watch_start_ns + (rel_offset_ms * 1_000_000)
+
+            if verify_swing_backwards(target_sensor_ns, watch_gyro_samples, watch_rot_samples)[0]:
+                t_shot = rel_offset_ms / 1000.0
+                close_idx = np.argmin(np.abs(gyro_times - t_shot)) if len(gyro_times) > 0 else 0
                 ts_ns = int(accel_ns[close_idx]) if len(accel_ns) > close_idx else 0
                 
                 feats = extract_features_single_shot(sensors, t_shot)
@@ -453,90 +608,62 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 qual_enc = rf_qual.predict(df_feat)[0]
                 quality = le_qual.inverse_transform([qual_enc])[0]
                 
-                bat_speed = float(gyro_mags[close_idx] * 4.5) if len(gyro_mags) > close_idx else 0.0
-                
-                acc_mask = (accel_times >= t_shot - 0.15) & (accel_times <= t_shot + 0.10) if len(accel_times) > 0 else np.array([])
-                impact_acc_t = float(accel_times[acc_mask][np.argmax(accel_mags[acc_mask])]) if np.any(acc_mask) else t_shot
-                gyro_mask = (gyro_times >= t_shot - 0.30) & (gyro_times <= t_shot + 0.10) if len(gyro_times) > 0 else np.array([])
-                if np.any(gyro_mask):
-                    max_downswing_gyro = float(np.max(gyro_mags[gyro_mask]))
-                    impact_gyro = float(gyro_mags[np.argmin(np.abs(gyro_times - impact_acc_t))])
-                    eff_val = round(min(100.0, (impact_gyro / max_downswing_gyro) * 100.0), 1) if max_downswing_gyro > 0.1 else 90.0
-                else:
-                    eff_val = 90.0
-                react_val = 350
-                feats['efficiency'] = eff_val
-                feats['reaction_time_ms'] = react_val
+                downswing_gyro_win = [g["mag"] for g in watch_gyro_samples if target_sensor_ns - 300_000_000 <= g["timeNanos"] <= target_sensor_ns + 100_000_000]
+                max_downswing_gyro = max(downswing_gyro_win) if downswing_gyro_win else (gyro_mags[close_idx] if len(gyro_mags) > close_idx else 0.0)
+                bat_speed = float(max_downswing_gyro * 4.5)
 
-                detected_shots.append({
+                pass1_shots.append({
                     "timestamp_offset_s": t_shot,
                     "timestamp_ns": ts_ns,
                     "shot_type": shot_type,
                     "quality": quality,
                     "bat_speed": bat_speed,
-                    "impact_force": float(p_mags[p_peak]),
-                    "efficiency": eff_val,
-                    "impact_time_ms": react_val,
+                    "impact_force": 15.0,
+                    "efficiency": 90.0,
+                    "impact_time_ms": 350,
                     "features": feats
                 })
-            return detected_shots
-        except Exception as e:
-            print(f"  ⚠️ Failed Polar loading for alignment: {e}. Falling back to Watch Gyro.")
 
-    # Fallback/Watch-only: Find peaks on Watch Gyroscope magnitude (matching PhoneSwingDetector target fix)
+    # Pass 2: Watch gyro peak detection fallback for non-overlapping shots
+    watch_peak_gyro_threshold = 4.0
+    pass2_shots = []
     peaks, _ = find_peaks(gyro_mags, height=watch_peak_gyro_threshold, distance=75)
-    detected_shots = []
-
     for p in peaks:
         t_shot = float(gyro_times[p])
-        ts_ns = int(accel_ns[p])
-        
-        # Verify stance stability to filter walk wiggles
-        sub_orient = sensors["game_orient"][(sensors["game_orient"]["seconds_elapsed"] >= t_shot - 2.5) & 
-                                            (sensors["game_orient"]["seconds_elapsed"] <= t_shot - 1.0)]
-        if len(sub_orient) < 5:
-            continue
-            
-        feats = extract_features_single_shot(sensors, t_shot)
-        feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
-        df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
-        
-        type_enc = rf_type.predict(df_feat)[0]
-        shot_type = le_type.inverse_transform([type_enc])[0]
-        
-        qual_enc = rf_qual.predict(df_feat)[0]
-        quality = le_qual.inverse_transform([qual_enc])[0]
-        
-        bat_speed = float(gyro_mags[p] * 4.5)
+        target_sensor_ns = watch_start_ns + int(t_shot * 1e9)
+        ts_ns = int(accel_ns[p]) if len(accel_ns) > p else 0
 
-        acc_mask = (accel_times >= t_shot - 0.15) & (accel_times <= t_shot + 0.10) if len(accel_times) > 0 else np.array([])
-        impact_acc_t = float(accel_times[acc_mask][np.argmax(accel_mags[acc_mask])]) if np.any(acc_mask) else t_shot
-        gyro_mask = (gyro_times >= t_shot - 0.30) & (gyro_times <= t_shot + 0.10) if len(gyro_times) > 0 else np.array([])
-        if np.any(gyro_mask):
-            max_downswing_gyro = float(np.max(gyro_mags[gyro_mask]))
-            impact_gyro = float(gyro_mags[np.argmin(np.abs(gyro_times - impact_acc_t))])
-            eff_val = round(min(100.0, (impact_gyro / max_downswing_gyro) * 100.0), 1) if max_downswing_gyro > 0.1 else 90.0
-        else:
-            eff_val = 90.0
-        react_val = 350
-        feats['efficiency'] = eff_val
-        feats['reaction_time_ms'] = react_val
-        
-        detected_shots.append({
-            "timestamp_offset_s": t_shot,
-            "timestamp_ns": ts_ns,
-            "shot_type": shot_type,
-            "quality": quality,
-            "bat_speed": bat_speed,
-            "impact_force": float(accel_mags[p]),
-            "efficiency": eff_val,
-            "impact_time_ms": react_val,
-            "features": feats
-        })
-        
-    # Apply 5.0s NMS (Non-Maximum Suppression) on raw detected shots to prevent double triggers
+        is_overlap = any(abs(s["timestamp_offset_s"] - t_shot) < 2.0 for s in pass1_shots)
+        if not is_overlap:
+            if verify_swing_backwards(target_sensor_ns, watch_gyro_samples, watch_rot_samples)[0]:
+                feats = extract_features_single_shot(sensors, t_shot)
+                feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
+                df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
+                
+                type_enc = rf_type.predict(df_feat)[0]
+                shot_type = le_type.inverse_transform([type_enc])[0]
+                
+                qual_enc = rf_qual.predict(df_feat)[0]
+                quality = le_qual.inverse_transform([qual_enc])[0]
+                
+                bat_speed = float(gyro_mags[p] * 4.5)
+
+                pass2_shots.append({
+                    "timestamp_offset_s": t_shot,
+                    "timestamp_ns": ts_ns,
+                    "shot_type": shot_type,
+                    "quality": quality,
+                    "bat_speed": bat_speed,
+                    "impact_force": float(accel_mags[p]),
+                    "efficiency": 90.0,
+                    "impact_time_ms": 350,
+                    "features": feats
+                })
+
+    # Combine & 5.0s NMS
+    all_raw_shots = sorted(pass1_shots + pass2_shots, key=lambda x: x["timestamp_offset_s"])
     pruned_shots = []
-    for shot in sorted(detected_shots, key=lambda x: x["timestamp_offset_s"]):
+    for shot in all_raw_shots:
         dup_idx = next((i for i, x in enumerate(pruned_shots) if abs(x["timestamp_offset_s"] - shot["timestamp_offset_s"]) < 5.0), -1)
         if dup_idx != -1:
             if shot["bat_speed"] > pruned_shots[dup_idx]["bat_speed"]:

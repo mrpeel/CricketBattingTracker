@@ -1242,11 +1242,7 @@ def main():
                     audio_t = shot['timestamp_seconds']
                     sensor_narr_t = audio_t * (1 + d) + o
                     shot_type_lower = shot['shot_type'].lower()
-                    rating_lower = shot['rating'].lower() if shot.get('rating') else ""
-                    is_non_swing = (
-                        any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-                        any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
-                    )
+                    is_non_swing = any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade"])
 
                     cands = []
                     if is_non_swing:
@@ -1304,17 +1300,9 @@ def main():
                         score_j = calculate_candidate_score(cand, sensor_narr_t)
 
                         prev_type_lower = narrations[i-1]['shot_type'].lower()
-                        prev_rating_lower = narrations[i-1]['rating'].lower() if narrations[i-1].get('rating') else ""
-                        prev_is_non_swing = (
-                            any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-                            any(term in prev_rating_lower for term in ["poor", "edge", "edged", "miss"])
-                        )
+                        prev_is_non_swing = any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade"])
                         curr_type_lower = narrations[i]['shot_type'].lower()
-                        curr_rating_lower = narrations[i]['rating'].lower() if narrations[i].get('rating') else ""
-                        curr_is_non_swing = (
-                            any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-                            any(term in curr_rating_lower for term in ["poor", "edge", "edged", "miss"])
-                        )
+                        curr_is_non_swing = any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade"])
                         min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
 
                         for k, prev_cand in enumerate(all_candidates[i-1]):
@@ -1353,11 +1341,7 @@ def main():
                 lags = []
                 for i, shot in enumerate(narrations):
                     shot_type_lower = shot['shot_type'].lower()
-                    rating_lower = shot['rating'].lower() if shot.get('rating') else ""
-                    is_non_swing = (
-                        any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-                        any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
-                    )
+                    is_non_swing = any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade"])
                     if is_non_swing:
                         continue
                     chosen_cand = all_candidates[i][chosen_indices[i]]
@@ -1455,11 +1439,7 @@ def main():
         audio_t = shot['timestamp_seconds']
         sensor_narr_t = audio_t * (1 + drift_rate) + offset
         shot_type_lower = shot['shot_type'].lower()
-        rating_lower = shot['rating'].lower() if shot.get('rating') else ""
-        is_non_swing = (
-            any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-            any(term in rating_lower for term in ["poor", "edge", "edged", "miss"])
-        )
+        is_non_swing = any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade"])
         
         cands = []
         if is_non_swing:
@@ -1472,23 +1452,9 @@ def main():
             # 2-stage threshold filter based on globally precalculated prominence peaks in the window
             window_peaks = [
                 p for p in session_peaks
-                if sensor_narr_t - 6.0 <= p['time'] <= sensor_narr_t + 7.0
+                if sensor_narr_t - 6.0 <= p['time'] <= sensor_narr_t + 7.0 and p['mag'] >= 0.75
             ]
-            
-            # Stage 1: Try primary threshold >= 4.00 rad/s
-            stage1_peaks = [p for p in window_peaks if p['mag'] >= 4.00]
-            
-            peaks = []
-            if len(stage1_peaks) > 0:
-                # Sort by magnitude descending and take top 5
-                sorted_peaks = sorted(stage1_peaks, key=lambda x: x['mag'], reverse=True)[:5]
-                peaks.extend(sorted_peaks)
-            else:
-                # Stage 2: Recovery threshold >= 0.75 rad/s
-                stage2_peaks = [p for p in window_peaks if p['mag'] >= 0.75]
-                if len(stage2_peaks) > 0:
-                    sorted_peaks = sorted(stage2_peaks, key=lambda x: x['mag'], reverse=True)[:5]
-                    peaks.extend(sorted_peaks)
+            peaks = sorted(window_peaks, key=lambda x: x['mag'], reverse=True)[:5]
                     
             cands.extend(peaks)
             cands.append({
@@ -1534,17 +1500,9 @@ def main():
             # Enforce chronological order with min gap
             # Swing-to-swing gap: 1.5s. Non-swing gap: 0.5s.
             prev_type_lower = narrations[i-1]['shot_type'].lower()
-            prev_rating_lower = narrations[i-1]['rating'].lower() if narrations[i-1].get('rating') else ""
-            prev_is_non_swing = (
-                any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-                any(term in prev_rating_lower for term in ["poor", "edge", "edged", "miss"])
-            )
+            prev_is_non_swing = any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade"])
             curr_type_lower = narrations[i]['shot_type'].lower()
-            curr_rating_lower = narrations[i]['rating'].lower() if narrations[i].get('rating') else ""
-            curr_is_non_swing = (
-                any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-                any(term in curr_rating_lower for term in ["poor", "edge", "edged", "miss"])
-            )
+            curr_is_non_swing = any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade"])
             min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
             
             for k, prev_cand in enumerate(all_candidates[i-1]):
@@ -1615,10 +1573,7 @@ def main():
     # Validation Check:
     active_swings = [
         s for s in aligned_shots 
-        if not (
-            any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade", "defense", "defence", "block", "miss"]) or
-            any(term in (s['quality'] or '').lower() for term in ["poor", "edge", "edged", "miss"])
-        )
+        if not any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
         and s['sensor_narr_time_seconds'] >= -5.0 
         and s['sensor_narr_time_seconds'] <= gyro_duration + 5.0
     ]
