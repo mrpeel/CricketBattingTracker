@@ -808,8 +808,6 @@ def process_and_format_events(shot_events):
                 shot_type = "On drive"
             elif any(d in text_lower for d in ["defense", "defence", "defensive", "block", "forward edge"]):
                 shot_type = "Forward defense"
-            elif any(q in text_lower for q in ["good", "okay", "ok", "poor", "excellent", "perfect", "edge", "edged", "miss", "missed"]):
-                shot_type = "Forward defense"
             else:
                 # Unrecognized administrative utterance — skip
                 continue
