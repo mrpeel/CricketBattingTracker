@@ -12,4 +12,6 @@ The environment is noisy, containing sounds of the bowling machine motor, ball i
 
 3. **Sub-second Precise Timestamps:** Every timestamp must represent the exact start time of the spoken utterance with precise sub-second accuracy (2 decimal places, e.g. 73.42). Timestamps must progress strictly chronologically.
 
+4. **Audio Bounds:** Do NOT output any lines, headers, or timestamps beyond the actual end of the audio file duration. Ignore any trailing silence or background noise.
+
 Do not output JSON, markdown blocks, formatting headers, or other metadata. Output only the plain text lines.

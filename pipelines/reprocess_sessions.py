@@ -499,86 +499,24 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
     gyro_times = gyro["seconds_elapsed"].values
     gyro_mags = gyro["mag"].values
 
-    if os.path.exists(gt_csv):
-        print(f"   🎯 Aligned ground-truth file found for {os.path.basename(session_dir)} — returning exact narrated shots.")
-        df_gt = pd.read_csv(gt_csv)
-        detected_shots = []
-        for _, row in df_gt.iterrows():
-            t_shot = float(row['impact_time_seconds'])
-            
-            st_lower = str(row['shot_type']).lower()
-            if any(term in st_lower for term in ["facing up", "no shot", "leave", "evade"]):
-                continue
+    # Run proper dual-pass physical sensor detection (Pass 1 Polar shockwave + Pass 2 Watch gyro fallback)
 
-            close_idx = np.argmin(np.abs(gyro_times - t_shot)) if len(gyro_times) > 0 else 0
-            close_accel_idx = np.argmin(np.abs(accel_times - t_shot)) if len(accel_times) > 0 else 0
-            ts_ns = int(accel_ns[close_accel_idx]) if len(accel_ns) > close_accel_idx else 0
-            
-            feats = extract_features_single_shot(sensors, t_shot)
-            
-            polar_gyro_peak = float(row.get("bottom_hand_gyro_peak", 0.0))
-            polar_acc_peak = float(row.get("bottom_hand_acc_peak", 0.0))
-            polar_gyro_ratio = float(row.get("bottom_hand_gyro_ratio", 0.0))
-            polar_acc_ratio = float(row.get("bottom_hand_acc_ratio", 0.0))
-            polar_time_lead_ms = float(row.get("bottom_hand_time_lead_ms", 0.0))
-            polar_sync_score = float(row.get("bottom_hand_sync_score", 0.0))
-            s1_bottom_gyro_mag = float(row.get("s1_bottom_gyro_mag", 0.0))
-            s1_bottom_deltaZ = float(row.get("s1_bottom_deltaZ", 0.0))
-            s2_bottom_acc_mean = float(row.get("s2_bottom_acc_mean", 0.0))
-            s2_dynamic_ratio_slope = float(row.get("s2_dynamic_ratio_slope", 0.0))
-            s3_bottom_pronation_deg = float(row.get("s3_bottom_pronation_deg", 0.0))
-            s3_bottom_gyro_y_min = float(row.get("s3_bottom_gyro_y_min", 0.0))
-
-            feats.update({
-                'bottom_hand_gyro_peak': polar_gyro_peak,
-                'bottom_hand_acc_peak': polar_acc_peak,
-                'bottom_hand_gyro_ratio': polar_gyro_ratio,
-                'bottom_hand_acc_ratio': polar_acc_ratio,
-                'bottom_hand_time_lead_ms': polar_time_lead_ms,
-                'bottom_hand_sync_score': polar_sync_score,
-                's1_bottom_gyro_mag': s1_bottom_gyro_mag,
-                's1_bottom_deltaZ': s1_bottom_deltaZ,
-                's2_bottom_acc_mean': s2_bottom_acc_mean,
-                's2_dynamic_ratio_slope': s2_dynamic_ratio_slope,
-                's3_bottom_pronation_deg': s3_bottom_pronation_deg,
-                's3_bottom_gyro_y_min': s3_bottom_gyro_y_min,
-            })
-            
-            feat_vector = [0.0 if feats[col] is None or pd.isna(feats[col]) else float(feats[col]) for col in feature_cols]
-            df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
-            
-            type_enc = rf_type.predict(df_feat)[0]
-            shot_type = le_type.inverse_transform([type_enc])[0]
-            
-            qual_enc = rf_qual.predict(df_feat)[0]
-            quality = le_qual.inverse_transform([qual_enc])[0]
-            bat_speed = float(gyro_mags[close_idx] * 4.5)
-            eff_val = float(row.get("efficiency", 90.0)) if (pd.notna(row.get("efficiency")) and float(row.get("efficiency", 90.0)) > 0) else 90.0
-            react_val = int(row.get("reaction_time_ms", 350)) if (pd.notna(row.get("reaction_time_ms")) and int(row.get("reaction_time_ms", 350)) > 0) else 350
-            feats['efficiency'] = eff_val
-            feats['reaction_time_ms'] = react_val
-
-            detected_shots.append({
-                "timestamp_offset_s": t_shot,
-                "timestamp_ns": ts_ns,
-                "shot_type": shot_type,
-                "quality": quality,
-                "bat_speed": bat_speed,
-                "impact_force": polar_acc_peak,
-                "efficiency": eff_val,
-                "impact_time_ms": react_val,
-                "features": feats
-            })
-        return detected_shots
-
-    # Fallback / Standalone Standby: run proper dual-pass peak-detection
-    watch_acc_samples = parse_watch_imu_bin(os.path.join(session_dir, "WatchAccelerometer.bin"))
-    watch_gyro_samples = parse_watch_imu_bin(os.path.join(session_dir, "WatchGyroscope.bin"))
-    watch_rot_samples = parse_watch_rot_bin(os.path.join(session_dir, "WatchGameOrientation.bin"))
-    polar_acc_samples = parse_polar_bin(os.path.join(session_dir, "PolarSense/PolarAccelerometer.bin"), is_gyro=False) if has_polar else []
+    watch_gyro_samples = [
+        {"timeNanos": int(t), "elapsedSecs": float(sec), "mag": float(m)}
+        for t, sec, m in zip(gyro["time"].values, gyro["seconds_elapsed"].values, gyro["mag"].values)
+    ]
+    orient = sensors["game_orient"]
+    watch_rot_samples = [
+        {"timeNanos": int(t), "elapsedSecs": float(sec), "qx": float(qx), "qy": float(qy), "qz": float(qz), "qw": float(qw)}
+        for t, sec, qx, qy, qz, qw in zip(orient["time"].values, orient["seconds_elapsed"].values, orient["qx"].values, orient["qy"].values, orient["qz"].values, orient["qw"].values)
+    ]
+    
+    polar_bin_path = os.path.join(session_dir, "PolarSense/PolarAccelerometer.bin")
+    has_polar = os.path.exists(polar_bin_path)
+    polar_acc_samples = parse_polar_bin(polar_bin_path, is_gyro=False) if has_polar else []
     polar_gyro_samples = parse_polar_bin(os.path.join(session_dir, "PolarSense/PolarGyroscope.bin"), is_gyro=True) if has_polar else []
 
-    watch_start_ns = watch_acc_samples[0]["timeNanos"] if watch_acc_samples else 0
+    watch_start_ns = int(gyro["time"].iloc[0]) if len(gyro) > 0 else 0
     watch_start_wall_ms, watch_taps = parse_latest_timeline(os.path.join(session_dir, "latest_timeline.txt"), watch_start_ns, 1784773335120)
 
     polar_taps = detect_polar_tap_sequences(polar_acc_samples) if polar_acc_samples else []

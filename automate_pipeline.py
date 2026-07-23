@@ -687,7 +687,7 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
         
     return response.text
 
-def parse_raw_transcript(raw_text):
+def parse_raw_transcript(raw_text, max_audio_seconds=None):
     """Parse literal raw text transcript (Stage 2) with timestamp prefixes
     and map to standardised JSON schema."""
     lines = raw_text.splitlines()
@@ -725,6 +725,10 @@ def parse_raw_transcript(raw_text):
         except ValueError:
             continue
             
+        if max_audio_seconds is not None and time_sec > max_audio_seconds:
+            print(f"   🚫 Filtering out hallucinated transcript line '{text}' at {time_sec:.1f}s (beyond audio duration {max_audio_seconds:.1f}s)")
+            continue
+
         shot_events.append({
             "timestamp_seconds": time_sec,
             "text": text
@@ -952,7 +956,7 @@ def main():
 
     # Stage 2: Parse raw transcript to produce structured JSON
     print("Parsing raw transcript...")
-    narrations = parse_raw_transcript(raw_text)
+    narrations = parse_raw_transcript(raw_text, max_audio_seconds=gyro_duration)
     
     # Write parsed narrations to session dir
     with open(narrations_cache_path, "w") as f:
