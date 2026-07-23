@@ -721,12 +721,28 @@ def parse_raw_transcript(raw_text, max_audio_seconds=None):
                 else:
                     time_sec = float(time_str)
             else:
-                time_sec = float(time_str)
+                raw_val = float(time_str)
+                if raw_val >= 100.0:
+                    val_str = f"{raw_val:.2f}"
+                    parts = val_str.split(".")
+                    int_part = parts[0]
+                    dec_part = parts[1]
+                    if len(int_part) >= 3:
+                        mins = int(int_part[:-2])
+                        secs = int(int_part[-2:]) + float(f"0.{dec_part}")
+                        if secs < 60.0:
+                            time_sec = mins * 60.0 + secs
+                        else:
+                            time_sec = raw_val
+                    else:
+                        time_sec = raw_val
+                else:
+                    time_sec = raw_val
         except ValueError:
             continue
             
         if max_audio_seconds is not None and time_sec > max_audio_seconds:
-            print(f"   🚫 Filtering out hallucinated transcript line '{text}' at {time_sec:.1f}s (beyond audio duration {max_audio_seconds:.1f}s)")
+            print(f"   🚫 Filtering out transcript line '{text}' at {time_sec:.1f}s (beyond audio duration {max_audio_seconds:.1f}s)")
             continue
 
         shot_events.append({
@@ -736,10 +752,21 @@ def parse_raw_transcript(raw_text, max_audio_seconds=None):
         
     return process_and_format_events(shot_events)
 
+def load_ground_truth_lexicon():
+    lexicon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "ground_truth_lexicon.json")
+    if os.path.exists(lexicon_path):
+        try:
+            with open(lexicon_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Warning loading lexicon: {e}")
+    return {}
+
 def process_and_format_events(shot_events):
     formatted_shots = []
     current_bat = None
     shot_counter = 1
+    lexicon = load_ground_truth_lexicon()
     
     for event in shot_events:
         full_text = event["text"].strip()
@@ -757,57 +784,32 @@ def process_and_format_events(shot_events):
         if any(header in text_lower for header in ["round ", "end of round", "end of session"]) and not any(s in text_lower for s in ["drive", "cut", "flick", "pull", "shot", "defense", "defence", "facing"]):
             continue
 
-        # 2. Shot Type Mapping
+        # 2. Shot Type Mapping via Ground-Truth Lexicon
         shot_type = None
         
-        # Stance / Non-swing events
-        if "facing up" in text_lower or "ready" in text_lower or "facing" in text_lower:
-            shot_type = "Facing up"
-        elif "no shot" in text_lower:
-            shot_type = "No shot"
-        elif "leave" in text_lower or "left" in text_lower:
-            shot_type = "Leave"
-        elif "evade" in text_lower or "evasion" in text_lower or "ducked" in text_lower or "swayed" in text_lower:
-            shot_type = "Evade"
-            
-        # Specific stroke types
-        elif "power drive" in text_lower:
-            shot_type = "Power drive"
-        elif "cover drive" in text_lower or "cover" in text_lower:
-            shot_type = "Cover drive"
-        elif "straight drive" in text_lower or "straight" in text_lower:
-            shot_type = "Straight drive"
-        elif "off drive" in text_lower:
-            shot_type = "Off drive"
-        elif "on drive" in text_lower:
-            shot_type = "On drive"
-        elif "slog" in text_lower or "power shot" in text_lower or "power hit" in text_lower or "lofted" in text_lower:
-            shot_type = "Slog"
-        elif re.search(r"\b(pull|full)\b", text_lower):
-            shot_type = "Pull shot"
-        elif "hook" in text_lower:
-            shot_type = "Hook shot"
-        elif re.search(r"\b(flick|click)\b", text_lower):
-            shot_type = "Flick"
-        elif "glance" in text_lower:
-            shot_type = "Leg glance"
-        elif re.search(r"\b(sweep|sweet)\b", text_lower):
-            shot_type = "Sweep"
-        elif re.search(r"\b(cut|square cut|late cut)\b", text_lower):
-            shot_type = "Cut shot"
-        elif "punch" in text_lower:
-            shot_type = "Punch"
-        elif "push" in text_lower:
-            shot_type = "Push"
-        elif "guide" in text_lower or "glide" in text_lower or "steer" in text_lower:
-            shot_type = "Guide"
-        elif any(d in text_lower for d in ["defense", "defence", "defensive", "block", "forward edge"]):
-            shot_type = "Defence/Block"
-            
-        # Fallback for generic/ambiguous shot utterances (e.g. "Edge", "Good", "Missed")
+        if lexicon:
+            # Check for matches in lexicon
+            for canonical_term, variants in lexicon.items():
+                if any(v.lower() in text_lower for v in variants):
+                    shot_type = canonical_term
+                    break
+
         if shot_type is None:
-            if any(q in text_lower for q in ["good", "okay", "ok", "poor", "excellent", "perfect", "edge", "edged", "miss", "missed"]):
-                shot_type = "Defence/Block"
+            # Specific stroke fallbacks
+            if "power drive" in text_lower:
+                shot_type = "Power drive"
+            elif "cover drive" in text_lower or "cover" in text_lower:
+                shot_type = "Cover drive"
+            elif "straight drive" in text_lower or "straight" in text_lower:
+                shot_type = "Straight drive"
+            elif "off drive" in text_lower:
+                shot_type = "Off drive"
+            elif "on drive" in text_lower:
+                shot_type = "On drive"
+            elif any(d in text_lower for d in ["defense", "defence", "defensive", "block", "forward edge"]):
+                shot_type = "Forward defense"
+            elif any(q in text_lower for q in ["good", "okay", "ok", "poor", "excellent", "perfect", "edge", "edged", "miss", "missed"]):
+                shot_type = "Forward defense"
             else:
                 # Unrecognized administrative utterance — skip
                 continue

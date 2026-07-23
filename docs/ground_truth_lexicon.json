@@ -1,0 +1,77 @@
+{
+  "Guide": [
+    "guide",
+    "glide",
+    "guyed",
+    "late guide"
+  ],
+  "Cut shot": [
+    "cut shot",
+    "touch shot",
+    "cut",
+    "gut shot",
+    "square cut",
+    "late cut"
+  ],
+  "Flick shot": [
+    "flick shot",
+    "click shot",
+    "slit shot",
+    "flick",
+    "leg flick"
+  ],
+  "Slog": [
+    "slog",
+    "slug",
+    "slog shot",
+    "power shot",
+    "power hit"
+  ],
+  "Back foot punch": [
+    "back foot punch",
+    "backfoot punch",
+    "punch"
+  ],
+  "Back foot defense": [
+    "back foot defense",
+    "back foot defence",
+    "backfoot defense",
+    "back foot block"
+  ],
+  "Forward defense": [
+    "forward defense",
+    "forward defence",
+    "block",
+    "defensive"
+  ],
+  "Power drive": [
+    "power drive"
+  ],
+  "Cover drive": [
+    "cover drive",
+    "cover"
+  ],
+  "Straight drive": [
+    "straight drive",
+    "straight"
+  ],
+  "Off drive": [
+    "off drive"
+  ],
+  "On drive": [
+    "on drive"
+  ],
+  "Sweep shot": [
+    "sweep shot",
+    "sweep",
+    "reverse sweep"
+  ],
+  "Facing up": [
+    "facing up",
+    "ready",
+    "facing"
+  ],
+  "No shot": [
+    "no shot"
+  ]
+}
