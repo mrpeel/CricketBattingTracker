@@ -519,6 +519,12 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
 
     polar_taps = detect_polar_tap_sequences(polar_acc_samples) if polar_acc_samples else []
     alignment = match_tap_sequences(watch_taps, polar_taps) if polar_taps else None
+    
+    if alignment is None and polar_acc_samples and watch_start_wall_ms:
+        polar_start_ms = polar_acc_samples[0]['phoneMs']
+        fallback_offset = polar_start_ms - watch_start_wall_ms
+        alignment = TimeAlignment(offset_ms=fallback_offset, drift_rate=0.0)
+        print(f"ℹ️ Tap alignment fallback: using session start wall-clock offset ({fallback_offset/1000:.3f}s)")
 
     pass1_shots = []
 

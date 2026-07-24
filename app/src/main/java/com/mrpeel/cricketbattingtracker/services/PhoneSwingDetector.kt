@@ -100,6 +100,12 @@ object PhoneSwingDetector {
                     polarTapSequences = detectPolarTapSequences(polarAcc)
                 }
                 alignment = matchTapSequences(watchTapSequences, polarTapSequences)
+                if (alignment == null && polarAcc.isNotEmpty() && watchStartWallMs > 0L) {
+                    val polarStartMs = polarAcc.first().phoneMs
+                    val fallbackOffset = polarStartMs - watchStartWallMs
+                    alignment = TimeAlignment(offset_ms = fallbackOffset, drift_rate = 0.0)
+                    Log.i(TAG, "Tap alignment fallback: using session start wall-clock offset (${fallbackOffset / 1000f}s)")
+                }
             }
         }
 
