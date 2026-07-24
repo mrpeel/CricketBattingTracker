@@ -231,8 +231,6 @@ def match_tap_sequences(watch_taps, polar_taps):
         best_err = float("inf")
         for p_idx, p_seq in enumerate(polar_taps):
             if len(p_seq) != 5: continue
-            diff = float(p_seq[4]) - float(w_anchor_ms)
-            if abs(diff) > 3000.0: continue
             polar_intervals = [float(p_seq[i+1] - p_seq[i]) for i in range(4)]
             err = sum(abs(w - p) for w, p in zip(watch_intervals, polar_intervals))
             if err < best_err:
@@ -275,8 +273,8 @@ def verify_swing_backwards(impact_sensor_ns, watch_gyro, watch_rot):
     bs_start = impact_sensor_ns - 1_500_000_000
     bs_end = impact_sensor_ns - 150_000_000
     bs_gyros = [g["mag"] for g in watch_gyro if bs_start <= g["timeNanos"] <= bs_end]
-    if not bs_gyros or max(bs_gyros) < 4.0:
-        return False, f"backswing_failed (peak={max(bs_gyros) if bs_gyros else 0:.2f} < 4.0)"
+    if not bs_gyros or max(bs_gyros) < 2.0:
+        return False, f"backswing_failed (peak={max(bs_gyros) if bs_gyros else 0:.2f} < 2.0)"
     
     st_start = impact_sensor_ns - 2_500_000_000
     st_end = impact_sensor_ns - 1_000_000_000
@@ -291,8 +289,8 @@ def verify_swing_backwards(impact_sensor_ns, watch_gyro, watch_rot):
     
     devs = [(r["qx"]-mqx)**2 + (r["qy"]-mqy)**2 + (r["qz"]-mqz)**2 + (r["qw"]-mqw)**2 for r in st_rots]
     std_dev = np.sqrt(sum(devs) / len(st_rots))
-    if std_dev > 0.12:
-        return False, f"stance_failed (stdDev={std_dev:.4f} > 0.12)"
+    if std_dev > 0.45:
+        return False, f"stance_failed (stdDev={std_dev:.4f} > 0.45)"
         
     return True, "ok"
 

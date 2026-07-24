@@ -1077,10 +1077,6 @@ object PhoneSwingDetector {
                 val polarSeq = polarTaps[pIdx]
                 if (polarSeq.size != 5) continue
                 
-                // Enforce clock offset constraint (taps must be within 3.0s of each other)
-                val diff = polarSeq[4].toDouble() - watchAnchorMs.toDouble()
-                if (abs(diff) > 3000.0) continue
-                
                 val polarIntervals = (0 until 4).map { (polarSeq[it + 1] - polarSeq[it]).toDouble() }
 
                 val error = watchIntervals.zip(polarIntervals) { w, p -> abs(w - p) }.sum()
@@ -1206,7 +1202,7 @@ object PhoneSwingDetector {
         val bsGyroSamples = watchGyro.filter { it.timeNanos in backswingStart..backswingEnd }
         if (bsGyroSamples.isEmpty()) return false
         val peakGyro = bsGyroSamples.maxOf { it.mag }
-        if (peakGyro < 4.0f) return false
+        if (peakGyro < 2.0f) return false
         
         // 2. Verify Stance
         val stanceStart = impactSensorNs - 2_500_000_000L
@@ -1224,7 +1220,7 @@ object PhoneSwingDetector {
             devSum += (s.qx - meanQx).pow(2) + (s.qy - meanQy).pow(2) + (s.qz - meanQz).pow(2) + (s.qw - meanQw).pow(2)
         }
         val stdDev = sqrt(devSum / stanceRotSamples.size)
-        if (stdDev > 0.12f) return false
+        if (stdDev > 0.45f) return false
         
         return true
     }
