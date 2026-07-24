@@ -639,44 +639,49 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     else:
         raise RuntimeError(f"❌ Could not find raw transcript prompt at {prompt_path}")
 
-    # --- Single-model strict call with one retry on quota/availability errors ---
-    RETRY_WAIT_SECONDS = 30
+    # --- Multi-model fallback sequence for rate/quota limit resilience ---
+    # gemini-3.5-flash has a strict 20 RPD free tier limit; gemini-2.5-flash / gemini-2.0-flash have 1,500 RPD
+    fallback_models = [model_name]
+    for alt in ["gemini-2.5-flash", "gemini-2.0-flash"]:
+        if alt not in fallback_models and alt in available:
+            fallback_models.append(alt)
+
     response = None
     last_err = None
-    for attempt in range(1, 3):  # attempt 1, then attempt 2 after a wait
-        try:
-            msg = f"🎙️ Requesting raw transcription from {model_name} (attempt {attempt}/2)"
-            with ProgressSpinner(msg):
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=[uploaded_file, prompt]
-                )
-            print(f"✅ Transcription succeeded with {model_name}.")
-            break
-        except Exception as e:
-            last_err = e
-            err_str = str(e).lower()
-            is_quota_err = any(k in err_str for k in ["429", "503", "quota", "unavailable", "overloaded", "resource exhausted"])
-            if is_quota_err and attempt == 1:
-                print(f"⚠️  {model_name} unavailable (attempt {attempt}): {e}")
-                print(f"   ⏳ Waiting {RETRY_WAIT_SECONDS}s before retrying...")
-                time.sleep(RETRY_WAIT_SECONDS)
-            else:
+
+    for target_model in fallback_models:
+        for attempt in range(1, 3):
+            try:
+                msg = f"🎙️ Requesting raw transcription from {target_model} (attempt {attempt}/2)"
+                with ProgressSpinner(msg):
+                    response = client.models.generate_content(
+                        model=target_model,
+                        contents=[uploaded_file, prompt]
+                    )
+                print(f"✅ Transcription succeeded with {target_model}.")
                 break
+            except Exception as e:
+                last_err = e
+                err_str = str(e).lower()
+                is_quota_err = any(k in err_str for k in ["429", "503", "quota", "unavailable", "overloaded", "resource exhausted"])
+                if is_quota_err:
+                    print(f"⚠️  {target_model} hit quota/rate limit (attempt {attempt}/2): {e}")
+                    if attempt == 1:
+                        print("   ⏳ Retrying in 5 seconds...")
+                        time.sleep(5)
+                    else:
+                        print(f"   🔄 Falling back to next available model...")
+                        break
+                else:
+                    break
+        if response is not None:
+            break
 
     if response is None:
         session_dir_hint = os.path.dirname(audio_path)
         raise RuntimeError(
-            f"\n❌ TRANSCRIPTION FAILED — model '{model_name}' is unavailable or returned an error.\n"
-            f"   Last error: {last_err}\n\n"
-            f"   ℹ️  The pipeline has NOT fallen back to a different model.\n"
-            f"   ℹ️  Your session data is safe. To resume once the model is available:\n"
-            f"\n"
-            f"   python3 automate_pipeline.py \\\n"
-            f"     --session-dir \"{session_dir_hint}\" \\\n"
-            f"     --audio \"{audio_path}\" \\\n"
-            f"     --force-retranscribe \\\n"
-            f"     --model {model_name}\n"
+            f"\n❌ TRANSCRIPTION FAILED — all models {fallback_models} returned errors.\n"
+            f"   Last error: {last_err}\n"
         )
     
     # Delete file from Cloud Storage
