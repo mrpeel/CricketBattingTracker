@@ -39,7 +39,7 @@ def parse_since_datetime(since_str):
             pass
     raise ValueError(f"❌ Invalid --since datetime format: '{since_str}'. Supported formats: YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS")
 
-def transcribe_session_with_retries(audio_path, model_name="gemini-2.5-flash", max_retries=3):
+def transcribe_session_with_retries(audio_path, model_name="gemini-3.5-flash", max_retries=3):
     for attempt in range(1, max_retries + 1):
         try:
             raw_text = transcribe_audio_gemini(audio_path, preferred_model=model_name)
@@ -48,9 +48,14 @@ def transcribe_session_with_retries(audio_path, model_name="gemini-2.5-flash", m
             err_str = str(e)
             is_transient = any(k in err_str.lower() for k in ["503", "429", "unavailable", "quota", "overloaded", "resource exhausted"])
             if is_transient and attempt < max_retries:
-                wait_time = attempt * 20
-                print(f"   ⚠️ Gemini transient error (Attempt {attempt}/{max_retries}): {e}")
-                print(f"   ⏳ Waiting {wait_time}s before retrying...")
+                wait_time = 30
+                m_delay = re.search(r"retry\s*in\s*([\d\.]+)\s*s", err_str, re.IGNORECASE)
+                if not m_delay:
+                    m_delay = re.search(r"retryDelay':\s*'(\d+)s'", err_str)
+                if m_delay:
+                    wait_time = int(float(m_delay.group(1))) + 2
+                print(f"   ⚠️ Gemini 3.5 rate-limit/quota hit (Attempt {attempt}/{max_retries}): {e}")
+                print(f"   ⏳ Waiting {wait_time}s for rate limit window to clear before retrying gemini-3.5-flash...")
                 time.sleep(wait_time)
             else:
                 return None, e
@@ -60,7 +65,7 @@ def main():
     parser = argparse.ArgumentParser(description="Batch Raw Audio Transcribe Tool (Restartable & Resilient)")
     parser.add_argument("--since", type=str, default=None, help="Cutoff datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). Re-transcribes transcripts older than this timestamp.")
     parser.add_argument("--force", action="store_true", help="Force re-transcription of all sessions regardless of file age.")
-    parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Gemini model to use for transcription.")
+    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Gemini model to use for transcription.")
     parser.add_argument("--session-dir", type=str, default=None, help="Optionally transcribe a single specific session directory.")
     args = parser.parse_args()
 

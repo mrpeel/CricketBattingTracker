@@ -639,48 +639,45 @@ def transcribe_audio_gemini(audio_path, preferred_model="gemini-3.5-flash"):
     else:
         raise RuntimeError(f"❌ Could not find raw transcript prompt at {prompt_path}")
 
-    # --- Multi-model fallback sequence for rate/quota limit resilience ---
-    # gemini-3.5-flash has a strict 20 RPD free tier limit; gemini-2.5-flash / gemini-2.0-flash have 1,500 RPD
-    fallback_models = [model_name]
-    for alt in ["gemini-2.5-flash", "gemini-2.0-flash"]:
-        if alt not in fallback_models and alt in available:
-            fallback_models.append(alt)
-
+    # --- Strict single-model call (gemini-3.5-flash ONLY) with intelligent retryDelay handling ---
     response = None
     last_err = None
 
-    for target_model in fallback_models:
-        for attempt in range(1, 3):
-            try:
-                msg = f"🎙️ Requesting raw transcription from {target_model} (attempt {attempt}/2)"
-                with ProgressSpinner(msg):
-                    response = client.models.generate_content(
-                        model=target_model,
-                        contents=[uploaded_file, prompt]
-                    )
-                print(f"✅ Transcription succeeded with {target_model}.")
-                break
-            except Exception as e:
-                last_err = e
-                err_str = str(e).lower()
-                is_quota_err = any(k in err_str for k in ["429", "503", "quota", "unavailable", "overloaded", "resource exhausted"])
-                if is_quota_err:
-                    print(f"⚠️  {target_model} hit quota/rate limit (attempt {attempt}/2): {e}")
-                    if attempt == 1:
-                        print("   ⏳ Retrying in 5 seconds...")
-                        time.sleep(5)
-                    else:
-                        print(f"   🔄 Falling back to next available model...")
-                        break
-                else:
-                    break
-        if response is not None:
+    for attempt in range(1, 4):
+        try:
+            msg = f"🎙️ Requesting raw transcription from {model_name} (attempt {attempt}/3)"
+            with ProgressSpinner(msg):
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[uploaded_file, prompt]
+                )
+            print(f"✅ Transcription succeeded with {model_name}.")
             break
+        except Exception as e:
+            last_err = e
+            err_str = str(e)
+            err_lower = err_str.lower()
+            is_quota_err = any(k in err_lower for k in ["429", "503", "quota", "unavailable", "overloaded", "resource exhausted"])
+            
+            if is_quota_err and attempt < 3:
+                # Parse retryDelay from Google's error response (e.g. "Please retry in 44.9712s" or "retryDelay': '44s'")
+                wait_sec = 30
+                m_delay = re.search(r"retry\s*in\s*([\d\.]+)\s*s", err_str, re.IGNORECASE)
+                if not m_delay:
+                    m_delay = re.search(r"retryDelay':\s*'(\d+)s'", err_str)
+                if m_delay:
+                    wait_sec = int(float(m_delay.group(1))) + 2
+                    
+                print(f"⚠️  {model_name} rate-limit/quota hit (attempt {attempt}/3): {e}")
+                print(f"   ⏳ Waiting {wait_sec}s for rate limit window to clear before retrying...")
+                time.sleep(wait_sec)
+            else:
+                break
 
     if response is None:
         session_dir_hint = os.path.dirname(audio_path)
         raise RuntimeError(
-            f"\n❌ TRANSCRIPTION FAILED — all models {fallback_models} returned errors.\n"
+            f"\n❌ TRANSCRIPTION FAILED — model '{model_name}' is unavailable or returned an error.\n"
             f"   Last error: {last_err}\n"
         )
     
