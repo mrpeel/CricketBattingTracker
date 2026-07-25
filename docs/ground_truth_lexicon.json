@@ -3,11 +3,17 @@
     "guide",
     "glide",
     "guyed",
+    "live",
+    "right",
+    "alright",
+    "quiet",
+    "good good",
     "late guide"
   ],
   "Cut shot": [
     "cut shot",
     "touch shot",
+    "that shot",
     "cut",
     "gut shot",
     "square cut",
@@ -16,16 +22,105 @@
   "Flick shot": [
     "flick shot",
     "click shot",
+    "quick shot",
+    "slip shot",
+    "flip shot",
+    "switch up",
+    "for shot",
+    "mitch shot",
+    "good shot",
+    "is it shot",
+    "which shot",
+    "with shot",
+    "push off",
+    "look shot",
+    "glitch up",
+    "leg shot",
     "slit shot",
     "flick",
     "leg flick"
   ],
+  "Glance": [
+    "glance",
+    "leg glance",
+    "blank"
+  ],
+  "Pull shot": [
+    "pull shot",
+    "pull short",
+    "in short",
+    "push shot",
+    "push out",
+    "push up",
+    "who shot",
+    "oh shot",
+    "foot shot",
+    "blue shot",
+    "on shot",
+    "new shot",
+    "bullshot",
+    "bull sho",
+    "full shot",
+    "pull",
+    "hook",
+    "hook shot"
+  ],
   "Slog": [
     "slog",
     "slug",
+    "flog",
+    "flug",
+    "frog",
     "slog shot",
     "power shot",
-    "power hit"
+    "power hit",
+    "power short",
+    "our shot",
+    "how we hit",
+    "now hit",
+    "now i hit",
+    "and we hit"
+  ],
+  "Power drive": [
+    "power drive",
+    "tower drive",
+    "now drive",
+    "we'll drive"
+  ],
+  "Cover drive": [
+    "cover drive",
+    "cover",
+    "square drive"
+  ],
+  "Straight drive": [
+    "straight drive",
+    "straight",
+    "great drive"
+  ],
+  "Off drive": [
+    "off drive",
+    "back foot drive",
+    "backfoot drive",
+    "forward push",
+    "forward drive"
+  ],
+  "On drive": [
+    "on drive"
+  ],
+  "Sweep shot": [
+    "sweep shot",
+    "sweep",
+    "reverse sweep",
+    "swipe shot",
+    "swingshot",
+    "free shot",
+    "switch shot",
+    "shred shot",
+    "weep shot",
+    "sleep shot",
+    "we've got",
+    "slate shot",
+    "we've shot"
   ],
   "Back foot punch": [
     "back foot punch",
@@ -36,42 +131,32 @@
     "back foot defense",
     "back foot defence",
     "backfoot defense",
-    "back foot block"
+    "back foot block",
+    "back to ends"
   ],
   "Forward defense": [
     "forward defense",
     "forward defence",
     "block",
-    "defensive"
-  ],
-  "Power drive": [
-    "power drive"
-  ],
-  "Cover drive": [
-    "cover drive",
-    "cover"
-  ],
-  "Straight drive": [
-    "straight drive",
-    "straight"
-  ],
-  "Off drive": [
-    "off drive"
-  ],
-  "On drive": [
-    "on drive"
-  ],
-  "Sweep shot": [
-    "sweep shot",
-    "sweep",
-    "reverse sweep"
+    "defensive",
+    "fence"
   ],
   "Facing up": [
     "facing up",
+    "pacing up",
+    "placing up",
+    "icing up",
+    "basing up",
+    "macing up",
+    "lacing up",
+    "lacing",
+    "i see",
     "ready",
     "facing"
   ],
   "No shot": [
-    "no shot"
+    "no shot",
+    "leave",
+    "evade"
   ]
 }
