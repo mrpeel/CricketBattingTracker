@@ -714,32 +714,33 @@ def parse_raw_transcript(raw_text, max_audio_seconds=None):
         
         # Convert time_str to seconds
         try:
-            if ":" in time_str:
-                parts = time_str.split(":")
+            time_sec = 0.0
+            s_clean = time_str.strip()
+            if ":" in s_clean:
+                parts = s_clean.split(":")
                 if len(parts) == 2:
-                    time_sec = int(parts[0]) * 60 + float(parts[1])
+                    time_sec = int(parts[0]) * 60.0 + float(parts[1])
                 elif len(parts) == 3:
-                    time_sec = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+                    time_sec = int(parts[0]) * 3600.0 + int(parts[1]) * 60.0 + float(parts[2])
                 else:
-                    time_sec = float(time_str)
-            else:
-                raw_val = float(time_str)
-                if raw_val >= 100.0:
-                    val_str = f"{raw_val:.2f}"
-                    parts = val_str.split(".")
-                    int_part = parts[0]
-                    dec_part = parts[1]
-                    if len(int_part) >= 3:
-                        mins = int(int_part[:-2])
-                        secs = int(int_part[-2:]) + float(f"0.{dec_part}")
-                        if secs < 60.0:
-                            time_sec = mins * 60.0 + secs
-                        else:
-                            time_sec = raw_val
+                    time_sec = float(s_clean)
+            elif "." in s_clean:
+                parts = s_clean.split(".")
+                mins = int(parts[0])
+                sec_part = parts[1]
+                if len(sec_part) >= 2:
+                    secs = float(sec_part[:2]) + float("0." + sec_part[2:]) if len(sec_part) > 2 else float(sec_part)
+                    if secs < 60.0:
+                        time_sec = mins * 60.0 + secs
+                    elif mins >= 100:
+                        val = float(s_clean)
+                        time_sec = int(val // 100) * 60.0 + (val % 100)
                     else:
-                        time_sec = raw_val
+                        time_sec = float(s_clean)
                 else:
-                    time_sec = raw_val
+                    time_sec = float(s_clean)
+            else:
+                time_sec = float(s_clean)
         except ValueError:
             continue
             

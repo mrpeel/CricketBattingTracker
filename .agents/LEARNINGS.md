@@ -75,3 +75,11 @@ This document captures resolved bugs, architectural changes, key logical finding
         4. Replaced hardcoded efficiency and 350ms defaults with true physical efficiency $\frac{\text{impact\_gyro\_mag}}{\text{gyroMag}} \times 100\%$ and dynamic reaction time from backswing onset.
     *   **Result**: Regenerated all 38 session datasets (3,606 rows), verified all 57 columns in `combined_ground_truth_aligned.csv`, and confirmed physical telemetry values in SQLite `innings_events`.
 
+
+100. **Kotlin Named Parameter Mismatch in PhoneSwingDetector.kt (July 25, 2026)**:
+    *   **The Problem**: `./deploy_physical.sh` failed during Kotlin compilation with `Cannot find a parameter with this name: offset_ms` and `drift_rate` in `PhoneSwingDetector.kt:106`.
+    *   **Root Cause**: Fallback `TimeAlignment` instantiation used snake_case parameter names (`offset_ms`, `drift_rate`) matching python pipeline naming instead of camelCase (`offsetMs`, `driftRate`) defined on the Kotlin data class.
+    *   **The Solution**: Updated `PhoneSwingDetector.kt` to use `TimeAlignment(offsetMs = fallbackOffset, driftRate = 0.0)`.
+    *   **Result**: Gradle build succeeded (`BUILD SUCCESSFUL in 33s`) and APK deployed to physical device.
+
+
