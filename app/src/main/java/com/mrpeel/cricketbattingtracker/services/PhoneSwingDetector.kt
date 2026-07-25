@@ -1172,10 +1172,7 @@ object PhoneSwingDetector {
             
             if (mag >= prevMag && mag >= nextMag) {
                 // local maximum candidate
-                val isStage1 = mag >= threshold
-                val isStage2 = mag >= 0.75f && calculateProminence(mags, i) >= 0.5f
-                
-                if (isStage1 || isStage2) {
+                if (mag >= threshold) {
                     candidatePeaks.add(samples[i])
                 }
             }
@@ -1208,7 +1205,7 @@ object PhoneSwingDetector {
         val bsGyroSamples = watchGyro.filter { it.timeNanos in backswingStart..backswingEnd }
         if (bsGyroSamples.isEmpty()) return false
         val peakGyro = bsGyroSamples.maxOf { it.mag }
-        if (peakGyro < 2.0f) return false
+        if (peakGyro < 3.0f) return false  // Require meaningful backswing, not just fidgeting
         
         // 2. Verify Stance
         val stanceStart = impactSensorNs - 2_500_000_000L
@@ -1226,7 +1223,7 @@ object PhoneSwingDetector {
             devSum += (s.qx - meanQx).pow(2) + (s.qy - meanQy).pow(2) + (s.qz - meanQz).pow(2) + (s.qw - meanQw).pow(2)
         }
         val stdDev = sqrt(devSum / stanceRotSamples.size)
-        if (stdDev > 0.45f) return false
+        if (stdDev > 0.30f) return false  // Require genuine stance stability
         
         return true
     }

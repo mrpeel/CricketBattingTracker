@@ -427,8 +427,9 @@ def pull_audio_from_phone(phone_id, dest_dir):
         ref_file = os.path.join(dest_dir, "WatchGyroscope.csv.gz")
     if not os.path.exists(ref_file):
         ref_file = dest_dir
-    # Try to parse the session start time from the session directory name
-    # (e.g., session-2026-07-17_12-30-41)
+    # Parse the session sync/end time from the directory name.
+    # NOTE: The directory name is generated when the watch ZIP transfer completes
+    # (in DataSyncListenerService.kt), so it reflects the session END time, not start.
     session_name = os.path.basename(dest_dir)
     session_time = None
     match = re.match(r"session[-_](\d{4}-\d{2}-\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", session_name)
@@ -438,9 +439,9 @@ def pull_audio_from_phone(phone_id, dest_dir):
             h, m, s = match.group(2), match.group(3), match.group(4)
             dt = datetime.datetime.strptime(f"{date_str}_{h}-{m}-{s}", "%Y-%m-%d_%H-%M-%S")
             session_time = int(dt.timestamp())
-            print(f"🕒 Parsed session start time from directory name: {dt} (timestamp: {session_time})")
+            print(f"🕒 Parsed session sync time (approx end) from directory name: {dt} (timestamp: {session_time})")
         except Exception as e:
-            print(f"⚠️ Failed to parse session start time from directory name: {e}")
+            print(f"⚠️ Failed to parse session sync time from directory name: {e}")
 
     if session_time is None:
         session_time = int(os.path.getmtime(ref_file))
@@ -454,8 +455,9 @@ def pull_audio_from_phone(phone_id, dest_dir):
         if res.returncode == 0 and res.stdout.strip():
             try:
                 mtime = int(res.stdout.strip())
-                # Ignore files not recorded within 2 hours of the session
-                if abs(mtime - session_time) > 7200:
+                # session_time is the END time. Audio was created at session START,
+                # so it will always be older. Accept files up to 3h before and 5min after.
+                if mtime > session_time + 300 or session_time - mtime > 10800:
                     continue
                 if mtime > newest_time:
                     newest_time = mtime
