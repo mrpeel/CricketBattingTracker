@@ -140,12 +140,12 @@ object PhoneSwingDetector {
 
             // Validate backward-looking stance and swing signatures
             if (verifySwingBackwards(targetSensorNs, watchGyro, watchRot)) {
-                var bottomGyroPeak = 0f
-                var bottomAccPeak = 0f
-                var bottomGyroRatio = 0f
-                var bottomAccRatio = 0f
-                var bottomTimeLeadMs = 0L
-                var bottomSyncScore = 0f
+                var bottomGyroPeak: Float? = null
+                var bottomAccPeak: Float? = null
+                var bottomGyroRatio: Float? = null
+                var bottomAccRatio: Float? = null
+                var bottomTimeLeadMs: Long? = null
+                var bottomSyncScore: Float? = null
                 var s1BottomGyroMag = 0f
                 var s1BottomDeltaZ = 0f
                 var s2BottomAccMean = 0f
@@ -221,12 +221,12 @@ object PhoneSwingDetector {
                     watchAcc = watchAcc,
                     watchGrav = watchGrav,
                     watchRot = watchRot,
-                    bottomGyroPeak = bottomGyroPeak,
-                    bottomAccPeak = bottomAccPeak,
-                    bottomGyroRatio = bottomGyroRatio,
-                    bottomAccRatio = bottomAccRatio,
-                    bottomTimeLeadMs = bottomTimeLeadMs,
-                    bottomSyncScore = bottomSyncScore,
+                    bottomGyroPeak = bottomGyroPeak ?: 0f,
+                    bottomAccPeak = bottomAccPeak ?: 0f,
+                    bottomGyroRatio = bottomGyroRatio ?: 0f,
+                    bottomAccRatio = bottomAccRatio ?: 0f,
+                    bottomTimeLeadMs = bottomTimeLeadMs ?: 0L,
+                    bottomSyncScore = bottomSyncScore ?: 0f,
                     s1BottomGyroMag = s1BottomGyroMag,
                     s1BottomDeltaZ = s1BottomDeltaZ,
                     s2BottomAccMean = s2BottomAccMean,
@@ -259,7 +259,7 @@ object PhoneSwingDetector {
                 val maxDownswingGyro = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.maxOf { it.mag } else 0.01f
                 val gyroAtImpact = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.minByOrNull { kotlin.math.abs(it.timeNanos - accImpactNs) }?.mag ?: maxDownswingGyro else maxDownswingGyro
                 val finalEfficiency = if (maxDownswingGyro > 0.1f) kotlin.math.min(100f, (gyroAtImpact / maxDownswingGyro) * 100f) else 90f
-                val finalPeakAccel = if (bottomAccPeak > 0f) bottomAccPeak else (accSpikeWin.maxOfOrNull { it.mag } ?: 15f)
+                val finalPeakAccel = if (bottomAccPeak != null && bottomAccPeak > 0f) bottomAccPeak else (accSpikeWin.maxOfOrNull { it.mag } ?: 15f)
                 val batSpeedKmh = maxDownswingGyro * 4.5f
 
                 val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L

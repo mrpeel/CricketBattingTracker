@@ -2032,7 +2032,7 @@ fun TimelineItem(
                             color = Color.White,
                             letterSpacing = 0.5.sp
                         )
-                        if (event.bottom_hand_gyro_ratio != null || event.bottom_hand_sync_score != null) {
+                        if (event.bottom_hand_gyro_ratio != null && event.bottom_hand_gyro_ratio > 0f) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "🧤",
@@ -2116,7 +2116,7 @@ fun TimelineItem(
                     }
                 }
 
-                if (expanded && (event.bottom_hand_gyro_ratio != null || event.bottom_hand_sync_score != null)) {
+                if (expanded && event.bottom_hand_gyro_ratio != null && event.bottom_hand_gyro_ratio > 0f) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
                     Spacer(modifier = Modifier.height(8.dp))
@@ -2145,7 +2145,7 @@ fun TimelineItem(
                             Text(if (lead > 0) "Bottom Hand Leads" else "Top Hand Leads", fontSize = 8.sp, color = Color.Gray)
                         }
 
-                        val gyroRatio = (event.bottom_hand_gyro_ratio ?: 0f) * 100
+                        val gyroRatio = event.bottom_hand_gyro_ratio * 100
                         Column(modifier = Modifier.weight(1f)) {
                             Text("GYRO RATIO", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                             Text("${gyroRatio.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
@@ -2161,15 +2161,27 @@ fun TimelineItem(
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
-                    val gyroRatioVal = event.bottom_hand_gyro_ratio ?: 0f
+                    val gyroRatioVal = event.bottom_hand_gyro_ratio
+                    val shotTypeUpper = event.shotType?.uppercase() ?: ""
+                    val baseline = when {
+                        "SWEEP" in shotTypeUpper -> 0.96f
+                        "GUIDE" in shotTypeUpper || "DEFLECTION" in shotTypeUpper -> 0.73f
+                        "CUT" in shotTypeUpper || "PUNCH" in shotTypeUpper -> 0.65f
+                        "DRIVE" in shotTypeUpper || "DEFENCE" in shotTypeUpper || "BLOCK" in shotTypeUpper -> 0.61f
+                        "GLANCE" in shotTypeUpper || "FLICK" in shotTypeUpper -> 0.22f
+                        "POWER" in shotTypeUpper -> 0.21f
+                        "PULL" in shotTypeUpper || "HOOK" in shotTypeUpper -> 0.12f
+                        "SLOG" in shotTypeUpper -> 0.06f
+                        else -> 0.50f
+                    }
                     val dominanceText = when {
-                        gyroRatioVal > 1.15f -> "Bottom Hand Dominant (Power Whip)"
-                        gyroRatioVal < 0.85f -> "Top Hand Dominant (Control/Straight)"
+                        gyroRatioVal > baseline * 1.3f -> "Bottom Hand Dominant (Power Whip)"
+                        gyroRatioVal < baseline * 0.7f -> "Top Hand Dominant (Control/Straight)"
                         else -> "Balanced Dual-Hand Contribution"
                     }
                     val wristText = when {
-                        gyroRatioVal > 1.25f -> "Whippy / Active Bottom Hand Release"
-                        gyroRatioVal < 0.75f -> "Locked / Rigid Wrist Interface"
+                        gyroRatioVal > baseline * 1.4f -> "Whippy / Active Bottom Hand Release"
+                        gyroRatioVal < baseline * 0.6f -> "Locked / Rigid Wrist Interface"
                         else -> "Controlled Wrist Release"
                     }
                     val lead = event.bottom_hand_time_lead_ms ?: 0L

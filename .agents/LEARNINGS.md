@@ -92,5 +92,12 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Result**: 42/42 sessions successfully re-aligned (4,070 GT rows, 3,148 feature rows). Dual-Model classifier achieved **95% accuracy** on 100Hz Watch + Polar sessions (`100hz_watch_polar`), **87%** on 50Hz Watch + Polar, and **76%** on Watch-only sessions. All Gradle unit tests passed cleanly.
 
 
-
-
+103. **Shot-Class-Specific Biomechanics Baselines & Redundant Elvis Warnings (July 26, 2026)**:
+    *   **The Problem**: Grip dominance and wrist action labels were static and incorrect across shots (e.g. both a Cut and a Drive registering as "Top Hand Dominant" and "Locked Wrist"). Furthermore, watch-only sessions incorrectly displayed the bottom-hand biometrics card with placeholder 0s.
+    *   **Root Cause**: The app used flat global thresholds (e.g. `< 0.85` for Top Hand) which ignored different kinematic baselines (e.g. Pull shots have a median ratio of `0.12`, while Cover Drives have `0.61`). Additionally, `PhoneSwingDetector.kt` defaulted bottom hand metrics to `0` instead of `null` when Polar data was absent, and the UI check did not filter out zeros.
+    *   **The Solution**:
+        *   Updated `PhoneSwingDetector.kt` to default bottom hand metrics to `null` when Polar data is absent.
+        *   Updated `MainActivity.kt` to hide the biometric section if `bottom_hand_gyro_ratio` is null or `0f` (guarding legacy data).
+        *   Mapped shot types to baseline median ratios from the dataset and evaluated dominance and wrist whippiness relative to those baselines.
+        *   Removed redundant Elvis operators inside smart-cast scopes to resolve Kotlin compiler warnings.
+    *   **Result**: Build succeeded cleanly, and biometrics details show dynamic, context-appropriate labels.
