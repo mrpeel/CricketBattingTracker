@@ -1,6 +1,6 @@
 # Model Update & Retraining Performance Analysis
 
-**Generated:** 2026-07-21 18:03:46
+**Generated:** 2026-07-26 16:14:31
 
 ## Executive Summary
 This report presents the side-by-side performance comparison of the Wear OS `SwingDetector` shot detection state machine and classification model **before** and **after** retraining.
@@ -14,11 +14,11 @@ How many ground-truth swing shots were covered by the phone pipeline across all 
 
 | Metric | Before | After | Change |
 |---|---|---|---|
-| **Total Ground Truth Shots** | 1385 | 1385 | +0 |
-| **Shots Identified (TP)** | 1385 | 1385 | +0 |
+| **Total Ground Truth Shots** | 2050 | 2050 | +0 |
+| **Shots Identified (TP)** | 2050 | 2050 | +0 |
 | **Missed (FN)** | 0 | 0 | +0 |
 | **Detection Recall** | 100.0% | 100.0% | +0.0% |
-| **Overall Classification Accuracy** | 80.2% | 80.2% | +0.0% |
+| **Overall Classification Accuracy** | 80.7% | 80.7% | +0.0% |
 
 > [!CAUTION]
 > Classification accuracy is **training-set fit** (diagnostic only). Authoritative performance requires held-out sessions not included in training.
@@ -29,14 +29,14 @@ Below is the classification accuracy comparison for each normalized shot type ca
 
 | Shot Type | Ground Truth Count | Accuracy (Before ➔ After) |
 |---|---|---|
-| CUT/PUNCH | 423 | 87.0% ➔ 87.0% (0.00) ⚪ |
-| DEFLECTION/GUIDE | 428 | 76.2% ➔ 76.2% (0.00) ⚪ |
-| DRIVE/DEFENCE | 488 | 75.4% ➔ 75.4% (0.00) ⚪ |
-| GLANCE/FLICK | 433 | 77.6% ➔ 77.6% (0.00) ⚪ |
-| POWER DRIVE | 140 | 85.7% ➔ 85.7% (0.00) ⚪ |
-| PULL/HOOK | 401 | 67.1% ➔ 67.1% (0.00) ⚪ |
-| SLOG | 330 | 94.2% ➔ 94.2% (0.00) ⚪ |
-| SWEEP | 114 | 98.2% ➔ 98.2% (0.00) ⚪ |
+| CUT/PUNCH | 399 | 88.0% ➔ 88.0% (0.00) ⚪ |
+| DEFLECTION/GUIDE | 469 | 81.9% ➔ 81.9% (0.00) ⚪ |
+| DRIVE/DEFENCE | 489 | 72.6% ➔ 72.6% (0.00) ⚪ |
+| GLANCE/FLICK | 379 | 72.0% ➔ 72.0% (0.00) ⚪ |
+| POWER DRIVE | 160 | 91.9% ➔ 91.9% (0.00) ⚪ |
+| PULL/HOOK | 427 | 70.7% ➔ 70.7% (0.00) ⚪ |
+| SLOG | 421 | 91.7% ➔ 91.7% (0.00) ⚪ |
+| SWEEP | 404 | 84.9% ➔ 84.9% (0.00) ⚪ |
 
 ## Legend
 - 🟢: Significant performance improvement (> +0.005)
@@ -48,32 +48,32 @@ Below is the classification accuracy for the newly retrained model evaluated on 
 
 | Shot Type | Ground Truth Count | CV Accuracy (Generalizable) | Training Fit Accuracy |
 |---|---|---|---|
-| CUT/PUNCH | 423 | 68.6% | 83.0% |
-| DEFLECTION/GUIDE | 428 | 57.9% | 69.9% |
-| DRIVE/DEFENCE | 488 | 61.9% | 69.1% |
-| GLANCE/FLICK | 433 | 57.3% | 70.9% |
-| POWER DRIVE | 140 | 28.6% | 75.0% |
-| PULL/HOOK | 401 | 53.4% | 62.8% |
-| SLOG | 330 | 75.2% | 89.4% |
-| SWEEP | 114 | 58.8% | 96.5% |
-| **OVERALL** | **2757** | **60.1%** | **74.6%** |
+| CUT/PUNCH | 399 | 69.7% | 81.2% |
+| DEFLECTION/GUIDE | 469 | 66.5% | 73.6% |
+| DRIVE/DEFENCE | 489 | 56.2% | 65.6% |
+| GLANCE/FLICK | 379 | 51.7% | 63.9% |
+| POWER DRIVE | 160 | 36.2% | 87.5% |
+| PULL/HOOK | 427 | 50.4% | 64.2% |
+| SLOG | 421 | 69.1% | 85.5% |
+| SWEEP | 404 | 68.1% | 80.9% |
+| **OVERALL** | **3148** | **60.4%** | **74.1%** |
 
 ## 4. Classification Accuracy by Data Profile
 The system employs a **Dual-Model Routing Architecture**: Watch-only sessions (Match Day) route to `GeneratedTopForest` (14 features), while dual-sensor sessions (Net Practice) route to `GeneratedDualForest` (26 features).
 
 | Data Profile | Shots | Overall Acc | DRIVE | PULL | CUT | GLANCE | POWER | SLOG | SWEEP | GUIDE |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 100hz_watch_polar | 148 | 94% | 90% | 94% | 100% | 93% | 100% | 100% | 100% | 91% |
-| 50hz_watch | 1090 | 76% | 75% | 68% | 88% | 67% | 81% | 94% | 100% | 69% |
-| 50hz_watch_polar | 147 | 78% | 89% | 70% | n/a | 65% | n/a | 95% | n/a | n/a |
+| 100hz_watch_polar | 330 | 95% | 92% | 92% | 97% | 87% | 100% | 90% | 100% | 96% |
+| 50hz_watch | 1505 | 76% | 72% | 70% | 86% | 64% | 85% | 91% | 86% | 69% |
+| 50hz_watch_polar | 215 | 87% | 97% | 75% | n/a | 79% | n/a | 100% | 0% | 100% |
 
 > [!NOTE]
 > These accuracy figures are **training-set fit** (diagnostic only).
 
 ## 5. Alignment Health Summary
-**Sessions Processed:** 38  |  **With Polar:** 4  |  **Total Swing Shots:** 2238  |  **Polar Timestamp Refinements:** 145
+**Sessions Processed:** 42  |  **With Polar:** 10  |  **Total Swing Shots:** 2592  |  **Polar Timestamp Refinements:** 400
 **Recommended threshold: `4.00 rad/s`** (selected to maximise good/excellent recall while minimising false positives)
-**Total shots missed at standard threshold (1.5 rad/s):** 66
+**Total shots missed at standard threshold (1.5 rad/s):** 15
 **Recommended algorithm: `scipy peak prominence`**
 ## 5. Polar Timestamp Refinement Summary
 

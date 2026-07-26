@@ -1270,14 +1270,14 @@ def main():
  
     if offset is not None:
         print(f"🎯 Using manual clock offset override: {offset:+.3f}s")
-    elif sync_tap_offset is not None:
+    elif sync_tap_offset is not None and sync_tap_drift_rate != 0.0:
         offset = sync_tap_offset
         drift_rate = sync_tap_drift_rate
-        print(f"🎯 Using sync tap alignment offset: {offset:+.3f}s, drift rate: {drift_rate:+.7f} (skipping grid search optimization)")
+        print(f"🎯 Using multi-point sync tap alignment offset: {offset:+.3f}s, drift rate: {drift_rate:+.7f} (skipping grid search optimization)")
     else:
         if narrations:
-            search_center = baseline_offset if baseline_offset is not None else 0.0
-            search_range = 2.5
+            search_center = sync_tap_offset if sync_tap_offset is not None else (baseline_offset if baseline_offset is not None else 0.0)
+            search_range = 1.5 if sync_tap_offset is not None else 2.5
             print(f"🔍 Starting clock offset and drift optimization grid search against raw gyroscope peaks")
             print(f"   (center={search_center:+.3f}s, range=\u00b1{search_range}s)")
             print(f"   ⚠️  Scoring is based ONLY on raw sensor peak matches — no watch detections used.")

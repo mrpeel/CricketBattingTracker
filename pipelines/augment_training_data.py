@@ -364,7 +364,7 @@ def main():
     # Discover all live sessions that have sensor + GT data
     sessions = sorted([
         d for d in os.listdir(LIVE_DIR)
-        if d.startswith("session-") and
+        if (d.startswith("session-") or d.startswith("session_")) and
            os.path.isdir(os.path.join(LIVE_DIR, d)) and
            os.path.exists(os.path.join(LIVE_DIR, d, "ground_truth_aligned.csv"))
     ])

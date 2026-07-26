@@ -83,14 +83,14 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Result**: Gradle build succeeded (`BUILD SUCCESSFUL in 33s`) and APK deployed to physical device.
 
 
-101. **Deepgram Nova-3 Integration & Lexicon Enhancement (July 25–26, 2026)**:
-    *   **The Problem**: Gemini STT suffered non-linear timestamp drift up to $\pm 3$–4 seconds across 20+ minute audio narrations. Historical sessions required precise STT timestamp accuracy and resilient phonetic matching for Australian cricket terms and bat announcements.
+102. **Deepgram Ground Truth Re-alignment & Dual-Model RF Retraining (July 26, 2026)**:
+    *   **The Problem**: Transitioning from Gemini audio narrations to Deepgram Nova-3 required rebuilding all session ground truth CSV files and retraining all Random Forest classifiers on the newly aligned, timing-accurate dataset. Single-point sync-tap sessions previously forced `drift_rate = 0.0`, causing clock drift over 18+ minute sessions and alignment failures (e.g. 32.7% fallback rate on `session_2026-06-27_14-12-40`).
     *   **The Solution**:
-        *   Created `transcribe_deepgram_session.py` to stream single-file `.m4a` audio to Deepgram Nova-3 with `keyterm` acoustic boosting, `Content-Type: audio/mp4`, `timeout=120`, and 2-phrase lookahead stitching ($0.80$s silence gap).
-        *   Renamed 36 legacy session folders from `session-` to `session_` to unify folder naming across all 42 local sessions.
-        *   Updated `automate_pipeline.py` to use Deepgram Nova-3 API by default and added `--all` batch re-parse option to `transcribe_deepgram_session.py`.
-        *   Expanded `ground_truth_lexicon.json` with 35+ STT phonetic mishearings (including `how i hit` $\rightarrow$ `Slog`, `that's a crunch` $\rightarrow$ `Back foot punch`, `let's try` $\rightarrow$ `Straight drive`, `boy in that` $\rightarrow$ `Eye In`, `clyde`/`why`/`wide` $\rightarrow$ `Guide`, `catch up`/`touch up` $\rightarrow$ `Cut shot`, `nice shot`/`and shot`/`threshold` $\rightarrow$ `No shot`, `four` $\rightarrow$ `poor` quality).
-    *   **Result**: Zero cumulative clock drift ($0.19$s max error), fallback alignment rate dropped from 28.6% down to 3.5% on session `2026-07-26_11-44-54`, and all 42 session narrations were re-parsed cleanly in < 2 seconds.
+        *   Updated `automate_pipeline.py` to trigger 2D grid search centered at `sync_tap_offset` whenever single-point calibration occurs (`sync_tap_drift_rate == 0.0`), resolving drift across long sessions and achieving 100% alignment success across all 42 sessions.
+        *   Updated `augment_training_data.py` to match both `session-` and `session_` folder prefixes, generating 1,098 synthetic variants across all shot classes.
+        *   Executed end-to-end retraining via `model_update_pipeline.py`, transpiling all 4 Dual-Model Random Forests (`GeneratedTopForest`, `GeneratedDualForest`, `GeneratedTopQualityForest`, `GeneratedDualQualityForest`) directly to `:wear` and `:app` modules.
+    *   **Result**: 42/42 sessions successfully re-aligned (4,070 GT rows, 3,148 feature rows). Dual-Model classifier achieved **95% accuracy** on 100Hz Watch + Polar sessions (`100hz_watch_polar`), **87%** on 50Hz Watch + Polar, and **76%** on Watch-only sessions. All Gradle unit tests passed cleanly.
+
 
 
 
