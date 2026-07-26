@@ -99,5 +99,5 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   Updated `PhoneSwingDetector.kt` to default bottom hand metrics to `null` when Polar data is absent.
         *   Updated `MainActivity.kt` to hide the biometric section if `bottom_hand_gyro_ratio` is null or `0f` (guarding legacy data).
         *   Mapped shot types to baseline median ratios from the dataset and evaluated dominance and wrist whippiness relative to those baselines.
-        *   Removed redundant Elvis operators inside smart-cast scopes to resolve Kotlin compiler warnings.
+        *   Removed redundant Elvis operators, unused variables (steps, timelineFile), and parameters (watchAcc) to resolve all Kotlin compiler warnings.
     *   **Result**: Build succeeded cleanly, and biometrics details show dynamic, context-appropriate labels.
