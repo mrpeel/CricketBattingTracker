@@ -61,6 +61,7 @@ object PolarSenseManager {
     private var magDisposable: Disposable? = null
     private var scanDisposable: Disposable? = null
     private var sdkModeEnabled = false
+    private var isRestartingStreams = false
 
     // --- State flows ---
     private val _connectionState = MutableStateFlow(PolarConnectionState.DISCONNECTED)
@@ -308,7 +309,7 @@ object PolarSenseManager {
                     }
                 },
                 { error ->
-                    Log.e(TAG, "ACC stream error: ${error.message}", error)
+                    handleStreamError(error, "ACC")
                 }
             )
         Log.d(TAG, "ACC stream subscription requested")
@@ -329,7 +330,7 @@ object PolarSenseManager {
                     }
                 },
                 { error ->
-                    Log.e(TAG, "GYRO stream error: ${error.message}", error)
+                    handleStreamError(error, "GYRO")
                 }
             )
         Log.d(TAG, "GYRO stream subscription requested")
@@ -350,10 +351,36 @@ object PolarSenseManager {
                     }
                 },
                 { error ->
-                    Log.e(TAG, "MAG stream error: ${error.message}", error)
+                    handleStreamError(error, "MAG")
                 }
             )
         Log.d(TAG, "MAG stream subscription requested")
+    }
+
+    private fun handleStreamError(error: Throwable, type: String) {
+        Log.e(TAG, "$type stream error: ${error.message}", error)
+        val deviceId = _pairedDeviceId.value
+        val polarApi = api
+        if (deviceId != null && polarApi != null && !isRestartingStreams) {
+            isRestartingStreams = true
+            CoroutineScope(Dispatchers.Main).launch {
+                Log.w(TAG, "Attempting to restart sensor streams after $type error...")
+                accDisposable?.dispose()
+                accDisposable = null
+                gyroDisposable?.dispose()
+                gyroDisposable = null
+                magDisposable?.dispose()
+                magDisposable = null
+                
+                kotlinx.coroutines.delay(2000)
+                if (_connectionState.value == PolarConnectionState.STREAMING) {
+                    startAccStream(deviceId, polarApi)
+                    startGyroStream(deviceId, polarApi)
+                    startMagStream(deviceId, polarApi)
+                }
+                isRestartingStreams = false
+            }
+        }
     }
 
     /** Stop all streams and exit SDK Mode. */
