@@ -23,6 +23,12 @@ from scipy.signal import find_peaks
 import gzip
 import shutil
 
+try:
+    from transcribe_deepgram_session import load_env_api_key, call_deepgram_api, group_words_into_phrases, process_phrases_with_lexicon
+    DEEPGRAM_MODULE_AVAILABLE = True
+except ImportError:
+    DEEPGRAM_MODULE_AVAILABLE = False
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Pitch Analytix Pro Data Collection Pipeline")
@@ -925,47 +931,86 @@ def main():
     print(f"   Found {len(session_peaks)} prominence peaks (prominence >= 0.5 rad/s, min spacing={peak_distance} samples).")
 
 
-    # 5. Call Gemini to transcribe (Stage 1) and parse (Stage 2) shot timings
+    # 5. Transcribe (Stage 1) and parse (Stage 2) shot timings via Deepgram Nova-3 (or Gemini fallback)
     raw_transcript_path = os.path.join(session_dir, "raw_transcript.txt")
     narrations_cache_path = os.path.join(session_dir, "narrations_raw.json")
+    deepgram_cache_path = os.path.join(session_dir, "deepgram_response.json")
 
     # --force-retranscribe: delete stale raw transcript cache and parsed cache so transcription always re-runs
     if getattr(args, "force_retranscribe", False):
-        if os.path.exists(raw_transcript_path):
-            print(f"🗑️  --force-retranscribe set: deleting existing raw transcript {raw_transcript_path}")
-            os.remove(raw_transcript_path)
-        if os.path.exists(narrations_cache_path):
-            print(f"🗑️  --force-retranscribe set: deleting existing cache {narrations_cache_path}")
-            os.remove(narrations_cache_path)
+        for cp in [raw_transcript_path, narrations_cache_path, deepgram_cache_path]:
+            if os.path.exists(cp):
+                print(f"🗑️  --force-retranscribe set: deleting {cp}")
+                os.remove(cp)
 
-    raw_text = None
-    if os.path.exists(raw_transcript_path):
-        print(f"📖 Loading cached raw transcript from {raw_transcript_path}...")
-        with open(raw_transcript_path, "r", encoding="utf-8") as f:
-            raw_text = f.read()
-    else:
-        preferred_model = getattr(args, "model", "gemini-3.5-flash")
+    narrations = None
+
+    # Try Deepgram Nova-3 if API key is present
+    deepgram_key = load_env_api_key() if DEEPGRAM_MODULE_AVAILABLE else None
+
+    if os.path.exists(narrations_cache_path):
+        print(f"📖 Loading cached parsed narrations from {narrations_cache_path}...")
+        with open(narrations_cache_path, "r", encoding="utf-8") as f:
+            narrations = json.load(f)
+    elif deepgram_key and DEEPGRAM_MODULE_AVAILABLE:
+        print("🚀 Transcribing session using Deepgram Nova-3...")
         try:
-            raw_text = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
-            print(f"Successfully transcribed raw audio via Gemini ({preferred_model}).")
-        except RuntimeError as e:
-            print(e)
-            sys.exit(1)
+            if os.path.exists(deepgram_cache_path):
+                print(f"📖 Loading cached Deepgram response from {deepgram_cache_path}...")
+                with open(deepgram_cache_path, "r", encoding="utf-8") as f:
+                    deepgram_data = json.load(f)
+            else:
+                deepgram_data = call_deepgram_api(audio_path, deepgram_key, model="nova-3")
+                with open(deepgram_cache_path, "w", encoding="utf-8") as f:
+                    json.dump(deepgram_data, f, indent=2)
+
+            words = deepgram_data['results']['channels'][0]['alternatives'][0]['words']
+            phrases = group_words_into_phrases(words, max_silence_gap=0.80)
+            formatted_shots, raw_transcript_lines, bat_switches, admin_headers, unrecognized_phrases = process_phrases_with_lexicon(phrases)
+
+            # Save Stage 1 raw transcript
+            with open(raw_transcript_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(raw_transcript_lines))
+
+            # Save Stage 2 parsed narrations
+            with open(narrations_cache_path, "w", encoding="utf-8") as f:
+                json.dump(formatted_shots, f, indent=2)
+
+            narrations = formatted_shots
+            print(f"✅ Deepgram Nova-3 transcription complete. Parsed {len(narrations)} events.")
         except Exception as e:
-            print(f"❌ Gemini transcription failed unexpectedly: {e}")
-            sys.exit(1)
+            print(f"⚠️ Deepgram transcription failed ({e}). Falling back to Gemini...")
+            narrations = None
 
-        # Save Stage 1 raw transcript
-        with open(raw_transcript_path, "w", encoding="utf-8") as f:
-            f.write(raw_text)
+    if narrations is None:
+        raw_text = None
+        if os.path.exists(raw_transcript_path):
+            print(f"📖 Loading cached raw transcript from {raw_transcript_path}...")
+            with open(raw_transcript_path, "r", encoding="utf-8") as f:
+                raw_text = f.read()
+        else:
+            preferred_model = getattr(args, "model", "gemini-3.5-flash")
+            try:
+                raw_text = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
+                print(f"Successfully transcribed raw audio via Gemini ({preferred_model}).")
+            except RuntimeError as e:
+                print(e)
+                sys.exit(1)
+            except Exception as e:
+                print(f"❌ Gemini transcription failed unexpectedly: {e}")
+                sys.exit(1)
 
-    # Stage 2: Parse raw transcript to produce structured JSON
-    print("Parsing raw transcript...")
-    narrations = parse_raw_transcript(raw_text, max_audio_seconds=gyro_duration)
-    
-    # Write parsed narrations to session dir
-    with open(narrations_cache_path, "w") as f:
-        json.dump(narrations, f, indent=2)
+            # Save Stage 1 raw transcript
+            with open(raw_transcript_path, "w", encoding="utf-8") as f:
+                f.write(raw_text)
+
+        # Stage 2: Parse raw transcript to produce structured JSON
+        print("Parsing raw transcript via Gemini fallback parser...")
+        narrations = parse_raw_transcript(raw_text, max_audio_seconds=gyro_duration)
+        
+        # Write parsed narrations to session dir
+        with open(narrations_cache_path, "w") as f:
+            json.dump(narrations, f, indent=2)
 
     # Detect and convert mixed M.SS / raw seconds timestamps to actual elapsed seconds
     if narrations:

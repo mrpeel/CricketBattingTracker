@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -226,7 +227,7 @@ def process_phrases_with_lexicon(phrases):
 
         # 1. Bat Switch Recognition
         detected_bat = None
-        if any(w in text_lower for w in ["iron bat", "iron bus", "eye in", "thin bat", "light bat", "i invest", "i end that"]):
+        if any(w in text_lower for w in ["iron bat", "iron bus", "eye in", "thin bat", "light bat", "i invest", "i end that", "i am back", "boy in that"]):
             detected_bat = "Eye In"
         elif any(w in text_lower for w in ["giant", "nicolls", "nichs", "heavy bat", "turn out"]):
             detected_bat = "Gray Nicolls Giant"
@@ -264,6 +265,8 @@ def process_phrases_with_lexicon(phrases):
                 shot_type = "Off drive"
             elif "on drive" in text_lower:
                 shot_type = "On drive"
+            elif "drive" in text_lower and not any(p in text_lower for p in ["cover", "off", "on", "power", "straight", "square", "back foot", "backfoot", "tower", "now", "we'll", "great", "forward"]):
+                shot_type = "Straight drive"
             elif any(d in text_lower for d in ["defense", "defence", "defensive", "block", "forward edge"]):
                 shot_type = "Forward defense"
             elif "the shot" in text_lower and any(q in text_lower for q in ["good", "okay", "ok", "poor", "bad", "miss", "edge", "edged", "excellent", "decent", "perfect", "smoked", "terrible", "pour"]):
@@ -286,7 +289,7 @@ def process_phrases_with_lexicon(phrases):
         quality = "good"
         if any(q in text_lower for q in ["excellent", "perfect", "nailed", "smoked"]):
             quality = "excellent"
-        elif any(q in text_lower for q in ["poor", "bad", "edge", "edged", "terrible", "pour"]):
+        elif any(q in text_lower for q in ["poor", "bad", "edge", "edged", "terrible", "pour", "four"]):
             quality = "poor"
         elif any(q in text_lower for q in ["miss", "missed", "beaten", "smith"]):
             quality = "miss"
@@ -307,11 +310,63 @@ def process_phrases_with_lexicon(phrases):
 
 def main():
     parser = argparse.ArgumentParser(description="Transcribe batting session via Deepgram or re-run lexicon on cached response.")
-    parser.add_argument("--session", "-s", required=True, help="Session folder name or absolute directory path")
+    parser.add_argument("--session", "-s", help="Session folder name or absolute directory path")
+    parser.add_argument("--all", action="store_true", help="Re-run lexicon matching across ALL local sessions with cached deepgram_response.json")
     parser.add_argument("--skip-deepgram", "--use-cache", action="store_true", help="Skip Deepgram API call and use cached deepgram_response.json")
     parser.add_argument("--model", default="nova-3", help="Deepgram model (default: nova-3)")
 
     args = parser.parse_args()
+
+    if args.all:
+        base_dir = "/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions"
+        session_dirs = sorted(glob.glob(os.path.join(base_dir, "session_*")))
+        print(f"🔄 Re-running lexicon matching across {len(session_dirs)} session directories in {base_dir}...\n")
+        
+        results = []
+        for sdir in session_dirs:
+            cache_file = os.path.join(sdir, "deepgram_response.json")
+            if not os.path.exists(cache_file):
+                continue
+            
+            with open(cache_file, "r", encoding="utf-8") as f:
+                deepgram_data = json.load(f)
+            
+            words = deepgram_data.get('results', {}).get('channels', [{}])[0].get('alternatives', [{}])[0].get('words', [])
+            if not words:
+                continue
+            
+            phrases = group_words_into_phrases(words, max_silence_gap=0.80)
+            formatted_shots, raw_transcript_lines, bat_switches, admin_headers, unrecognized_phrases = process_phrases_with_lexicon(phrases)
+            
+            # Save narrations_raw.json & raw_transcript.txt
+            narrations_path = os.path.join(sdir, "narrations_raw.json")
+            with open(narrations_path, "w", encoding="utf-8") as f:
+                json.dump(formatted_shots, f, indent=2)
+            
+            raw_transcript_path = os.path.join(sdir, "raw_transcript.txt")
+            with open(raw_transcript_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(raw_transcript_lines))
+            
+            shots_only = [s for s in formatted_shots if s.get('shot_number') is not None]
+            facing_only = [s for s in formatted_shots if s['shot_type'] == 'Facing up']
+            
+            sname = os.path.basename(sdir)
+            print(f"  ✅ {sname:28s} | Phrases: {len(phrases):3d} | Shots: {len(shots_only):2d} | Facing Up: {len(facing_only):2d} | Bat Switches: {len(bat_switches):2d} | Unrecognized: {len(unrecognized_phrases):2d}")
+            results.append({
+                'session': sname,
+                'phrases': len(phrases),
+                'shots': len(shots_only),
+                'bat_switches': len(bat_switches),
+                'unrecognized': len(unrecognized_phrases)
+            })
+        
+        print("\n" + "=" * 80)
+        print(f"🎉 BATCH RE-PARSE COMPLETE: Successfully updated {len(results)} sessions.")
+        print("=" * 80 + "\n")
+        return
+
+    if not args.session:
+        parser.error("Either --session or --all must be specified.")
 
     session_dir = resolve_session_dir(args.session)
     print(f"📂 Processing session directory: {session_dir}")

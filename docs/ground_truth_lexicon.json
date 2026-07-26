@@ -3,16 +3,21 @@
     "guide",
     "glide",
     "guyed",
+    "clyde",
     "live",
     "right",
     "alright",
     "quiet",
+    "why",
+    "wide",
     "good good",
     "late guide"
   ],
   "Cut shot": [
     "cut shot",
     "touch shot",
+    "touch up",
+    "catch up",
     "that shot",
     "cut",
     "gut shot",
@@ -21,6 +26,7 @@
   ],
   "Flick shot": [
     "flick shot",
+    "flict shot",
     "click shot",
     "quick shot",
     "slip shot",
@@ -35,6 +41,7 @@
     "push off",
     "look shot",
     "glitch up",
+    "mix shot",
     "leg shot",
     "slit shot",
     "flick",
@@ -52,6 +59,7 @@
     "push shot",
     "push out",
     "push up",
+    "push your",
     "who shot",
     "oh shot",
     "foot shot",
@@ -73,10 +81,12 @@
     "frog",
     "slog shot",
     "power shot",
+    "headshot",
     "power hit",
     "power short",
     "our shot",
     "how we hit",
+    "how i hit",
     "now hit",
     "now i hit",
     "and we hit"
@@ -95,7 +105,8 @@
   "Straight drive": [
     "straight drive",
     "straight",
-    "great drive"
+    "great drive",
+    "let's try"
   ],
   "Off drive": [
     "off drive",
@@ -118,6 +129,12 @@
     "shred shot",
     "weep shot",
     "sleep shot",
+    "three shot",
+    "sling shot",
+    "slingshot",
+    "shake shot",
+    "swip shot",
+    "sweet shot",
     "we've got",
     "slate shot",
     "we've shot"
@@ -125,7 +142,9 @@
   "Back foot punch": [
     "back foot punch",
     "backfoot punch",
-    "punch"
+    "punch",
+    "that's a crunch",
+    "crunch"
   ],
   "Back foot defense": [
     "back foot defense",
@@ -139,7 +158,8 @@
     "forward defence",
     "block",
     "defensive",
-    "fence"
+    "fence",
+    "push"
   ],
   "Facing up": [
     "facing up",
@@ -156,6 +176,9 @@
   ],
   "No shot": [
     "no shot",
+    "nice shot",
+    "and shot",
+    "threshold",
     "leave",
     "evade"
   ]

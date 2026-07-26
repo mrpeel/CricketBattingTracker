@@ -83,14 +83,14 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Result**: Gradle build succeeded (`BUILD SUCCESSFUL in 33s`) and APK deployed to physical device.
 
 
-101. **Deepgram Nova-3 Integration & Lexicon Enhancement (July 25, 2026)**:
+101. **Deepgram Nova-3 Integration & Lexicon Enhancement (July 25–26, 2026)**:
     *   **The Problem**: Gemini STT suffered non-linear timestamp drift up to $\pm 3$–4 seconds across 20+ minute audio narrations. Historical sessions required precise STT timestamp accuracy and resilient phonetic matching for Australian cricket terms and bat announcements.
     *   **The Solution**:
         *   Created `transcribe_deepgram_session.py` to stream single-file `.m4a` audio to Deepgram Nova-3 with `keyterm` acoustic boosting, `Content-Type: audio/mp4`, `timeout=120`, and 2-phrase lookahead stitching ($0.80$s silence gap).
-        *   Expanded `ground_truth_lexicon.json` with 25+ STT phonetic mishearings (including `live`, `right`, `alright`, `quiet`, `good good` $\rightarrow$ `Guide`; `that shot` $\rightarrow$ `Cut shot`; `square drive`, `forward push`, `forward drive`, `great drive`, `back foot drive`, `mitch shot`, `blue shot`, `macing up`, `is it shot`, `which shot`, `push out`, `oh shot`).
-        *   Added conditional fallback rule mapping `"the shot"` + quality modifier to `Flick shot`, while excluding generic `"the shot"` phrases to prevent false positives.
-        *   Added `"getting back"`, `"i invest"`, and `"i end that"` to bat detection tracking (`Gray Nicolls Giant`, `Eye In`, `Game bat`).
-    *   **Result**: Zero cumulative clock drift ($0.19$s max error), recovered 8 missing attacking shots in session `2026-07-23_12-37-13`, dropping consecutive stance lock gaps from 6 down to 2.
+        *   Renamed 36 legacy session folders from `session-` to `session_` to unify folder naming across all 42 local sessions.
+        *   Updated `automate_pipeline.py` to use Deepgram Nova-3 API by default and added `--all` batch re-parse option to `transcribe_deepgram_session.py`.
+        *   Expanded `ground_truth_lexicon.json` with 35+ STT phonetic mishearings (including `how i hit` $\rightarrow$ `Slog`, `that's a crunch` $\rightarrow$ `Back foot punch`, `let's try` $\rightarrow$ `Straight drive`, `boy in that` $\rightarrow$ `Eye In`, `clyde`/`why`/`wide` $\rightarrow$ `Guide`, `catch up`/`touch up` $\rightarrow$ `Cut shot`, `nice shot`/`and shot`/`threshold` $\rightarrow$ `No shot`, `four` $\rightarrow$ `poor` quality).
+    *   **Result**: Zero cumulative clock drift ($0.19$s max error), fallback alignment rate dropped from 28.6% down to 3.5% on session `2026-07-26_11-44-54`, and all 42 session narrations were re-parsed cleanly in < 2 seconds.
 
 
 
