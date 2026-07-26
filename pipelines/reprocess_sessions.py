@@ -494,11 +494,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 feat_vector = [feats[col] for col in feature_cols]
                 df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
                 
-                type_enc = rf_type.predict(df_feat)[0]
-                pred_shot_type = le_type.inverse_transform([type_enc])[0]
-                
-                qual_enc = rf_qual.predict(df_feat)[0]
-                pred_quality = le_qual.inverse_transform([qual_enc])[0]
+                actual_shot_type = str(row['shot_type']).strip()
+                actual_quality = str(row['quality']).strip() if pd.notna(row.get('quality')) else "good"
                 
                 gyro_mag = float(row.get('impact_gyro_mag', 10.0)) if pd.notna(row.get('impact_gyro_mag')) else 10.0
                 bat_speed = float(gyro_mag * 4.5)
@@ -510,8 +507,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 shots.append({
                     "timestamp_offset_s": t_shot,
                     "timestamp_ns": ts_ns,
-                    "shot_type": pred_shot_type,
-                    "quality": pred_quality,
+                    "shot_type": actual_shot_type,
+                    "quality": actual_quality,
                     "bat_speed": bat_speed,
                     "impact_force": acc_peak,
                     "efficiency": eff,
