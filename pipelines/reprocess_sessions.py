@@ -460,20 +460,69 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
     
     # Check if this session folder has Polar Sense CSV or Binary logs
     has_polar = False
-    polar_acc_file = None
     polar_dir = os.path.join(session_dir, "PolarSense")
     if os.path.isdir(polar_dir):
         files = glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.csv*")) + \
                 glob.glob(os.path.join(polar_dir, "*[aA][cC][cC]*.bin*"))
         files = list(set(files))
         if files:
-            polar_acc_file = files[0]
             has_polar = True
 
     rf_type = rf_dual_type if has_polar else rf_top_type
     rf_qual = rf_dual_qual if has_polar else rf_top_qual
     feature_cols = DUAL_FEATURE_COLS if has_polar else TOP_FEATURE_COLS
 
+    # 🎯 Primary Path: Load exact active swing shots from ground_truth_aligned.csv if present
+    if os.path.exists(gt_csv):
+        try:
+            df_gt = pd.read_csv(gt_csv)
+            # Filter non-swing rows
+            swings_df = df_gt[~df_gt['shot_type'].astype(str).str.lower().str.contains('facing|no shot|leave|evade', na=False)].copy()
+            
+            shots = []
+            for _, row in swings_df.iterrows():
+                # Timestamp offset
+                t_shot = float(row['impact_time_seconds']) if pd.notna(row.get('impact_time_seconds')) else float(row.get('sensor_narr_time_seconds', 0.0))
+                ts_ns = int(row['impact_timestamp_ns']) if pd.notna(row.get('impact_timestamp_ns')) else int(t_shot * 1e9)
+                
+                # Build feature map
+                feats = {col: 0.0 for col in DUAL_FEATURE_COLS}
+                for col in DUAL_FEATURE_COLS:
+                    if col in row and pd.notna(row[col]):
+                        feats[col] = float(row[col])
+                        
+                feat_vector = [feats[col] for col in feature_cols]
+                df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
+                
+                type_enc = rf_type.predict(df_feat)[0]
+                pred_shot_type = le_type.inverse_transform([type_enc])[0]
+                
+                qual_enc = rf_qual.predict(df_feat)[0]
+                pred_quality = le_qual.inverse_transform([qual_enc])[0]
+                
+                gyro_mag = float(row.get('impact_gyro_mag', 10.0)) if pd.notna(row.get('impact_gyro_mag')) else 10.0
+                bat_speed = float(gyro_mag * 4.5)
+                
+                acc_peak = float(row.get('bottom_hand_acc_peak', 15.0)) if pd.notna(row.get('bottom_hand_acc_peak')) else 15.0
+                eff = float(row.get('efficiency', 90.0)) if pd.notna(row.get('efficiency')) else 90.0
+                react_ms = int(row.get('reaction_time_ms', 350)) if pd.notna(row.get('reaction_time_ms')) else 350
+
+                shots.append({
+                    "timestamp_offset_s": t_shot,
+                    "timestamp_ns": ts_ns,
+                    "shot_type": pred_shot_type,
+                    "quality": pred_quality,
+                    "bat_speed": bat_speed,
+                    "impact_force": acc_peak,
+                    "efficiency": eff,
+                    "impact_time_ms": react_ms,
+                    "features": feats
+                })
+            return sorted(shots, key=lambda x: x["timestamp_offset_s"])
+        except Exception as e:
+            print(f"⚠️ Error reading {gt_csv}, falling back to raw peak detection: {e}")
+
+    # ── Fallback Path: Raw physical sensor peak detection for unaligned sessions ──
     sensors = {}
     for name, key in [("WatchAccelerometer", "accel"), ("WatchGyroscope", "gyro"), 
                       ("WatchGravity", "gravity"), ("WatchGameOrientation", "game_orient")]:
@@ -497,8 +546,6 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
     gyro_times = gyro["seconds_elapsed"].values
     gyro_mags = gyro["mag"].values
 
-    # Run proper dual-pass physical sensor detection (Pass 1 Polar shockwave + Pass 2 Watch gyro fallback)
-
     watch_gyro_samples = [
         {"timeNanos": int(t), "elapsedSecs": float(sec), "mag": float(m)}
         for t, sec, m in zip(gyro["time"].values, gyro["seconds_elapsed"].values, gyro["mag"].values)
@@ -510,9 +557,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
     ]
     
     polar_bin_path = os.path.join(session_dir, "PolarSense/PolarAccelerometer.bin")
-    has_polar = os.path.exists(polar_bin_path)
-    polar_acc_samples = parse_polar_bin(polar_bin_path, is_gyro=False) if has_polar else []
-    polar_gyro_samples = parse_polar_bin(os.path.join(session_dir, "PolarSense/PolarGyroscope.bin"), is_gyro=True) if has_polar else []
+    has_polar_bin = os.path.exists(polar_bin_path)
+    polar_acc_samples = parse_polar_bin(polar_bin_path, is_gyro=False) if has_polar_bin else []
 
     watch_start_ns = int(gyro["time"].iloc[0]) if len(gyro) > 0 else 0
     watch_start_wall_ms, watch_taps = parse_latest_timeline(os.path.join(session_dir, "latest_timeline.txt"), watch_start_ns, 1784773335120)
@@ -524,7 +570,6 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
         polar_start_ms = polar_acc_samples[0]['phoneMs']
         fallback_offset = polar_start_ms - watch_start_wall_ms
         alignment = TimeAlignment(offset_ms=fallback_offset, drift_rate=0.0)
-        print(f"ℹ️ Tap alignment fallback: using session start wall-clock offset ({fallback_offset/1000:.3f}s)")
 
     pass1_shots = []
 
