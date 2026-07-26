@@ -101,3 +101,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   Mapped shot types to baseline median ratios from the dataset and evaluated dominance and wrist whippiness relative to those baselines.
         *   Removed redundant Elvis operators, unused variables (steps, timelineFile), and parameters (watchAcc) to resolve all Kotlin compiler warnings.
     *   **Result**: Build succeeded cleanly, and biometrics details show dynamic, context-appropriate labels.
+
+
+104. **Biometrics UI Redesign — Information over Data (July 26, 2026)**:
+    *   **The Problem**: Raw sensor numbers (Gyro 15%, Force 13%, +7ms) conveyed facts but no coaching information. They were artefacts of sensor placement physics, not meaningful batting metrics.
+    *   **Root Cause**: The display was a direct passthrough of stored sensor ratios without interpreting them against biomechanical expectations. The ms timing also had false precision given the ~10ms WearOS resolution floor.
+    *   **The Solution**:
+        *   Replaced the raw stats with three coaching metrics grounded in `batting_dual_hand_biomechanics.md`.
+        *   **Hand Sync**: timing rounded to nearest 5ms, evaluated against shot-class-specific lead/lag windows (e.g., Cut: ±5ms synchronous; Drive: +5 to +20ms passive lag; Pull: -30 to -10ms bottom-hand takeover).
+        *   **Power Balance (0–100)**: gyro ratio compared to the shot-class target range centre using a forgiving quadratic curve. Score of 100 = exactly on target for that shot; 0 = far outside the expected range.
+        *   **Contribution Split**: static two-tone bar showing the expected top:bottom force split from the biomechanics doc (e.g., Cut 50:50, Pull 30:70, Slog 20:80) — the *target* to aim for, not a computed dynamic ratio.
+    *   **Key Design Decision**: The contribution split displays the *expected* split as a coaching reference target, not a computed value from sensor data. The Power Balance score tells you how close you got to it. This avoids the physical artefact problem of sensor-placement-biased ratios.
+    *   **Result**: `BUILD SUCCESSFUL` with zero warnings. All raw % and ms values hidden from UI.
