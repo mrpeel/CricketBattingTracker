@@ -2121,88 +2121,201 @@ fun TimelineItem(
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "🧤 BOTTOM HAND BIO-METRICS",
+                        "🧤 HAND COORDINATION",
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 1.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    val shotTypeUpper = event.shotType?.uppercase() ?: ""
+                    val gyroRatioVal = event.bottom_hand_gyro_ratio
+                    val rawLeadMs = event.bottom_hand_time_lead_ms ?: 0L
+                    // Round to nearest 5ms to respect ~10ms WearOS sensor resolution floor
+                    val leadMs = ((rawLeadMs + if (rawLeadMs >= 0) 2L else -2L) / 5L) * 5L
+
+                    // ── Shot-class timing windows (from batting_dual_hand_biomechanics.md §1a) ──
+                    data class TimingWindow(val minMs: Long, val maxMs: Long, val description: String)
+                    val timingWindow = when {
+                        "CUT" in shotTypeUpper || "PUNCH" in shotTypeUpper ->
+                            TimingWindow(-5L, 5L, "Both hands fire as one unit")
+                        "DRIVE" in shotTypeUpper || "DEFENCE" in shotTypeUpper || "BLOCK" in shotTypeUpper ->
+                            TimingWindow(5L, 20L, "Bottom hand follows top hand's arc")
+                        "DEFLECTION" in shotTypeUpper || "GUIDE" in shotTypeUpper ->
+                            TimingWindow(15L, 40L, "Bottom hand relaxes to open the blade")
+                        "GLANCE" in shotTypeUpper || "FLICK" in shotTypeUpper ->
+                            TimingWindow(-15L, -5L, "Bottom wrist snaps at contact")
+                        "PULL" in shotTypeUpper || "HOOK" in shotTypeUpper ->
+                            TimingWindow(-30L, -10L, "Bottom hand takes over mid-downswing")
+                        "SLOG" in shotTypeUpper ->
+                            TimingWindow(-25L, -5L, "Bottom hand co-fires from the top")
+                        "SWEEP" in shotTypeUpper ->
+                            TimingWindow(-10L, 5L, "Both hands track together horizontally")
+                        "POWER" in shotTypeUpper ->
+                            TimingWindow(-10L, 0L, "Bottom hand fires at impact")
+                        else -> TimingWindow(-15L, 15L, "Hands coordinate through swing")
+                    }
+                    val toleranceMs = 10L
+                    val (syncLabel, syncDetail, syncColor) = when {
+                        leadMs in timingWindow.minMs..timingWindow.maxMs ->
+                            Triple("✓ On Time", timingWindow.description, Color(0xFF4CAF50))
+                        leadMs in (timingWindow.minMs - toleranceMs)..(timingWindow.maxMs + toleranceMs) -> {
+                            val dir = if (leadMs < timingWindow.minMs) "early" else "late"
+                            Triple("~ Close", "Bottom hand ${kotlin.math.abs(leadMs)}ms $dir for this shot", Color(0xFFFFD54F))
+                        }
+                        leadMs < timingWindow.minMs -> {
+                            val excess = timingWindow.minMs - leadMs
+                            if (excess > 30L)
+                                Triple("✗ Too Early", "Bottom fired ${kotlin.math.abs(leadMs)}ms early", Color(0xFFFF5252))
+                            else
+                                Triple("⚠ Early", "Bottom fired ${kotlin.math.abs(leadMs)}ms early", Color(0xFFFF8A65))
+                        }
+                        else -> {
+                            val excess = leadMs - timingWindow.maxMs
+                            if (excess > 30L)
+                                Triple("✗ Too Late", "Bottom hand ${kotlin.math.abs(leadMs)}ms late", Color(0xFFFF5252))
+                            else
+                                Triple("⚠ Late", "Bottom hand ${kotlin.math.abs(leadMs)}ms late", Color(0xFFFF8A65))
+                        }
+                    }
+
+                    // ── Shot-class gyro ratio targets (from batting_dual_hand_biomechanics.md §Profiling Matrix) ──
+                    data class RatioTarget(val min: Float, val max: Float) {
+                        val centre: Float get() = (min + max) / 2f
+                        val halfRange: Float get() = (max - min) / 2f
+                    }
+                    val ratioTarget = when {
+                        "CUT" in shotTypeUpper || "PUNCH" in shotTypeUpper -> RatioTarget(0.90f, 1.10f)
+                        "DRIVE" in shotTypeUpper || "DEFENCE" in shotTypeUpper || "BLOCK" in shotTypeUpper -> RatioTarget(0.45f, 0.70f)
+                        "GLANCE" in shotTypeUpper || "FLICK" in shotTypeUpper -> RatioTarget(1.20f, 1.55f)
+                        "PULL" in shotTypeUpper || "HOOK" in shotTypeUpper -> RatioTarget(1.40f, 1.80f)
+                        "DEFLECTION" in shotTypeUpper || "GUIDE" in shotTypeUpper -> RatioTarget(0.15f, 0.40f)
+                        "POWER" in shotTypeUpper -> RatioTarget(1.10f, 1.35f)
+                        "SLOG" in shotTypeUpper -> RatioTarget(1.75f, 2.05f)
+                        "SWEEP" in shotTypeUpper -> RatioTarget(1.05f, 1.30f)
+                        else -> RatioTarget(0.70f, 1.30f)
+                    }
+                    val deviation = if (ratioTarget.halfRange > 0f)
+                        kotlin.math.abs(gyroRatioVal - ratioTarget.centre) / ratioTarget.halfRange else 0f
+                    val balanceScore = when {
+                        deviation <= 1.0f -> (100f - deviation * deviation * 30f).toInt().coerceIn(0, 100)
+                        deviation <= 2.0f -> (70f - (deviation - 1.0f) * 40f).toInt().coerceIn(0, 100)
+                        else              -> (30f - (deviation - 2.0f) * 20f).toInt().coerceIn(0, 100)
+                    }
+                    val (balanceLabel, balanceColor) = when {
+                        balanceScore >= 80 -> Pair("Balanced", Color(0xFF4CAF50))
+                        balanceScore >= 60 -> Pair("Good", Color(0xFFFFD54F))
+                        balanceScore >= 40 -> Pair("Unbalanced", Color(0xFFFF8A65))
+                        else               -> Pair("Off Target", Color(0xFFFF5252))
+                    }
+
+                    // ── Contribution split targets (from batting_dual_hand_biomechanics.md §1) ──
+                    val (topPct, bottomPct, splitContext) = when {
+                        "CUT" in shotTypeUpper || "PUNCH" in shotTypeUpper ->
+                            Triple(50, 50, "equal locked contribution")
+                        "DRIVE" in shotTypeUpper || "DEFENCE" in shotTypeUpper || "BLOCK" in shotTypeUpper ->
+                            Triple(75, 25, "top hand leads the line")
+                        "GLANCE" in shotTypeUpper || "FLICK" in shotTypeUpper ->
+                            Triple(40, 60, "bottom wrist snap at contact")
+                        "PULL" in shotTypeUpper || "HOOK" in shotTypeUpper ->
+                            Triple(30, 70, "bottom hand drives the arc")
+                        "DEFLECTION" in shotTypeUpper || "GUIDE" in shotTypeUpper ->
+                            Triple(90, 10, "top hand angles the blade")
+                        "POWER" in shotTypeUpper ->
+                            Triple(45, 55, "bottom hand lifts through impact")
+                        "SLOG" in shotTypeUpper ->
+                            Triple(20, 80, "maximum bottom hand release")
+                        "SWEEP" in shotTypeUpper ->
+                            Triple(40, 60, "torso-linked rotation sweep")
+                        else -> Triple(50, 50, "balanced contribution")
+                    }
+
+                    // ── Metrics row: Hand Sync | Power Balance ──
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        val lead = event.bottom_hand_time_lead_ms ?: 0L
-                        val leadText = if (lead > 0) "+${lead}ms" else "${lead}ms"
-                        val leadColor = when {
-                            kotlin.math.abs(lead) < 60 -> MaterialTheme.colorScheme.primary
-                            kotlin.math.abs(lead) < 200 -> Color(0xFFFFD54F)
-                            else -> Color(0xFFFF5252)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("HAND SYNC", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Text(syncLabel, fontSize = 13.sp, fontWeight = FontWeight.Black, color = syncColor)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(syncDetail, fontSize = 8.sp, color = Color.Gray, lineHeight = 10.sp)
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("HAND TIMING", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                            Text(leadText, fontSize = 14.sp, fontWeight = FontWeight.Black, color = leadColor)
-                            Text(if (lead > 0) "Bottom Hand Leads" else "Top Hand Leads", fontSize = 8.sp, color = Color.Gray)
-                        }
-
-                        val gyroRatio = event.bottom_hand_gyro_ratio * 100
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("GYRO RATIO", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                            Text("${gyroRatio.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
-                            Text("of top hand peak", fontSize = 8.sp, color = Color.Gray)
-                        }
-
-                        val forceRatio = (event.bottom_hand_acc_ratio ?: 0f) * 100
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("FORCE RATIO", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                            Text("${forceRatio.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
-                            Text("of top hand peak", fontSize = 8.sp, color = Color.Gray)
+                            Text("POWER BALANCE", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Text("$balanceScore / 100", fontSize = 13.sp, fontWeight = FontWeight.Black, color = balanceColor)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(2.dp))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(balanceScore / 100f)
+                                        .fillMaxHeight()
+                                        .background(balanceColor, RoundedCornerShape(2.dp))
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(balanceLabel, fontSize = 8.sp, color = Color.Gray)
                         }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
-                    val gyroRatioVal = event.bottom_hand_gyro_ratio
-                    val shotTypeUpper = event.shotType?.uppercase() ?: ""
-                    val baseline = when {
-                        "SWEEP" in shotTypeUpper -> 0.96f
-                        "GUIDE" in shotTypeUpper || "DEFLECTION" in shotTypeUpper -> 0.73f
-                        "CUT" in shotTypeUpper || "PUNCH" in shotTypeUpper -> 0.65f
-                        "DRIVE" in shotTypeUpper || "DEFENCE" in shotTypeUpper || "BLOCK" in shotTypeUpper -> 0.61f
-                        "GLANCE" in shotTypeUpper || "FLICK" in shotTypeUpper -> 0.22f
-                        "POWER" in shotTypeUpper -> 0.21f
-                        "PULL" in shotTypeUpper || "HOOK" in shotTypeUpper -> 0.12f
-                        "SLOG" in shotTypeUpper -> 0.06f
-                        else -> 0.50f
-                    }
-                    val dominanceText = when {
-                        gyroRatioVal > baseline * 1.3f -> "Bottom Hand Dominant (Power Whip)"
-                        gyroRatioVal < baseline * 0.7f -> "Top Hand Dominant (Control/Straight)"
-                        else -> "Balanced Dual-Hand Contribution"
-                    }
-                    val wristText = when {
-                        gyroRatioVal > baseline * 1.4f -> "Whippy / Active Bottom Hand Release"
-                        gyroRatioVal < baseline * 0.6f -> "Locked / Rigid Wrist Interface"
-                        else -> "Controlled Wrist Release"
-                    }
-                    val lead = event.bottom_hand_time_lead_ms ?: 0L
-                    val timingDetail = if (lead > 0) {
-                        "Bottom hand leads by ${lead}ms (Early Release)"
-                    } else if (lead < 0) {
-                        "Top hand leads by ${kotlin.math.abs(lead)}ms (Late Push)"
-                    } else {
-                        "Synchronous hand release (Perfect Timing)"
-                    }
 
+                    // ── Contribution split ──
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(Color.White.copy(alpha = 0.03f), RoundedCornerShape(12.dp))
-                            .padding(10.dp),
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("• Contribution: $dominanceText", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                        Text("• Wrist Action: $wristText", fontSize = 9.sp, color = Color.Gray)
-                        Text("• Hand Release: $timingDetail", fontSize = 9.sp, color = Color.Gray)
+                        Text(
+                            "TARGET CONTRIBUTION SPLIT",
+                            fontSize = 7.sp, color = Color.Gray,
+                            fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Top", fontSize = 8.sp, color = Color.Gray)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                            ) {
+                                Row(modifier = Modifier.fillMaxSize()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(topPct.toFloat())
+                                            .fillMaxHeight()
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(bottomPct.toFloat())
+                                            .fillMaxHeight()
+                                            .background(Color(0xFFFF8A65).copy(alpha = 0.7f))
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Bottom", fontSize = 8.sp, color = Color.Gray)
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            "Top $topPct : Bottom $bottomPct  —  $splitContext",
+                            fontSize = 8.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
                     }
                 }
             }
