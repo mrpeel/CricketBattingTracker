@@ -57,7 +57,7 @@ object PhoneSwingDetector {
         val watchGyro = loadWatchIMU(watchDir, "WatchGyroscope")
         val watchGrav = loadWatchIMU(watchDir, "WatchGravity")
         val watchRot = loadWatchRot(watchDir)
-        val steps = loadWatchSteps(watchDir)
+
 
         if (watchAcc.isEmpty() || watchRot.isEmpty()) {
             Log.e(TAG, "Watch raw files are missing or empty — skipping processing")
@@ -68,7 +68,7 @@ object PhoneSwingDetector {
         val dao = database.inningsEventDao()
         dao.deleteTimelineForInningsSync(inningsId)
 
-        val timelineFile = File(watchDir, "latest_timeline.txt")
+
         val watchStartWallMs = parseSessionStartWallMs(watchDir)
         val watchStartSensorNs = watchAcc.first().timeNanos
 
@@ -218,7 +218,6 @@ object PhoneSwingDetector {
                 val features = extractFeaturesAtSensorNs(
                     targetSensorNs = targetSensorNs,
                     watchGyro = watchGyro,
-                    watchAcc = watchAcc,
                     watchGrav = watchGrav,
                     watchRot = watchRot,
                     bottomGyroPeak = bottomGyroPeak ?: 0f,
@@ -311,7 +310,6 @@ object PhoneSwingDetector {
                     val features = extractFeaturesAtSensorNs(
                         targetSensorNs = targetSensorNs,
                         watchGyro = watchGyro,
-                        watchAcc = watchAcc,
                         watchGrav = watchGrav,
                         watchRot = watchRot
                     )
@@ -441,7 +439,7 @@ object PhoneSwingDetector {
     private fun extractFeaturesAtSensorNs(
         targetSensorNs: Long,
         watchGyro: List<WatchIMUSample>,
-        watchAcc: List<WatchIMUSample>,
+
         watchGrav: List<WatchIMUSample>,
         watchRot: List<WatchRotSample>,
         bottomGyroPeak: Float = 0f,
@@ -803,7 +801,7 @@ object PhoneSwingDetector {
                 val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
                 while (buffer.remaining() >= 12) {
                     val t = buffer.long
-                    val sec = buffer.float
+                    buffer.float
                     list.add(t)
                 }
             }
