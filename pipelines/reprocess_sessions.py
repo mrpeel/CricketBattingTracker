@@ -56,6 +56,15 @@ DUAL_FEATURE_COLS = TOP_FEATURE_COLS + [
     's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
 ]
 
+POLAR_FEATURE_COLS = [
+    'bottom_hand_gyro_peak', 'bottom_hand_acc_peak',
+    'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
+    'bottom_hand_time_lead_ms', 'bottom_hand_sync_score',
+    's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+    's2_bottom_acc_mean', 's2_dynamic_ratio_slope',
+    's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
+]
+
 sys.path.append(ROOT_DIR)
 from automate_pipeline import load_watch_sensor
 
@@ -472,6 +481,17 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
     rf_qual = rf_dual_qual if has_polar else rf_top_qual
     feature_cols = DUAL_FEATURE_COLS if has_polar else TOP_FEATURE_COLS
 
+    sensors = {}
+    for name, key in [("WatchAccelerometer", "accel"), ("WatchGyroscope", "gyro"), 
+                      ("WatchGravity", "gravity"), ("WatchGameOrientation", "game_orient")]:
+        df = load_watch_sensor(session_dir, name)
+        if df is not None and not df.empty:
+            if "x" in df.columns and "y" in df.columns and "z" in df.columns:
+                mag_vals = np.sqrt(df["x"]**2 + df["y"]**2 + df["z"]**2)
+                df["mag"] = mag_vals
+                df["mag_total"] = mag_vals
+            sensors[key] = df
+
     # 🎯 Primary Path: Load exact active swing shots from ground_truth_aligned.csv if present
     if os.path.exists(gt_csv):
         try:
@@ -485,17 +505,29 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 t_shot = float(row['impact_time_seconds']) if pd.notna(row.get('impact_time_seconds')) else float(row.get('sensor_narr_time_seconds', 0.0))
                 ts_ns = int(row['impact_timestamp_ns']) if pd.notna(row.get('impact_timestamp_ns')) else int(t_shot * 1e9)
                 
-                # Build feature map
-                feats = {col: 0.0 for col in DUAL_FEATURE_COLS}
-                for col in DUAL_FEATURE_COLS:
+                # 1. Dynamically extract the 14 watch features from raw sensor logs at t_shot
+                feats = extract_features_single_shot(sensors, t_shot) if sensors else {col: 0.0 for col in TOP_FEATURE_COLS}
+                
+                # 2. Append Polar features from ground_truth_aligned.csv (default to 0.0 if NaN/absent)
+                for col in POLAR_FEATURE_COLS:
+                    feats[col] = 0.0
                     if col in row and pd.notna(row[col]):
                         feats[col] = float(row[col])
-                        
-                feat_vector = [feats[col] for col in feature_cols]
-                df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
                 
-                actual_shot_type = str(row['shot_type']).strip()
-                actual_quality = str(row['quality']).strip() if pd.notna(row.get('quality')) else "good"
+                # 3. Dynamic Shot-Level Routing (Watch-Only 14f vs Dual-Hand 26f)
+                shot_has_polar = pd.notna(row.get('bottom_hand_gyro_peak'))
+                rf_type_shot = rf_dual_type if shot_has_polar else rf_top_type
+                rf_qual_shot = rf_dual_qual if shot_has_polar else rf_top_qual
+                feature_cols_shot = DUAL_FEATURE_COLS if shot_has_polar else TOP_FEATURE_COLS
+                
+                feat_vector = [feats[col] for col in feature_cols_shot]
+                df_feat = pd.DataFrame([feat_vector], columns=feature_cols_shot)
+                
+                type_enc = rf_type_shot.predict(df_feat)[0]
+                pred_shot_type = le_type.inverse_transform([type_enc])[0]
+                
+                qual_enc = rf_qual_shot.predict(df_feat)[0]
+                pred_quality = le_qual.inverse_transform([qual_enc])[0]
                 
                 gyro_mag = float(row.get('impact_gyro_mag', 10.0)) if pd.notna(row.get('impact_gyro_mag')) else 10.0
                 bat_speed = float(gyro_mag * 4.5)
@@ -507,8 +539,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 shots.append({
                     "timestamp_offset_s": t_shot,
                     "timestamp_ns": ts_ns,
-                    "shot_type": actual_shot_type,
-                    "quality": actual_quality,
+                    "shot_type": pred_shot_type,
+                    "quality": pred_quality,
                     "bat_speed": bat_speed,
                     "impact_force": acc_peak,
                     "efficiency": eff,
@@ -520,17 +552,6 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
             print(f"⚠️ Error reading {gt_csv}, falling back to raw peak detection: {e}")
 
     # ── Fallback Path: Raw physical sensor peak detection for unaligned sessions ──
-    sensors = {}
-    for name, key in [("WatchAccelerometer", "accel"), ("WatchGyroscope", "gyro"), 
-                      ("WatchGravity", "gravity"), ("WatchGameOrientation", "game_orient")]:
-        df = load_watch_sensor(session_dir, name)
-        if df is not None and not df.empty:
-            if "x" in df.columns and "y" in df.columns and "z" in df.columns:
-                mag_vals = np.sqrt(df["x"]**2 + df["y"]**2 + df["z"]**2)
-                df["mag"] = mag_vals
-                df["mag_total"] = mag_vals
-            sensors[key] = df
-
     if "accel" not in sensors or "gyro" not in sensors or "game_orient" not in sensors:
         return []
 
