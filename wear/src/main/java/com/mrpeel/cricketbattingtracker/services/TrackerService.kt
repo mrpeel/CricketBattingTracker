@@ -17,7 +17,6 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.mrpeel.cricketbattingtracker.MainActivity
-import com.mrpeel.cricketbattingtracker.ml.SwingDetector
 import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.wear.ongoing.OngoingActivity

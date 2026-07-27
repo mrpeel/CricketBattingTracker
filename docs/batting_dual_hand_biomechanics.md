@@ -44,49 +44,72 @@ Classifies verified active swings into one of **8 output classes**:
     *   *Bottom-Hand Biomechanics*: Functions as a passive hinge and stabilization guide. Wrist stays relaxed and uncocked to prevent premature rolling of the blade.
     *   *Coordination & Timing*: Top hand completely dictates the downswing arc and path. The bottom hand follows smoothly with zero time-lead.
     *   *Force Ratio*: High top-hand dominance (typically **70:30** to **80:20** force split).
+    *   *Force Timing Profile*: Continuous, early top-hand force application throughout the entire downswing phase. Bottom-hand force application is heavily delayed, registering only as a minor, passive stabilization peak at the exact moment of impact.
     *   *Shots*: Straight Drive, Cover Drive, Off Drive, On Drive, Forward Defensive, Back-foot Defensive.
 *   **`GLANCE/FLICK`**
     *   *Top-Hand Biomechanics*: Guides the initial line of the ball before transitioning into a support pivot.
     *   *Bottom-Hand Biomechanics*: Active, rapid wrist flexion and forearm pronation occurring precisely at the point of impact to close the bat face.
     *   *Coordination & Timing*: The bottom hand operates with a late, high-velocity acceleration burst, snapping right at contact while the top hand maintains the axis.
     *   *Force Ratio*: Rapid dynamic shift from top-hand control during downswing to bottom-hand execution at contact (**40:60**).
+    *   *Force Timing Profile*: Highly sequential. The top hand applies a steady, lower-magnitude steering force early in the downswing, followed by an aggressive, ultra-brief spike of bottom-hand force concentrated entirely within the 30ms pre-impact window.
     *   *Shots*: Flick Shot (off pads), Leg Glance, On-Glance.
 *   **`CUT/PUNCH`**
     *   *Top-Hand Biomechanics*: Isometric rigid wrist lockdown in a flat horizontal plane. Short kinetic path, minimal forearm rotation.
     *   *Bottom-Hand Biomechanics*: Mirrors the top hand's rigid lockdown, providing a solid lateral punching force across the body.
     *   *Coordination & Timing*: Extreme synchronization. Both sensors register near-identical angular velocity profiles with near-zero millisecond variance.
     *   *Force Ratio*: Highly balanced kinetic distribution (**50:50**) to ensure linear control and blade stability.
+    *   *Force Timing Profile*: Symmetrical and concurrent. Both hands apply force simultaneously from the initiation of the downswing through to the follow-through, resulting in perfectly overlapping force curves and synchronized peak loading.
     *   *Shots*: Square Cut, Cut, Back-foot Punch.
 *   **`PULL/HOOK`**
     *   *Top-Hand Biomechanics*: Broad horizontal/transverse circular arc starting with an extended lever.
     *   *Bottom-Hand Biomechanics*: Highly aggressive internal rotation and pronation, actively pulling the bat across the line of the ball and forcing a downward follow-through.
     *   *Coordination & Timing*: Top hand initiates the wide swing path, but the bottom hand takes over kinetic acceleration mid-downswing, leading the impact window.
     *   *Force Ratio*: Heavily bottom-hand dominant (**30:70**) to generate cross-bat velocity and force the ball downward.
+    *   *Force Timing Profile*: Overlapping sequential rollout. The top hand applies force early to clear the bat away from the body and initiate the arc, but the bottom hand triggers an intense force acceleration mid-downswing, peaking just *before* impact to pull the blade violently across the line.
     *   *Shots*: Pull Shot, Hook Shot.
 *   **`DEFLECTION/GUIDE`**
     *   *Top-Hand Biomechanics*: Forearm supination and late wrist extension just before contact to open the blade angle.
     *   *Bottom-Hand Biomechanics*: Kept completely loose with minimal grip tension (finger-only control), offering virtually zero structural resistance.
     *   *Coordination & Timing*: The bottom hand exhibits an intentional lag, allowing the top hand to manipulate the face angle independently against the ball's incoming pace.
     *   *Force Ratio*: Absolute top-hand dominance (**90:10**).
+    *   *Force Timing Profile*: Single-source dominance. The top hand applies steady, micro-adjusted controlling force late into the downswing to angle the blade face. The bottom hand remains entirely passive with a flat, near-zero force profile across all phases.
     *   *Shots*: Late Cut, Square Upper Cut, Glide/Steer.
 *   **`POWER DRIVE`**
     *   *Top-Hand Biomechanics*: Accelerated vertical downswing with high-velocity release and extensive post-impact extension.
     *   *Bottom-Hand Biomechanics*: Explosive upward linear acceleration through the hitting zone, driving upward to loft and elevate the ball.
     *   *Coordination & Timing*: Classic kinetic whip effect. The top hand pulls the bat down into the slot, immediately followed by an explosive bottom-hand acceleration peak at or a split-second after impact.
     *   *Force Ratio*: Transitions from top-hand guidance down the slot to bottom-hand acceleration through impact (**45:55**).
+    *   *Force Timing Profile*: Late-stage sequential handoff (kinetic whip). The top hand generates high linear force early down the slot to build momentum, while the bottom hand fires an explosive acceleration burst that peaks directly at impact and sustains heavily into the follow-through to lift the ball.
     *   *Shots*: Lofted Straight/Cover Drive.
 *   **`SLOG`**
     *   *Top-Hand Biomechanics*: High-velocity swing release serving primarily as the rotational anchor point.
     *   *Bottom-Hand Biomechanics*: Maximum violent wrist release, driving absolute angular acceleration through a broad, unrestricted hitting arc.
     *   *Coordination & Timing*: Both hands accelerate concurrently from the top of the backswing, with the bottom hand hitting its acceleration peak early to force maximum release velocity.
     *   *Force Ratio*: Total bottom-hand dominance (**20:80**).
+    *   *Force Timing Profile*: Co-explosive, early-loaded firing. Both hands apply maximum force almost simultaneously right from the transition point at the top of the backswing, with the bottom hand maintaining its peak force output early in the downswing to maximize raw angular velocity before impact.
     *   *Shots*: Slog, Helicopter Shot.
 *   **`SWEEP`**
     *   *Top-Hand Biomechanics*: Low-to-ground crouching swing utilizing rotational torso torque.
     *   *Bottom-Hand Biomechanics*: Extends low across the front knee, driving a wide horizontal sweep arc. For the Reverse Sweep, roles invert dynamically.
     *   *Coordination & Timing*: Highly coupled rotational tracking; both hands move in a locked horizontal plane relative to the lowered torso.
     *   *Force Ratio*: Moderately bottom-hand heavy (**40:60**) to counter gravity at a low swing plane.
+    *   *Force Timing Profile*: Phase-locked rotation. Both hands apply continuous, coupled, and highly synchronized force profiles throughout the swing window, acting as an extension of the torso's core rotation rather than executing isolated arm or wrist acceleration.
     *   *Shots*: Traditional Sweep, Slog Sweep, Reverse Sweep/Switch Hit.
+
+### 1a. Dual-Hand Timing Windows Reference
+When setting up the threshold gates in PhoneSwingDetector.kt, the time delta ($\Delta t = \text{Time}_{\text{bottom}} - \text{Time}_{\text{top}}$) can be classified into four distinct timing behaviors:
+* **Synchronous Window (±5ms)**
+    *   *Shots*: CUT/PUNCH
+    *   *The Telemetry*: Near-zero variance (-5ms to +5ms). Both wrists lock and fire as a single rigid unit to punch the ball laterally.
+* **Passive/Guided Lag Window (+5ms to +20ms)**
+    *   *Shots*: DRIVE/DEFENCE
+    *   *The Telemetry*: A tight, consistent lag of 5 to 20ms. The top hand pulls the bat down the vertical plane, and the bottom hand cleanly follows the established path without fighting for control.
+* **Intentional/Deflective Lag Window (+15ms to +40ms)**
+    *   *Shots*: DEFLECTION/GUIDE
+    *   *The Telemetry*: A wider, highly distinct lag of 15 to 40ms. The bottom hand grip tension drops completely, allowing the top hand to manipulate and open the blade face independently right up until the ball meets the bat.
+* **Active Lead/Snap Window (-5ms to -30ms)**
+    *   *Shots*: GLANCE/FLICK, PULL/HOOK, SLOG
+    *   *The Telemetry*: The bottom hand peaks before the top hand, registering a negative value.Flicks/Glances: A late, sharp snap leading by -5ms to -15ms.Pulls/Slogs: An aggressive takeover mid-downswing, leading by -10ms to -30ms as the bottom hand forcefully clears the arc and drags the blade across the line.
 
 ### 2. Shot Quality Classifier
 Evaluates the execution quality of the swing based on the feature input vector, outputting one of **3 classes** mapped in the UI to specific descriptors and efficiency ratings:
