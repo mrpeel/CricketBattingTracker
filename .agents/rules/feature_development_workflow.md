@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Feature Development Workflow
 
 This workflow provides a safe, step-by-step procedure to analyze, plan, implement, and verify a new feature cleanly in the Pitch Analytix Pro workspace.
@@ -6,7 +10,7 @@ This workflow provides a safe, step-by-step procedure to analyze, plan, implemen
 
 1.  **Clarification (`CLARIFY`)**
     *   Review the user's requirements.
-    *   Trigger the `/grill-me` command to resolve any design ambiguities, logical gaps, or sensor calibration parameters with the architect.
+    *   Initiate a clarification check to resolve any design ambiguities, logical gaps, or sensor calibration parameters with the architect. If running in a UI environment that supports it, trigger the /grill-me command; if running in an autonomous terminal harness (like OpenCode), output a clean, structured list of clarifying questions and pause for user input before proceeding to the plan phase.\
 
 2.  **Context Alignment**
     *   Read [.agents/ACTIVE_CONTEXT.md](../ACTIVE_CONTEXT.md) and [.agents/ARCHITECTURE.md](../ARCHITECTURE.md) to ensure alignment with established coding patterns, kinematics configurations, and system boundaries.
