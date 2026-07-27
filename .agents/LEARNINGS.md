@@ -113,3 +113,16 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Contribution Split**: static two-tone bar showing the expected top:bottom force split from the biomechanics doc (e.g., Cut 50:50, Pull 30:70, Slog 20:80) — the *target* to aim for, not a computed dynamic ratio.
     *   **Key Design Decision**: The contribution split displays the *expected* split as a coaching reference target, not a computed value from sensor data. The Power Balance score tells you how close you got to it. This avoids the physical artefact problem of sensor-placement-biased ratios.
     *   **Result**: `BUILD SUCCESSFUL` with zero warnings. All raw % and ms values hidden from UI.
+
+
+105. **Alignment Diagnosis & S1/S3 Linear Acceleration Feature Addition (July 27, 2026)**:
+    *   **Alignment Validated — Polar starts on record press**: Code audit (`PolarSenseManager`, `PolarSenseService`) confirmed Polar streaming starts on "START BATTING SESSION" press, not on app launch. Session data confirmed: Polar started only 299ms before watch (BLE/SDK negotiation latency). The alignment offset itself is NOT the bug.
+    *   **Real Root Cause — Threshold Too High**: `POLAR_SHOCKWAVE_THRESHOLD = 24.5 m/s²` on the forearm/bicep location misses most non-power shots. p95 of Polar acc stream = 16.7 m/s². For 46 of 52 shots (~88%), no Polar impact peak crosses the threshold, so ALL bottom-hand metrics default to 0f. Tap threshold (10 m/s²) was lowered from 25 m/s² to reliably detect bat ground taps for timeline alignment.
+    *   **S1/S3 Acceleration Features Added**:
+        *   `s1_acc_mag` — top-hand peak linear acceleration in backswing (-800ms to -200ms). Extracted from `accelBuffer` in `SwingDetector.kt` (real-time) and from `watchAcc` passed into `extractFeaturesAtSensorNs` in `PhoneSwingDetector.kt` (batch). Proxy for backswing load-up force via F=ma.
+        *   `s3_acc_peak` — top-hand peak linear acceleration at impact (-50ms to +300ms). Captures the strike force — the most important force metric for the top hand.
+        *   `s1_bottom_acc_mag` — bottom-hand (Polar) peak acc in backswing (-800ms to -200ms). Captures bottom-arm preparation load.
+        *   `s3_bottom_acc_peak` — bottom-hand (Polar) peak acc at impact (-50ms to +300ms). The primary metric for the accelerometer-centric force model.
+    *   **Architecture Note**: The four new fields have default `0f` in `SwingFeatures` so all four existing forests compile without change. The forests will need retraining to USE the new features. The existing forest feature arrays still reference only the original 26 features by position.
+    *   **Result**: `BUILD SUCCESSFUL`. Feature vector grows from 26 to 32 features for model retraining.
+

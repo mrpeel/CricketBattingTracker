@@ -715,6 +715,10 @@ class SwingDetector {
             val mean = zVals.average()
             sqrt(zVals.map { (it - mean).pow(2) }.average()).toFloat()
         } else 0f
+        // Top-hand linear acceleration in backswing — F=ma proxy for load-up force
+        val s1AccMag = accelBuffer.getRange(tStart, tSplit1).let { idxs ->
+            if (idxs.isNotEmpty()) idxs.maxOf { accelBuffer.magnitudes[it] } else 0f
+        }
 
         // --- Segment 2: Intent & Height [tSplit1, tSplit2] ---
         val (s2DeltaX, s2DeltaZ) = getDisplacement(tSplit1, tSplit2)
@@ -728,6 +732,10 @@ class SwingDetector {
         val s3PlaneRatio = if (s3DeltaZ > 0f) s3DeltaX / s3DeltaZ else 0f
         val s3GyroIndices = gyroBuffer.getRange(tSplit2, tEnd)
         val s3GyroYMin = if (s3GyroIndices.isNotEmpty()) s3GyroIndices.minOf { gyroBuffer.y[it] } else 0f
+        // Top-hand linear acceleration at impact — F=ma proxy for strike force
+        val s3AccPeak = accelBuffer.getRange(tSplit2, tEnd).let { idxs ->
+            if (idxs.isNotEmpty()) idxs.maxOf { accelBuffer.magnitudes[it] } else 0f
+        }
 
         val impactOriIdx = findClosestRotationIndex(tSplit2)
         var s3RollImpactDeg = 0f
@@ -761,6 +769,7 @@ class SwingDetector {
             s1_gyro_z_std = s1GyroZStd,
             s1_deltaX = s1DeltaX,
             s1_deltaZ = s1DeltaZ,
+            s1_acc_mag = s1AccMag,
             s2_gyroMag = s2GyroMag,
             s2_grav_y_mean = s2GravYMean,
             s2_deltaX = s2DeltaX,
@@ -770,7 +779,8 @@ class SwingDetector {
             s3_deltaX = s3DeltaX,
             s3_deltaZ = s3DeltaZ,
             s3_planeRatio = s3PlaneRatio,
-            s3_gyro_y_min = s3GyroYMin
+            s3_gyro_y_min = s3GyroYMin,
+            s3_acc_peak = s3AccPeak
         )
 
         if (debugEnabled) {

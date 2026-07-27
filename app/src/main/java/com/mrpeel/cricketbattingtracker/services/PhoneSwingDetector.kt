@@ -148,10 +148,12 @@ object PhoneSwingDetector {
                 var bottomSyncScore: Float? = null
                 var s1BottomGyroMag = 0f
                 var s1BottomDeltaZ = 0f
+                var s1BottomAccMag = 0f
                 var s2BottomAccMean = 0f
                 var s2DynamicRatioSlope = 0f
                 var s3BottomPronationDeg = 0f
                 var s3BottomGyroYMin = 0f
+                var s3BottomAccPeak = 0f
 
                 val hasPolarData = alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty() && polarPeakTimeMs != null
 
@@ -189,6 +191,12 @@ object PhoneSwingDetector {
                         s1BottomDeltaZ = s1Gyro.maxOf { it.z } - s1Gyro.minOf { it.z }
                     }
 
+                    // S1 bottom-hand acc (backswing: -800ms to -200ms)
+                    val s1AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
+                    if (s1AccBottom.isNotEmpty()) {
+                        s1BottomAccMag = s1AccBottom.maxOf { it.mag }
+                    }
+
                     val s2Acc = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
                     if (s2Acc.isNotEmpty()) {
                         s2BottomAccMean = s2Acc.map { it.mag }.average().toFloat()
@@ -212,14 +220,21 @@ object PhoneSwingDetector {
                         s3BottomPronationDeg = trapz * (180f / Math.PI.toFloat())
                         s3BottomGyroYMin = s3Gyro.minOf { it.y }
                     }
+
+                    // S3 bottom-hand acc peak (impact/follow-through: -50ms to +300ms)
+                    val s3AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
+                    if (s3AccBottom.isNotEmpty()) {
+                        s3BottomAccPeak = s3AccBottom.maxOf { it.mag }
+                    }
                 }
 
-                // 26-Feature extraction
+                // 32-Feature extraction
                 val features = extractFeaturesAtSensorNs(
                     targetSensorNs = targetSensorNs,
                     watchGyro = watchGyro,
                     watchGrav = watchGrav,
                     watchRot = watchRot,
+                    watchAcc = watchAcc,
                     bottomGyroPeak = bottomGyroPeak ?: 0f,
                     bottomAccPeak = bottomAccPeak ?: 0f,
                     bottomGyroRatio = bottomGyroRatio ?: 0f,
@@ -228,10 +243,12 @@ object PhoneSwingDetector {
                     bottomSyncScore = bottomSyncScore ?: 0f,
                     s1BottomGyroMag = s1BottomGyroMag,
                     s1BottomDeltaZ = s1BottomDeltaZ,
+                    s1BottomAccMag = s1BottomAccMag,
                     s2BottomAccMean = s2BottomAccMean,
                     s2DynamicRatioSlope = s2DynamicRatioSlope,
                     s3BottomPronationDeg = s3BottomPronationDeg,
-                    s3BottomGyroYMin = s3BottomGyroYMin
+                    s3BottomGyroYMin = s3BottomGyroYMin,
+                    s3BottomAccPeak = s3BottomAccPeak
                 )
 
                 val finalShotType = if (hasPolarData) {
@@ -439,9 +456,9 @@ object PhoneSwingDetector {
     private fun extractFeaturesAtSensorNs(
         targetSensorNs: Long,
         watchGyro: List<WatchIMUSample>,
-
         watchGrav: List<WatchIMUSample>,
         watchRot: List<WatchRotSample>,
+        watchAcc: List<WatchIMUSample> = emptyList(),
         bottomGyroPeak: Float = 0f,
         bottomAccPeak: Float = 0f,
         bottomGyroRatio: Float = 0f,
@@ -450,10 +467,12 @@ object PhoneSwingDetector {
         bottomSyncScore: Float = 0f,
         s1BottomGyroMag: Float = 0f,
         s1BottomDeltaZ: Float = 0f,
+        s1BottomAccMag: Float = 0f,
         s2BottomAccMean: Float = 0f,
         s2DynamicRatioSlope: Float = 0f,
         s3BottomPronationDeg: Float = 0f,
-        s3BottomGyroYMin: Float = 0f
+        s3BottomGyroYMin: Float = 0f,
+        s3BottomAccPeak: Float = 0f
     ): com.mrpeel.cricketbattingtracker.ml.SwingFeatures {
         val stanceStart = targetSensorNs - 2_500_000_000L
         val stanceEnd = targetSensorNs - 1_000_000_000L
@@ -471,6 +490,10 @@ object PhoneSwingDetector {
         val (s1Dx, s1Dz) = getDisplacement(watchRot, tStart, tSplit1, qStanceInv)
         val s1GyroYStd = getGyroStd(watchGyro, tStart, tSplit1, isY = true)
         val s1GyroZStd = getGyroStd(watchGyro, tStart, tSplit1, isY = false)
+        // Top-hand linear acceleration in backswing (F=ma proxy for load-up force)
+        val s1AccMag = watchAcc
+            .filter { it.timeNanos in tStart..tSplit1 }
+            .maxOfOrNull { it.mag } ?: 0f
 
         val (s2Dx, s2Dz) = getDisplacement(watchRot, tSplit1, tSplit2, qStanceInv)
         val s2GyroMag = getGyroPeak(watchGyro, tSplit1, tSplit2)
@@ -479,6 +502,10 @@ object PhoneSwingDetector {
         val (s3Dx, s3Dz) = getDisplacement(watchRot, tSplit2, tEnd, qStanceInv)
         val s3PlaneRatio = if (s3Dz > 0f) s3Dx / s3Dz else 0f
         val s3GyroYMin = getGyroMinY(watchGyro, tSplit2, tEnd)
+        // Top-hand linear acceleration at impact (F=ma proxy for strike force)
+        val s3AccPeak = watchAcc
+            .filter { it.timeNanos in tSplit2..tEnd }
+            .maxOfOrNull { it.mag } ?: 0f
 
         val impactRot = findClosestRotation(watchRot, tSplit2)
         var s3RollImpactDeg = 0f
@@ -499,6 +526,7 @@ object PhoneSwingDetector {
             s1_gyro_z_std = s1GyroZStd,
             s1_deltaX = s1Dx,
             s1_deltaZ = s1Dz,
+            s1_acc_mag = s1AccMag,
             s2_gyroMag = s2GyroMag,
             s2_grav_y_mean = s2GravYMean,
             s2_deltaX = s2Dx,
@@ -509,6 +537,7 @@ object PhoneSwingDetector {
             s3_deltaZ = s3Dz,
             s3_planeRatio = s3PlaneRatio,
             s3_gyro_y_min = s3GyroYMin,
+            s3_acc_peak = s3AccPeak,
             bottom_hand_gyro_peak = bottomGyroPeak,
             bottom_hand_acc_peak = bottomAccPeak,
             bottom_hand_gyro_ratio = bottomGyroRatio,
@@ -517,10 +546,12 @@ object PhoneSwingDetector {
             bottom_hand_sync_score = bottomSyncScore,
             s1_bottom_gyro_mag = s1BottomGyroMag,
             s1_bottom_deltaZ = s1BottomDeltaZ,
+            s1_bottom_acc_mag = s1BottomAccMag,
             s2_bottom_acc_mean = s2BottomAccMean,
             s2_dynamic_ratio_slope = s2DynamicRatioSlope,
             s3_bottom_pronation_deg = s3BottomPronationDeg,
-            s3_bottom_gyro_y_min = s3BottomGyroYMin
+            s3_bottom_gyro_y_min = s3BottomGyroYMin,
+            s3_bottom_acc_peak = s3BottomAccPeak
         )
     }
 
@@ -995,7 +1026,7 @@ object PhoneSwingDetector {
     }
 
     private fun detectPolarTapSequences(samples: List<PolarSample>): List<List<Long>> {
-        val tapThreshold = 25.0f // m/s^2 magnitude
+        val tapThreshold = 10.0f // m/s^2 — lowered from 25.0 to reliably detect bat ground taps at the forearm/bicep
         val minGapMs = 200L
         val maxGapMs = 1500L
         val maxSpanMs = 5000L
