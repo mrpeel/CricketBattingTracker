@@ -59,7 +59,7 @@ Below is the classification accuracy for the newly retrained model evaluated on 
 | **OVERALL** | **3148** | **60.4%** | **74.1%** |
 
 ## 4. Classification Accuracy by Data Profile
-The system employs a **Dual-Model Routing Architecture**: Watch-only sessions (Match Day) route to `GeneratedTopForest` (14 features), while dual-sensor sessions (Net Practice) route to `GeneratedDualForest` (26 features).
+The system employs a **Dual-Model Routing Architecture**: Watch-only sessions (Match Day) route to `GeneratedTopForest` (16 features), while dual-sensor sessions (Net Practice) route to `GeneratedDualForest` (30 features).
 
 | Data Profile | Shots | Overall Acc | DRIVE | PULL | CUT | GLANCE | POWER | SLOG | SWEEP | GUIDE |
 |---|---|---|---|---|---|---|---|---|---|---|

@@ -18,7 +18,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ## 🛠️ Technical Approach
 *   **Wear OS Smartwatch**: Runs a foreground tracking service (`TrackerService`) with a partial wake lock to guarantee continuous raw sensor logging at `SENSOR_DELAY_FASTEST` speed (up to 15 standard Wear OS physical and virtual sensors). When the session ends, the watch packages the entire session directory into a single ZIP file and syncs it to the companion phone app using GMS `ChannelClient` under the `/raw_session_data` path.
-*   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives raw sensor ZIP files via GMS `ChannelClient`, unzips them, and runs an offline batch analysis processor (`PhoneSwingDetector`). This performs clock alignment matching, peak impact detection, stance look-back checking, feature extraction, Random Forest classification (`GeneratedForest`), and video clipping entirely offline on the phone.
+*   **Companion Android App**: Uses a Room SQLite database for offline storage. Receives raw sensor ZIP files via GMS `ChannelClient`, unzips them, and runs an offline batch analysis processor (`PhoneSwingDetector`). This performs clock alignment matching, peak impact detection, stance look-back checking, 30-feature extraction (incorporating linear acceleration force features), Dual-Model Random Forest classification (routing to `GeneratedTopForest` or `GeneratedDualForest` depending on Polar presence), and video clipping entirely offline on the phone.
 *   **Python Automation Pipeline**: ADB automation (`automate_pipeline.py`) pulls consolidated watch + Polar session logs directly from the phone companion app's sync folder. Transcribes audio narration using the Gemini API and Snaps transcripts to maximum gyroscope magnitude peaks.
 
 ---
@@ -39,6 +39,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-027 | Phone-Bound Batch Processing | Remove real-time detection on watch and move facing up, stance lock, feature extraction, and RF classification entirely to the Phone companion app. | **Completed** | Local file unzipping, database write checks, and Python pipeline phone pull verification |
 | B-028 | Base Data Transparency & Telemetry Overhaul | Add explicit phase start/end nanoseconds and seconds, export all 26 sensor features, calculate physical efficiency, dynamic reaction time, and downswing-constrained Polar peak matching. | **Completed** | Regenerated ground_truth_aligned.csv and combined_ground_truth_aligned.csv with 57 columns and eliminated post-shot tap artifacts |
 | B-029 | Deepgram Ground Truth Re-alignment & Retraining | Rebuild all 42 session ground truth files using Deepgram Nova-3 narrations, retrain and transpile Dual-Model Random Forests to Kotlin. | **Completed** | 100% session alignment success (4,070 GT rows), 95% accuracy on 100Hz Watch+Polar, unit tests passed |
+| B-030 | Linear Acc Features & 30-Feature Expansion | Add s1_acc_mag, s3_acc_peak, s1_bottom_acc_mag, s3_bottom_acc_peak to SwingFeatures and PhoneSwingDetector to support force proxies. | **Completed** | SwingFeatures data structure updated to 30 fields, and PhoneSwingDetector values validated |
 
 
 ---

@@ -4,7 +4,7 @@ This document maps directories, API structures, database schemas, and data flow 
 
 ---
 
-## 🏗️ System Architecture (Current — Phone-Based Batch Processing)
+## 🏗️ System Architecture (Current — Dual-Model Routing & Phone-Based Batch Processing)
 
 > **IMPORTANT**: The on-watch `SwingDetector` classification path was retired in July 2026.
 > The watch now records raw sensor data only. All shot detection and classification
@@ -16,12 +16,14 @@ WATCH                        PHONE                               MAC / PIPELINE
 TrackerService               DataSyncListenerService             compile_dataset.py
   7 sensor streams    ZIP      ↓ unzip watch session               combined_features.csv
   .bin.gz per sensor  ──────→  PhoneSwingDetector.kt             generate_kotlin_forest.py
-                               ↓                                   → GeneratedForest.kt
-Polar Verity Sense             1. load binary watch files              (wear/ + app/)
-  418Hz IMU    BLE   ──────→   2. align Polar (linear regression)  train_quality_classifier.py
-  accel + gyro                 3. detect shots (gyro prominence)     quality_classifier.pkl
-                               4. extract 20 features              score_phone_pipeline.py
-                               5. GeneratedForest.predict()          phone_pipeline_scorecard.md
+                               ↓                                   → GeneratedTopForest.kt
+Polar Verity Sense             1. load binary watch files          → GeneratedDualForest.kt
+  418Hz IMU    BLE   ──────→   2. align Polar (linear regression)  → GeneratedTopQualityForest.kt
+  accel + gyro                 3. detect shots (gyro prominence)   → GeneratedDualQualityForest.kt
+                               4. extract 30 features
+                               5. Route based on Polar presence:
+                                  - Watch-Only: GeneratedTopForest
+                                  - Dual-Sensor: GeneratedDualForest
                                6. → Room DB → Compose UI
 ```
 
@@ -67,62 +69,79 @@ Triggered by `DataSyncListenerService` after unzipping the watch session ZIP.
 2. LOAD       Polar BLE stream → polarAcc[], polarGyro[] (if present)
 3. ALIGN      Paired gyro peak regression → watchToPolarMs() drift correction
 4. DETECT     Prominence-based peak detection on gyro magnitude → impact timestamps
-5. EXTRACT    Per-shot 20-feature vector:
-                Seg 1 (backswing):  s1_gyro_y_std, s1_gyro_z_std, s1_deltaX, s1_deltaZ
-                Seg 2 (downswing):  s2_gyroMag, s2_grav_y_mean, s2_deltaX, s2_deltaZ
-                Seg 3 (contact):    s3_rollImpactDeg, s3_yawImpactDeg, s3_deltaX, s3_deltaZ,
-                                    s3_planeRatio, s3_gyro_y_min
-                Polar (if present): bottom_hand_gyro_peak, bottom_hand_acc_peak,
-                                    bottom_hand_gyro_ratio, bottom_hand_acc_ratio,
-                                    bottom_hand_time_lead_ms, bottom_hand_sync_score
-6. CLASSIFY   GeneratedForest.predict(SwingFeatures) → shot type string
-              Polar fields default to 0f when absent — no separate code path needed
+5. EXTRACT    Per-shot 30-feature vector:
+                Watch / top-hand:   s1_gyro_y_std, s1_gyro_z_std, s1_deltaX, s1_deltaZ, s1_acc_mag,
+                                    s2_gyroMag, s2_grav_y_mean, s2_deltaX, s2_deltaZ,
+                                    s3_rollImpactDeg, s3_yawImpactDeg, s3_deltaX, s3_deltaZ, s3_planeRatio, s3_gyro_y_min, s3_acc_peak
+                Polar bottom-hand:  bottom_hand_gyro_peak, bottom_hand_acc_peak, bottom_hand_gyro_ratio, bottom_hand_acc_ratio, bottom_hand_time_lead_ms, bottom_hand_sync_score,
+                                    s1_bottom_gyro_mag, s1_bottom_deltaZ, s1_bottom_acc_mag, s2_bottom_acc_mean, s2_dynamic_ratio_slope,
+                                    s3_bottom_pronation_deg, s3_bottom_gyro_y_min, s3_bottom_acc_peak
+6. CLASSIFY   Dynamic model routing based on Polar presence:
+                - Watch Only:  GeneratedTopForest.predict(SwingFeatures) (16 features used)
+                               GeneratedTopQualityForest.predict(SwingFeatures)
+                - Dual-Sensor: GeneratedDualForest.predict(SwingFeatures) (30 features used)
+                               GeneratedDualQualityForest.predict(SwingFeatures)
+              Polar fields default to 0f when absent — watch-only paths evaluate successfully
 7. STORE      InningsEvent → Room DB → Compose UI
 ```
 
-No heuristic post-classification overrides. The RF classifies directly from all 20 features.
+No heuristic post-classification overrides. The RF classifies directly from the 30 extracted features.
 
 ---
 
 ## 🤖 Machine Learning Model
 
-### GeneratedForest.kt — 20-Feature Random Forest
+### Dual-Model Routing — 30-Feature Random Forest
 
 ```kotlin
 data class SwingFeatures(
-    // 14 watch features (always populated)
-    val s1_gyro_y_std: Float,      val s1_gyro_z_std: Float,
-    val s1_deltaX: Float,          val s1_deltaZ: Float,
-    val s2_gyroMag: Float,         val s2_grav_y_mean: Float,
-    val s2_deltaX: Float,          val s2_deltaZ: Float,
-    val s3_rollImpactDeg: Float,   val s3_yawImpactDeg: Float,
-    val s3_deltaX: Float,          val s3_deltaZ: Float,
-    val s3_planeRatio: Float,      val s3_gyro_y_min: Float,
-    // 6 Polar features (= 0f when Polar absent)
+    // ── Watch / top-hand features (16 fields, always populated) ──
+    val s1_gyro_y_std: Float,
+    val s1_gyro_z_std: Float,
+    val s1_deltaX: Float,
+    val s1_deltaZ: Float,
+    val s1_acc_mag: Float,          // Peak linear acceleration magnitude in backswing
+    val s2_gyroMag: Float,
+    val s2_grav_y_mean: Float,
+    val s2_deltaX: Float,
+    val s2_deltaZ: Float,
+    val s3_rollImpactDeg: Float,
+    val s3_yawImpactDeg: Float,
+    val s3_deltaX: Float,
+    val s3_deltaZ: Float,
+    val s3_planeRatio: Float,
+    val s3_gyro_y_min: Float,
+    val s3_acc_peak: Float,         // Peak linear acceleration magnitude at impact
+    // ── Polar / bottom-hand features (14 fields, default 0f when Polar absent) ──
     val bottom_hand_gyro_peak: Float = 0f,
     val bottom_hand_acc_peak: Float = 0f,
     val bottom_hand_gyro_ratio: Float = 0f,
     val bottom_hand_acc_ratio: Float = 0f,
     val bottom_hand_time_lead_ms: Float = 0f,
-    val bottom_hand_sync_score: Float = 0f
+    val bottom_hand_sync_score: Float = 0f,
+    val s1_bottom_gyro_mag: Float = 0f,
+    val s1_bottom_deltaZ: Float = 0f,
+    val s1_bottom_acc_mag: Float = 0f,  // Peak Polar acc magnitude in backswing
+    val s2_bottom_acc_mean: Float = 0f,
+    val s2_dynamic_ratio_slope: Float = 0f,
+    val s3_bottom_pronation_deg: Float = 0f,
+    val s3_bottom_gyro_y_min: Float = 0f,
+    val s3_bottom_acc_peak: Float = 0f  // Peak Polar acc magnitude at impact
 )
 ```
 
 | Parameter | Value |
 |---|---|
 | Trees | 200, max depth 8, balanced_subsample |
-| Training set | 1,949 swings across 955 sessions (all 3 data profiles) |
-| Polar imputation | 0.0 for watch-only — model trained heterogeneously |
-| CV accuracy | 61.1% (training diagnostic) |
-| Training-set fit | 84.8% (overfit indicator) |
-| Output classes | CUT/PUNCH, DEFLECTION/GUIDE, DRIVE/DEFENCE, GLANCE/FLICK, POWER DRIVE, PULL/HOOK, SLOG, SWEEP |
+| Routing Models | `GeneratedTopForest` (Watch-only) vs `GeneratedDualForest` (Dual-sensor net practice) |
+| Quality Models | `GeneratedTopQualityForest` (Watch-only) vs `GeneratedDualQualityForest` (Dual-sensor) |
+| Output Classes | CUT/PUNCH, DEFLECTION/GUIDE, DRIVE/DEFENCE, GLANCE/FLICK, POWER DRIVE, PULL/HOOK, SLOG, SWEEP |
 
 Transpiled via `generate_kotlin_forest.py` (big-endian hex-packed binary tree nodes).
 Both `wear/` and `app/` receive identical copies automatically.
 
-### Quality Classifier (Python-only — quality_classifier.pkl)
-Same 20-feature vector → 4 classes: `good`, `poor`, `miss`, `edge`.
-Used by `reprocess_sessions.py` for retrospective re-scoring. Not in Kotlin.
+### Quality Classifiers (transpiled as GeneratedTopQualityForest / GeneratedDualQualityForest)
+Uses the same 30-feature vector (with Polar defaulted to 0f when absent) to predict shot quality across 4 classes: `good`, `poor`, `miss`, `edge`. Runs offline in Kotlin on the phone app during session reprocessing.
 
 ---
 
@@ -132,9 +151,9 @@ Used by `reprocess_sessions.py` for retrospective re-scoring. Not in Kotlin.
 |---|---|
 | `augment_training_data.py` | Synthetic augmentation from real sensor windows |
 | `evaluate_shot_alignment.py` | Polar-to-watch alignment health + timestamp refinement |
-| `compile_dataset.py` | Builds `combined_features.csv` — reads `.bin.gz` or `.csv.gz`, adds `data_profile`, `watch_hz`, `quality`, 6 Polar features (0.0 if absent) |
-| `generate_kotlin_forest.py` | Trains 20-feature RF, transpiles `GeneratedForest.kt` to both modules |
-| `train_quality_classifier.py` | Trains good/poor/miss/edge classifier |
+| `compile_dataset.py` | Builds `combined_features.csv` — reads `.bin.gz` or `.csv.gz`, adds `data_profile`, `watch_hz`, `quality`, and all top/polar features |
+| `generate_kotlin_forest.py` | Trains Dual-Model Random Forests (Top/Dual for both Shot Type and Quality) and transpiles Kotlin classes directly to both modules |
+| `train_quality_classifier.py` | Trains good/poor/miss/edge RF quality classifier |
 | `score_phone_pipeline.py` | **Authoritative scorecard** — reads combined CSVs, reports by session/class/profile |
 | `model_update_pipeline.py` | Orchestrates all steps end-to-end |
 
