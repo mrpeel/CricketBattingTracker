@@ -172,6 +172,12 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Synergistic All-Combined Breakthrough (Test 5)**: Combining all 5 enhancements achieved **98.2% Detection Recall** (112 of 114 physical shots detected) AND **64.84% Holdout Classification Accuracy**.
     *   **Landmark Scorecard**: Captured **73 out of 114 physical shots correctly** (**64.04% Total Ground-Truth Coverage Rate**)—a **$+143.3\%$ improvement ($2.43\times$ more shots captured)** over the production Random Forest (30 shots / $26.76\%$) in a single end-to-end model.
 
+114. **Phase-Locked & Biomechanically Gated Augmentation Analysis (July 30, 2026)**:
+    *   **Gated Augmentation Evaluation**: Evaluated Gemini's 3-Phase Augmentation (Coupled 3D spatial rotation $R_{\text{watch}} \equiv R_{\text{polar}}$, $0\%$ time drift impact lock, biomechanical rejection gates).
+    *   **Superiority Over Naive Noise**: Achieved **97.4% Detection Recall** and **52.88% Classification Accuracy** (59 physical shots captured / $51.75\%$ coverage), significantly outperforming historical naive noise ($38.80\%$ accuracy / $33.33\%$ coverage).
+    *   **Un-Augmented Real Session Superiority**: Training un-augmented on real physical sessions remains superior (**64.04% coverage / 73 physical shots captured** vs **51.75% coverage**) because real physical sessions retain $100\%$ of high-frequency $\sim 20\text{ms}$ wrist pronation harmonics.
+
+
 
 
 
