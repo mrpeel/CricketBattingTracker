@@ -85,4 +85,7 @@ dependencies {
 
     // DataStore — persist Polar device pairing
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // ONNX Runtime Android SDK — Hardware-accelerated TCN model inference
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.0")
 }
