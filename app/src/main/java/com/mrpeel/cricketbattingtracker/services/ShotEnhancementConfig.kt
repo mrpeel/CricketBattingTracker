@@ -6,5 +6,5 @@ package com.mrpeel.cricketbattingtracker.services
  */
 object ShotEnhancementConfig {
     const val POLAR_SHOCKWAVE_THRESHOLD = 24.5f
-    const val WATCH_SHOCKWAVE_THRESHOLD = 4.0000f
+    const val WATCH_SHOCKWAVE_THRESHOLD = 6.0000f
 }

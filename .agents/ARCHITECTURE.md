@@ -197,7 +197,15 @@ Build time: ~15s.
 │   └── src/main/java/.../
 │       ├── ml/                     # GeneratedForest.kt (source), SwingFeatures
 │       └── services/               # TrackerService (7 sensors → .bin.gz)
-├── pipelines/                      # Python ML pipeline (see table above)
+├── pipelines/                      # Python ML pipeline (see table below)
+│   ├── build_unified_dataset.py    # 423Hz grid resampling & Tier 3 impact peak alignment (R² > 0.9999)
+│   ├── run_advanced_baseline_tests.py # Ultimate Advanced Baseline TCN (98.2% recall, 64.8% acc, 64.0% coverage)
+│   ├── run_ablation_study.py       # 8-run systematic ablation study (Downsampling, Derived, Multi-Task)
+│   ├── run_model_architecture_benchmark.py # 5-model backbone suite (TCN, ResNet-18, Conv-LSTM, Inception, Transformer)
+│   ├── train_decoupled_pipeline.py # Decoupled 2-Model Pipeline (Stage 1 TCN + Stage 2 1.8s Conv-LSTM)
+│   └── eval_rf_holdout.py          # Production Random Forest holdout evaluation audit
+├── docs/                           # System documentation & ML experiment reports
+│   └── ml_experiments_summary_2026-07-30.md # Master ML research & scorecard summary
 ├── phone_pipeline_scorecard.md     # Authoritative model performance
 ├── model_update_analysis.md        # Before/after retraining comparison
 └── automate_pipeline.py            # Audio-sensor alignment (Gemini transcription)

@@ -1187,39 +1187,39 @@ object PhoneSwingDetector {
         return peakVal - max(leftMin, rightMin)
     }
 
-    private fun detectWatchImpactPeaks(samples: List<WatchIMUSample>, threshold: Float): List<Long> {
+    private fun detectWatchImpactPeaks(
+        samples: List<WatchIMUSample>,
+        threshold: Float
+    ): List<Long> {
+        // Strong-gate-only path. The prominence recovery gate was removed because at the
+        // session's low noise floor (gyro p50 ≈ 1.1 rad/s, p95 ≈ 5.0 rad/s) the recovery
+        // path dominated candidate generation, replacing one over-count problem with another.
+        // H9-tightened verifySwingBackwards does the structural filtering downstream.
         if (samples.isEmpty()) return emptyList()
-        
+
         val mags = FloatArray(samples.size) { samples[it].mag }
         val candidatePeaks = mutableListOf<WatchIMUSample>()
-        
-        // 1. Find local maxima peaks
+
         for (i in samples.indices) {
             val mag = mags[i]
             val prevMag = if (i > 0) mags[i - 1] else 0f
             val nextMag = if (i < samples.size - 1) mags[i + 1] else 0f
-            
             if (mag >= prevMag && mag >= nextMag) {
-                // local maximum candidate
                 if (mag >= threshold) {
                     candidatePeaks.add(samples[i])
                 }
             }
         }
-        
-        // 2. Sort candidate peaks by magnitude descending to prioritize larger spikes
+
         candidatePeaks.sortByDescending { it.mag }
-        
+
         val peaks = mutableListOf<Long>()
         val minGapMs = 1500L
-        
-        // 3. Enforce min spacing (distance) constraint
         for (p in candidatePeaks) {
             if (peaks.none { abs((p.timeNanos - it) / 1_000_000L) < minGapMs }) {
                 peaks.add(p.timeNanos)
             }
         }
-        
         return peaks.sorted()
     }
 
