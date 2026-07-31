@@ -182,6 +182,21 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Micro-Average Benchmark**: Achieved **85.67% Physical Shot Recall** (2,368 of 2,764 real physical shots captured) and **87.43% Precision** (2,364 real physical shots out of 2,704 total detections), delivering an overall **F1 Score of 86.54%**.
     *   **Macro-Average Benchmark**: Per-session average achieved **85.26% Recall**, **86.54% Precision**, and **85.29% F1 Score**.
 
+116. **Per-Shot Class Mapping Verification & Audit (July 31, 2026)**:
+    *   **Reporting Bug Fix**: Discovered that a isolated report-display dictionary previously lacked `'cut shot'`, defaulting all 248 `Cut` shots to `'Flick'`.
+    *   **Canonical Mapping**: Replaced local fallback dictionary with `normalise_shot_type()` from `build_unified_dataset.py`.
+    *   **Audited Breakdown (All 45 Sessions)**:
+        *   **Slog**: **97.7% Accuracy** (300/307) | 95.2% Coverage
+        *   **Sweep**: **87.6% Accuracy** (156/178) | 79.6% Coverage
+        *   **Defence**: **84.7% Accuracy** (350/413) | 52.3% Coverage
+        *   **Cut**: **83.8% Accuracy** (201/240) | 81.0% Coverage
+        *   **Pull**: **77.5% Accuracy** (404/521) | 73.9% Coverage
+        *   **Flick**: **76.5% Accuracy** (257/336) | 68.0% Coverage
+        *   **Drive**: **60.6% Accuracy** (189/312) | 56.9% Coverage
+        *   **Glance**: **45.9% Accuracy** (28/61) | 35.4% Coverage
+        *   **Total Dataset-Wide Classification Accuracy**: 🏆 **79.6%** (1,886 correctly classified / 2,368 detected shots). Total Ground-Truth Coverage Rate: 🏆 **68.2%** (1,886 / 2,764 physical shots).
+
+
 
 
 

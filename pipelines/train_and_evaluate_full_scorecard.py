@@ -25,6 +25,9 @@ ROOT_DIR       = "/Users/neilkloot/Code/CricketBattingTracker"
 BASE_DIR       = "/Users/neilkloot/Code/Batting Sensor Stats"
 DATASET_DIR    = os.path.join(BASE_DIR, "poc_unified_dataset")
 SESSIONS_DIR   = os.path.join(BASE_DIR, "live_watch_sessions")
+
+sys.path.append(os.path.join(ROOT_DIR, "pipelines"))
+from build_unified_dataset import normalise_shot_type, build_session
 MODEL_PT_PATH  = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.pt")
 MODEL_ONNX_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.onnx")
 APP_ASSETS_DIR = os.path.join(ROOT_DIR, "app", "src", "main", "assets", "models")
@@ -51,18 +54,6 @@ CLASSES = ['no_shot','pre_shot','Pull','Defence','Flick','Drive','Glance','Sweep
 SHOT_CLASSES = ['Pull','Defence','Flick','Drive','Glance','Sweep','Cut','Slog']
 CLASS_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
 NUM_CLASSES = len(CLASSES)
-
-# Map narration shot names to unified class names
-NARRATION_TO_CLASS = {
-    'pull': 'Pull', 'pull shot': 'Pull',
-    'defence': 'Defence', 'forward defense': 'Defence', 'back foot defense': 'Defence', 'block': 'Defence',
-    'flick': 'Flick', 'flick shot': 'Flick',
-    'drive': 'Drive', 'off drive': 'Drive', 'on drive': 'Drive', 'cover drive': 'Drive', 'straight drive': 'Drive',
-    'glance': 'Glance', 'leg glance': 'Glance',
-    'sweep': 'Sweep', 'sweep shot': 'Sweep',
-    'cut': 'Cut', 'square cut': 'Cut', 'late cut': 'Cut',
-    'slog': 'Slog', 'slog sweep': 'Slog'
-}
 
 WINDOW_LEN = 2048
 BATCH_SIZE = 32
@@ -200,8 +191,8 @@ def evaluate_single_session(session_name, model, med, mad):
         narr = json.load(open(narr_path))
         for e in narr:
             st = e.get('shot_type', '')
-            if st and not any(k in st.lower() for k in ['facing up','no shot','leave','evade','block']):
-                gt_cls = NARRATION_TO_CLASS.get(st.lower(), 'Flick')
+            gt_cls = normalise_shot_type(st)
+            if gt_cls and gt_cls != 'Leave':
                 gt_events.append({'sec': float(e['timestamp_seconds']), 'raw_type': st, 'cls': gt_cls})
                 
     w_acc_mags  = np.linalg.norm(X[:, 0:3], axis=1)

@@ -87,7 +87,11 @@ def evaluate_session(session_name):
     gt_times = []
     if os.path.exists(narr_path):
         narr = json.load(open(narr_path))
-        gt_times = [float(e['timestamp_seconds']) for e in narr if e.get('shot_type') and not any(k in e['shot_type'].lower() for k in ['facing up','no shot','leave','evade','block'])]
+        for e in narr:
+            st = e.get('shot_type', '')
+            gt_cls = normalise_shot_type(st)
+            if gt_cls and gt_cls != 'Leave':
+                gt_times.append(float(e['timestamp_seconds']))
         
     w_acc_mags  = np.linalg.norm(X[:, 0:3], axis=1)
     w_gyro_mags = np.linalg.norm(X[:, 3:6], axis=1)
