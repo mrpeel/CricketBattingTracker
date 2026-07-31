@@ -101,13 +101,14 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
         val outputTensor = results[0].value as Array<Array<FloatArray>>
         val logits = outputTensor[0] // 10 x T
 
-        // 4. Find contiguous shot detection regions
-        val detections = mutableListOf<DetectionResult>()
+        // 4. Find contiguous shot detection regions with physical post-filters
+        val rawDetections = mutableListOf<DetectionResult>()
         var inShot = false
         var shotStartFrame = 0
         var maxConfidence = 0f
         var bestShotType = "no_shot"
         var bestFrameIndex = 0
+        var maxGyroMag = 0f
 
         for (t in 0 until numFrames) {
             // Compute Softmax across 10 classes for frame t
@@ -133,36 +134,60 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 }
             }
 
-            if (isShotProb >= 0.5f) {
+            // Calculate watch gyro magnitude at frame t
+            val gx = sensorMatrix[3][t]
+            val gy = sensorMatrix[4][t]
+            val gz = sensorMatrix[5][t]
+            val gyroMag = kotlin.math.sqrt((gx * gx + gy * gy + gz * gz).toDouble()).toFloat()
+
+            if (isShotProb >= 0.70f) {
                 if (!inShot) {
                     inShot = true
                     shotStartFrame = t
                     maxConfidence = topShotProb
                     bestShotType = classes[topShotIdx]
                     bestFrameIndex = t
-                } else if (topShotProb > maxConfidence) {
-                    maxConfidence = topShotProb
-                    bestShotType = classes[topShotIdx]
-                    bestFrameIndex = t
+                    maxGyroMag = gyroMag
+                } else {
+                    if (gyroMag > maxGyroMag) maxGyroMag = gyroMag
+                    if (topShotProb > maxConfidence) {
+                        maxConfidence = topShotProb
+                        bestShotType = classes[topShotIdx]
+                        bestFrameIndex = t
+                    }
                 }
             } else {
                 if (inShot) {
                     inShot = false
-                    val tMs = timestampsMs.getOrElse(bestFrameIndex) { 0L }
-                    detections.add(DetectionResult(bestFrameIndex, tMs, bestShotType, maxConfidence))
+                    val durationMs = (t - shotStartFrame) * (1000.0f / 423.0f)
+                    if (durationMs >= 100f && maxGyroMag >= 4.0f) {
+                        val tMs = timestampsMs.getOrElse(bestFrameIndex) { 0L }
+                        rawDetections.add(DetectionResult(bestFrameIndex, tMs, bestShotType, maxConfidence))
+                    }
                 }
             }
         }
 
         if (inShot) {
-            val tMs = timestampsMs.getOrElse(bestFrameIndex) { 0L }
-            detections.add(DetectionResult(bestFrameIndex, tMs, bestShotType, maxConfidence))
+            val durationMs = (numFrames - shotStartFrame) * (1000.0f / 423.0f)
+            if (durationMs >= 100f && maxGyroMag >= 4.0f) {
+                val tMs = timestampsMs.getOrElse(bestFrameIndex) { 0L }
+                rawDetections.add(DetectionResult(bestFrameIndex, tMs, bestShotType, maxConfidence))
+            }
+        }
+
+        // 5. Non-Maximum Suppression (NMS) — min 1.5s gap between physical shots
+        val nmsDetections = mutableListOf<DetectionResult>()
+        for (det in rawDetections.sortedBy { it.timestampMs }) {
+            if (nmsDetections.isEmpty() || (det.timestampMs - nmsDetections.last().timestampMs) >= 1500L) {
+                nmsDetections.add(det)
+            }
         }
 
         inputTensor.close()
         results.close()
 
-        return detections
+        return nmsDetections
     }
 
     override fun close() {

@@ -186,28 +186,31 @@ def main():
     w_t = torch.from_numpy(weights.astype(np.float32)).to(DEVICE)
     loss_fn = FocalLoss(gamma=2.0, weight=w_t)
     
-    print("\nTraining Ultimate Baseline TCN (12 Epochs with Two-Stage Layer Freezing at Epoch 5)...")
-    for epoch in range(1, 13):
-        if epoch == 5:
-            print("  🔒 Freezing Low-Level TCN Layers 1-5 (locking shockwave feature extractors)...")
-            for idx in range(5):
-                for param in model.blocks[idx].parameters():
-                    param.requires_grad = False
-                    
-        model.train()
-        r_loss = 0.0; n_b = 0
-        for xb, yb in loader:
-            xb = xb.to(DEVICE); yb = yb.to(DEVICE)
-            logits = model(xb)
-            loss = loss_fn(logits, yb)
-            optim.zero_grad(); loss.backward(); optim.step()
-            r_loss += loss.item(); n_b += 1
+    if os.path.exists(MODEL_PT_PATH):
+        print(f"\nLoading trained PyTorch model weights from {MODEL_PT_PATH}...")
+        model.load_state_dict(torch.load(MODEL_PT_PATH, map_location=DEVICE))
+    else:
+        print("\nTraining Ultimate Baseline TCN (12 Epochs with Two-Stage Layer Freezing at Epoch 5)...")
+        for epoch in range(1, 13):
+            if epoch == 5:
+                print("  🔒 Freezing Low-Level TCN Layers 1-5 (locking shockwave feature extractors)...")
+                for idx in range(5):
+                    for param in model.blocks[idx].parameters():
+                        param.requires_grad = False
+                        
+            model.train()
+            r_loss = 0.0; n_b = 0
+            for xb, yb in loader:
+                xb = xb.to(DEVICE); yb = yb.to(DEVICE)
+                logits = model(xb)
+                loss = loss_fn(logits, yb)
+                optim.zero_grad(); loss.backward(); optim.step()
+                r_loss += loss.item(); n_b += 1
+                
+            print(f"  Epoch {epoch:02d} / 12 | Train Loss: {r_loss/n_b:.4f}")
             
-        print(f"  Epoch {epoch:02d} / 12 | Train Loss: {r_loss/n_b:.4f}")
-        
-    # Save PyTorch Model
-    torch.save(model.state_dict(), MODEL_PT_PATH)
-    print(f"\n✅ Saved PyTorch model to {MODEL_PT_PATH}")
+        torch.save(model.state_dict(), MODEL_PT_PATH)
+        print(f"\n✅ Saved PyTorch model to {MODEL_PT_PATH}")
     
     # Export ONNX Model
     model.eval()
