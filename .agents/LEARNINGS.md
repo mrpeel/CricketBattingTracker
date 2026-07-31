@@ -202,6 +202,29 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Full Dataset Benchmark**: **Overall Physical Shot Recall increased from 85.7% to 92.6%** (2,560 / 2,764 physical shots captured). Overall Classification Accuracy reached **80.5%** (2,061 / 2,560), and **Total Ground-Truth Coverage Rate reached 74.6%** (2,061 / 2,764 physical shots correctly detected AND classified).
 
 
+118. **Qualitative Biomechanical UI Coaching Metrics Refactor (July 31, 2026)**:
+    *   **The Problem**: Session detail view displayed abstract numerical scores ("Power Balance: 6/100" and "Hand Sync: 120ms late") that confused users and suffered from legacy target threshold typos.
+    *   **The Solution**:
+        *   Created immutable `BiomechanicalUiState.kt` data class tracking qualitative sequencing titles, technical descriptions, normalized progress values (0.0f–1.0f), grip dominance titles, coaching insights, and amber alert warning triggers.
+        *   Constructed `BiomechanicalUiMapper.kt` mapping raw TCN pipeline outputs (`shotClass`, `timeLeadMs`, `gyroRatio`, `accRatio`) across all 8 output classes (`PULL/HOOK`, `DRIVE/DEFENCE`, `GLANCE/FLICK`, `CUT/PUNCH`, `DEFLECTION/GUIDE`, `POWER DRIVE`, `SLOG`, `SWEEP`) using the physical downswing kinematic matrix in `batting_dual_hand_biomechanics.md`.
+        *   Provided Android View Binding hook (`BiomechanicalViewBinder.kt` + `item_biomechanical_card.xml` + `colors.xml` `@color/ui_warning_amber` / `@color/ui_optimal_green`) and updated `MainActivity.kt` Compose detail view to render qualitative coaching diagnostics and amber alert borders.
+        *   Added `testImplementation("junit:junit:4.13.2")` to `app/build.gradle.kts` and created `BiomechanicalUiMapperTest.kt` unit test suite.
+    *   **Result**: `BUILD SUCCESSFUL in 2s`. All 11 unit tests passed cleanly, and zero compiler warnings remain.
+
+119. **Burst Mode Adaptive Hysteresis Gate Python Validation (July 31, 2026)**:
+    *   **Kinematic Insight**: In rapid bowling machine / net sessions ($3-5\text{s}$ cadence), wide lookbacks ($[-2.5\text{s}, -1.0\text{s}]$) inspect the follow-through of the previous delivery.
+    *   **Pre-Shot Window Compression**: Compressed stillness lookback to $[-0.8\text{s}, -0.2\text{s}]$ ($254$ frames at $423\text{ Hz}$).
+    *   **Dynamic State Machine Calibration**:
+        *   **Burst Mode** ($\Delta T < 10.0\text{s}$): $\sigma_{\text{stillness}} \le 3.0\text{ rad/s}$ (accommodates rapid stance resets between balls).
+        *   **Rest / Collection Mode** ($\Delta T \ge 10.0\text{s}$): $\sigma_{\text{stillness}} \le 2.0\text{ rad/s}$ (rejects walking back to the mark and picking up balls).
+    *   **Empirical Scorecard Results (All 45 Sessions)**:
+        *   **Overall Physical Recall**: 🏆 **91.5%** (2,529 of 2,764 physical shots captured).
+        *   **Defence Shot Recall**: 🏆 **83.3%** (557 of 669 physical Defence shots captured).
+        *   **Overall Classification Accuracy**: 🏆 **80.6%** (2,039 correctly classified / 2,529 detected shots).
+        *   **Total Ground-Truth Coverage Rate**: 🏆 **73.8%** (2,039 of 2,764 physical shots correctly detected AND classified).
+
+
+
 
 
 

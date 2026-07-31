@@ -198,6 +198,9 @@ def evaluate_single_session(session_name, model, med, mad):
     w_acc_mags  = np.linalg.norm(X[:, 0:3], axis=1)
     w_gyro_mags = np.linalg.norm(X[:, 3:6], axis=1)
     
+    # Calculate sliding pre-shot angular velocity std over [-0.8s, -0.2s] window (254 frames)
+    gyro_std_254 = pd.Series(w_gyro_mags).rolling(window=254, min_periods=50).std().shift(85).fillna(0.0).values
+
     # Stage 1: Impact Shockwave Anchor Detector (Acc >= 30.0 m/s2, Gyro >= 4.0 rad/s for Defence Recall)
     impact_mask = (w_acc_mags >= 30.0) & (w_gyro_mags >= 4.0)
     impact_frames = np.where(impact_mask)[0]
@@ -216,9 +219,23 @@ def evaluate_single_session(session_name, model, med, mad):
             peak_f = cluster[np.argmax(w_acc_mags[cluster])]
             anchors.append(peak_f)
             
+    # Apply Burst Mode Adaptive Hysteresis Gate
+    verified_anchors = []
+    last_verified_sec = -999.0
+    for f in anchors:
+        candidate_sec = f / 423.0
+        pre_stillness_std = gyro_std_254[f]
+        delta_t = candidate_sec - last_verified_sec
+        
+        # Burst Mode (Delta T < 10s): Relaxed limit (<= 3.0 rad/s); Rest Mode: Strict limit (<= 2.0 rad/s)
+        thresh = 3.0 if delta_t < 10.0 else 2.0
+        if pre_stillness_std <= thresh or delta_t < 2.0:
+            verified_anchors.append(f)
+            last_verified_sec = candidate_sec
+            
     # Stage 2: TCN Shot Classification
     detections = []
-    for f in anchors:
+    for f in verified_anchors:
         w_s = max(0, f - 42)
         w_e = min(len(X), f + 42)
         win_probs = probs_full[:, w_s:w_e]
