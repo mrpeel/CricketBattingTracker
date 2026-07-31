@@ -101,93 +101,85 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
         val outputTensor = results[0].value as Array<Array<FloatArray>>
         val logits = outputTensor[0] // 10 x T
 
-        // 4. Find contiguous shot detection regions with physical post-filters
-        val rawDetections = mutableListOf<DetectionResult>()
-        var inShot = false
-        var shotStartFrame = 0
-        var maxConfidence = 0f
-        var bestShotType = "no_shot"
-        var bestFrameIndex = 0
-        var maxGyroMag = 0f
-
+        // 4. STAGE 1: Physical Impact Shockwave Peak Detection (Acc >= 45.0 m/s2, Gyro >= 6.5 rad/s)
+        val impactFrames = mutableListOf<Int>()
         for (t in 0 until numFrames) {
-            // Compute Softmax across 10 classes for frame t
-            val frameLogits = FloatArray(10) { c -> logits[c][t] }
-            val maxLogit = frameLogits.maxOrNull() ?: 0f
-            var sumExp = 0f
-            val probs = FloatArray(10) { c ->
-                val e = kotlin.math.exp((frameLogits[c] - maxLogit).toDouble()).toFloat()
-                sumExp += e
-                e
-            }
-            for (c in 0 until 10) probs[c] /= sumExp
-
-            // Sum probabilities for physical shot classes (indices 2..9)
-            var isShotProb = 0f
-            var topShotIdx = 2
-            var topShotProb = 0f
-            for (c in 2 until 10) {
-                isShotProb += probs[c]
-                if (probs[c] > topShotProb) {
-                    topShotProb = probs[c]
-                    topShotIdx = c
-                }
-            }
-
-            // Calculate watch gyro magnitude at frame t
-            val gx = sensorMatrix[3][t]
-            val gy = sensorMatrix[4][t]
-            val gz = sensorMatrix[5][t]
+            val ax = sensorMatrix[0][t]; val ay = sensorMatrix[1][t]; val az = sensorMatrix[2][t]
+            val gx = sensorMatrix[3][t]; val gy = sensorMatrix[4][t]; val gz = sensorMatrix[5][t]
+            val accMag = kotlin.math.sqrt((ax * ax + ay * ay + az * az).toDouble()).toFloat()
             val gyroMag = kotlin.math.sqrt((gx * gx + gy * gy + gz * gz).toDouble()).toFloat()
 
-            if (isShotProb >= 0.70f) {
-                if (!inShot) {
-                    inShot = true
-                    shotStartFrame = t
-                    maxConfidence = topShotProb
-                    bestShotType = classes[topShotIdx]
-                    bestFrameIndex = t
-                    maxGyroMag = gyroMag
-                } else {
-                    if (gyroMag > maxGyroMag) maxGyroMag = gyroMag
-                    if (topShotProb > maxConfidence) {
-                        maxConfidence = topShotProb
-                        bestShotType = classes[topShotIdx]
-                        bestFrameIndex = t
-                    }
-                }
+            if (accMag >= 45.0f && gyroMag >= 6.5f) {
+                impactFrames.add(t)
+            }
+        }
+
+        if (impactFrames.isEmpty()) {
+            inputTensor.close()
+            results.close()
+            return emptyList()
+        }
+
+        // Cluster impact frames within 1.5s (423 frames at 423 Hz) into single physical shot anchors
+        val anchors = mutableListOf<Int>()
+        var cluster = mutableListOf(impactFrames[0])
+        for (idx in 1 until impactFrames.size) {
+            if (impactFrames[idx] - impactFrames[idx - 1] <= 423) {
+                cluster.add(impactFrames[idx])
             } else {
-                if (inShot) {
-                    inShot = false
-                    val durationMs = (t - shotStartFrame) * (1000.0f / 423.0f)
-                    if (durationMs >= 100f && maxGyroMag >= 4.0f) {
-                        val tMs = timestampsMs.getOrElse(bestFrameIndex) { 0L }
-                        rawDetections.add(DetectionResult(bestFrameIndex, tMs, bestShotType, maxConfidence))
+                val peakFrame = cluster.maxByOrNull { t ->
+                    val ax = sensorMatrix[0][t]; val ay = sensorMatrix[1][t]; val az = sensorMatrix[2][t]
+                    ax * ax + ay * ay + az * az
+                } ?: cluster[0]
+                anchors.add(peakFrame)
+                cluster = mutableListOf(impactFrames[idx])
+            }
+        }
+        if (cluster.isNotEmpty()) {
+            val peakFrame = cluster.maxByOrNull { t ->
+                val ax = sensorMatrix[0][t]; val ay = sensorMatrix[1][t]; val az = sensorMatrix[2][t]
+                ax * ax + ay * ay + az * az
+            } ?: cluster[0]
+            anchors.add(peakFrame)
+        }
+
+        // 5. STAGE 2: Ultimate TCN Shot Type Classification over Anchored Windows
+        val detections = mutableListOf<DetectionResult>()
+        for (f in anchors) {
+            val wStart = kotlin.math.max(0, f - 42)
+            val wEnd = kotlin.math.min(numFrames - 1, f + 42)
+
+            var maxShotProb = 0f
+            var topShotIdx = 2
+
+            for (t in wStart..wEnd) {
+                val frameLogits = FloatArray(10) { c -> logits[c][t] }
+                val maxLogit = frameLogits.maxOrNull() ?: 0f
+                var sumExp = 0f
+                val probs = FloatArray(10) { c ->
+                    val e = kotlin.math.exp((frameLogits[c] - maxLogit).toDouble()).toFloat()
+                    sumExp += e
+                    e
+                }
+                for (c in 0 until 10) probs[c] /= sumExp
+
+                for (c in 2 until 10) {
+                    if (probs[c] > maxShotProb) {
+                        maxShotProb = probs[c]
+                        topShotIdx = c
                     }
                 }
             }
-        }
 
-        if (inShot) {
-            val durationMs = (numFrames - shotStartFrame) * (1000.0f / 423.0f)
-            if (durationMs >= 100f && maxGyroMag >= 4.0f) {
-                val tMs = timestampsMs.getOrElse(bestFrameIndex) { 0L }
-                rawDetections.add(DetectionResult(bestFrameIndex, tMs, bestShotType, maxConfidence))
-            }
-        }
-
-        // 5. Non-Maximum Suppression (NMS) — min 1.5s gap between physical shots
-        val nmsDetections = mutableListOf<DetectionResult>()
-        for (det in rawDetections.sortedBy { it.timestampMs }) {
-            if (nmsDetections.isEmpty() || (det.timestampMs - nmsDetections.last().timestampMs) >= 1500L) {
-                nmsDetections.add(det)
-            }
+            val tMs = timestampsMs.getOrElse(f) { 0L }
+            val predShotType = classes[topShotIdx]
+            detections.add(DetectionResult(f, tMs, predShotType, maxShotProb))
         }
 
         inputTensor.close()
         results.close()
 
-        return nmsDetections
+        return detections
     }
 
     override fun close() {
