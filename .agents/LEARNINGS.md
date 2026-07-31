@@ -196,6 +196,12 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Glance**: **45.9% Accuracy** (28/61) | 35.4% Coverage
         *   **Total Dataset-Wide Classification Accuracy**: 🏆 **79.6%** (1,886 correctly classified / 2,368 detected shots). Total Ground-Truth Coverage Rate: 🏆 **68.2%** (1,886 / 2,764 physical shots).
 
+117. **Low-Energy Defensive Block Threshold Tuning (July 31, 2026)**:
+    *   **Root Cause**: Low-energy defensive block/push strokes have softer impact shockwaves ($\|a_{\text{impact}}\| \approx 25-40\text{ m/s}^2$) than aggressive drives/pulls, causing $38.3\%$ of Defence shots to be missed at high-energy thresholds ($a \ge 45\text{m/s}^2, \omega \ge 6.5\text{rad/s}$).
+    *   **Optimal Operating Point**: Lowering Stage 1 thresholds to $\|a_{\text{impact}}\| \ge 30.0\text{ m/s}^2$ and $\|\omega_{\text{impact}}\| \ge 4.0\text{ rad/s}$ boosted **Defence Shot Recall from 61.7% to 83.6%** (capturing **559 of 669 Defence shots**).
+    *   **Full Dataset Benchmark**: **Overall Physical Shot Recall increased from 85.7% to 92.6%** (2,560 / 2,764 physical shots captured). Overall Classification Accuracy reached **80.5%** (2,061 / 2,560), and **Total Ground-Truth Coverage Rate reached 74.6%** (2,061 / 2,764 physical shots correctly detected AND classified).
+
+
 
 
 

@@ -198,8 +198,8 @@ def evaluate_single_session(session_name, model, med, mad):
     w_acc_mags  = np.linalg.norm(X[:, 0:3], axis=1)
     w_gyro_mags = np.linalg.norm(X[:, 3:6], axis=1)
     
-    # Stage 1: Impact Shockwave Anchor Detector (Acc >= 45.0 m/s2, Gyro >= 6.5 rad/s)
-    impact_mask = (w_acc_mags >= 45.0) & (w_gyro_mags >= 6.5)
+    # Stage 1: Impact Shockwave Anchor Detector (Acc >= 30.0 m/s2, Gyro >= 4.0 rad/s for Defence Recall)
+    impact_mask = (w_acc_mags >= 30.0) & (w_gyro_mags >= 4.0)
     impact_frames = np.where(impact_mask)[0]
     
     anchors = []

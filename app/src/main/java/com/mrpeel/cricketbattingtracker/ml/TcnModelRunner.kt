@@ -101,7 +101,7 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
         val outputTensor = results[0].value as Array<Array<FloatArray>>
         val logits = outputTensor[0] // 10 x T
 
-        // 4. STAGE 1: Physical Impact Shockwave Peak Detection (Acc >= 45.0 m/s2, Gyro >= 6.5 rad/s)
+        // 4. STAGE 1: Physical Impact Shockwave Peak Detection (Acc >= 30.0 m/s2, Gyro >= 4.0 rad/s for Defence Recall)
         val impactFrames = mutableListOf<Int>()
         for (t in 0 until numFrames) {
             val ax = sensorMatrix[0][t]; val ay = sensorMatrix[1][t]; val az = sensorMatrix[2][t]
@@ -109,7 +109,7 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
             val accMag = kotlin.math.sqrt((ax * ax + ay * ay + az * az).toDouble()).toFloat()
             val gyroMag = kotlin.math.sqrt((gx * gx + gy * gy + gz * gz).toDouble()).toFloat()
 
-            if (accMag >= 45.0f && gyroMag >= 6.5f) {
+            if (accMag >= 30.0f && gyroMag >= 4.0f) {
                 impactFrames.add(t)
             }
         }
