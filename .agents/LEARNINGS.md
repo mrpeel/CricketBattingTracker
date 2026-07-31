@@ -177,6 +177,12 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Superiority Over Naive Noise**: Achieved **97.4% Detection Recall** and **52.88% Classification Accuracy** (59 physical shots captured / $51.75\%$ coverage), significantly outperforming historical naive noise ($38.80\%$ accuracy / $33.33\%$ coverage).
     *   **Un-Augmented Real Session Superiority**: Training un-augmented on real physical sessions remains superior (**64.04% coverage / 73 physical shots captured** vs **51.75% coverage**) because real physical sessions retain $100\%$ of high-frequency $\sim 20\text{ms}$ wrist pronation harmonics.
 
+115. **Decoupled Impact Anchor + TCN Full-Dataset Scorecard (July 31, 2026)**:
+    *   **Full-Dataset Scope**: Evaluated Decoupled Impact Shockwave Anchor Detector ($\|a_{\text{impact}}\| \ge 45.0\text{ m/s}^2$ and $\|\omega_{\text{impact}}\| \ge 6.5\text{ rad/s}$) + Ultimate TCN Classifier across all 45 physical sessions (896.1 minutes / 14.9 hours of real-world batting).
+    *   **Micro-Average Benchmark**: Achieved **85.67% Physical Shot Recall** (2,368 of 2,764 real physical shots captured) and **87.43% Precision** (2,364 real physical shots out of 2,704 total detections), delivering an overall **F1 Score of 86.54%**.
+    *   **Macro-Average Benchmark**: Per-session average achieved **85.26% Recall**, **86.54% Precision**, and **85.29% F1 Score**.
+
+
 
 
 
