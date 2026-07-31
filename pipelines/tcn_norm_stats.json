@@ -30,14 +30,14 @@
   "classes": [
     "no_shot",
     "pre_shot",
-    "Pull",
-    "Defence",
-    "Flick",
-    "Drive",
-    "Glance",
-    "Sweep",
-    "Cut",
-    "Slog"
+    "PULL/HOOK",
+    "DRIVE/DEFENCE",
+    "GLANCE/FLICK",
+    "CUT/PUNCH",
+    "DEFLECTION/GUIDE",
+    "POWER DRIVE",
+    "SLOG",
+    "SWEEP"
   ],
   "median": [
     -4.07014274597168,

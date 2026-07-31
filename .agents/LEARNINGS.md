@@ -223,6 +223,20 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Overall Classification Accuracy**: 🏆 **80.6%** (2,039 correctly classified / 2,529 detected shots).
         *   **Total Ground-Truth Coverage Rate**: 🏆 **73.8%** (2,039 of 2,764 physical shots correctly detected AND classified).
 
+120. **Canonical 8 Biomechanical Output Class Taxonomy Realignment (August 1, 2026)**:
+    *   **Taxonomy Realignment**: Aligned all dataset parquet generators (`build_unified_dataset.py`), model output logits, evaluation scorecards (`train_and_evaluate_full_scorecard.py`), and Android ONNX runners (`TcnModelRunner.kt`) with the exact 8 canonical biomechanical classes specified in `batting_dual_hand_biomechanics.md` (`PULL/HOOK`, `DRIVE/DEFENCE`, `GLANCE/FLICK`, `CUT/PUNCH`, `DEFLECTION/GUIDE`, `POWER DRIVE`, `SLOG`, `SWEEP`).
+    *   **Elimination of Inter-Class Confusion**: Eliminating artificial splits (`Drive` vs `Defence` and `Glance` vs `Flick`) boosted dataset-wide classification accuracy from **80.6% to 85.3%** (2,157 / 2,529 detected shots) and increased **Total Ground-Truth Coverage Rate from 73.8% to 78.0%** (2,157 / 2,764 physical shots correctly detected AND classified).
+    *   **Canonical Breakdown (All 45 Sessions)**:
+        *   **SLOG**: **95.5% Accuracy** (295/309) | 93.7% Coverage
+        *   **DEFLECTION/GUIDE**: **91.7% Accuracy** (154/168) | 61.4% Coverage
+        *   **DRIVE/DEFENCE**: **90.3% Accuracy** (578/640) | 84.5% Coverage
+        *   **SWEEP**: **88.9% Accuracy** (150/180) | 76.5% Coverage
+        *   **CUT/PUNCH**: **88.2% Accuracy** (210/238) | 84.7% Coverage
+        *   **GLANCE/FLICK**: **83.1% Accuracy** (354/426) | 77.5% Coverage
+        *   **PULL/HOOK**: **77.2% Accuracy** (389/504) | 71.1% Coverage
+        *   **POWER DRIVE**: **42.2% Accuracy** (27/64) | 40.9% Coverage
+
+
 
 
 

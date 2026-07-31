@@ -69,24 +69,22 @@ LABEL_PRE_AFTER_MS = 50
 # --- Label normalisation ---
 def normalise_shot_type(st):
     s = (st or '').lower()
+    if 'power drive' in s or 'lofted drive' in s:
+        return 'POWER DRIVE'
     if 'pull' in s or 'hook' in s or 'full shot' in s or 'foot shot' in s or 'push up' in s or 'which shot' in s:
-        return 'Pull'
-    if 'flick' in s or 'click' in s or 'quick' in s:
-        return 'Flick'
-    if 'cover drive' in s or 'straight drive' in s or 'on drive' in s or 'off drive' in s or 'drive' in s:
-        return 'Drive'
-    if 'back foot' in s or 'forward defense' in s or 'back defense' in s or 'defence' in s or 'defense' in s:
-        return 'Defence'
-    if 'guide' in s:
-        return 'Defence'  # fold Deflection/Guide per existing model umbrella
+        return 'PULL/HOOK'
+    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s:
+        return 'GLANCE/FLICK'
+    if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
+        return 'DEFLECTION/GUIDE'
+    if 'cover drive' in s or 'straight drive' in s or 'on drive' in s or 'off drive' in s or 'drive' in s or 'back foot' in s or 'forward defense' in s or 'back defense' in s or 'defence' in s or 'defense' in s:
+        return 'DRIVE/DEFENCE'
     if 'cut' in s or 'punch' in s:
-        return 'Cut'
+        return 'CUT/PUNCH'
     if 'slog' in s:
-        return 'Slog'
+        return 'SLOG'
     if 'sweep' in s:
-        return 'Sweep'
-    if 'glance' in s:
-        return 'Glance'
+        return 'SWEEP'
     if 'leave' in s:
         return 'Leave'
     return None  # drop "No shot", "Facing up", "Evade", "Block", unknown

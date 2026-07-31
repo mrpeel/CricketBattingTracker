@@ -50,8 +50,8 @@ FEATURES = [
 ]
 NUM_FEATURES = len(FEATURES)
 
-CLASSES = ['no_shot','pre_shot','Pull','Defence','Flick','Drive','Glance','Sweep','Cut','Slog']
-SHOT_CLASSES = ['Pull','Defence','Flick','Drive','Glance','Sweep','Cut','Slog']
+CLASSES = ['no_shot','pre_shot','PULL/HOOK','DRIVE/DEFENCE','GLANCE/FLICK','CUT/PUNCH','DEFLECTION/GUIDE','POWER DRIVE','SLOG','SWEEP']
+SHOT_CLASSES = ['PULL/HOOK','DRIVE/DEFENCE','GLANCE/FLICK','CUT/PUNCH','DEFLECTION/GUIDE','POWER DRIVE','SLOG','SWEEP']
 CLASS_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
 NUM_CLASSES = len(CLASSES)
 

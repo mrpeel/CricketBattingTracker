@@ -43,8 +43,8 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
     )
 
     val classes = arrayOf(
-        "no_shot", "pre_shot", "Pull", "Defence",
-        "Flick", "Drive", "Glance", "Sweep", "Cut", "Slog"
+        "no_shot", "pre_shot", "PULL/HOOK", "DRIVE/DEFENCE",
+        "GLANCE/FLICK", "CUT/PUNCH", "DEFLECTION/GUIDE", "POWER DRIVE", "SLOG", "SWEEP"
     )
 
     init {
