@@ -97,6 +97,15 @@ object PolarSenseManager {
 
     /** Initialize the Polar BLE API. Call once from Application or Service context. */
     fun initialize(context: Context) {
+        // Intercept unhandled RxJava stream errors (e.g. PolarDeviceDisconnected) to prevent JVM crashes
+        try {
+            io.reactivex.rxjava3.plugins.RxJavaPlugins.setErrorHandler { throwable ->
+                Log.w(TAG, "RxJava global error handler intercepted: ${throwable.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register RxJava global error handler: ${e.message}")
+        }
+
         if (api != null) return
 
         api = PolarBleApiDefaultImpl.defaultImplementation(
