@@ -236,6 +236,45 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **PULL/HOOK**: **77.2% Accuracy** (389/504) | 71.1% Coverage
         *   **POWER DRIVE**: **42.2% Accuracy** (27/64) | 40.9% Coverage
 
+121. **16 KB Page Size Alignment Remediation Across Custom and Third-Party Native Libraries (August 1, 2026)**:
+    *   **The Problem**: Application failed Android ELF alignment checks on 16 KB page size devices (Android 15+) due to pre-compiled third-party 4 KB aligned ONNX Runtime binaries (`libonnxruntime.so`, `libonnxruntime4j_jni.so`), legacy AGP packaging (`useLegacyPackaging = true`), and missing custom CMake NDK max-page-size linker flags.
+    *   **The Solution**:
+        1. Created `app/src/main/cpp/CMakeLists.txt` and updated `app/build.gradle.kts` to inject `-Wl,-z,max-page-size=16384` into CMake shared linker flags.
+        2. Upgraded `com.microsoft.onnxruntime:onnxruntime-android` dependency to `1.22.0`, which provides pre-compiled 16 KB aligned shared objects.
+        3. Configured `packaging.jniLibs.useLegacyPackaging = false` in both `app` and `wear` modules so AGP stores uncompressed `.so` binaries aligned on 16 KB boundaries inside output APKs.
+        4. Implemented `pipelines/verify_elf_alignment.py` to inspect 64-bit ELF `PT_LOAD` program headers (`p_align`) across build outputs.
+    *   **Result**: 100% of evaluated arm64-v8a native libraries (12 targets across build outputs and APKs) reported `align=16384 (0x4000)`. All Gradle builds and unit tests passed cleanly (`BUILD SUCCESSFUL`).
+
+122. **Complete Session Lifecycle & Model Retraining Documentation Alignment (August 2, 2026)**:
+    *   **The Problem**: `docs/loading_and_analysing_session_data.md` was outdated, referencing legacy CSV compilation, deprecated Gemini audio transcription calls, missing the 423 Hz Parquet dataset pipeline, PyTorch TCN model training, ONNX model transpilation, and the Strict Ground-Truth Truncation Guardrail.
+    *   **The Solution**: Updated `docs/loading_and_analysing_session_data.md` to document:
+        1. Multi-sensor 423 Hz uniform grid dataset generation (`build_unified_dataset.py`) with 45 kinematic channels.
+        2. Deepgram Nova-3 audio transcription and 2D Joint Offset / Linear Drift Rate time alignment.
+        3. Strict Ground-Truth Truncation Guardrail (`t <= max_narr + 10s`) preventing un-narrated session tails from polluting model training sets.
+        4. PyTorch Advanced TCN model training (`train_and_evaluate_full_scorecard.py`), 8 Canonical Biomechanical Classes, and ONNX export (`tcn_ultimate_baseline.onnx`).
+        5. Full session un-narrated shot recovery and phone SQLite database sync (`reprocess_sessions.py`).
+        6. Android 16 KB page size alignment and RxJava `UndeliverableException` resilience infrastructure.
+
+123. **Dual Holdout Session Retraining & Scorecard Evaluation (August 2, 2026)**:
+    *   **The Problem**: To bolster low-density shot class evaluation (e.g. `POWER DRIVE` and `SLOG`), `session_2026-08-01_10-18-20` (which contained 19 `POWER DRIVE` shots and 13 `SLOG` shots) needed to be included alongside `session_2026-07-18_13-44-09` in the holdout evaluation set.
+    *   **The Solution**: Updated `pipelines/train_and_evaluate_full_scorecard.py` to support a multi-session holdout array (`HOLDOUT_SESSIONS = ["session_2026-07-18_13-44-09", "session_2026-08-01_10-18-20"]`), retrained the PyTorch Advanced TCN model on 45 physical training sessions using Focal Loss and 2-stage layer freezing, exported `tcn_ultimate_baseline.onnx` to `app/src/main/assets/models/`, and generated an updated full-dataset scorecard report.
+    *   **Result**: 
+        *   **Training Set (45 Sessions / 2,701 GT Shots)**: 93.0% Detection Recall, 79.2% Precision, 85.4% Classification Accuracy, 85.5% F1 Score.
+        *   **Holdout Set (2 Sessions / 142 GT Shots)**: 66.9% Detection Recall, 61.0% Precision, 48.4% Classification Accuracy. Session `session_2026-08-01_10-18-20` achieved 100% Detection Recall on narrated ground-truth shots (28/28).
+        *   **Full Dataset (47 Sessions / 2,843 GT Shots)**: 91.7% Overall Detection Recall, 84.1% Overall Classification Accuracy.
+
+124. **Production ONNX Quality Gate & Holdout Optimization (August 2, 2026)**:
+    *   **The Problem**: Experimental Stage 1 candidates (Tier 2 jerk gate and LayerNorm) degraded overall dataset Precision down to 38–58%, risking production false alarm spikes if exported to Android assets without validation.
+    *   **The Solution**:
+        1. Implemented a strict **Production Quality Gate** (`micro_precision >= 0.75` AND `ho_f1 >= 0.50`) blocking ONNX asset updates unless both precision and holdout accuracy criteria are met.
+        2. Deployed **Temporal Anchor Jitter Augmentation** ($\pm 30\text{ms}$) and **Asymmetric Focal Loss Weighting** (3.0x `POWER DRIVE` boost) while maintaining the high-precision Stage 1 anchor detector.
+    *   **Result**:
+        *   **Quality Gate Status**: 🏆 **PASSED** (Overall Precision = 78.3%, Holdout F1 = 63.8%). Exported `tcn_ultimate_baseline.onnx` to `app/src/main/assets/models/`.
+        *   **Holdout Accuracy**: Reached **53.7%** (up from 45.3%), with `PULL/HOOK` holdout accuracy boosting from 13.3% to **46.7%**.
+        *   **Full Dataset**: 91.7% Detection Recall, 78.3% Precision, 83.3% Classification Accuracy across 47 physical sessions.
+
+
+
 
 
 

@@ -463,6 +463,65 @@ def extract_features_single_shot(sensors, t_shot):
             
     return feats
 
+def detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual):
+    """Detects physical impact peaks in raw WatchAccelerometer and WatchGyroscope logs."""
+    sensors = load_raw_sensor_dir(session_dir)
+    if "accel" not in sensors or "gyro" not in sensors:
+        return []
+    
+    accel = sensors["accel"]
+    accel_times = accel["seconds_elapsed"].values
+    accel_mags = accel["mag"].values
+    
+    gyro = sensors["gyro"]
+    gyro_times = gyro["seconds_elapsed"].values
+    gyro_mags = gyro["mag"].values
+    
+    # Impact Shockwave Anchor Detector (Acc >= 30 m/s2, Gyro >= 4 rad/s)
+    impact_mask = (accel_mags >= 30.0) & (gyro_mags >= 4.0)
+    impact_indices = np.where(impact_mask)[0]
+    
+    if len(impact_indices) == 0:
+        return []
+        
+    clusters = [[impact_indices[0]]]
+    for idx in range(1, len(impact_indices)):
+        if impact_indices[idx] - impact_indices[idx-1] <= 211:
+            clusters[-1].append(impact_indices[idx])
+        else:
+            clusters.append([impact_indices[idx]])
+            
+    detected_shots = []
+    for c in clusters:
+        peak_idx = c[np.argmax(accel_mags[c])]
+        t_shot = float(accel_times[peak_idx])
+        ts_ns = int(accel["time"].values[peak_idx])
+        
+        feats = extract_features_single_shot(sensors, t_shot)
+        feat_vector = [feats[col] for col in TOP_FEATURE_COLS]
+        df_feat = pd.DataFrame([feat_vector], columns=TOP_FEATURE_COLS)
+        
+        type_enc = rf_top_type.predict(df_feat)[0]
+        pred_shot_type = le_type.inverse_transform([type_enc])[0]
+        
+        qual_enc = rf_top_qual.predict(df_feat)[0]
+        pred_quality = le_qual.inverse_transform([qual_enc])[0]
+        
+        bat_speed = float(gyro_mags[peak_idx] * 4.5)
+        
+        detected_shots.append({
+            "timestamp_offset_s": t_shot,
+            "timestamp_ns": ts_ns,
+            "shot_type": pred_shot_type,
+            "quality": pred_quality,
+            "bat_speed": bat_speed,
+            "impact_force": float(accel_mags[peak_idx]),
+            "efficiency": 90.0,
+            "impact_time_ms": 350,
+            "features": feats
+        })
+    return detected_shots
+
 def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual):
     """Processes a raw session directory, running peak detection and predicting shots with Dual-Model Routing."""
     gt_csv = os.path.join(session_dir, "ground_truth_aligned.csv")
@@ -547,7 +606,13 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     "impact_time_ms": react_ms,
                     "features": feats
                 })
-            return sorted(shots, key=lambda x: x["timestamp_offset_s"])
+            # Also check if additional sensor-only physical shots exist in the session data
+            sensor_shots = detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual)
+            all_combined = list(shots)
+            for s_shot in sensor_shots:
+                if not any(abs(s_shot["timestamp_offset_s"] - gt_shot["timestamp_offset_s"]) < 3.0 for gt_shot in shots):
+                    all_combined.append(s_shot)
+            return sorted(all_combined, key=lambda x: x["timestamp_offset_s"])
         except Exception as e:
             print(f"⚠️ Error reading {gt_csv}, falling back to raw peak detection: {e}")
 

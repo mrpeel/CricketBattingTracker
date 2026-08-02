@@ -14,6 +14,19 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        externalNativeBuild {
+            cmake {
+                arguments("-DANDROID_STL=c++_static")
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     buildTypes {
@@ -41,7 +54,7 @@ android {
     }
     packaging {
         jniLibs {
-            useLegacyPackaging = true
+            useLegacyPackaging = false
         }
     }
 }
@@ -86,6 +99,43 @@ dependencies {
     // DataStore — persist Polar device pairing
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    // ONNX Runtime Android SDK — Hardware-accelerated TCN model inference
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.0")
+    // ONNX Runtime Android SDK — Hardware-accelerated TCN model inference (1.22.0 for 16 KB page alignment)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
+
+    testImplementation("junit:junit:4.13.2")
 }
+
+// Automatically enforce 16 KB (16384 bytes) Zip offset alignment & re-signing on packaged APK outputs
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        val zipAlignTask = tasks.register("zipAlign16kb$variantName") {
+            doLast {
+                val apkDir = file("${layout.buildDirectory.get()}/outputs/apk/${variant.name}")
+                val sdkDir = android.sdkDirectory
+                val buildToolsVer = android.buildToolsVersion
+                val zipalignExe = "$sdkDir/build-tools/$buildToolsVer/zipalign"
+                val apksignerExe = "$sdkDir/build-tools/$buildToolsVer/apksigner"
+                val keystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+
+                apkDir.listFiles()?.filter { it.name.endsWith(".apk") && !it.name.startsWith("16kb-aligned-") }?.forEach { apkFile ->
+                    val tempAligned = file("${apkFile.parent}/16kb-aligned-${apkFile.name}")
+                    println("📦 Post-processing 16 KB Zip alignment for ${apkFile.name}...")
+                    exec {
+                        commandLine(zipalignExe, "-f", "16384", apkFile.absolutePath, tempAligned.absolutePath)
+                    }
+                    if (keystore.exists()) {
+                        exec {
+                            commandLine(apksignerExe, "sign", "--ks", keystore.absolutePath, "--ks-pass", "pass:android", "--key-pass", "pass:android", tempAligned.absolutePath)
+                        }
+                    }
+                    tempAligned.copyTo(apkFile, overwrite = true)
+                    tempAligned.delete()
+                    println("✅ Successfully 16 KB zip-aligned and re-signed ${apkFile.name}")
+                }
+            }
+        }
+        tasks.findByName("package$variantName")?.finalizedBy(zipAlignTask)
+    }
+}
+

@@ -469,7 +469,7 @@ def build_session(session_name, verbose=True):
         if m:
             from datetime import datetime
             y,mo,d,h,mi,s = map(int, m.groups())
-            sys_start = int(datetime.datetime(y,mo,d,h,mi,s).timestamp() * 1000)
+            sys_start = int(datetime(y,mo,d,h,mi,s).timestamp() * 1000)
         else:
             sys_start = 0
     _, watch_taps = parse_timeline(session_dir, watch_start_ns, sys_start)
@@ -647,10 +647,18 @@ def build_session(session_name, verbose=True):
         from collections import Counter
         print(f"  {Counter(labels)}")
 
+    # ---- Strict Ground-Truth Guardrail: Truncate training dataset at max narration time + 10s ----
+    if narr:
+        valid_narr_times = [float(e['timestamp_seconds']) * 1000.0 for e in narr if 'timestamp_seconds' in e]
+        if valid_narr_times:
+            max_narr_ms = max(valid_narr_times) + 10000.0
+            df = df[df['t_ms'] <= max_narr_ms].copy()
+            if verbose: print(f"  🛡️ Ground Truth Guardrail: Truncated parquet dataset to max narration time ({max_narr_ms/1000.0:.1f}s / {len(df)} rows)")
+
     # ---- save parquet ----
     out_path = os.path.join(OUTPUT_DIR, f"{session_name}_unified.parquet")
     df.to_parquet(out_path, engine='pyarrow', compression='zstd')
-    if verbose: print(f"  saved {out_path}  ({n_rows} rows, {df.shape[1]} cols, {os.path.getsize(out_path)/1024/1024:.1f} MB)")
+    if verbose: print(f"  saved {out_path}  ({len(df)} rows, {df.shape[1]} cols, {os.path.getsize(out_path)/1024/1024:.1f} MB)")
     return out_path
 
 def main():

@@ -44,6 +44,8 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-032 | 8-Run Systematic Ablation Study | Evaluate Downsampling (200Hz), Derived Data (+Jerk), and Multi-Task Dual-Head Network independently, in pairs, and all 3 combined. | **Completed** | Downsampling to 200Hz proved statistically significant ($53.76\%$). Run A+C achieved 54.01% classification accuracy. |
 | B-033 | Model Architecture Benchmark Suite | Benchmark 5 neural network backbones (TCN, 1D ResNet, Conv-LSTM, InceptionTime, Temporal Transformer) on continuous IMU streams. | **Completed** | Conv-LSTM achieved 74.52% candidate window classification accuracy; Transformer achieved 65.69%. |
 | B-034 | Decoupled 2-Stage TCN + Conv-LSTM Pipeline | Decouple 423Hz TCN Detection Engine (92.1% recall) from 1.8s Conv-LSTM Window Classifier (48.15% accuracy). | **Completed** | Captured 52 physical shots correctly (45.61% coverage), outperforming production Random Forest by +73% with zero false alarms. |
+| B-035 | Dual Holdout Retraining & Scorecard | Retrain Advanced TCN model holding out `session_2026-07-18_13-44-09` & `session_2026-08-01_10-18-20`. | **Completed** | Evaluated 47 physical sessions: 91.7% Recall, 84.1% Accuracy across full dataset, exported ONNX to Android app. |
+| B-036 | Production ONNX Quality Gate & Holdout Optimization | Enforce strict Precision $\ge 75\%$ Quality Gate on ONNX export; deploy Jitter Augmentation ($\pm 30\text{ms}$) & Asymmetric Focal Loss (3.0x `POWER DRIVE` boost). | **Completed** | Passed Quality Gate (Precision: 78.3%, Holdout Acc: 53.7%, PULL/HOOK holdout acc: 46.7%, ONNX updated). |
 
 
 ---

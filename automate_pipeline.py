@@ -1035,6 +1035,8 @@ def main():
     # Derive a coarse baseline offset from the audio filename timestamp vs watch startup epoch.
     # This is used only as the centre of the grid search — NOT as a validation signal.
     watch_start_ms = None
+    audio_start_epoch = None
+    watch_start_epoch = None
     timeline_path = os.path.join(session_dir, "latest_timeline.txt")
     if os.path.exists(timeline_path):
         try:

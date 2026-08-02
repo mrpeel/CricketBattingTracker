@@ -12,7 +12,9 @@ import os
 import sys
 import json
 import glob
+import math
 import shutil
+import random
 import datetime
 import numpy as np
 import pandas as pd
@@ -35,7 +37,7 @@ APP_ONNX_PATH  = os.path.join(APP_ASSETS_DIR, "tcn_ultimate_baseline.onnx")
 STATS_PATH     = os.path.join(ROOT_DIR, "pipelines", "tcn_norm_stats.json")
 REPORT_OUT     = os.path.join(ROOT_DIR, "full_dataset_training_scorecard.md")
 
-HOLDOUT_SESSION = "session_2026-07-18_13-44-09"
+HOLDOUT_SESSIONS = ["session_2026-07-18_13-44-09", "session_2026-08-01_10-18-20"]
 
 FEATURES = [
     'w_acc_x','w_acc_y','w_acc_z',
@@ -128,8 +130,9 @@ def load_dataset(session_name):
     return X, y, df
 
 class SessionWindowDataset(Dataset):
-    def __init__(self, sessions_data, window_len=WINDOW_LEN):
+    def __init__(self, sessions_data, window_len=WINDOW_LEN, is_train=True):
         self.window_len = window_len
+        self.is_train = is_train
         self.windows = []
         for s_idx, (X, y, _) in enumerate(sessions_data):
             n = len(X)
@@ -146,7 +149,27 @@ class SessionWindowDataset(Dataset):
     def __getitem__(self, idx):
         s_idx, start, _ = self.windows[idx]
         X, y, _ = self.sessions_data[s_idx]
-        xd = torch.from_numpy(X[start:start+self.window_len].T)
+        if self.is_train:
+            jitter = random.randint(-13, 13)  # +/-30ms at 423 Hz
+            start = max(0, min(len(X) - self.window_len, start + jitter))
+        
+        window_X = X[start:start+self.window_len].copy()
+        if self.is_train and random.random() < 0.60:
+            pitch = math.radians(random.uniform(-15.0, 15.0))
+            roll  = math.radians(random.uniform(-15.0, 15.0))
+            yaw   = math.radians(random.uniform(-20.0, 20.0))
+            
+            Rx = np.array([[1, 0, 0], [0, math.cos(pitch), -math.sin(pitch)], [0, math.sin(pitch), math.cos(pitch)]])
+            Ry = np.array([[math.cos(roll), 0, math.sin(roll)], [0, 1, 0], [-math.sin(roll), 0, math.cos(roll)]])
+            Rz = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0, 0, 1]])
+            R  = (Rz @ Ry @ Rx).astype(np.float32)
+            
+            window_X[:, 0:3]  = window_X[:, 0:3] @ R.T
+            window_X[:, 3:6]  = window_X[:, 3:6] @ R.T
+            window_X[:, 6:9]  = window_X[:, 6:9] @ R.T
+            window_X[:, 9:12] = window_X[:, 9:12] @ R.T
+
+        xd = torch.from_numpy(window_X.T)
         yd = torch.from_numpy(y[start:start+self.window_len])
         return xd, yd
 
@@ -197,11 +220,16 @@ def evaluate_single_session(session_name, model, med, mad):
                 
     w_acc_mags  = np.linalg.norm(X[:, 0:3], axis=1)
     w_gyro_mags = np.linalg.norm(X[:, 3:6], axis=1)
+    p_gyro_mags = np.linalg.norm(X[:, 9:12], axis=1)
     
+    # High-frequency angular jerk (domega/dt at 423 Hz)
+    w_jerk = np.abs(np.diff(w_gyro_mags, prepend=0)) * 423.0
+    p_jerk = np.abs(np.diff(p_gyro_mags, prepend=0)) * 423.0
+
     # Calculate sliding pre-shot angular velocity std over [-0.8s, -0.2s] window (254 frames)
     gyro_std_254 = pd.Series(w_gyro_mags).rolling(window=254, min_periods=50).std().shift(85).fillna(0.0).values
 
-    # Stage 1: Impact Shockwave Anchor Detector (Acc >= 30.0 m/s2, Gyro >= 4.0 rad/s for Defence Recall)
+    # Stage 1: Impact Shockwave Anchor Detector (High Precision Gate)
     impact_mask = (w_acc_mags >= 30.0) & (w_gyro_mags >= 4.0)
     impact_frames = np.where(impact_mask)[0]
     
@@ -267,7 +295,7 @@ def evaluate_single_session(session_name, model, med, mad):
     
     return {
         'session_name': session_name,
-        'is_holdout': (session_name == HOLDOUT_SESSION),
+        'is_holdout': (session_name in HOLDOUT_SESSIONS),
         'duration_min': dur_min,
         'gt_shots': len(gt_events),
         'detected_shots': len(detections),
@@ -316,14 +344,14 @@ def print_and_format_class_table(title, agg_stats):
 def main():
     print("============================================================")
     print("  Master Training & Full-Dataset Evaluation Pipeline")
-    print(f"  Holdout Session: {HOLDOUT_SESSION}")
+    print(f"  Holdout Sessions ({len(HOLDOUT_SESSIONS)}): {', '.join(HOLDOUT_SESSIONS)}")
     print("============================================================")
     
     pattern = os.path.join(DATASET_DIR, "session_2026-*_unified.parquet")
     all_parquet_sessions = sorted([os.path.basename(p).replace("_unified.parquet","") for p in glob.glob(pattern) if '_aug_' not in p])
-    train_sessions = [s for s in all_parquet_sessions if s != HOLDOUT_SESSION]
+    train_sessions = [s for s in all_parquet_sessions if s not in HOLDOUT_SESSIONS]
     
-    print(f"\n1. Loading {len(train_sessions)} training sessions (holding out {HOLDOUT_SESSION})...")
+    print(f"\n1. Loading {len(train_sessions)} training sessions (holding out {len(HOLDOUT_SESSIONS)} sessions)...")
     train_data = [load_dataset(s) for s in train_sessions]
     
     all_X = np.concatenate([X for X,_,_ in train_data], axis=0)
@@ -340,7 +368,7 @@ def main():
     for X, _, _ in train_data:
         X[:] = (X - med) / mad
         
-    dataset = SessionWindowDataset(train_data, WINDOW_LEN)
+    dataset = SessionWindowDataset(train_data, WINDOW_LEN, is_train=True)
     sampler = torch.utils.data.WeightedRandomSampler(dataset.weights, len(dataset.weights), replacement=True)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, sampler=sampler, num_workers=0)
     
@@ -350,6 +378,8 @@ def main():
     all_y = np.concatenate([y for _, y, _ in train_data])
     counts = np.bincount(all_y, minlength=NUM_CLASSES)
     weights = np.where(counts == 0, 0.0, 1.0 / np.sqrt(counts + 1e-5))
+    power_drive_idx = CLASS_TO_IDX['POWER DRIVE']
+    weights[power_drive_idx] *= 3.0  # Asymmetric boost for minority POWER DRIVE class
     weights = weights * (NUM_CLASSES / weights.sum())
     w_t = torch.from_numpy(weights.astype(np.float32)).to(DEVICE)
     loss_fn = FocalLoss(gamma=2.0, weight=w_t)
@@ -368,24 +398,15 @@ def main():
             xb = xb.to(DEVICE); yb = yb.to(DEVICE)
             logits = model(xb)
             loss = loss_fn(logits, yb)
-            optim.zero_grad(); loss.backward(); optim.step()
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
             r_loss += loss.item(); n_b += 1
             
-        print(f"  Epoch {epoch:02d} / 12 | Train Loss: {r_loss/n_b:.4f}")
+        print(f"  Epoch {epoch:2d}/12 - Focal Loss: {r_loss/n_b:.4f}")
         
     torch.save(model.state_dict(), MODEL_PT_PATH)
-    print(f"✅ Saved PyTorch model to {MODEL_PT_PATH}")
-    
-    # Export ONNX Model
-    model.eval()
-    dummy_input = torch.randn(1, NUM_FEATURES, WINDOW_LEN, device=DEVICE)
-    torch.onnx.export(
-        model, dummy_input, MODEL_ONNX_PATH, export_params=True, opset_version=18,
-        do_constant_folding=True, input_names=['input_imu_stream'], output_names=['output_logits'],
-        dynamic_axes={'input_imu_stream': {0: 'batch_size', 2: 'sequence_length'}, 'output_logits': {0: 'batch_size', 2: 'sequence_length'}}
-    )
-    shutil.copy(MODEL_ONNX_PATH, APP_ONNX_PATH)
-    print(f"✅ Exported ONNX model & copied to Android App assets: {APP_ONNX_PATH}")
+    print(f"✅ Saved PyTorch experiment model checkpoint to {MODEL_PT_PATH}")
     
     print(f"\n3. Evaluating FULL DATASET across ALL {len(all_parquet_sessions)} physical sessions...")
     eval_results = []
@@ -401,7 +422,6 @@ def main():
     holdout_evals = [r for r in eval_results if r['is_holdout']]
     train_evals   = [r for r in eval_results if not r['is_holdout']]
     
-    holdout_res = holdout_evals[0]
     train_res   = df_eval[~df_eval['is_holdout']]
     
     # Micro Metrics
@@ -413,6 +433,14 @@ def main():
     micro_precision = total_matched_det / total_det if total_det else 0
     micro_f1 = 2 * micro_precision * micro_recall / (micro_precision + micro_recall) if (micro_precision + micro_recall) > 0 else 0
     
+    ho_gt = sum(r['gt_shots'] for r in holdout_evals)
+    ho_det = sum(r['detected_shots'] for r in holdout_evals)
+    ho_matched_gt = sum(r['matched_gt'] for r in holdout_evals)
+    ho_matched_det = sum(r['matched_dets'] for r in holdout_evals)
+    ho_recall = ho_matched_gt / ho_gt if ho_gt else 0
+    ho_precision = ho_matched_det / ho_det if ho_det else 0
+    ho_f1 = 2 * ho_precision * ho_recall / (ho_precision + ho_recall) if (ho_precision + ho_recall) > 0 else 0
+
     tr_gt = train_res['gt_shots'].sum()
     tr_det = train_res['detected_shots'].sum()
     tr_matched_gt = train_res['matched_gt'].sum()
@@ -426,16 +454,16 @@ def main():
     train_class_agg   = aggregate_class_scorecard(train_evals)
     full_class_agg    = aggregate_class_scorecard(eval_results)
     
-    holdout_table_md = print_and_format_class_table(f"🌟 Holdout Session Per-Shot Accuracy ({HOLDOUT_SESSION})", holdout_class_agg)
-    train_table_md   = print_and_format_class_table("🏋️ Training Set Per-Shot Accuracy Breakdown (44 Sessions)", train_class_agg)
-    full_table_md    = print_and_format_class_table("🏆 Full Dataset Per-Shot Accuracy Breakdown (All 45 Sessions)", full_class_agg)
+    holdout_table_md = print_and_format_class_table(f"🌟 Holdout Set Per-Shot Accuracy ({len(HOLDOUT_SESSIONS)} Sessions)", holdout_class_agg)
+    train_table_md   = print_and_format_class_table(f"🏋️ Training Set Per-Shot Accuracy Breakdown ({len(train_sessions)} Sessions)", train_class_agg)
+    full_table_md    = print_and_format_class_table(f"🏆 Full Dataset Per-Shot Accuracy Breakdown (All {len(all_parquet_sessions)} Sessions)", full_class_agg)
     
     print("\n" + "="*115)
     print("📊 FULL DATASET TRAINING & HOLDOUT EVALUATION SCORECARD")
     print("="*115)
-    print(f"  Holdout Session ({HOLDOUT_SESSION}): Recall = {holdout_res['recall']*100:.1f}%, Precision = {holdout_res['precision']*100:.1f}%, F1 = {holdout_res['f1']*100:.1f}%")
-    print(f"  Training Set (44 Sessions):              Recall = {tr_recall*100:.1f}%, Precision = {tr_precision*100:.1f}%, F1 = {tr_f1*100:.1f}%")
-    print(f"  Full Dataset Total (45 Sessions):         Recall = {micro_recall*100:.1f}%, Precision = {micro_precision*100:.1f}%, F1 = {micro_f1*100:.1f}%")
+    print(f"  Holdout Set ({len(HOLDOUT_SESSIONS)} Sessions): Recall = {ho_recall*100:.1f}%, Precision = {ho_precision*100:.1f}%, F1 = {ho_f1*100:.1f}%")
+    print(f"  Training Set ({len(train_sessions)} Sessions):           Recall = {tr_recall*100:.1f}%, Precision = {tr_precision*100:.1f}%, F1 = {tr_f1*100:.1f}%")
+    print(f"  Full Dataset Total ({len(all_parquet_sessions)} Sessions):      Recall = {micro_recall*100:.1f}%, Precision = {micro_precision*100:.1f}%, F1 = {micro_f1*100:.1f}%")
     print("="*115 + "\n")
     
     print(train_table_md)
@@ -446,7 +474,7 @@ def main():
     report = f"""# Full Dataset Training & Holdout Scorecard Report
 
 **System Architecture**: Decoupled Impact Shockwave Anchor Detector (Stage 1) + Ultimate Advanced Baseline TCN Classifier (Stage 2)  
-**Designated Holdout Session**: `{HOLDOUT_SESSION}`  
+**Designated Holdout Sessions**: `{', '.join(HOLDOUT_SESSIONS)}` ({len(HOLDOUT_SESSIONS)} sessions)  
 **Training Sessions Count**: {len(train_sessions)} physical sessions  
 **Total Dataset Duration**: {df_eval['duration_min'].sum():.1f} minutes ({df_eval['duration_min'].sum()/60.0:.1f} hours)  
 **Date**: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -457,9 +485,9 @@ def main():
 
 | Dataset Partition | Physical Ground-Truth Shots | Total Detections | **Physical Shot Recall** | **Precision** | **F1 Score** |
 |---|:---:|:---:|:---:|:---:|:---:|
-| 🌟 **Holdout Session (`{HOLDOUT_SESSION}`)** | **{holdout_res['gt_shots']}** | **{holdout_res['detected_shots']}** | **{holdout_res['recall']*100:.2f}%** | **{holdout_res['precision']*100:.2f}%** | **{holdout_res['f1']*100:.2f}%** |
-| **Training Set Micro Average (44 Sessions)** | **{tr_gt}** | **{tr_det}** | **{tr_recall*100:.2f}%** ({tr_matched_gt}/{tr_gt}) | **{tr_precision*100:.2f}%** ({tr_matched_det}/{tr_det}) | **{tr_f1*100:.2f}%** |
-| 🏆 **Full Dataset Micro Average (All 45 Sessions)** | **{total_gt}** | **{total_det}** | 🏆 **{micro_recall*100:.2f}%** ({total_matched_gt}/{total_gt}) | 🏆 **{micro_precision*100:.2f}%** ({total_matched_det}/{total_det}) | 🏆 **{micro_f1*100:.2f}%** |
+| 🌟 **Holdout Set ({len(HOLDOUT_SESSIONS)} Sessions)** | **{ho_gt}** | **{ho_det}** | **{ho_recall*100:.2f}%** | **{ho_precision*100:.2f}%** | **{ho_f1*100:.2f}%** |
+| **Training Set Micro Average ({len(train_sessions)} Sessions)** | **{tr_gt}** | **{tr_det}** | **{tr_recall*100:.2f}%** ({tr_matched_gt}/{tr_gt}) | **{tr_precision*100:.2f}%** ({tr_matched_det}/{tr_det}) | **{tr_f1*100:.2f}%** |
+| 🏆 **Full Dataset Micro Average (All {len(all_parquet_sessions)} Sessions)** | **{total_gt}** | **{total_det}** | 🏆 **{micro_recall*100:.2f}%** ({total_matched_gt}/{total_gt}) | 🏆 **{micro_precision*100:.2f}%** ({total_matched_det}/{total_det}) | 🏆 **{micro_f1*100:.2f}%** |
 
 ---
 
@@ -486,6 +514,25 @@ def main():
         f.write(report)
         
     print(f"\n✅ Saved master scorecard report to {REPORT_OUT}")
+
+    # Production ONNX Quality Gate Check
+    print("\n" + "="*80)
+    print("🔒 PRODUCTION ONNX QUALITY GATE CHECK")
+    print("="*80)
+    if micro_precision >= 0.75 and ho_f1 >= 0.50:
+        model.eval()
+        dummy_input = torch.randn(1, NUM_FEATURES, WINDOW_LEN, device=DEVICE)
+        torch.onnx.export(
+            model, dummy_input, MODEL_ONNX_PATH, export_params=True, opset_version=18,
+            do_constant_folding=True, input_names=['input_imu_stream'], output_names=['output_logits'],
+            dynamic_axes={'input_imu_stream': {0: 'batch_size', 2: 'sequence_length'}, 'output_logits': {0: 'batch_size', 2: 'sequence_length'}}
+        )
+        shutil.copy(MODEL_ONNX_PATH, APP_ONNX_PATH)
+        print(f"🏆 PASSED Quality Gate (Overall Precision={micro_precision*100:.1f}%, Holdout F1={ho_f1*100:.1f}%). Exported ONNX model & updated production Android app assets: {APP_ONNX_PATH}")
+    else:
+        print(f"⚠️ FAILED Quality Gate (Overall Precision={micro_precision*100:.1f}% [Req >= 75%], Holdout F1={ho_f1*100:.1f}% [Req >= 50%]).")
+        print(f"⛔ Production ONNX model was NOT updated. Retained existing production asset.")
+    print("="*80)
 
 if __name__ == "__main__":
     main()

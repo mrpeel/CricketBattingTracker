@@ -67,6 +67,18 @@ echo "📦 Building Release APKs (this may take a minute)..."
 export JAVA_HOME="$HOME/.jdk/jdk-17"
 export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew assembleRelease -x lint -x test --no-daemon
+
+# 2b. Force 16 KB (16384 bytes) Zip Offset Alignment & Re-signing
+BUILD_TOOLS="$HOME/Library/Android/sdk/build-tools/34.0.0"
+KEYSTORE="$HOME/.android/debug.keystore"
+if [ -f "$BUILD_TOOLS/zipalign" ] && [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+    echo "🛡️ Aligning release APK to 16 KB (16384 bytes) page boundaries..."
+    "$BUILD_TOOLS/zipalign" -f 16384 app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-aligned.apk
+    if [ -f "$KEYSTORE" ] && [ -f "$BUILD_TOOLS/apksigner" ]; then
+        "$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android app/build/outputs/apk/release/app-release-aligned.apk
+    fi
+    mv app/build/outputs/apk/release/app-release-aligned.apk app/build/outputs/apk/release/app-release.apk
+fi
 # 3. Deploy to Watch
 if [ "$WATCH_FOUND" = true ]; then
     echo ""
