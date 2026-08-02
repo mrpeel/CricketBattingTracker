@@ -273,6 +273,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Holdout Accuracy**: Reached **53.7%** (up from 45.3%), with `PULL/HOOK` holdout accuracy boosting from 13.3% to **46.7%**.
         *   **Full Dataset**: 91.7% Detection Recall, 78.3% Precision, 83.3% Classification Accuracy across 47 physical sessions.
 
+125. **Dynamic Inverse-Frequency Weighting Experiment (August 3, 2026)**:
+    *   **The Problem**: Ad-hoc scalar multipliers (`weights[power_drive_idx] *= 3.0`) required manual code retuning as dataset volume grows.
+    *   **The Solution**: Replaced manual scalar with standard Dynamic Inverse-Frequency Weighting ($\text{Weight}[c] = \frac{\text{Total Samples}}{\text{Num Classes} \times \text{Count}[c]}$) in `train_and_evaluate_full_scorecard.py`.
+    *   **Result**:
+        *   **Quality Gate**: 🏆 **PASSED** (Precision = 78.3%, Holdout F1 = 63.8%). Exported ONNX model to `app/src/main/assets/models/tcn_ultimate_baseline.onnx`.
+        *   **POWER DRIVE Holdout Accuracy**: Jumped from 10.5% to **42.1%** (8 / 19 correct) on unseen holdout sessions (+31.6% boost).
+        *   **POWER DRIVE Training Accuracy**: Reached **64.1%** (+23.5% gain).
+        *   **Full Dataset**: 91.7% Detection Recall, 78.3% Precision, 81.0% Classification Accuracy across 47 physical sessions.
+
 
 
 

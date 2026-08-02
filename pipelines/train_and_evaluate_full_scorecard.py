@@ -377,9 +377,9 @@ def main():
     
     all_y = np.concatenate([y for _, y, _ in train_data])
     counts = np.bincount(all_y, minlength=NUM_CLASSES)
-    weights = np.where(counts == 0, 0.0, 1.0 / np.sqrt(counts + 1e-5))
-    power_drive_idx = CLASS_TO_IDX['POWER DRIVE']
-    weights[power_drive_idx] *= 3.0  # Asymmetric boost for minority POWER DRIVE class
+    total_samples = len(all_y)
+    # Dynamic Inverse-Frequency Weighting: Weight[c] = Total_Samples / (Num_Classes * Count[c])
+    weights = np.where(counts == 0, 0.0, total_samples / (NUM_CLASSES * counts + 1e-5))
     weights = weights * (NUM_CLASSES / weights.sum())
     w_t = torch.from_numpy(weights.astype(np.float32)).to(DEVICE)
     loss_fn = FocalLoss(gamma=2.0, weight=w_t)
