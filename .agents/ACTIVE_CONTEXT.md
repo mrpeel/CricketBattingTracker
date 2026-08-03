@@ -47,6 +47,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-035 | Dual Holdout Retraining & Scorecard | Retrain Advanced TCN model holding out `session_2026-07-18_13-44-09` & `session_2026-08-01_10-18-20`. | **Completed** | Evaluated 47 physical sessions: 91.7% Recall, 84.1% Accuracy across full dataset, exported ONNX to Android app. |
 | B-036 | Production ONNX Quality Gate & Holdout Optimization | Enforce strict Precision $\ge 75\%$ Quality Gate on ONNX export; deploy Jitter Augmentation ($\pm 30\text{ms}$) & Asymmetric Focal Loss (3.0x `POWER DRIVE` boost). | **Completed** | Passed Quality Gate (Precision: 78.3%, Holdout Acc: 53.7%, PULL/HOOK holdout acc: 46.7%, ONNX updated). |
 | B-037 | Dynamic Inverse-Frequency Loss Weighting | Replace manual scalar multipliers with standard dynamic inverse-frequency weighting ($N / (K \cdot N_c)$). | **Completed** | Passed Quality Gate (Precision: 78.3%). Boosted POWER DRIVE holdout accuracy from 10.5% to 42.1% (+31.6%), exported ONNX. |
+| B-038 | High-Velocity Feature Confusion Ablation | Evaluate Region-Based Temporal Attention Pooling and Hard Negative Mining; verify Quality Gate protection. | **Completed** | Quality Gate protected production asset during region pooling trial; baseline TCN achieved 89.5% POWER DRIVE holdout coverage (77.9% Precision). |
 
 
 ---

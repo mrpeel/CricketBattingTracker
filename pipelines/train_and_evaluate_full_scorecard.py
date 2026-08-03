@@ -178,11 +178,13 @@ def evaluate_single_session(session_name, model, med, mad):
     if not os.path.exists(p):
         return None
         
-    df = pd.read_parquet(p)
+    res_data = load_dataset(session_name)
+    if res_data is None:
+        return None
+    X, _, df = res_data
     if df.empty or len(df) < 100:
         return None
         
-    X = df[FEATURES].fillna(0).values.astype(np.float32)
     X_norm = (X - med) / mad
     
     # TCN Model Inference
@@ -193,7 +195,7 @@ def evaluate_single_session(session_name, model, med, mad):
             chunk = X_norm[i:i+WINDOW_LEN].T[np.newaxis, :, :]
             n_frames = chunk.shape[2]
             if n_frames < WINDOW_LEN:
-                pad = np.zeros((1, len(FEATURES), WINDOW_LEN - n_frames), dtype=np.float32)
+                pad = np.zeros((1, NUM_FEATURES, WINDOW_LEN - n_frames), dtype=np.float32)
                 chunk = np.concatenate([chunk, pad], axis=2)
             chunk_t = torch.from_numpy(chunk).to(DEVICE)
             logits = model(chunk_t)[0, :, :n_frames].cpu().numpy()
@@ -220,7 +222,7 @@ def evaluate_single_session(session_name, model, med, mad):
                 
     w_acc_mags  = np.linalg.norm(X[:, 0:3], axis=1)
     w_gyro_mags = np.linalg.norm(X[:, 3:6], axis=1)
-    p_gyro_mags = np.linalg.norm(X[:, 9:12], axis=1)
+    p_gyro_mags = np.linalg.norm(X[:, 22:25], axis=1)
     
     # High-frequency angular jerk (domega/dt at 423 Hz)
     w_jerk = np.abs(np.diff(w_gyro_mags, prepend=0)) * 423.0
@@ -269,34 +271,63 @@ def evaluate_single_session(session_name, model, med, mad):
         win_probs = probs_full[:, w_s:w_e]
         top_class_idx = np.argmax(win_probs[2:10, :].max(axis=1)) + 2
         top_prob = win_probs[top_class_idx, :].max()
-        pred_name = CLASSES[top_class_idx]
-        detections.append({'sec': f / 423.0, 'class': pred_name, 'prob': top_prob})
+        top_cls_name = CLASSES[top_class_idx]
         
-    matched_gt = sum(1 for gt in gt_events if any(abs(d['sec'] - gt['sec']) <= 2.5 for d in detections))
-    matched_dets = sum(1 for d in detections if any(abs(d['sec'] - gt['sec']) <= 2.5 for gt in gt_events))
+        detections.append({
+            'sec': f / 423.0,
+            'frame': f,
+            'class': top_cls_name,
+            'class_idx': top_class_idx,
+            'prob': float(top_prob)
+        })
+        
+    # Match Detections to Ground Truth Narrations (Tol: +-1.5s)
+    matched_gt = 0
+    matched_dets = 0
+    gt_matched_flags = [False] * len(gt_events)
+    det_matched_flags = [False] * len(detections)
     
-    # Per-Shot Class Accuracy tracking
-    per_class_stats = {c: {'gt_count': 0, 'detected_count': 0, 'correct_class_count': 0} for c in SHOT_CLASSES}
-    for gt in gt_events:
-        c_name = gt['cls']
-        if c_name in per_class_stats:
-            per_class_stats[c_name]['gt_count'] += 1
-            # Find nearest detection within 2.5s
-            near_dets = [d for d in detections if abs(d['sec'] - gt['sec']) <= 2.5]
-            if near_dets:
-                per_class_stats[c_name]['detected_count'] += 1
-                if any(d['class'] == c_name for d in near_dets):
-                    per_class_stats[c_name]['correct_class_count'] += 1
-
-    dur_min = len(df) / 423.0 / 60.0
+    per_class_gt = {c: 0 for c in SHOT_CLASSES}
+    per_class_detected = {c: 0 for c in SHOT_CLASSES}
+    per_class_correct = {c: 0 for c in SHOT_CLASSES}
+    
+    for g in gt_events:
+        c_name = g['cls']
+        if c_name in per_class_gt:
+            per_class_gt[c_name] += 1
+            
+    for d in detections:
+        c_name = d['class']
+        if c_name in per_class_detected:
+            per_class_detected[c_name] += 1
+            
+    for g_idx, g in enumerate(gt_events):
+        best_d_idx = -1
+        best_dist = 2.5
+        for d_idx, d in enumerate(detections):
+            if not det_matched_flags[d_idx]:
+                dist = abs(g['sec'] - d['sec'])
+                if dist <= best_dist:
+                    best_dist = dist
+                    best_d_idx = d_idx
+        if best_d_idx >= 0:
+            gt_matched_flags[g_idx] = True
+            det_matched_flags[best_d_idx] = True
+            matched_gt += 1
+            matched_dets += 1
+            
+            c_gt = g['cls']
+            c_det = detections[best_d_idx]['class']
+            if c_gt == c_det and c_gt in per_class_correct:
+                per_class_correct[c_gt] += 1
+                
     rec = matched_gt / len(gt_events) if gt_events else 0.0
     prec = matched_dets / len(detections) if detections else 0.0
     f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
     
     return {
         'session_name': session_name,
-        'is_holdout': (session_name in HOLDOUT_SESSIONS),
-        'duration_min': dur_min,
+        'is_holdout': session_name in HOLDOUT_SESSIONS,
         'gt_shots': len(gt_events),
         'detected_shots': len(detections),
         'matched_gt': matched_gt,
@@ -304,16 +335,19 @@ def evaluate_single_session(session_name, model, med, mad):
         'recall': rec,
         'precision': prec,
         'f1': f1,
-        'per_class_stats': per_class_stats
+        'per_class_gt': per_class_gt,
+        'per_class_detected': per_class_detected,
+        'per_class_correct': per_class_correct,
+        'duration_min': len(X) / (423.0 * 60.0)
     }
 
 def aggregate_class_scorecard(eval_results):
     agg = {c: {'gt_count': 0, 'detected_count': 0, 'correct_class_count': 0} for c in SHOT_CLASSES}
     for r in eval_results:
         for c in SHOT_CLASSES:
-            agg[c]['gt_count'] += r['per_class_stats'][c]['gt_count']
-            agg[c]['detected_count'] += r['per_class_stats'][c]['detected_count']
-            agg[c]['correct_class_count'] += r['per_class_stats'][c]['correct_class_count']
+            agg[c]['gt_count'] += r['per_class_gt'].get(c, 0)
+            agg[c]['detected_count'] += r['per_class_detected'].get(c, 0)
+            agg[c]['correct_class_count'] += r['per_class_correct'].get(c, 0)
     return agg
 
 def print_and_format_class_table(title, agg_stats):

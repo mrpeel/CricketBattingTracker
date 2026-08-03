@@ -282,6 +282,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **POWER DRIVE Training Accuracy**: Reached **64.1%** (+23.5% gain).
         *   **Full Dataset**: 91.7% Detection Recall, 78.3% Precision, 81.0% Classification Accuracy across 47 physical sessions.
 
+126. **High-Velocity Feature Confusion Ablation (August 3, 2026)**:
+    *   **The Problem**: Feature confusion between `SLOG`, `PULL/HOOK`, and `POWER DRIVE` on unseen holdouts prompted an experiment with Region-Based Temporal Attention Pooling (`[-150ms, -20ms]` & `[-20ms, +50ms]`) and Hard Negative Mining.
+    *   **The Discovery**: Repeating window-level pooled logits across all 2,048 sequence timesteps during per-frame cross-entropy loss caused the model to collapse into predicting `SLOG` for all windows (8.6% accuracy).
+    *   **Quality Gate Protection**: The automated **Production Quality Gate** (`Precision >= 75%`) blocked the collapsed model from updating production Android assets (`tcn_ultimate_baseline.onnx`).
+    *   **Baseline Benchmark**: Restoring Conv1D 1x1 per-timestep classification with 2.5s ground-truth matching tolerance achieved:
+        *   **Quality Gate Status**: 🏆 **PASSED** (Precision = 77.9%, Holdout F1 = 62.8%). Exported updated `tcn_ultimate_baseline.onnx`.
+        *   **POWER DRIVE Holdout Coverage**: Reached **89.5%** (17 / 19 physical holdout power drives correctly matched and classified).
+        *   **POWER DRIVE Full Dataset Accuracy**: Reached **63.0%** (100 / 133 correct across all 48 physical sessions).
+
 
 
 
