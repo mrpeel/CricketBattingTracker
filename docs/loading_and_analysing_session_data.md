@@ -162,18 +162,21 @@ All models are strictly aligned to the **8 Canonical Biomechanical Classes** def
 | `8` | `SLOG` | High-intensity un-anchored cross-bat slog |
 | `9` | `SWEEP` | Low-stance sweep or reverse sweep |
 
-### 🧠 PyTorch Advanced TCN Architecture
+### 🧠 PyTorch Advanced TCN Architecture & Training Optimization
 The model is an **Advanced Temporal Convolutional Network (TCN)**:
 * **Input Layer**: 45 features $\times$ sequence frames ($423\text{ Hz}$).
 * **Residual Backbone**: 10 Dilated Causal Conv1D Residual Blocks with exponentially growing receptive fields ($d = 1, 2, 4, 8, 16, 32, 64, 128, 256, 512$).
-* **Dropout & Relu**: 10% dropout per block with residual skip connections.
-* **Loss Function**: Weighted Cross-Entropy Loss to balance rare shot classes.
+* **Temporal Anchor Jitter Augmentation**: Applies random frame offsets ($\pm 30\text{ms} = \pm 13\text{ frames}$) during training window slicing to make the TCN invariant to minor alignment drift.
+* **Dynamic Inverse-Frequency Focal Loss**: Combines Focal Loss ($\gamma = 2.0$) with automated inverse-frequency class weighting:
+  $$\text{Weight}[c] = \frac{\text{Total Samples}}{\text{Num Classes} \times \text{Count}[c]}$$
+  This automatically self-scales loss multipliers for minority classes (e.g. `POWER DRIVE` at 5.2x boost) and smoothly decays toward 1.0x as dataset volume scales, eliminating manual hardcoded scalars.
 
-### 📦 ONNX Model Export & Verification
-Upon training completion, the script exports the PyTorch model to ONNX:
-* **Export Path**: `app/src/main/assets/models/tcn_ultimate_baseline.onnx`
-* **Kotlin Integration**: Loaded by `TcnModelRunner.kt` using `com.microsoft.onnxruntime:onnxruntime-android:1.22.0`.
-* **Scorecard Evaluation**: Evaluates held-out session performance and updates `full_dataset_training_scorecard.md`.
+### 🔒 Production ONNX Quality Gate & Model Export
+Upon training completion, the script runs an automated **Production Quality Gate Check**:
+* **Verification Gate**: The ONNX model asset is exported to `app/src/main/assets/models/tcn_ultimate_baseline.onnx` **ONLY IF**:
+  $$\text{Overall Precision} \ge 75\% \quad \text{AND} \quad \text{Holdout F1 Score} \ge 50\%$$
+* **Asset Protection**: If experimental parameters degrade precision or introduce false alarm spikes, the production asset is automatically protected and retained.
+* **Scorecard Evaluation**: Evaluates held-out session performance (`HOLDOUT_SESSIONS`) and writes the full-dataset report to `full_dataset_training_scorecard.md`.
 
 ---
 
