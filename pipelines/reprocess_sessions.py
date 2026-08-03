@@ -463,6 +463,19 @@ def extract_features_single_shot(sensors, t_shot):
             
     return feats
 
+def load_raw_sensor_dir(session_dir):
+    sensors = {}
+    for name, key in [("WatchAccelerometer", "accel"), ("WatchGyroscope", "gyro"), 
+                      ("WatchGravity", "gravity"), ("WatchGameOrientation", "game_orient")]:
+        df = load_watch_sensor(session_dir, name)
+        if df is not None and not df.empty:
+            if "x" in df.columns and "y" in df.columns and "z" in df.columns:
+                mag_vals = np.sqrt(df["x"]**2 + df["y"]**2 + df["z"]**2)
+                df["mag"] = mag_vals
+                df["mag_total"] = mag_vals
+            sensors[key] = df
+    return sensors
+
 def detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual):
     """Detects physical impact peaks in raw WatchAccelerometer and WatchGyroscope logs."""
     sensors = load_raw_sensor_dir(session_dir)
@@ -478,10 +491,18 @@ def detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf
     gyro_mags = gyro["mag"].values
     
     # Impact Shockwave Anchor Detector (Acc >= 30 m/s2, Gyro >= 4 rad/s)
-    impact_mask = (accel_mags >= 30.0) & (gyro_mags >= 4.0)
-    impact_indices = np.where(impact_mask)[0]
-    
-    if len(impact_indices) == 0:
+    accel_candidates = np.where(accel_mags >= 30.0)[0]
+    if len(accel_candidates) == 0:
+        return []
+        
+    impact_indices = []
+    for idx in accel_candidates:
+        t_c = accel_times[idx]
+        g_win = gyro_mags[(gyro_times >= t_c - 0.1) & (gyro_times <= t_c + 0.1)]
+        if len(g_win) > 0 and g_win.max() >= 4.0:
+            impact_indices.append(idx)
+            
+    if not impact_indices:
         return []
         
     clusters = [[impact_indices[0]]]
@@ -507,7 +528,9 @@ def detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf
         qual_enc = rf_top_qual.predict(df_feat)[0]
         pred_quality = le_qual.inverse_transform([qual_enc])[0]
         
-        bat_speed = float(gyro_mags[peak_idx] * 4.5)
+        g_win = gyro_mags[(gyro_times >= t_shot - 0.1) & (gyro_times <= t_shot + 0.1)]
+        gyro_peak = float(g_win.max()) if len(g_win) > 0 else 10.0
+        bat_speed = float(gyro_peak * 4.5)
         
         detected_shots.append({
             "timestamp_offset_s": t_shot,
