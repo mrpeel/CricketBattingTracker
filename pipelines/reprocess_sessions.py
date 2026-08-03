@@ -605,11 +605,19 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 feat_vector = [feats[col] for col in feature_cols_shot]
                 df_feat = pd.DataFrame([feat_vector], columns=feature_cols_shot)
                 
-                type_enc = rf_type_shot.predict(df_feat)[0]
-                pred_shot_type = le_type.inverse_transform([type_enc])[0]
+                gt_type = str(row['shot_type']).strip() if pd.notna(row.get('shot_type')) and str(row.get('shot_type')).strip() != '' else ''
+                if gt_type:
+                    pred_shot_type = gt_type
+                else:
+                    type_enc = rf_type_shot.predict(df_feat)[0]
+                    pred_shot_type = le_type.inverse_transform([type_enc])[0]
                 
-                qual_enc = rf_qual_shot.predict(df_feat)[0]
-                pred_quality = le_qual.inverse_transform([qual_enc])[0]
+                gt_qual = str(row['quality']).strip() if pd.notna(row.get('quality')) and str(row.get('quality')).strip() != '' else ''
+                if gt_qual:
+                    pred_quality = gt_qual
+                else:
+                    qual_enc = rf_qual_shot.predict(df_feat)[0]
+                    pred_quality = le_qual.inverse_transform([qual_enc])[0]
                 
                 gyro_mag = float(row.get('impact_gyro_mag', 10.0)) if pd.notna(row.get('impact_gyro_mag')) else 10.0
                 bat_speed = float(gyro_mag * 4.5)
