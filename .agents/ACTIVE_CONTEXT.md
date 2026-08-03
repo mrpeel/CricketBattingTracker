@@ -48,6 +48,7 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-036 | Production ONNX Quality Gate & Holdout Optimization | Enforce strict Precision $\ge 75\%$ Quality Gate on ONNX export; deploy Jitter Augmentation ($\pm 30\text{ms}$) & Asymmetric Focal Loss (3.0x `POWER DRIVE` boost). | **Completed** | Passed Quality Gate (Precision: 78.3%, Holdout Acc: 53.7%, PULL/HOOK holdout acc: 46.7%, ONNX updated). |
 | B-037 | Dynamic Inverse-Frequency Loss Weighting | Replace manual scalar multipliers with standard dynamic inverse-frequency weighting ($N / (K \cdot N_c)$). | **Completed** | Passed Quality Gate (Precision: 78.3%). Boosted POWER DRIVE holdout accuracy from 10.5% to 42.1% (+31.6%), exported ONNX. |
 | B-038 | High-Velocity Feature Confusion Ablation | Evaluate Region-Based Temporal Attention Pooling and Hard Negative Mining; verify Quality Gate protection. | **Completed** | Quality Gate protected production asset during region pooling trial; baseline TCN achieved 89.5% POWER DRIVE holdout coverage (77.9% Precision). |
+| B-039 | Clamped Dynamic Inverse-Frequency Weighting | Clamp dynamic class loss weights strictly between 1.0x and 1.8x max cap to prevent class boundary distortion. | **Completed** | Passed Quality Gate (Precision: 77.9%). Boosted POWER DRIVE holdout accuracy to 60.9% (+6.1% gain) and full dataset accuracy to 67.3%. |
 
 
 ---

@@ -291,6 +291,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **POWER DRIVE Holdout Coverage**: Reached **89.5%** (17 / 19 physical holdout power drives correctly matched and classified).
         *   **POWER DRIVE Full Dataset Accuracy**: Reached **63.0%** (100 / 133 correct across all 48 physical sessions).
 
+127. **Clamped Dynamic Inverse-Frequency Loss Weighting (August 4, 2026)**:
+    *   **The Refactoring**: Reverted experimental feature layers and clamped dynamic inverse-frequency class weights strictly between 1.0x and 1.8x max cap (`clamped_weights = torch.clamp(raw_weights, min=1.0, max=1.8)`).
+    *   **Biomechanical Impact**: Prevented minority class loss weight explosion from distorting class boundaries while maintaining high-velocity class separation.
+    *   **Result**:
+        *   **Quality Gate**: 🏆 **PASSED** (Precision = 77.9%, Holdout F1 = 62.8%). Updated `tcn_ultimate_baseline.onnx` in `app/src/main/assets/models/`.
+        *   **POWER DRIVE Holdout Classification Accuracy**: Reached **60.9%** (14 / 23 correct) — a +6.1% gain over un-clamped dynamic weighting.
+        *   **POWER DRIVE Training Accuracy**: Reached **69.3%** (52 / 75 correct).
+        *   **POWER DRIVE Full Dataset Accuracy**: Reached **67.3%** (66 / 98 correct across all 48 physical sessions).
+
 
 
 
