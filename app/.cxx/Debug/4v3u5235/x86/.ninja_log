@@ -1,0 +1,6 @@
+# ninja log v5
+0	14	1785547219119761581	CMakeFiles/cricketbattingtracker.dir/dummy.cpp.o	879be0c95ca6fc22
+14	43	1785547219147931028	/Users/neilkloot/Code/CricketBattingTracker/app/build/intermediates/cxx/Debug/4v3u5235/obj/x86/libcricketbattingtracker.so	e06a87812ddec92
+0	5	0	clean	4c7d7f0d30399b6e
+0	16	1785547260010694622	CMakeFiles/cricketbattingtracker.dir/dummy.cpp.o	879be0c95ca6fc22
+16	48	1785547260041922814	/Users/neilkloot/Code/CricketBattingTracker/app/build/intermediates/cxx/Debug/4v3u5235/obj/x86/libcricketbattingtracker.so	e06a87812ddec92

@@ -1,0 +1,3 @@
+/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/Debug/4v3u5235/arm64-v8a/CMakeFiles/cricketbattingtracker.dir
+/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/Debug/4v3u5235/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/Debug/4v3u5235/arm64-v8a/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,38 @@
+{
+  "buildFiles": [
+    "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/neilkloot/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/RelWithDebInfo/4k641u5x/x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/neilkloot/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/RelWithDebInfo/4k641u5x/x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "cricketbattingtracker::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "x86_64",
+      "artifactName": "cricketbattingtracker",
+      "output": "/Users/neilkloot/Code/CricketBattingTracker/app/build/intermediates/cxx/RelWithDebInfo/4k641u5x/obj/x86_64/libcricketbattingtracker.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/Users/neilkloot/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/Users/neilkloot/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

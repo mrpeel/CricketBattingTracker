@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/Debug/3f5a3x2z/x86",
+  "command": "/Users/neilkloot/Library/Android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=i686-none-linux-android33 --sysroot=/Users/neilkloot/Library/Android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Dcricketbattingtracker_EXPORTS -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -fno-limit-debug-info  -fPIC -o CMakeFiles/cricketbattingtracker.dir/dummy.cpp.o -c /Users/neilkloot/Code/CricketBattingTracker/app/src/main/cpp/dummy.cpp",
+  "file": "/Users/neilkloot/Code/CricketBattingTracker/app/src/main/cpp/dummy.cpp"
+}
+]

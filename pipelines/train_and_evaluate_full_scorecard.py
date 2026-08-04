@@ -37,7 +37,7 @@ APP_ONNX_PATH  = os.path.join(APP_ASSETS_DIR, "tcn_ultimate_baseline.onnx")
 STATS_PATH     = os.path.join(ROOT_DIR, "pipelines", "tcn_norm_stats.json")
 REPORT_OUT     = os.path.join(ROOT_DIR, "full_dataset_training_scorecard.md")
 
-HOLDOUT_SESSIONS = ["session_2026-07-18_13-44-09", "session_2026-08-01_10-18-20"]
+HOLDOUT_SESSIONS = ["session_2026-07-21_12-43-37", "session_2026-07-25_15-16-32"]
 
 FEATURES = [
     'w_acc_x','w_acc_y','w_acc_z',
