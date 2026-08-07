@@ -618,6 +618,17 @@ def build_session(session_name, verbose=True):
     df['p_acc_mag']  = p_acc_mag
     df['p_gyro_mag'] = p_gyro_mag
 
+    # ---- Kinematic Features ----
+    w_300ms = 127
+    pre_max = pd.Series(w_acc_mag).rolling(window=w_300ms, min_periods=1).max().values
+    post_max = pd.Series(w_acc_mag[::-1]).rolling(window=w_300ms, min_periods=1).max().values[::-1]
+    df['post_impact_acc_ratio'] = (post_max / (pre_max + 1e-5)).astype(np.float32)
+
+    w_150ms = 63
+    dt = 1.0 / 423.0
+    w_gyro_x = w_gyro_grid[:, 0]
+    df['wrist_gyro_roll_delta'] = (pd.Series(w_gyro_x[::-1]).rolling(window=w_150ms, min_periods=1).sum().values[::-1] * dt).astype(np.float32)
+
     # ---- labels ----
     narr_path = os.path.join(session_dir, "narrations_raw.json")
     narr = json.load(open(narr_path))

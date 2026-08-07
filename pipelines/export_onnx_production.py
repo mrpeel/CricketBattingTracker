@@ -47,11 +47,11 @@ def main():
         export_params=True,
         opset_version=18,
         do_constant_folding=True,
-        input_names=['input_imu'],
-        output_names=['logits'],
+        input_names=['input_imu_stream'],
+        output_names=['output_logits'],
         dynamic_axes={
-            'input_imu': {0: 'batch_size'},
-            'logits': {0: 'batch_size'}
+            'input_imu_stream': {0: 'batch_size', 2: 'sequence_length'},
+            'output_logits': {0: 'batch_size', 2: 'sequence_length'}
         }
     )
     

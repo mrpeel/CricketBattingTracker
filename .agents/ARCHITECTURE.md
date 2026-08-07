@@ -155,9 +155,19 @@ Uses the same 30-feature vector (with Polar defaulted to 0f when absent) to pred
 | `generate_kotlin_forest.py` | Trains Dual-Model Random Forests (Top/Dual for both Shot Type and Quality) and transpiles Kotlin classes directly to both modules |
 | `train_quality_classifier.py` | Trains good/poor/miss/edge RF quality classifier |
 | `score_phone_pipeline.py` | **Authoritative scorecard** — reads combined CSVs, reports by session/class/profile |
+| `train_and_evaluate_full_scorecard.py` | **Master TCN Training & Evaluation** — Variant C Discriminative LR (`1e-4` for Layers 1-5, `1e-3` for Layers 6-10+Head), Holdout Val Loss Early Stopping (`patience=5`), updates ONNX asset |
 | `model_update_pipeline.py` | Orchestrates all steps end-to-end |
 
-### Authoritative Scorecard: score_phone_pipeline.py
+### AdvancedTCN Deep Learning Model Architecture (Variant C Baseline)
+- **Backbone**: 10-layer Dilated Temporal Convolutional Network (`AdvancedTCN`) with non-causal padding (`padding='same'`) and hierarchical skip-head feature concatenation (Layers 4, 7, 10).
+- **Training Strategy**: Variant C Discriminative Learning Rate:
+  - TCN Layers 1–5: `lr = 1e-4` (preserves low-level shockwave feature representations without rigid freezing artifacts).
+  - TCN Layers 6–10 & Classifier Head: `lr = 1e-3`.
+  - Loss: Label-Smoothed Cross-Entropy Loss (`label_smoothing=0.1`).
+- **Early Stopping & Checkpoint Selection**: Monitored on `val_loss` across 3 designated 8-class Polar holdout sessions (`2026-07-23_12-37-13`, `2026-07-24_12-52-29`, `2026-08-02_12-10-13`) with `patience = 5` epochs, `min_delta = 0.001`, `MAX_EPOCHS = 25`. Loads best `val_loss` checkpoint weights.
+- **Production Asset**: ONNX opset 18 model at `app/src/main/assets/models/tcn_ultimate_baseline.onnx` (`input_imu_stream` -> `output_logits`). Evaluated via `TcnModelRunner.kt`.
+
+### Authoritative Scorecard: score_phone_pipeline.py & train_and_evaluate_full_scorecard.py
 
 Reads `combined_features.csv` + `combined_ground_truth_aligned.csv`.
 Replaces the retired `SwingDetectorGroundTruthTest` session replay (which tested the dead on-watch path).

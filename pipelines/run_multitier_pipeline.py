@@ -31,7 +31,7 @@ STATS_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_norm_stats.json")
 UNIFIED_PARQUET_DIR = os.path.join(BASE_DIR, "poc_unified_dataset")
 SESSIONS_DIR = os.path.join(BASE_DIR, "live_watch_sessions")
 
-HOLDOUT_SESSIONS = ["session_2026-07-21_12-43-37", "session_2026-07-25_15-16-32"]
+HOLDOUT_SESSIONS = ["session_2026-07-23_12-37-13", "session_2026-07-24_12-52-29", "session_2026-08-02_12-10-13"]
 
 FEATURES = [
     'w_acc_x','w_acc_y','w_acc_z',
@@ -42,7 +42,9 @@ FEATURES = [
     'w_rot_qx','w_rot_qy','w_rot_qz','w_rot_qw',
     'p_acc_x','p_acc_y','p_acc_z',
     'p_gyro_x','p_gyro_y','p_gyro_z',
-    'has_polar'
+    'has_polar',
+    'post_impact_acc_ratio',
+    'wrist_gyro_roll_delta',
 ]
 
 CLASSES = ['no_shot','pre_shot','PULL/HOOK','DRIVE/DEFENCE','GLANCE/FLICK','CUT/PUNCH','DEFLECTION/GUIDE','POWER DRIVE','SLOG','SWEEP']
@@ -264,7 +266,19 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
         return [("DRIVE/DEFENCE", 0.50) for _ in candidate_anchors]
         
     n_frames = len(df_parquet)
-    X_full = df_parquet[FEATURES].fillna(0.0).values.astype(np.float32)  # (N, 26)
+    if 'post_impact_acc_ratio' not in df_parquet.columns or 'wrist_gyro_roll_delta' not in df_parquet.columns:
+        w_acc_mag = np.linalg.norm(df_parquet[['w_acc_x', 'w_acc_y', 'w_acc_z']].values, axis=1)
+        w_300ms = 127
+        pre_max = pd.Series(w_acc_mag).rolling(window=w_300ms, min_periods=1).max().values
+        post_max = pd.Series(w_acc_mag[::-1]).rolling(window=w_300ms, min_periods=1).max().values[::-1]
+        df_parquet['post_impact_acc_ratio'] = (post_max / (pre_max + 1e-5)).astype(np.float32)
+
+        w_150ms = 63
+        dt = 1.0 / 423.0
+        w_gyro_x = df_parquet['w_gyro_x'].values
+        df_parquet['wrist_gyro_roll_delta'] = (pd.Series(w_gyro_x[::-1]).rolling(window=w_150ms, min_periods=1).sum().values[::-1] * dt).astype(np.float32)
+
+    X_full = df_parquet[FEATURES].fillna(0.0).values.astype(np.float32)  # (N, 28)
     
     median = np.array(norm_stats["median"], dtype=np.float32)
     mad = np.array(norm_stats.get("mad", norm_stats.get("std", norm_stats.get("iqr"))), dtype=np.float32)
@@ -378,24 +392,25 @@ def run_session_multitier(sid, sess_data, stage1_model, stage2_model, norm_stats
         if exited and was_facing_up:
             stance_exits.append(t)
             
-    # 3. Patch 2: Two-Stage Stance-Gated Peak Alignment (T_peak = argmax(w_gyro))
+    # 3. Two-Stage Stance-Gated Peak Alignment (Max 1 candidate per stance, 3.5s window)
     candidate_windows = []
     
     for t_exit in stance_exits:
         f_exit = int(np.searchsorted(t_grid, t_exit))
         
-        # 1. Stance Validation: Check valid FACING_UP (P >= 0.70) within 3.0s prior to exit
+        # Stance Validation: Check valid FACING_UP (P >= 0.70) within 3.0s prior to exit
         f_pre_s = max(0, int(np.searchsorted(t_grid, t_exit - 3.0)))
         pre_max_p = np.max(s1_probs[max(0, f_exit//42 - 30):min(len(s1_probs), f_exit//42 + 1)]) if len(s1_probs) > 0 else 0.0
         
-        # 2. Motion Peak Search: Scan next 2.0s window [T_exit, T_exit + 2.0s] for T_peak
-        f_scan_end = min(num_samples, int(np.searchsorted(t_grid, t_exit + 2.0)))
+        # Motion Peak Search: Scan extended 3.5s window [T_exit, T_exit + 3.5s] for T_peak
+        f_scan_end = min(num_samples, int(np.searchsorted(t_grid, t_exit + 3.5)))
         if f_scan_end <= f_exit + 10:
             continue
             
         win_gyr = w_gyr_mag[f_exit:f_scan_end]
         win_acc = w_acc_mag[f_exit:f_scan_end]
         
+        # Extract ONLY the single highest motion peak (T_peak = argmax w_gyro) for this stance exit
         peak_offset = np.argmax(win_gyr)
         peak_f = f_exit + peak_offset
         t_peak = t_grid[peak_f]
@@ -403,23 +418,28 @@ def run_session_multitier(sid, sess_data, stage1_model, stage2_model, norm_stats
         peak_acc = win_acc[peak_offset]
         peak_gyr = win_gyr[peak_offset]
         
-        # 3. Centered Window Extraction: [T_peak - 1.0s, T_peak + 1.5s]
+        # Kinematic Backswing Displacement Check over preceding 300ms (127 frames at 423 Hz)
+        f_pre_300ms = max(0, peak_f - 127)
+        delta_theta_backswing = float(np.sum(w_gyr_mag[f_pre_300ms : peak_f + 1]) * (1.0 / 423.0))
+        
+        # Softened Motion Floor: omega(T_peak) >= 1.0 rad/s AND delta_theta_backswing >= 0.14 rad (~8 deg)
         tier = "TIER_1_HIGH" if peak_acc >= 30.0 else "TIER_3_SOFT_TOUCH"
-        if peak_acc >= 30.0 or peak_gyr >= 1.5:
+        if peak_gyr >= 1.0 and delta_theta_backswing >= 0.14:
             candidate_windows.append({
                 "tier": tier,
                 "anchor_t": t_peak,
                 "anchor_f": peak_f,
                 "peak_acc": peak_acc,
                 "peak_gyr": peak_gyr,
-                "t_exit": t_exit
+                "t_exit": t_exit,
+                "delta_theta_backswing": delta_theta_backswing
             })
             
-    # Deduplicate candidate windows (within 1.0s)
+    # 1.8s NMS Refractory Period: Suppress duplicate candidate window triggers within 1.8s
     candidate_windows.sort(key=lambda c: c["anchor_t"])
     dedup_candidates = []
     for c in candidate_windows:
-        if not any(abs(c["anchor_t"] - k["anchor_t"]) < 1.0 for k in dedup_candidates):
+        if not dedup_candidates or (c["anchor_t"] - dedup_candidates[-1]["anchor_t"]) >= 1.8:
             dedup_candidates.append(c)
             
     # 4. Load Ground Truth Narrations for Session
@@ -447,7 +467,7 @@ def run_session_multitier(sid, sess_data, stage1_model, stage2_model, norm_stats
             "raw": g["raw"]
         })
         
-    # 5. Evaluate Candidate Windows (Module 3 Un-Leaked Batched GPU Pass)
+    # 5. Evaluate Candidate Windows (Module 3 Un-Leaked Batched GPU Pass - Softmax Rejection Gate Removed)
     candidate_anchors = [c["anchor_f"] for c in dedup_candidates]
     preds = predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device)
     
@@ -504,7 +524,7 @@ def main():
     stage1_model.eval()
     
     print(f"Loading Stage 2 AdvancedTCN Model from {STAGE2_MODEL_PATH}...", flush=True)
-    stage2_model = Stage2TCNClassifier(in_ch=26, num_classes=10).to(device)
+    stage2_model = Stage2TCNClassifier(in_ch=len(FEATURES), num_classes=10).to(device)
     stage2_model.load_state_dict(torch.load(STAGE2_MODEL_PATH, map_location=device))
     stage2_model.eval()
     
