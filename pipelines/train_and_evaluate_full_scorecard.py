@@ -542,7 +542,9 @@ def main():
     os.makedirs(APP_ASSETS_DIR, exist_ok=True)
     stats_data = {'features': FEATURES, 'classes': CLASSES, 'median': med.tolist(), 'mad': mad.tolist()}
     with open(STATS_PATH, 'w') as f: json.dump(stats_data, f, indent=2)
-    print(f"✅ Saved normalisation stats to {STATS_PATH}")
+    APP_STATS_PATH = os.path.join(APP_ASSETS_DIR, "tcn_norm_stats.json")
+    with open(APP_STATS_PATH, 'w') as f: json.dump(stats_data, f, indent=2)
+    print(f"✅ Saved normalisation stats to {STATS_PATH} & {APP_STATS_PATH}")
     
     for X, _, _ in train_data:
         X[:] = (X - med) / mad

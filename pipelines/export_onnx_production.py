@@ -58,6 +58,12 @@ def main():
     os.makedirs(APP_ASSETS_DIR, exist_ok=True)
     shutil.copy2(MODEL_ONNX_PATH, APP_ONNX_PATH)
     
+    STATS_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_norm_stats.json")
+    APP_STATS_PATH = os.path.join(APP_ASSETS_DIR, "tcn_norm_stats.json")
+    if os.path.exists(STATS_PATH):
+        shutil.copy2(STATS_PATH, APP_STATS_PATH)
+        print(f"✅ Normalisation stats copied -> {APP_STATS_PATH}")
+    
     print(f"✅ ONNX model exported -> {MODEL_ONNX_PATH}")
     print(f"✅ Production App Asset Updated -> {APP_ONNX_PATH}")
     print("==========================================================\n", flush=True)

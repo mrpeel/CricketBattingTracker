@@ -17,29 +17,31 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
     private val ortEnv: OrtEnvironment = OrtEnvironment.getEnvironment()
     private var ortSession: OrtSession? = null
 
-    // 26 Feature Normalisation Stats (Median and MAD)
-    private val median = floatArrayOf(
-        0.0454f, -0.1205f, 9.8105f,   // w_acc_x, y, z
-        0.0012f, -0.0024f, 0.0005f,   // w_gyro_x, y, z
-        0.0120f, -0.0540f, 9.8050f,   // w_acc_world_x, y, z
-        0.0008f, -0.0015f, 0.0004f,   // w_gyro_world_x, y, z
-        0.0000f, -9.8100f, 0.0000f,   // w_grav_x, y, z
-        0.0000f,  0.0000f, 0.0000f, 1.0000f, // w_rot_qx, qy, qz, qw
-        0.0100f, -0.0200f, 9.8100f,   // p_acc_x, y, z
-        0.0000f,  0.0000f, 0.0000f,   // p_gyro_x, y, z
-        0.0000f                        // has_polar
+    // 28 Feature Normalisation Stats (Median and MAD)
+    private var median = floatArrayOf(
+        -3.5674f, -7.4101f, 2.0494f,
+        0.0098f, 0.0073f, -0.0073f,
+        -0.0014f, 0.0014f, 8.7044f,
+        0.0018f, 0.0015f, -0.0070f,
+        -3.3984f, -7.4914f, 2.6434f,
+        -0.3185f, 0.2123f, 0.0267f, 0.5375f,
+        0.0000f, 0.0000f, 0.0000f,
+        0.0000f, 0.0000f, 0.0000f,
+        0.0000f,
+        0.9994f, 0.0011f
     )
 
-    private val mad = floatArrayOf(
-        0.5421f, 0.6120f, 0.7415f,
-        0.1240f, 0.1510f, 0.1180f,
-        0.4850f, 0.5210f, 0.6850f,
-        0.1120f, 0.1380f, 0.1050f,
-        0.2100f, 0.2500f, 0.2200f,
-        0.1000f, 0.1000f, 0.1000f, 0.1000f,
-        0.6500f, 0.7200f, 0.8100f,
-        0.1500f, 0.1800f, 0.1400f,
-        1.0000f
+    private var mad = floatArrayOf(
+        2.7868f, 2.0997f, 1.6783f,
+        0.4459f, 0.3238f, 0.4423f,
+        0.9576f, 0.9604f, 3.1259f,
+        0.3847f, 0.3812f, 0.5516f,
+        2.3361f, 1.7059f, 1.5655f,
+        0.2251f, 0.3283f, 0.5596f, 0.2013f,
+        1.0000f, 1.0000f, 1.0000f,
+        1.0000f, 1.0000f, 1.0000f,
+        1.0000f,
+        0.1034f, 0.0595f
     )
 
     val classes = arrayOf(
@@ -48,6 +50,18 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
     )
 
     init {
+        try {
+            val statsBytes = context.assets.open("models/tcn_norm_stats.json").readBytes()
+            val statsJson = org.json.JSONObject(String(statsBytes))
+            val medJson = statsJson.getJSONArray("median")
+            val madJson = statsJson.getJSONArray("mad")
+            if (medJson.length() > 0 && madJson.length() > 0) {
+                median = FloatArray(medJson.length()) { i -> medJson.getDouble(i).toFloat() }
+                mad = FloatArray(madJson.length()) { i -> madJson.getDouble(i).toFloat() }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         try {
             val modelBytes = context.assets.open("models/tcn_ultimate_baseline.onnx").readBytes()
             ortSession = ortEnv.createSession(modelBytes, OrtSession.SessionOptions())
@@ -64,14 +78,14 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
     )
 
     /**
-     * Executes ONNX TCN inference on 26-channel continuous 423 Hz sensor data (26 x T).
+     * Executes ONNX TCN inference on continuous 423 Hz sensor data (N x T).
      */
     fun runInference(sensorMatrix: Array<FloatArray>, timestampsMs: LongArray): List<DetectionResult> {
         val session = ortSession ?: return emptyList()
         val numFeatures = sensorMatrix.size
         val numFrames = sensorMatrix[0].size
 
-        if (numFeatures != 26 || numFrames == 0) return emptyList()
+        if ((numFeatures != 28 && numFeatures != 26) || numFrames == 0) return emptyList()
 
         // 1. Flatten and Normalize input (1, 26, T)
         val inputBuffer = FloatBuffer.allocate(numFeatures * numFrames)
