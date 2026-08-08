@@ -476,11 +476,7 @@ def run_session_multitier(sid, sess_data, stage1_model, stage2_model, norm_stats
         pred_cls, top_prob = preds[i_cand]
         f_peak = c["anchor_f"]
         
-        # 1. Class-Specific Softmax Floor for SWEEP
-        if pred_cls == "SWEEP" and top_prob < 0.45:
-            pred_cls = "NO_SHOT"
-            
-        # 2. Torso Pitch / Tilt Verification for SWEEP
+        # Calibrated Dual-Path Sweep Gate
         if pred_cls == "SWEEP":
             f_start = max(0, f_peak - 211)  # 500ms at 423 Hz
             gx_win = channels[f_start : f_peak + 1, 6] if channels.shape[1] > 6 else np.zeros(f_peak + 1 - f_start)
@@ -491,9 +487,17 @@ def run_session_multitier(sid, sess_data, stage1_model, stage2_model, norm_stats
             denom = np.sqrt(gx_win**2 + gy_win**2 + 1e-6)
             pitch_deg = np.rad2deg(np.arctan2(gz_win, denom))
             delta_pitch = float(np.ptp(pitch_deg))
-            
-            # If no crouching/kneeling tilt drop is detected, reject standing wrist shift
-            if delta_pitch < 15.0 and delta_gz < 2.0:
+
+            w_roll_win = channels[f_start : f_peak + 1, 3] if channels.shape[1] > 3 else np.zeros(f_peak + 1 - f_start)
+            omega_roll = float(np.max(np.abs(w_roll_win)))
+
+            # Path 1: Kneeling / Slog Sweep (Crouch Tilt >= 10 deg OR delta_gz >= 1.2 m/s^2, Softmax floor >= 0.30)
+            is_path1 = (delta_pitch >= 10.0 or delta_gz >= 1.2) and (top_prob >= 0.30)
+
+            # Path 2: Standing Paddle / Fine Lap Sweep (Wrist Roll >= 1.6 rad/s and Softmax floor >= 0.35)
+            is_path2 = (omega_roll >= 1.6) and (top_prob >= 0.35)
+
+            if not (is_path1 or is_path2):
                 pred_cls = "NO_SHOT"
                 
         # 3. Dynamic Class-Aware NMS

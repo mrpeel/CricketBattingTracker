@@ -196,16 +196,12 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
 
             var predShotType = classes[topShotIdx]
 
-            // Filter 1: Class-Specific Softmax Confidence Floor for SWEEP (< 0.45 -> no_shot)
-            if (predShotType == "SWEEP" && maxShotProb < 0.45f) {
-                predShotType = "no_shot"
-            }
-
-            // Filter 2: Torso Pitch / Tilt Verification for SWEEP (>= 15 deg tilt drop or delta_gz >= 2.0 m/s2)
+            // Calibrated Dual-Path Sweep Gate
             if (predShotType == "SWEEP") {
                 val fStart = kotlin.math.max(0, f - 211) // 500ms at 423 Hz
                 var minGz = Float.MAX_VALUE; var maxGz = -Float.MAX_VALUE
                 var minPitch = Float.MAX_VALUE; var maxPitch = -Float.MAX_VALUE
+                var maxRollVel = 0f
 
                 for (k in fStart..f) {
                     val gx = if (numFeatures > 12) sensorMatrix[12][k] else 0f
@@ -219,13 +215,21 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                     val pitchDeg = Math.toDegrees(kotlin.math.atan2(gz.toDouble(), denom.toDouble())).toFloat()
                     if (pitchDeg < minPitch) minPitch = pitchDeg
                     if (pitchDeg > maxPitch) maxPitch = pitchDeg
+
+                    val roll = kotlin.math.abs(sensorMatrix[3][k])
+                    if (roll > maxRollVel) maxRollVel = roll
                 }
 
                 val deltaGz = maxGz - minGz
                 val deltaPitch = maxPitch - minPitch
 
-                // Discard standing wrist shift lacking crouching/kneeling posture
-                if (deltaPitch < 15.0f && deltaGz < 2.0f) {
+                // Path 1: Kneeling / Slog Sweep (Crouch Tilt >= 10 deg OR delta_gz >= 1.2 m/s2, Softmax floor >= 0.30)
+                val isPath1 = (deltaPitch >= 10.0f || deltaGz >= 1.2f) && (maxShotProb >= 0.30f)
+
+                // Path 2: Standing Paddle / Fine Lap Sweep (Wrist Roll >= 1.6 rad/s and Softmax floor >= 0.35)
+                val isPath2 = (maxRollVel >= 1.6f) && (maxShotProb >= 0.35f)
+
+                if (!isPath1 && !isPath2) {
                     predShotType = "no_shot"
                 }
             }
