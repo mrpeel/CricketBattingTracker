@@ -906,11 +906,11 @@ fun DashboardSummary(
     val shotEvents = remember(events) { events.filter { it.batSpeed != null } }
     val maxSpeedEvent = remember(shotEvents) { shotEvents.maxByOrNull { it.batSpeed ?: 0f } }
     val maxSpeedShotNumber = remember(shotEvents, maxSpeedEvent) { maxSpeedEvent?.let { shotEvents.indexOf(it) + 1 } }
-    val maxSpeedShotType = maxSpeedEvent?.shotType ?: ""
+    val maxSpeedShotType = maxSpeedEvent?.shotType?.let { normalizeShotType(it) } ?: ""
 
     val maxEffEvent = remember(shotEvents) { shotEvents.maxByOrNull { it.efficiency ?: 0f } }
     val maxEffShotNumber = remember(shotEvents, maxEffEvent) { maxEffEvent?.let { shotEvents.indexOf(it) + 1 } }
-    val maxEffShotType = maxEffEvent?.shotType ?: ""
+    val maxEffShotType = maxEffEvent?.shotType?.let { normalizeShotType(it) } ?: ""
 
     val maxBatSpeed = maxSpeedEvent?.batSpeed ?: 0f
     val maxEfficiency = maxEffEvent?.efficiency ?: 0f
@@ -1051,18 +1051,34 @@ fun SummaryCard(
     }
 }
 
+fun normalizeShotType(shotType: String?): String {
+    val s = (shotType ?: "").trim().lowercase(java.util.Locale.US)
+    return when {
+        "power drive" in s || "lofted drive" in s || s == "power" || s == "power shot" -> "POWER DRIVE"
+        "pull" in s || "hook" in s || "full shot" in s || "foot shot" in s || "push up" in s || "which shot" in s -> "PULL/HOOK"
+        "flick" in s || "glance" in s || "click" in s || "quick" in s || "leg glance" in s -> "GLANCE/FLICK"
+        "guide" in s || "deflection" in s || "steer" in s || "glide" in s || "square upper cut" in s || "late cut" in s -> "DEFLECTION/GUIDE"
+        "cover drive" in s || "straight drive" in s || "on drive" in s || "off drive" in s || "drive" in s || "defense" in s || "defence" in s || "block" in s || "forward defense" in s || "back defense" in s || "back foot" in s -> "DRIVE/DEFENCE"
+        "cut" in s || "punch" in s -> "CUT/PUNCH"
+        "slog" in s -> "SLOG"
+        "sweep" in s -> "SWEEP"
+        shotType.isNullOrBlank() -> "UNKNOWN"
+        else -> shotType.trim().uppercase(java.util.Locale.US)
+    }
+}
+
 fun getShotColor(shotType: String?, isHit: Boolean = true): Color {
     if (!isHit) return Color(0xFFFF5252) // Miss is always red
-    val name = shotType?.uppercase() ?: return Color.Gray
+    val name = normalizeShotType(shotType)
     return when {
-        "SLOG" in name || "POWER SHOT" in name -> Color(0xFFFF2E93) // Magenta
-        "POWER DRIVE" in name -> Color(0xFF58FF63) // Neon Green
-        "PULL" in name || "HOOK" in name -> Color(0xFFFF9F2E) // Orange
-        "SWEEP" in name -> Color(0xFFFFFF96) // Yellow
-        "GLANCE" in name || "FLICK" in name -> Color(0xFFFF85A2) // Pink
-        "CUT" in name || "PUNCH" in name -> Color(0xFF2EFFF0) // Cyan
-        "GUIDE" in name || "GLIDE" in name || "DEFLECTION" in name -> Color(0xFFAF2EFF) // Purple
-        "DRIVE" in name || "DEFENCE" in name || "DEFENSE" in name -> Color(0xFFBCD2FE) // Light Blue
+        name == "SLOG" -> Color(0xFFFF2E93) // Magenta
+        name == "POWER DRIVE" -> Color(0xFF58FF63) // Neon Green
+        name == "PULL/HOOK" -> Color(0xFFFF9F2E) // Orange
+        name == "SWEEP" -> Color(0xFFFFFF96) // Yellow
+        name == "GLANCE/FLICK" -> Color(0xFFFF85A2) // Pink
+        name == "CUT/PUNCH" -> Color(0xFF2EFFF0) // Cyan
+        name == "DEFLECTION/GUIDE" -> Color(0xFFAF2EFF) // Purple
+        name == "DRIVE/DEFENCE" -> Color(0xFFBCD2FE) // Light Blue
         else -> Color.Gray
     }
 }
@@ -1072,7 +1088,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
     val shotEvents = remember(events) { events.filter { it.batSpeed != null && it.shotType != null } }
     if (shotEvents.isEmpty()) return
 
-    val grouped = remember(shotEvents) { shotEvents.groupBy { it.shotType!! } }
+    val grouped = remember(shotEvents) { shotEvents.groupBy { normalizeShotType(it.shotType) } }
 
     Column(
         modifier = Modifier
@@ -2032,7 +2048,8 @@ fun TimelineItem(
                         if (shotNumber != null) {
                             append("#$shotNumber ")
                         }
-                        append(event.shotType?.uppercase() ?: event.description.uppercase())
+                        val rawType = event.shotType ?: event.description
+                        append(normalizeShotType(rawType))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -2140,7 +2157,7 @@ fun TimelineItem(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     val bioState = BiomechanicalUiMapper.mapToUiState(
-                        shotClass = event.shotType,
+                        shotClass = normalizeShotType(event.shotType),
                         timeLeadMs = event.bottom_hand_time_lead_ms?.toFloat(),
                         gyroRatio = event.bottom_hand_gyro_ratio,
                         accRatio = event.bottom_hand_acc_ratio

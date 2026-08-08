@@ -170,4 +170,48 @@ class BiomechanicalUiMapperTest {
         assertEquals("Top-Hand Path", stateZero.sequencingTitle)
         assertFalse(stateZero.displaysWarning)
     }
+
+    @Test
+    fun testNormalizeShotTypeGroundTruthMappings() {
+        val normalize = { s: String? -> com.mrpeel.cricketbattingtracker.normalizeShotType(s) }
+
+        // Verify that Title Case / narration strings map to canonical 8 classes
+        assertEquals("POWER DRIVE", normalize("Power drive"))
+        assertEquals("POWER DRIVE", normalize("power drive"))
+        assertEquals("POWER DRIVE", normalize("POWER DRIVE"))
+        assertEquals("POWER DRIVE", normalize("Power drive "))
+        assertEquals("POWER DRIVE", normalize("Lofted drive"))
+
+        assertEquals("DEFLECTION/GUIDE", normalize("Guide"))
+        assertEquals("DEFLECTION/GUIDE", normalize("guide"))
+        assertEquals("DEFLECTION/GUIDE", normalize("DEFLECTION/GUIDE"))
+        assertEquals("DEFLECTION/GUIDE", normalize("Deflection"))
+        assertEquals("DEFLECTION/GUIDE", normalize("Glide"))
+
+        assertEquals("PULL/HOOK", normalize("Pull shot"))
+        assertEquals("PULL/HOOK", normalize("pull"))
+        assertEquals("PULL/HOOK", normalize("PULL/HOOK"))
+        assertEquals("PULL/HOOK", normalize("Hook"))
+
+        assertEquals("GLANCE/FLICK", normalize("Flick shot"))
+        assertEquals("GLANCE/FLICK", normalize("flick"))
+        assertEquals("GLANCE/FLICK", normalize("GLANCE/FLICK"))
+        assertEquals("GLANCE/FLICK", normalize("Glance"))
+
+        assertEquals("DRIVE/DEFENCE", normalize("Forward defense"))
+        assertEquals("DRIVE/DEFENCE", normalize("On drive"))
+        assertEquals("DRIVE/DEFENCE", normalize("Cover drive"))
+        assertEquals("DRIVE/DEFENCE", normalize("Straight drive"))
+        assertEquals("DRIVE/DEFENCE", normalize("DRIVE/DEFENCE"))
+
+        assertEquals("CUT/PUNCH", normalize("Cut shot"))
+        assertEquals("CUT/PUNCH", normalize("Punch"))
+        assertEquals("CUT/PUNCH", normalize("CUT/PUNCH"))
+
+        assertEquals("SLOG", normalize("Slog"))
+        assertEquals("SLOG", normalize("SLOG"))
+
+        assertEquals("SWEEP", normalize("Sweep"))
+        assertEquals("SWEEP", normalize("SWEEP"))
+    }
 }

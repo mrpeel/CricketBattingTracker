@@ -31,6 +31,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 
 ROOT_DIR = "/Users/neilkloot/Code/CricketBattingTracker"
+sys.path.append(os.path.join(ROOT_DIR, "pipelines"))
+from build_unified_dataset import normalise_shot_type
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 SESSIONS_DIR = os.path.join(BASE_DIR, "live_watch_sessions")
 FEATURES_CSV = os.path.join(BASE_DIR, "combined_features.csv")
@@ -607,7 +609,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 
                 gt_type = str(row['shot_type']).strip() if pd.notna(row.get('shot_type')) and str(row.get('shot_type')).strip() != '' else ''
                 if gt_type:
-                    pred_shot_type = gt_type
+                    norm_gt = normalise_shot_type(gt_type)
+                    pred_shot_type = norm_gt if norm_gt else gt_type.upper()
                 else:
                     type_enc = rf_type_shot.predict(df_feat)[0]
                     pred_shot_type = le_type.inverse_transform([type_enc])[0]

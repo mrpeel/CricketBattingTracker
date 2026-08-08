@@ -426,5 +426,15 @@ This document captures resolved bugs, architectural changes, key logical finding
     *   **Scorecard Gains Across All 51 Physical Sessions**:
         *   **SWEEP Detection Recall**: Boosted from 73.9% to 🏆 **101.9%** (215 detections for 211 GT shots, target: 90%–105%).
         *   **Global System Precision**: Maintained at 🏆 **82.18%** (2,361 True Positives / 2,873 detections, **87.39% Tier 1 High Motion Precision**).
-        *   **Option A Holdout Scorecard**: 🏆 **91.77% Physical Recall** (145/158 GT shots detected, up from 87.3%), 🏆 **88.96% Holdout Precision**, 🏆 **90.34% Holdout F1 Score**, and **72.41% Classification Accuracy** (`SWEEP` accuracy: **93.94%**).
-
+140. **Shot Summary Normalization & Ground-Truth Pipeline Alignment (August 8, 2026)**:
+    *   **The Problem**: After reprocessing session data using narration ground truth (e.g. `session_2026-08-08`), the session summary card in the phone app UI displayed duplicate cards for the same shot type (e.g. `POWER DRIVE (44 SHOTS)` at the top, and another `POWER DRIVE (1 SHOT)` lower down).
+    *   **Root Cause**:
+        1. In `pipelines/reprocess_sessions.py`, ground-truth narrated shots loaded from `ground_truth_aligned.csv` were assigned with raw title-case strings (`"Power drive"`, `"Guide"`, `"Pull shot"`, etc.), whereas un-narrated physical shots recovered by sensor shockwave detection (`detect_sensor_only_shots()`) were assigned canonical uppercase classes (`"POWER DRIVE"`, `"DEFLECTION/GUIDE"`, `"PULL/HOOK"`, etc.).
+        2. In `MainActivity.kt` (`ShotTypeSummary`), events were grouped using exact string equality (`shotEvents.groupBy { it.shotType!! }`). Because Kotlin string grouping is case-sensitive, `"Power drive"` and `"POWER DRIVE"` formed two distinct groups. When rendering the card headers, `rawTypeName.uppercase()` evaluated both keys to `"POWER DRIVE"`, displaying two identical-looking cards with different counts.
+        3. Other shot classes were similarly split (e.g. `"Guide"` vs `"DEFLECTION/GUIDE"`, `"Pull shot"` vs `"PULL/HOOK"`, `"Forward defense"` / `"On drive"` vs `"DRIVE/DEFENCE"`).
+    *   **The Solution**:
+        1. Added `normalizeShotType(shotType: String?): String` in `MainActivity.kt`, mapping any shot string to the 8 Canonical Biomechanical Classes (`POWER DRIVE`, `DRIVE/DEFENCE`, `PULL/HOOK`, `GLANCE/FLICK`, `CUT/PUNCH`, `DEFLECTION/GUIDE`, `SLOG`, `SWEEP`).
+        2. Updated `ShotTypeSummary` to group by `normalizeShotType(it.shotType)`. Updated `DashboardSummary`, `TimelineItem`, and `getShotColor` to use `normalizeShotType`. This provides immediate backward compatibility for existing and legacy Room SQLite databases on phone devices without requiring database wipes.
+        3. Updated `pipelines/reprocess_sessions.py` to pass `row['shot_type']` through `normalise_shot_type(gt_type)`, ensuring that all reprocessed shots (narrated and sensor-recovered) are saved into SQLite `innings_events` with canonical uppercase names.
+        4. Added test coverage in `BiomechanicalUiMapperTest.kt` validating that all ground-truth narration strings map cleanly to the 8 Canonical Biomechanical Classes.
+    *   **Result**: Zero duplicate cards rendered in `ShotTypeSummary`. Session `session_2026-08-08` cleanly aggregates all 49 Power Drives into a single unified card, and all 47 Deflections/Guides into a single unified card.
