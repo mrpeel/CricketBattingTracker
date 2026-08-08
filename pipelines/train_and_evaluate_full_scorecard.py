@@ -519,11 +519,43 @@ def train_and_eval_variant(variant_name, freeze_epoch, discriminative_lr, train_
         'train_evals': train_evals
     }
 
+def sync_unified_dataset():
+    """Discovers all live sessions in live_watch_sessions and compiles any missing or outdated unified parquets."""
+    import build_unified_dataset
+    live_sessions = build_unified_dataset.discover_sessions()
+    print(f"\n📦 Dataset Auto-Sync: Discovered {len(live_sessions)} usable sessions in live_watch_sessions/")
+    newly_built = 0
+    for s in live_sessions:
+        out_parquet = os.path.join(DATASET_DIR, f"{s}_unified.parquet")
+        raw_narr_path = os.path.join(BASE_DIR, "live_watch_sessions", s, "narrations_raw.json")
+        raw_watch_path = os.path.join(BASE_DIR, "live_watch_sessions", s, "WatchGyroscope.bin.gz")
+        
+        rebuild_needed = False
+        if not os.path.exists(out_parquet):
+            rebuild_needed = True
+        elif os.path.exists(raw_narr_path) and os.path.getmtime(raw_narr_path) > os.path.getmtime(out_parquet):
+            rebuild_needed = True
+        elif os.path.exists(raw_watch_path) and os.path.getmtime(raw_watch_path) > os.path.getmtime(out_parquet):
+            rebuild_needed = True
+            
+        if rebuild_needed:
+            print(f"  ⚡ Auto-compiling unified dataset for {s}...")
+            build_unified_dataset.build_session(s, verbose=False)
+            newly_built += 1
+            
+    if newly_built > 0:
+        print(f"✅ Auto-Sync Completed: Compiled {newly_built} new/updated unified parquet sessions.")
+    else:
+        print(f"✅ Auto-Sync Up-To-Date: All {len(live_sessions)} parquet datasets are synchronized.\n")
+
 def main():
     print("============================================================")
     print("  Master Training & Evaluation Pipeline (Variant C Baseline)")
     print(f"  Holdout / Validation Sessions ({len(HOLDOUT_SESSIONS)}): {', '.join(HOLDOUT_SESSIONS)}")
     print("============================================================")
+    
+    # Auto-sync raw live watch sessions to unified parquets
+    sync_unified_dataset()
     
     pattern = os.path.join(DATASET_DIR, "session_2026-*_unified.parquet")
     all_parquet_sessions = sorted([os.path.basename(p).replace("_unified.parquet","") for p in glob.glob(pattern) if '_aug_' not in p])

@@ -3,10 +3,10 @@
 **System Architecture**: Decoupled Impact Shockwave Anchor Detector (Stage 1) + Ultimate Advanced Baseline TCN Classifier (Stage 2)  
 **Training Design**: Variant C (Unfrozen TCN Layers, Discriminative LR: `1e-4` for Layers 1-5, `1e-3` for Layers 6-10 + Head)  
 **Designated Holdout / Validation Sessions**: `session_2026-07-23_12-37-13, session_2026-07-24_12-52-29, session_2026-08-02_12-10-13` (3 sessions)  
-**Training Sessions Count**: 45 physical sessions  
-**Total Dataset Duration**: 803.5 minutes (13.4 hours)  
-**Validation Loss Early Stopping**: Best Epoch 8 (Best Val Loss: 0.6744, Stopped at Epoch 13)  
-**Date**: 2026-08-07 17:50
+**Training Sessions Count**: 48 physical sessions  
+**Total Dataset Duration**: 871.8 minutes (14.5 hours)  
+**Validation Loss Early Stopping**: Best Epoch 4 (Best Val Loss: 0.6553, Stopped at Epoch 9)  
+**Date**: 2026-08-08 11:30
 
 ---
 
@@ -15,8 +15,8 @@
 | Dataset Partition | Physical Ground-Truth Shots | Total Detections | **Physical Shot Recall** | **Precision** | **F1 Score** |
 |---|:---:|:---:|:---:|:---:|:---:|
 | 🌟 **Holdout Set (3 Sessions)** | **158** | **192** | **95.57%** | **78.65%** | **86.29%** |
-| **Training Set Micro Average (45 Sessions)** | **2440** | **3231** | **95.45%** (2329/2440) | **72.08%** (2329/3231) | **82.14%** |
-| 🏆 **Full Dataset Micro Average (All 48 Sessions)** | **2598** | **3423** | 🏆 **95.46%** (2480/2598) | 🏆 **72.45%** (2480/3423) | 🏆 **82.38%** |
+| **Training Set Micro Average (48 Sessions)** | **2637** | **3489** | **95.56%** (2520/2637) | **72.23%** (2520/3489) | **82.27%** |
+| 🏆 **Full Dataset Micro Average (All 51 Sessions)** | **2795** | **3681** | 🏆 **95.56%** (2671/2795) | 🏆 **72.56%** (2671/3681) | 🏆 **82.49%** |
 
 ---
 
@@ -25,41 +25,41 @@
 ### 🌟 Holdout Set Per-Shot Accuracy (3 Sessions)
 | Shot Class | Physical GT Shots | Shots Detected | **Detection Recall (%)** | **Correctly Classified Shots** | **Classification Accuracy (%)** | **Total Coverage Rate (%)** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PULL/HOOK** | 30 | 6 | 20.0% | 4 | **66.7%** | **13.3%** |
-| **DRIVE/DEFENCE** | 14 | 38 | 271.4% | 13 | **34.2%** | **92.9%** |
-| **GLANCE/FLICK** | 8 | 14 | 175.0% | 6 | **42.9%** | **75.0%** |
-| **CUT/PUNCH** | 13 | 5 | 38.5% | 4 | **80.0%** | **30.8%** |
-| **DEFLECTION/GUIDE** | 27 | 19 | 70.4% | 12 | **63.2%** | **44.4%** |
-| **POWER DRIVE** | 9 | 2 | 22.2% | 2 | **100.0%** | **22.2%** |
-| **SLOG** | 19 | 51 | 268.4% | 17 | **33.3%** | **89.5%** |
-| **SWEEP** | 38 | 57 | 150.0% | 36 | **63.2%** | **94.7%** |
-| **OVERALL TOTAL** | **158** | **192** | **121.5%** | **94** | 🏆 **49.0%** | 🏆 **59.5%** |
+| **PULL/HOOK** | 30 | 18 | 60.0% | 12 | **66.7%** | **40.0%** |
+| **DRIVE/DEFENCE** | 14 | 19 | 135.7% | 9 | **47.4%** | **64.3%** |
+| **GLANCE/FLICK** | 8 | 10 | 125.0% | 5 | **50.0%** | **62.5%** |
+| **CUT/PUNCH** | 13 | 15 | 115.4% | 8 | **53.3%** | **61.5%** |
+| **DEFLECTION/GUIDE** | 27 | 28 | 103.7% | 17 | **60.7%** | **63.0%** |
+| **POWER DRIVE** | 9 | 13 | 144.4% | 3 | **23.1%** | **33.3%** |
+| **SLOG** | 19 | 33 | 173.7% | 15 | **45.5%** | **78.9%** |
+| **SWEEP** | 38 | 56 | 147.4% | 33 | **58.9%** | **86.8%** |
+| **OVERALL TOTAL** | **158** | **192** | **121.5%** | **102** | 🏆 **53.1%** | 🏆 **64.6%** |
 
-### 🏋️ Training Set Per-Shot Accuracy Breakdown (45 Sessions)
+### 🏋️ Training Set Per-Shot Accuracy Breakdown (48 Sessions)
 | Shot Class | Physical GT Shots | Shots Detected | **Detection Recall (%)** | **Correctly Classified Shots** | **Classification Accuracy (%)** | **Total Coverage Rate (%)** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PULL/HOOK** | 487 | 364 | 74.7% | 286 | **78.6%** | **58.7%** |
-| **DRIVE/DEFENCE** | 613 | 909 | 148.3% | 525 | **57.8%** | **85.6%** |
-| **GLANCE/FLICK** | 398 | 663 | 166.6% | 322 | **48.6%** | **80.9%** |
-| **CUT/PUNCH** | 206 | 192 | 93.2% | 145 | **75.5%** | **70.4%** |
-| **DEFLECTION/GUIDE** | 158 | 179 | 113.3% | 95 | **53.1%** | **60.1%** |
-| **POWER DRIVE** | 126 | 37 | 29.4% | 28 | **75.7%** | **22.2%** |
-| **SLOG** | 279 | 520 | 186.4% | 271 | **52.1%** | **97.1%** |
-| **SWEEP** | 173 | 367 | 212.1% | 155 | **42.2%** | **89.6%** |
-| **OVERALL TOTAL** | **2440** | **3231** | **132.4%** | **1827** | 🏆 **56.5%** | 🏆 **74.9%** |
+| **PULL/HOOK** | 506 | 511 | 101.0% | 379 | **74.2%** | **74.9%** |
+| **DRIVE/DEFENCE** | 619 | 809 | 130.7% | 497 | **61.4%** | **80.3%** |
+| **GLANCE/FLICK** | 403 | 539 | 133.7% | 298 | **55.3%** | **73.9%** |
+| **CUT/PUNCH** | 206 | 308 | 149.5% | 165 | **53.6%** | **80.1%** |
+| **DEFLECTION/GUIDE** | 180 | 248 | 137.8% | 114 | **46.0%** | **63.3%** |
+| **POWER DRIVE** | 267 | 278 | 104.1% | 191 | **68.7%** | **71.5%** |
+| **SLOG** | 283 | 429 | 151.6% | 238 | **55.5%** | **84.1%** |
+| **SWEEP** | 173 | 367 | 212.1% | 154 | **42.0%** | **89.0%** |
+| **OVERALL TOTAL** | **2637** | **3489** | **132.3%** | **2036** | 🏆 **58.4%** | 🏆 **77.2%** |
 
-### 🏆 Full Dataset Per-Shot Accuracy Breakdown (All 48 Sessions)
+### 🏆 Full Dataset Per-Shot Accuracy Breakdown (All 51 Sessions)
 | Shot Class | Physical GT Shots | Shots Detected | **Detection Recall (%)** | **Correctly Classified Shots** | **Classification Accuracy (%)** | **Total Coverage Rate (%)** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PULL/HOOK** | 517 | 370 | 71.6% | 290 | **78.4%** | **56.1%** |
-| **DRIVE/DEFENCE** | 627 | 947 | 151.0% | 538 | **56.8%** | **85.8%** |
-| **GLANCE/FLICK** | 406 | 677 | 166.7% | 328 | **48.4%** | **80.8%** |
-| **CUT/PUNCH** | 219 | 197 | 90.0% | 149 | **75.6%** | **68.0%** |
-| **DEFLECTION/GUIDE** | 185 | 198 | 107.0% | 107 | **54.0%** | **57.8%** |
-| **POWER DRIVE** | 135 | 39 | 28.9% | 30 | **76.9%** | **22.2%** |
-| **SLOG** | 298 | 571 | 191.6% | 288 | **50.4%** | **96.6%** |
-| **SWEEP** | 211 | 424 | 200.9% | 191 | **45.0%** | **90.5%** |
-| **OVERALL TOTAL** | **2598** | **3423** | **131.8%** | **1921** | 🏆 **56.1%** | 🏆 **73.9%** |
+| **PULL/HOOK** | 536 | 529 | 98.7% | 391 | **73.9%** | **72.9%** |
+| **DRIVE/DEFENCE** | 633 | 828 | 130.8% | 506 | **61.1%** | **79.9%** |
+| **GLANCE/FLICK** | 411 | 549 | 133.6% | 303 | **55.2%** | **73.7%** |
+| **CUT/PUNCH** | 219 | 323 | 147.5% | 173 | **53.6%** | **79.0%** |
+| **DEFLECTION/GUIDE** | 207 | 276 | 133.3% | 131 | **47.5%** | **63.3%** |
+| **POWER DRIVE** | 276 | 291 | 105.4% | 194 | **66.7%** | **70.3%** |
+| **SLOG** | 302 | 462 | 153.0% | 253 | **54.8%** | **83.8%** |
+| **SWEEP** | 211 | 423 | 200.5% | 187 | **44.2%** | **88.6%** |
+| **OVERALL TOTAL** | **2795** | **3681** | **131.7%** | **2138** | 🏆 **58.1%** | 🏆 **76.5%** |
 
 ---
 
@@ -82,7 +82,7 @@
 | `session_2026-06-15_12-21-37` | Training | 21.2 | 57 | 74 | 100.0% | 77.0% | 87.0%
 | `session_2026-06-16_15-39-33` | Training | 16.5 | 52 | 70 | 100.0% | 74.3% | 85.2%
 | `session_2026-06-18_12-23-09` | Training | 18.7 | 61 | 77 | 93.4% | 74.0% | 82.6%
-| `session_2026-06-19_12-25-55` | Training | 16.6 | 56 | 68 | 94.6% | 77.9% | 85.5%
+| `session_2026-06-19_12-25-55` | Training | 16.7 | 56 | 68 | 94.6% | 77.9% | 85.5%
 | `session_2026-06-21_13-53-17` | Training | 20.2 | 55 | 83 | 96.4% | 63.9% | 76.8%
 | `session_2026-06-22_12-27-26` | Training | 20.1 | 57 | 76 | 96.5% | 72.4% | 82.7%
 | `session_2026-06-23_12-24-48` | Training | 18.2 | 57 | 70 | 73.7% | 60.0% | 66.1%
@@ -115,3 +115,6 @@
 | `session_2026-08-01_10-18-20` | Training | 8.9 | 27 | 38 | 100.0% | 71.1% | 83.1%
 | `session_2026-08-02_12-10-13` | 🌟 HOLDOUT | 11.3 | 49 | 52 | 100.0% | 94.2% | 97.0%
 | `session_2026-08-03_12-47-55` | Training | 18.3 | 61 | 81 | 100.0% | 75.3% | 85.9%
+| `session_2026-08-06_12-51-06` | Training | 17.0 | 58 | 73 | 96.6% | 76.7% | 85.5%
+| `session_2026-08-07_12-47-38` | Training | 21.4 | 62 | 78 | 96.8% | 76.9% | 85.7%
+| `session_2026-08-08_10-43-42` | Training | 29.8 | 77 | 107 | 97.4% | 70.1% | 81.5%

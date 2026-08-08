@@ -396,3 +396,12 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Holdout Metrics**: **95.6% Physical Shot Recall**, **78.6% Holdout Precision**, **86.3% Holdout F1 Score**.
         *   **Production Deployment**: 🏆 **PASSED Production Quality Gate**. Exported PyTorch model (`MODEL_PT_PATH`) to ONNX and deployed updated production asset to `app/src/main/assets/models/tcn_ultimate_baseline.onnx`.
 
+137. **Automated Unified Dataset Synchronization & 51-Session Retraining (August 8, 2026)**:
+    *   **The Pipeline Enhancement**: Integrated `sync_unified_dataset()` into `train_and_evaluate_full_scorecard.py` and `run_master_retraining_pipeline.py`. It dynamically scans `live_watch_sessions/`, checks for missing or updated sessions against `poc_unified_dataset/`, and automatically compiles unified 423 Hz parquets before training begins.
+    *   **Dataset Expansion**: Incorporated 3 newly recorded sessions (`session_2026-08-06_12-51-06`, `session_2026-08-07_12-47-38`, `session_2026-08-08_10-43-42`), adding **141 new Power drive ground-truth shots** and expanding the dataset to **51 physical sessions (2,795 GT shots)**.
+    *   **Empirical Scorecard Gains**:
+        *   **Power Drive Volume**: Ground truth `POWER DRIVE` shots increased from 135 to **276 shots**, with **194 correctly classified shots** (up from 30).
+        *   **Full Dataset Correctly Classified**: Total correctly classified shots increased from 1,921 to **2,138 shots** (**58.1% overall accuracy**, +2.0% gain across 3,681 detections).
+        *   **Holdout Metrics Maintained**: 🏆 **95.6% Physical Shot Recall**, 🏆 **78.6% Precision**, 🏆 **86.3% F1 Score**.
+        *   **Production Deployment**: 🏆 **PASSED Production Quality Gate**. Exported updated ONNX asset to `app/src/main/assets/models/tcn_ultimate_baseline.onnx`.
+

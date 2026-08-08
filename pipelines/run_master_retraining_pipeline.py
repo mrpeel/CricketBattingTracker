@@ -40,17 +40,18 @@ def main():
     print("==========================================================", flush=True)
     print(f"Target Holdout Sessions: ['session_2026-07-21_12-43-37', 'session_2026-07-25_15-16-32']", flush=True)
     
-    # 1. Dataset Recompilation
-    run_step(1, "Continuous 423 Hz Stance Dataset Recompilation", "build_facing_up_dataset.py")
+    # 1. Dataset Recompilation (Stance + Unified Shot Parquets)
+    run_step(1, "Continuous 423 Hz Unified Shot Dataset Recompilation", "build_unified_dataset.py")
+    run_step(2, "Continuous 423 Hz Stance Dataset Recompilation", "build_facing_up_dataset.py")
     
     # 2. Stage 1 Stance Detector Retraining
-    run_step(2, "Stage 1 Facing Up Stance TCN Retraining", "train_facing_up_detector.py")
+    run_step(3, "Stage 1 Facing Up Stance TCN Retraining", "train_facing_up_detector.py")
     
     # 3. Stage 2 Shot Classifier Retraining
-    run_step(3, "Stage 2 AdvancedTCN Shot Classifier Retraining", "train_and_evaluate_full_scorecard.py")
+    run_step(4, "Stage 2 AdvancedTCN Shot Classifier Retraining", "train_and_evaluate_full_scorecard.py")
     
     # 4. Multi-Tier Telemetry Pipeline Evaluation
-    run_step(4, "Multi-Tier Telemetry Pipeline Evaluation", "run_multitier_pipeline.py")
+    run_step(5, "Multi-Tier Telemetry Pipeline Evaluation", "run_multitier_pipeline.py")
     
     print("\n" + "=" * 90, flush=True)
     print("🏆 MASTER RETRAINING & EVALUATION COMPLETE", flush=True)
