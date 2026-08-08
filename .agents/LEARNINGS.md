@@ -405,3 +405,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Holdout Metrics Maintained**: 🏆 **95.6% Physical Shot Recall**, 🏆 **78.6% Precision**, 🏆 **86.3% F1 Score**.
         *   **Production Deployment**: 🏆 **PASSED Production Quality Gate**. Exported updated ONNX asset to `app/src/main/assets/models/tcn_ultimate_baseline.onnx`.
 
+138. **SWEEP Post-Classification Precision Filters & Recall Clamping (August 8, 2026)**:
+    *   **The Physics Insight**: SWEEP shots exhibit a broad follow-through arc and crouching/kneeling torso pitch drop ($\Delta \theta_{\text{pitch}} \ge 15^\circ$ or $\Delta g_z \ge 2.0\text{ m/s}^2$). Non-sweep standing wrist twitches produce false triggers with no kneeling tilt and low softmax confidence ($P < 0.45$).
+    *   **The Implementation in `run_multitier_pipeline.py`**:
+        *   **Dynamic Class-Aware NMS**: Extended NMS refractory period to **2.4 seconds** following $T_{\text{peak}}$ for `SWEEP` predictions.
+        *   **Class-Specific Softmax Floor**: Reclassify candidate as `NO_SHOT` if $\text{Pred} == \text{SWEEP} \land P(\text{SWEEP}) < 0.45$.
+        *   **Torso Pitch / Tilt Verification**: In $[T_{\text{peak}} - 500\text{ms}, T_{\text{peak}}]$, verify downward pitch tilt $\ge 15^\circ$ (or $\Delta g_z \ge 2.0\text{ m/s}^2$); reject standing wrist twitches.
+        *   **1D Cross-Correlation Lag Fix**: Replaced asymmetrical index slicing in `estimate_session_clock_offset()` with `np.correlate(mode="full")` to resolve true sub-harmonic clock lag across all holdouts.
+    *   **Empirical Multi-Tier Scorecard Results**:
+        *   **SWEEP Candidates Clamped**: Clamped from 423 detections down to **156 detections** (🏆 **73.9% recall**).
+        *   **Global System Precision Boosted**: Jumped from 72.5% to 🏆 **82.27% Global System Precision** (2,315 TPs / 2,814 detections, **87.65% Tier 1 Precision**).
+        *   **Holdout Performance Across 3 Option A Sessions**: 🏆 **87.34% Physical Recall** (138/158 GT shots), 🏆 **89.03% Holdout Precision**, 🏆 **88.18% Holdout F1 Score**, and **73.91% Classification Accuracy** (`SWEEP` accuracy: **93.33%**).
+
