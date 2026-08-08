@@ -115,51 +115,60 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
         val outputTensor = results[0].value as Array<Array<FloatArray>>
         val logits = outputTensor[0] // 10 x T
 
-        // 4. STAGE 1: Physical Impact Shockwave Peak Detection (Acc >= 30.0 m/s2, Gyro >= 4.0 rad/s for Defence Recall)
-        val impactFrames = mutableListOf<Int>()
-        for (t in 0 until numFrames) {
-            val ax = sensorMatrix[0][t]; val ay = sensorMatrix[1][t]; val az = sensorMatrix[2][t]
-            val gx = sensorMatrix[3][t]; val gy = sensorMatrix[4][t]; val gz = sensorMatrix[5][t]
-            val accMag = kotlin.math.sqrt((ax * ax + ay * ay + az * az).toDouble()).toFloat()
+        // 4. STAGE 1: Peak Motion Candidate Extraction with 300ms Backswing Displacement Check
+        val candidateAnchors = mutableListOf<Int>()
+        val nFrames = numFrames
+
+        // Sliding scan over 423 Hz frames for motion bursts (gyro >= 1.0 rad/s)
+        var tIdx = 127
+        while (tIdx < nFrames - 42) {
+            val gx = sensorMatrix[3][tIdx]; val gy = sensorMatrix[4][tIdx]; val gz = sensorMatrix[5][tIdx]
             val gyroMag = kotlin.math.sqrt((gx * gx + gy * gy + gz * gz).toDouble()).toFloat()
 
-            if (accMag >= 30.0f && gyroMag >= 4.0f) {
-                impactFrames.add(t)
+            if (gyroMag >= 1.0f) {
+                // Find local peak within 1.5s window
+                val winEnd = kotlin.math.min(nFrames - 1, tIdx + 634)
+                var peakFrame = tIdx
+                var maxGyr = gyroMag
+                for (k in tIdx..winEnd) {
+                    val kx = sensorMatrix[3][k]; val ky = sensorMatrix[4][k]; val kz = sensorMatrix[5][k]
+                    val kmag = kotlin.math.sqrt((kx * kx + ky * ky + kz * kz).toDouble()).toFloat()
+                    if (kmag > maxGyr) {
+                        maxGyr = kmag
+                        peakFrame = k
+                    }
+                }
+
+                // 300ms Backswing Displacement Check (127 frames at 423 Hz): delta_theta >= 0.14 rad (~8 deg)
+                val preStart = kotlin.math.max(0, peakFrame - 127)
+                var sumGyro = 0f
+                for (k in preStart..peakFrame) {
+                    val kx = sensorMatrix[3][k]; val ky = sensorMatrix[4][k]; val kz = sensorMatrix[5][k]
+                    sumGyro += kotlin.math.sqrt((kx * kx + ky * ky + kz * kz).toDouble()).toFloat()
+                }
+                val deltaThetaBackswing = sumGyro * (1.0f / 423.0f)
+
+                if (deltaThetaBackswing >= 0.14f) {
+                    candidateAnchors.add(peakFrame)
+                }
+                tIdx = peakFrame + 423 // Jump 1.0s ahead
+            } else {
+                tIdx += 21 // Step 50ms
             }
         }
 
-        if (impactFrames.isEmpty()) {
+        if (candidateAnchors.isEmpty()) {
             inputTensor.close()
             results.close()
             return emptyList()
         }
 
-        // Cluster impact frames within 1.5s (423 frames at 423 Hz) into single physical shot anchors
-        val anchors = mutableListOf<Int>()
-        var cluster = mutableListOf(impactFrames[0])
-        for (idx in 1 until impactFrames.size) {
-            if (impactFrames[idx] - impactFrames[idx - 1] <= 423) {
-                cluster.add(impactFrames[idx])
-            } else {
-                val peakFrame = cluster.maxByOrNull { t ->
-                    val ax = sensorMatrix[0][t]; val ay = sensorMatrix[1][t]; val az = sensorMatrix[2][t]
-                    ax * ax + ay * ay + az * az
-                } ?: cluster[0]
-                anchors.add(peakFrame)
-                cluster = mutableListOf(impactFrames[idx])
-            }
-        }
-        if (cluster.isNotEmpty()) {
-            val peakFrame = cluster.maxByOrNull { t ->
-                val ax = sensorMatrix[0][t]; val ay = sensorMatrix[1][t]; val az = sensorMatrix[2][t]
-                ax * ax + ay * ay + az * az
-            } ?: cluster[0]
-            anchors.add(peakFrame)
-        }
-
-        // 5. STAGE 2: Ultimate TCN Shot Type Classification over Anchored Windows
+        // 5. STAGE 2: Ultimate TCN Classification & Post-Classification Precision Filters
         val detections = mutableListOf<DetectionResult>()
-        for (f in anchors) {
+        var lastAcceptedFrame = -99999
+        var lastWasSweep = false
+
+        for (f in candidateAnchors) {
             val wStart = kotlin.math.max(0, f - 42)
             val wEnd = kotlin.math.min(numFrames - 1, f + 42)
 
@@ -185,8 +194,58 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 }
             }
 
+            var predShotType = classes[topShotIdx]
+
+            // Filter 1: Class-Specific Softmax Confidence Floor for SWEEP (< 0.45 -> no_shot)
+            if (predShotType == "SWEEP" && maxShotProb < 0.45f) {
+                predShotType = "no_shot"
+            }
+
+            // Filter 2: Torso Pitch / Tilt Verification for SWEEP (>= 15 deg tilt drop or delta_gz >= 2.0 m/s2)
+            if (predShotType == "SWEEP") {
+                val fStart = kotlin.math.max(0, f - 211) // 500ms at 423 Hz
+                var minGz = Float.MAX_VALUE; var maxGz = -Float.MAX_VALUE
+                var minPitch = Float.MAX_VALUE; var maxPitch = -Float.MAX_VALUE
+
+                for (k in fStart..f) {
+                    val gx = if (numFeatures > 12) sensorMatrix[12][k] else 0f
+                    val gy = if (numFeatures > 13) sensorMatrix[13][k] else -9.81f
+                    val gz = if (numFeatures > 14) sensorMatrix[14][k] else 0f
+
+                    if (gz < minGz) minGz = gz
+                    if (gz > maxGz) maxGz = gz
+
+                    val denom = kotlin.math.sqrt((gx * gx + gy * gy + 1e-6).toDouble()).toFloat()
+                    val pitchDeg = Math.toDegrees(kotlin.math.atan2(gz.toDouble(), denom.toDouble())).toFloat()
+                    if (pitchDeg < minPitch) minPitch = pitchDeg
+                    if (pitchDeg > maxPitch) maxPitch = pitchDeg
+                }
+
+                val deltaGz = maxGz - minGz
+                val deltaPitch = maxPitch - minPitch
+
+                // Discard standing wrist shift lacking crouching/kneeling posture
+                if (deltaPitch < 15.0f && deltaGz < 2.0f) {
+                    predShotType = "no_shot"
+                }
+            }
+
+            // Filter 3: Dynamic Class-Aware NMS (2.4s refractory window for SWEEP, 1.8s for standard classes)
+            val isSweep = (predShotType == "SWEEP")
+            val reqRefractoryFrames = if (lastWasSweep || isSweep) 1015 else 761 // 2.4s vs 1.8s at 423 Hz
+
+            if (f - lastAcceptedFrame < reqRefractoryFrames) {
+                continue
+            }
+
+            if (predShotType == "no_shot") {
+                continue
+            }
+
+            lastAcceptedFrame = f
+            lastWasSweep = isSweep
+
             val tMs = timestampsMs.getOrElse(f) { 0L }
-            val predShotType = classes[topShotIdx]
             detections.add(DetectionResult(f, tMs, predShotType, maxShotProb))
         }
 
