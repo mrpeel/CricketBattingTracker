@@ -656,25 +656,65 @@ class DataSyncListenerService : WearableListenerService() {
 
         Log.d(TAG, "Resolved inningsId $newInningsId for session starting at $resolvedStartMs")
 
-        // Find the latest Polar session directory on the phone
+        // Find matching Polar session directory or zip file on the phone
         val polarRoot = getExternalFilesDir("polar_sessions")
-        val polarSessionDir = polarRoot?.listFiles()
-            ?.filter { it.isDirectory && it.name.startsWith("polar_session_") }
-            ?.maxByOrNull { it.name }
-
-        if (polarSessionDir == null) {
-            Log.d(TAG, "No Polar session directory found on phone — falling back to watch-only batch processing.")
+        val polarItems = polarRoot?.listFiles()?.filter { it.name.startsWith("polar_session_") } ?: emptyList()
+        val targetPolarItem = polarItems.minByOrNull { file ->
             try {
-                PhoneSwingDetector.processWatchOnlySession(newInningsId, filesDir, applicationContext)
+                val cleanPolar = file.name.substringBefore(".zip")
+                val polarTimeStr = cleanPolar.substringAfter("polar_session_")
+                val polarTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(polarTimeStr)?.time ?: 0L
+                kotlin.math.abs(polarTimeMs - resolvedStartMs)
             } catch (e: Exception) {
-                Log.e(TAG, "Phone watch-only swing detection batch processing failed", e)
+                Long.MAX_VALUE
             }
-        } else {
-            Log.d(TAG, "Found Polar session directory: ${polarSessionDir.absolutePath}")
+        }
+
+        val matchedPolarItem = targetPolarItem?.takeIf { file ->
             try {
-                PhoneSwingDetector.processSession(newInningsId, filesDir, polarSessionDir, applicationContext)
-            } catch (e: Exception) {
-                Log.e(TAG, "Phone swing detection batch processing failed", e)
+                val cleanPolar = file.name.substringBefore(".zip")
+                val polarTimeStr = cleanPolar.substringAfter("polar_session_")
+                val polarTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(polarTimeStr)?.time ?: 0L
+                kotlin.math.abs(polarTimeMs - resolvedStartMs) < 10 * 60_000L
+            } catch (e: Exception) { false }
+        }
+
+        var tempPolarDir: java.io.File? = null
+        val finalPolarDir = matchedPolarItem?.let { file ->
+            if (file.isFile && file.name.endsWith(".zip")) {
+                val tempDir = java.io.File(polarRoot, "temp_sync_polar_${System.currentTimeMillis()}")
+                tempDir.mkdirs()
+                tempPolarDir = tempDir
+                try {
+                    unzip(file, tempDir)
+                    tempDir
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed unzipping Polar session zip: ${file.name}", e)
+                    null
+                }
+            } else {
+                file
+            }
+        }
+
+        try {
+            if (finalPolarDir == null) {
+                Log.d(TAG, "No Polar session found near session start — falling back to watch-only batch processing.")
+                PhoneSwingDetector.processWatchOnlySession(newInningsId, filesDir, applicationContext)
+            } else {
+                Log.d(TAG, "Found matching Polar session: ${matchedPolarItem.name} (dir: ${finalPolarDir.absolutePath})")
+                PhoneSwingDetector.processSession(newInningsId, filesDir, finalPolarDir, applicationContext)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Phone swing detection batch processing failed", e)
+        } finally {
+            tempPolarDir?.let {
+                try {
+                    it.deleteRecursively()
+                    Log.d(TAG, "Deleted temp unzipped Polar directory: ${it.absolutePath}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to delete temp Polar directory", e)
+                }
             }
         }
 

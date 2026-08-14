@@ -8,6 +8,9 @@
 # Build Outputs
 **/build/
 /build/
+.cxx/
+**/.cxx/
+scratch/
 
 # Local databases
 cricket_tracker_database*

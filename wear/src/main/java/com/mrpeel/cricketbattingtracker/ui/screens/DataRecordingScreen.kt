@@ -14,9 +14,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun DataRecordingScreen(
-    onStopClick: () -> Unit
+    onStopClick: () -> Unit = {}
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(

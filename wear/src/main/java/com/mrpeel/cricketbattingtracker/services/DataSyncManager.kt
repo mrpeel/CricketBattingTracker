@@ -26,10 +26,10 @@ class DataSyncManager(context: Context) {
                 putDataReq.setUrgent()
                 
                 val result = Tasks.await(dataClient.putDataItem(putDataReq))
-                Log.d(TAG, "Data sent to phone layer: \${result.uri}")
+                Log.d(TAG, "Data sent to phone layer: ${result.uri}")
                 
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to sync timeline: \${e.message}")
+                Log.e(TAG, "Failed to sync timeline: ${e.message}")
             }
         }.start()
     }

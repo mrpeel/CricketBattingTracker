@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
 import androidx.activity.compose.BackHandler
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun SessionSummaryScreen(
     avgSpeed: Float,

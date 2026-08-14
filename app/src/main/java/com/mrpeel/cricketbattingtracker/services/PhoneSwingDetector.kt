@@ -109,294 +109,333 @@ object PhoneSwingDetector {
             }
         }
 
-        // B. PASS 1: Identify Candidates from Shockwaves
-        // Candidate pairs: Pair(targetSensorNs, polarPhoneMs?)
-        data class CandidateShot(val targetSensorNs: Long, val polarPhoneMs: Long?)
-        val candidateShots = mutableListOf<CandidateShot>()
+        // 2. Build uniform 423 Hz multi-sensor matrix (28 channels x numFrames)
+        val watchEndSensorNs = watchAcc.last().timeNanos
+        val durationSec = (watchEndSensorNs - watchStartSensorNs) / 1_000_000_000.0
+        val numFrames = kotlin.math.max(200, (durationSec * 423.0).toInt())
+        val sensorMatrix = Array(28) { FloatArray(numFrames) }
+        val timestampsMs = LongArray(numFrames)
 
-        if (alignment != null && polarAcc.isNotEmpty()) {
-            // Find impact peaks in Polar ACC
-            val polarPeaks = detectImpactPeaks(polarAcc, threshold = ShotEnhancementConfig.POLAR_SHOCKWAVE_THRESHOLD)
-            for (pPeak in polarPeaks) {
-                val watchWallMs = alignment.polarToWatchMs(pPeak)
-                val relOffsetMs = watchWallMs - watchStartWallMs
-                val targetSensorNs = watchStartSensorNs + (relOffsetMs * 1_000_000L)
-                candidateShots.add(CandidateShot(targetSensorNs, pPeak))
+        var accIdx = 0; var gyroIdx = 0; var gravIdx = 0; var rotIdx = 0
+        var pAccIdx = 0; var pGyroIdx = 0
+
+        for (i in 0 until numFrames) {
+            val tNs = watchStartSensorNs + (i * 1_000_000_000.0 / 423.0).toLong()
+            val tWallMs = watchStartWallMs + (i * 1000.0 / 423.0).toLong()
+            timestampsMs[i] = tWallMs
+
+            // Watch Acc
+            while (accIdx < watchAcc.size - 1 && watchAcc[accIdx + 1].timeNanos <= tNs) accIdx++
+            val ax = watchAcc[accIdx].x; val ay = watchAcc[accIdx].y; val az = watchAcc[accIdx].z
+            sensorMatrix[0][i] = ax; sensorMatrix[1][i] = ay; sensorMatrix[2][i] = az
+
+            // Watch Gyro
+            while (gyroIdx < watchGyro.size - 1 && watchGyro[gyroIdx + 1].timeNanos <= tNs) gyroIdx++
+            val gx = watchGyro[gyroIdx].x; val gy = watchGyro[gyroIdx].y; val gz = watchGyro[gyroIdx].z
+            sensorMatrix[3][i] = gx; sensorMatrix[4][i] = gy; sensorMatrix[5][i] = gz
+
+            // Watch Grav
+            if (watchGrav.isNotEmpty()) {
+                while (gravIdx < watchGrav.size - 1 && watchGrav[gravIdx + 1].timeNanos <= tNs) gravIdx++
+                sensorMatrix[12][i] = watchGrav[gravIdx].x
+                sensorMatrix[13][i] = watchGrav[gravIdx].y
+                sensorMatrix[14][i] = watchGrav[gravIdx].z
+            } else {
+                sensorMatrix[12][i] = 0f; sensorMatrix[13][i] = -9.81f; sensorMatrix[14][i] = 0f
             }
-        } else {
-            // Find impact peaks in Watch Gyro
+
+            // Watch Rot
+            var qx = 0f; var qy = 0f; var qz = 0f; var qw = 1f
+            if (watchRot.isNotEmpty()) {
+                while (rotIdx < watchRot.size - 1 && watchRot[rotIdx + 1].timeNanos <= tNs) rotIdx++
+                qx = watchRot[rotIdx].qx; qy = watchRot[rotIdx].qy; qz = watchRot[rotIdx].qz; qw = watchRot[rotIdx].qw
+            }
+            sensorMatrix[15][i] = qx; sensorMatrix[16][i] = qy; sensorMatrix[17][i] = qz; sensorMatrix[18][i] = qw
+
+            // World coords rotation
+            val aw = rotateVectorQuat(qx, qy, qz, qw, ax, ay, az)
+            sensorMatrix[6][i] = aw[0]; sensorMatrix[7][i] = aw[1]; sensorMatrix[8][i] = aw[2]
+
+            val gw = rotateVectorQuat(qx, qy, qz, qw, gx, gy, gz)
+            sensorMatrix[9][i] = gw[0]; sensorMatrix[10][i] = gw[1]; sensorMatrix[11][i] = gw[2]
+
+            // Polar channels
+            if (alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()) {
+                val pMs = alignment.watchToPolarMs(tWallMs)
+                while (pAccIdx < polarAcc.size - 1 && polarAcc[pAccIdx + 1].phoneMs <= pMs) pAccIdx++
+                sensorMatrix[19][i] = polarAcc[pAccIdx].x
+                sensorMatrix[20][i] = polarAcc[pAccIdx].y
+                sensorMatrix[21][i] = polarAcc[pAccIdx].z
+
+                while (pGyroIdx < polarGyro.size - 1 && polarGyro[pGyroIdx + 1].phoneMs <= pMs) pGyroIdx++
+                sensorMatrix[22][i] = polarGyro[pGyroIdx].x
+                sensorMatrix[23][i] = polarGyro[pGyroIdx].y
+                sensorMatrix[24][i] = polarGyro[pGyroIdx].z
+
+                sensorMatrix[25][i] = 1.0f
+            } else {
+                sensorMatrix[19][i] = 0f; sensorMatrix[20][i] = 0f; sensorMatrix[21][i] = 0f
+                sensorMatrix[22][i] = 0f; sensorMatrix[23][i] = 0f; sensorMatrix[24][i] = 0f
+                sensorMatrix[25][i] = 0.0f
+            }
+        }
+
+        // Derived Channels 26 & 27:
+        // Channel 26: post_impact_acc_ratio (window = 127 frames / 300ms)
+        val wAccMags = FloatArray(numFrames) { k ->
+            val ax = sensorMatrix[0][k]; val ay = sensorMatrix[1][k]; val az = sensorMatrix[2][k]
+            kotlin.math.sqrt(ax * ax + ay * ay + az * az)
+        }
+        for (i in 0 until numFrames) {
+            val preStart = kotlin.math.max(0, i - 127)
+            var preMax = 0f
+            for (k in preStart..i) if (wAccMags[k] > preMax) preMax = wAccMags[k]
+
+            val postEnd = kotlin.math.min(numFrames - 1, i + 127)
+            var postMax = 0f
+            for (k in i..postEnd) if (wAccMags[k] > postMax) postMax = wAccMags[k]
+
+            sensorMatrix[26][i] = postMax / (preMax + 1e-5f)
+        }
+
+        // Channel 27: wrist_gyro_roll_delta (window = 63 frames / 150ms)
+        for (i in 0 until numFrames) {
+            val winEnd = kotlin.math.min(numFrames - 1, i + 63)
+            var rollSum = 0f
+            for (k in i..winEnd) rollSum += sensorMatrix[3][k]
+            sensorMatrix[27][i] = rollSum * (1.0f / 423.0f)
+        }
+
+        // 3. Run Stage 1 & Stage 2 TCN Inference
+        val tcnRunner = com.mrpeel.cricketbattingtracker.ml.TcnModelRunner(context)
+        val detectedShots = try {
+            tcnRunner.runInference(sensorMatrix, timestampsMs)
+        } catch (e: Exception) {
+            Log.e(TAG, "TCN inference failed, falling back", e)
+            emptyList()
+        } finally {
+            tcnRunner.close()
+        }
+
+        Log.d(TAG, "TCN Detection produced ${detectedShots.size} candidate shots")
+
+        val hasPolarData = alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()
+        
+        var finalDetectedList = detectedShots
+        if (finalDetectedList.isEmpty()) {
+            Log.w(TAG, "TCN produced 0 candidate detections. Executing kinematic fallback candidate extractor...")
+            val fallbackDetections = mutableListOf<com.mrpeel.cricketbattingtracker.ml.TcnModelRunner.DetectionResult>()
             val watchPeaksSensorNs = detectWatchImpactPeaks(watchGyro, threshold = ShotEnhancementConfig.WATCH_SHOCKWAVE_THRESHOLD)
-            for (ns in watchPeaksSensorNs) {
-                candidateShots.add(CandidateShot(ns, null))
-            }
-        }
-
-        // C. Filter Pass 1 Candidates through Backward Verification & Run SwingDetector
-        val confirmedPass1Shots = mutableListOf<InningsEvent>()
-
-        for (cand in candidateShots) {
-            val targetSensorNs = cand.targetSensorNs
-            val polarPeakTimeMs = cand.polarPhoneMs
-
-            // Validate backward-looking stance and swing signatures
-            if (verifySwingBackwards(targetSensorNs, watchGyro, watchRot)) {
-                var bottomGyroPeak: Float? = null
-                var bottomAccPeak: Float? = null
-                var bottomGyroRatio: Float? = null
-                var bottomAccRatio: Float? = null
-                var bottomTimeLeadMs: Long? = null
-                var bottomSyncScore: Float? = null
-                var s1BottomGyroMag = 0f
-                var s1BottomDeltaZ = 0f
-                var s1BottomAccMag = 0f
-                var s2BottomAccMean = 0f
-                var s2DynamicRatioSlope = 0f
-                var s3BottomPronationDeg = 0f
-                var s3BottomGyroYMin = 0f
-                var s3BottomAccPeak = 0f
-
-                val hasPolarData = alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty() && polarPeakTimeMs != null
-
-                // Extract Polar telemetry if available (constrained to downswing window [-200ms, +100ms])
-                if (hasPolarData && polarPeakTimeMs != null) {
-                    val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
-                    val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
-
-                    val pAccPeak = if (polarAccWin.isNotEmpty()) polarAccWin.maxOf { it.mag } else 0f
-                    val pGyroPeak = if (polarGyroWin.isNotEmpty()) polarGyroWin.maxOf { it.mag } else 0f
-                    val watchGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 200_000_000L, targetSensorNs + 100_000_000L)
-                    val gyroRatio = if (watchGyroPeak > 0.01f) pGyroPeak / watchGyroPeak else 0f
-                    val accRatio = if (watchAcc.isNotEmpty()) {
-                        val wAccPeak = watchAcc.filter { it.timeNanos in (targetSensorNs - 200_000_000L)..(targetSensorNs + 100_000_000L) }.maxOfOrNull { it.mag } ?: 1f
-                        pAccPeak / wAccPeak
-                    } else 0f
-
-                    val pAccPeakTime = polarAccWin.maxByOrNull { it.mag }?.phoneMs ?: polarPeakTimeMs
-                    val timeLeadMs = pAccPeakTime - polarPeakTimeMs
-                    val timePenalty = kotlin.math.min(1.0f, kotlin.math.abs(timeLeadMs) / 200f)
-                    val ratioPenalty = kotlin.math.min(1.0f, kotlin.math.abs(gyroRatio - 1.0f))
-                    val syncScore = ((1.0f - timePenalty * 0.6f - ratioPenalty * 0.4f) * 100f).coerceIn(0f, 100f)
-
-                    bottomGyroPeak = pGyroPeak
-                    bottomAccPeak = pAccPeak
-                    bottomGyroRatio = gyroRatio
-                    bottomAccRatio = accRatio
-                    bottomTimeLeadMs = timeLeadMs
-                    bottomSyncScore = syncScore
-
-                    // Segmented Polar extraction
-                    val s1Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
-                    if (s1Gyro.isNotEmpty()) {
-                        s1BottomGyroMag = s1Gyro.maxOf { it.mag }
-                        s1BottomDeltaZ = s1Gyro.maxOf { it.z } - s1Gyro.minOf { it.z }
-                    }
-
-                    // S1 bottom-hand acc (backswing: -800ms to -200ms)
-                    val s1AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
-                    if (s1AccBottom.isNotEmpty()) {
-                        s1BottomAccMag = s1AccBottom.maxOf { it.mag }
-                    }
-
-                    val s2Acc = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
-                    if (s2Acc.isNotEmpty()) {
-                        s2BottomAccMean = s2Acc.map { it.mag }.average().toFloat()
-                    }
-
-                    val s2Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
-                    if (s2Gyro.size >= 2 && watchGyroPeak > 0.01f) {
-                        val gStart = s2Gyro.first().mag
-                        val gEnd = s2Gyro.last().mag
-                        val dtSec = (s2Gyro.last().phoneMs - s2Gyro.first().phoneMs) / 1000f + 1e-4f
-                        s2DynamicRatioSlope = ((gEnd - gStart) / dtSec) / watchGyroPeak
-                    }
-
-                    val s3Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
-                    if (s3Gyro.isNotEmpty()) {
-                        var trapz = 0f
-                        for (i in 1 until s3Gyro.size) {
-                            val dt = (s3Gyro[i].phoneMs - s3Gyro[i-1].phoneMs) / 1000f
-                            trapz += 0.5f * (s3Gyro[i].y + s3Gyro[i-1].y) * dt
-                        }
-                        s3BottomPronationDeg = trapz * (180f / Math.PI.toFloat())
-                        s3BottomGyroYMin = s3Gyro.minOf { it.y }
-                    }
-
-                    // S3 bottom-hand acc peak (impact/follow-through: -50ms to +300ms)
-                    val s3AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
-                    if (s3AccBottom.isNotEmpty()) {
-                        s3BottomAccPeak = s3AccBottom.maxOf { it.mag }
-                    }
-                }
-
-                // 32-Feature extraction
-                val features = extractFeaturesAtSensorNs(
-                    targetSensorNs = targetSensorNs,
-                    watchGyro = watchGyro,
-                    watchGrav = watchGrav,
-                    watchRot = watchRot,
-                    watchAcc = watchAcc,
-                    bottomGyroPeak = bottomGyroPeak ?: 0f,
-                    bottomAccPeak = bottomAccPeak ?: 0f,
-                    bottomGyroRatio = bottomGyroRatio ?: 0f,
-                    bottomAccRatio = bottomAccRatio ?: 0f,
-                    bottomTimeLeadMs = bottomTimeLeadMs ?: 0L,
-                    bottomSyncScore = bottomSyncScore ?: 0f,
-                    s1BottomGyroMag = s1BottomGyroMag,
-                    s1BottomDeltaZ = s1BottomDeltaZ,
-                    s1BottomAccMag = s1BottomAccMag,
-                    s2BottomAccMean = s2BottomAccMean,
-                    s2DynamicRatioSlope = s2DynamicRatioSlope,
-                    s3BottomPronationDeg = s3BottomPronationDeg,
-                    s3BottomGyroYMin = s3BottomGyroYMin,
-                    s3BottomAccPeak = s3BottomAccPeak
-                )
-
-                val finalShotType = if (hasPolarData) {
-                    com.mrpeel.cricketbattingtracker.ml.GeneratedDualForest.predict(features)
-                } else {
-                    com.mrpeel.cricketbattingtracker.ml.GeneratedTopForest.predict(features)
-                }
-                val predictedQuality = if (hasPolarData) {
-                    com.mrpeel.cricketbattingtracker.ml.GeneratedDualQualityForest.predict(features)
-                } else {
-                    com.mrpeel.cricketbattingtracker.ml.GeneratedTopQualityForest.predict(features)
-                }
-
-                val finalSweetSpot = when (predictedQuality) {
-                    "good" -> "Excellent"
-                    "poor" -> "Poor"
-                    "miss" -> "Miss"
-                    "edge" -> "Edge"
-                    else -> "Good"
-                }
-                val accSpikeWin = watchAcc.filter { it.timeNanos in (targetSensorNs - 150_000_000L)..(targetSensorNs + 100_000_000L) }
-                val accImpactNs = if (accSpikeWin.isNotEmpty()) accSpikeWin.maxByOrNull { it.mag }?.timeNanos ?: targetSensorNs else targetSensorNs
-                val downswingGyroWin = watchGyro.filter { it.timeNanos in (targetSensorNs - 300_000_000L)..(targetSensorNs + 100_000_000L) }
-                val maxDownswingGyro = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.maxOf { it.mag } else 0.01f
-                val gyroAtImpact = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.minByOrNull { kotlin.math.abs(it.timeNanos - accImpactNs) }?.mag ?: maxDownswingGyro else maxDownswingGyro
-                val finalEfficiency = if (maxDownswingGyro > 0.1f) kotlin.math.min(100f, (gyroAtImpact / maxDownswingGyro) * 100f) else 90f
-                val finalPeakAccel = if (bottomAccPeak != null && bottomAccPeak > 0f) bottomAccPeak else (accSpikeWin.maxOfOrNull { it.mag } ?: 15f)
-                val batSpeedKmh = maxDownswingGyro * 4.5f
-
-                val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L
-                val shotWallMs = watchStartWallMs + relShotMs
-
-                confirmedPass1Shots.add(InningsEvent(
-                    inningsId = inningsId,
-                    timestamp = shotWallMs,
-                    description = "$finalShotType ($finalSweetSpot)",
-                    batSpeed = batSpeedKmh,
-                    impactForce = finalPeakAccel,
-                    impactTimeMs = 350L,
-                    shotType = finalShotType,
-                    efficiency = finalEfficiency,
-                    location = "Net Practice",
-                    bottom_hand_gyro_peak = bottomGyroPeak,
-                    bottom_hand_acc_peak = bottomAccPeak,
-                    bottom_hand_gyro_ratio = bottomGyroRatio,
-                    bottom_hand_acc_ratio = bottomAccRatio,
-                    bottom_hand_time_lead_ms = bottomTimeLeadMs,
-                    bottom_hand_sync_score = bottomSyncScore,
-                    swing_feature_s1_gyro_y_std = features.s1_gyro_y_std,
-                    swing_feature_s1_gyro_z_std = features.s1_gyro_z_std,
-                    swing_feature_s1_delta_x = features.s1_deltaX,
-                    swing_feature_s1_delta_z = features.s1_deltaZ,
-                    swing_feature_s2_gyro_mag = features.s2_gyroMag,
-                    swing_feature_s2_grav_y_mean = features.s2_grav_y_mean,
-                    swing_feature_s2_delta_x = features.s2_deltaX,
-                    swing_feature_s2_delta_z = features.s2_deltaZ,
-                    swing_feature_s3_roll_deg = features.s3_rollImpactDeg,
-                    swing_feature_s3_yaw_deg = features.s3_yawImpactDeg,
-                    swing_feature_s3_delta_x = features.s3_deltaX,
-                    swing_feature_s3_delta_z = features.s3_deltaZ,
-                    swing_feature_s3_plane_ratio = features.s3_planeRatio,
-                    swing_feature_s3_gyro_y_min = features.s3_gyro_y_min
-                ))
-            }
-        }
-
-        // D. PASS 2: Find gaps and run watch gyro peak detection for fallback shots
-        val confirmedPass2Shots = mutableListOf<InningsEvent>()
-        val watchPeaksSensorNs = detectWatchImpactPeaks(watchGyro, threshold = ShotEnhancementConfig.WATCH_SHOCKWAVE_THRESHOLD)
-
-        for (targetSensorNs in watchPeaksSensorNs) {
-            val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L
-            val isOverlap = confirmedPass1Shots.any { Math.abs((it.timestamp - watchStartWallMs) - relShotMs) < 2000L }
-            if (!isOverlap) {
+            for (targetSensorNs in watchPeaksSensorNs) {
                 if (verifySwingBackwards(targetSensorNs, watchGyro, watchRot)) {
                     val features = extractFeaturesAtSensorNs(
                         targetSensorNs = targetSensorNs,
                         watchGyro = watchGyro,
                         watchGrav = watchGrav,
-                        watchRot = watchRot
+                        watchRot = watchRot,
+                        watchAcc = watchAcc
                     )
-                    val finalShotType = com.mrpeel.cricketbattingtracker.ml.GeneratedTopForest.predict(features)
-                    val predictedQuality = com.mrpeel.cricketbattingtracker.ml.GeneratedTopQualityForest.predict(features)
-
-                    val finalSweetSpot = when (predictedQuality) {
-                        "good" -> "Excellent"
-                        "poor" -> "Poor"
-                        "miss" -> "Miss"
-                        "edge" -> "Edge"
-                        else -> "Good"
+                    val predShotType = if (hasPolarData) {
+                        com.mrpeel.cricketbattingtracker.ml.GeneratedDualForest.predict(features)
+                    } else {
+                        com.mrpeel.cricketbattingtracker.ml.GeneratedTopForest.predict(features)
                     }
-
-                    val downswingGyroWin = watchGyro.filter { it.timeNanos in (targetSensorNs - 300_000_000L)..(targetSensorNs + 100_000_000L) }
-                    val maxDownswingGyro = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.maxOf { it.mag } else 0.01f
-                    val batSpeedKmh = maxDownswingGyro * 4.5f
-
+                    val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L
                     val shotWallMs = watchStartWallMs + relShotMs
-
-                    confirmedPass2Shots.add(InningsEvent(
-                        inningsId = inningsId,
-                        timestamp = shotWallMs,
-                        description = "$finalShotType ($finalSweetSpot)",
-                        batSpeed = batSpeedKmh,
-                        impactForce = maxDownswingGyro,
-                        impactTimeMs = 350L,
-                        shotType = finalShotType,
-                        efficiency = 90f,
-                        location = "Net Practice",
-                        swing_feature_s1_gyro_y_std = features.s1_gyro_y_std,
-                        swing_feature_s1_gyro_z_std = features.s1_gyro_z_std,
-                        swing_feature_s1_delta_x = features.s1_deltaX,
-                        swing_feature_s1_delta_z = features.s1_deltaZ,
-                        swing_feature_s2_gyro_mag = features.s2_gyroMag,
-                        swing_feature_s2_grav_y_mean = features.s2_grav_y_mean,
-                        swing_feature_s2_delta_x = features.s2_deltaX,
-                        swing_feature_s2_delta_z = features.s2_deltaZ,
-                        swing_feature_s3_roll_deg = features.s3_rollImpactDeg,
-                        swing_feature_s3_yaw_deg = features.s3_yawImpactDeg,
-                        swing_feature_s3_delta_x = features.s3_deltaX,
-                        swing_feature_s3_delta_z = features.s3_deltaZ,
-                        swing_feature_s3_plane_ratio = features.s3_planeRatio,
-                        swing_feature_s3_gyro_y_min = features.s3_gyro_y_min
-                    ))
+                    fallbackDetections.add(
+                        com.mrpeel.cricketbattingtracker.ml.TcnModelRunner.DetectionResult(
+                            frameIndex = 0,
+                            timestampMs = shotWallMs,
+                            predictedShotType = predShotType,
+                            confidence = 0.85f
+                        )
+                    )
                 }
             }
+            finalDetectedList = fallbackDetections
         }
 
-        // E. Combine all shots, sort chronologically, and apply NMS (Non-Maximum Suppression) with 5.0s window
-        val allCandidates = (confirmedPass1Shots + confirmedPass2Shots).sortedBy { it.timestamp }
         val finalShots = mutableListOf<InningsEvent>()
-        
-        for (cand in allCandidates) {
-            val dupIdx = finalShots.indexOfFirst { Math.abs(it.timestamp - cand.timestamp) < 5000L }
-            if (dupIdx != -1) {
-                val existing = finalShots[dupIdx]
-                val existingSpeed = existing.batSpeed ?: 0f
-                val candSpeed = cand.batSpeed ?: 0f
-                if (candSpeed > existingSpeed) {
-                    finalShots[dupIdx] = cand
+
+        for (det in finalDetectedList) {
+            val shotWallMs = det.timestampMs
+            val relShotMs = shotWallMs - watchStartWallMs
+            val targetSensorNs = watchStartSensorNs + (relShotMs * 1_000_000L)
+            val finalShotType = det.predictedShotType
+
+            var bottomGyroPeak: Float? = null
+            var bottomAccPeak: Float? = null
+            var bottomGyroRatio: Float? = null
+            var bottomAccRatio: Float? = null
+            var bottomTimeLeadMs: Long? = null
+            var bottomSyncScore: Float? = null
+            var s1BottomGyroMag = 0f
+            var s1BottomDeltaZ = 0f
+            var s1BottomAccMag = 0f
+            var s2BottomAccMean = 0f
+            var s2DynamicRatioSlope = 0f
+            var s3BottomPronationDeg = 0f
+            var s3BottomGyroYMin = 0f
+            var s3BottomAccPeak = 0f
+
+            if (hasPolarData && alignment != null) {
+                val polarPeakTimeMs = alignment.watchToPolarMs(shotWallMs)
+                val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
+                val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
+
+                val pAccPeak = if (polarAccWin.isNotEmpty()) polarAccWin.maxOf { it.mag } else 0f
+                val pGyroPeak = if (polarGyroWin.isNotEmpty()) polarGyroWin.maxOf { it.mag } else 0f
+                val watchGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 200_000_000L, targetSensorNs + 100_000_000L)
+                val gyroRatio = if (watchGyroPeak > 0.01f) pGyroPeak / watchGyroPeak else 0f
+                val accRatio = if (watchAcc.isNotEmpty()) {
+                    val wAccPeak = watchAcc.filter { it.timeNanos in (targetSensorNs - 200_000_000L)..(targetSensorNs + 100_000_000L) }.maxOfOrNull { it.mag } ?: 1f
+                    pAccPeak / wAccPeak
+                } else 0f
+
+                val pAccPeakTime = polarAccWin.maxByOrNull { it.mag }?.phoneMs ?: polarPeakTimeMs
+                val timeLeadMs = pAccPeakTime - polarPeakTimeMs
+                val timePenalty = kotlin.math.min(1.0f, kotlin.math.abs(timeLeadMs) / 200f)
+                val ratioPenalty = kotlin.math.min(1.0f, kotlin.math.abs(gyroRatio - 1.0f))
+                val syncScore = ((1.0f - timePenalty * 0.6f - ratioPenalty * 0.4f) * 100f).coerceIn(0f, 100f)
+
+                bottomGyroPeak = pGyroPeak
+                bottomAccPeak = pAccPeak
+                bottomGyroRatio = gyroRatio
+                bottomAccRatio = accRatio
+                bottomTimeLeadMs = timeLeadMs
+                bottomSyncScore = syncScore
+
+                // Segmented Polar extraction
+                val s1Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
+                if (s1Gyro.isNotEmpty()) {
+                    s1BottomGyroMag = s1Gyro.maxOf { it.mag }
+                    s1BottomDeltaZ = s1Gyro.maxOf { it.z } - s1Gyro.minOf { it.z }
                 }
-            } else {
-                finalShots.add(cand)
+
+                // S1 bottom-hand acc (backswing: -800ms to -200ms)
+                val s1AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
+                if (s1AccBottom.isNotEmpty()) {
+                    s1BottomAccMag = s1AccBottom.maxOf { it.mag }
+                }
+
+                val s2Acc = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
+                if (s2Acc.isNotEmpty()) {
+                    s2BottomAccMean = s2Acc.map { it.mag }.average().toFloat()
+                }
+
+                val s2Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
+                if (s2Gyro.size >= 2 && watchGyroPeak > 0.01f) {
+                    val gStart = s2Gyro.first().mag
+                    val gEnd = s2Gyro.last().mag
+                    val dtSec = (s2Gyro.last().phoneMs - s2Gyro.first().phoneMs) / 1000f + 1e-4f
+                    s2DynamicRatioSlope = ((gEnd - gStart) / dtSec) / watchGyroPeak
+                }
+
+                val s3Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
+                if (s3Gyro.isNotEmpty()) {
+                    var trapz = 0f
+                    for (i in 1 until s3Gyro.size) {
+                        val dt = (s3Gyro[i].phoneMs - s3Gyro[i-1].phoneMs) / 1000f
+                        trapz += 0.5f * (s3Gyro[i].y + s3Gyro[i-1].y) * dt
+                    }
+                    s3BottomPronationDeg = trapz * (180f / Math.PI.toFloat())
+                    s3BottomGyroYMin = s3Gyro.minOf { it.y }
+                }
+
+                // S3 bottom-hand acc peak (impact/follow-through: -50ms to +300ms)
+                val s3AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
+                if (s3AccBottom.isNotEmpty()) {
+                    s3BottomAccPeak = s3AccBottom.maxOf { it.mag }
+                }
             }
+
+            // 32-Feature extraction
+            val features = extractFeaturesAtSensorNs(
+                targetSensorNs = targetSensorNs,
+                watchGyro = watchGyro,
+                watchGrav = watchGrav,
+                watchRot = watchRot,
+                watchAcc = watchAcc,
+                bottomGyroPeak = bottomGyroPeak ?: 0f,
+                bottomAccPeak = bottomAccPeak ?: 0f,
+                bottomGyroRatio = bottomGyroRatio ?: 0f,
+                bottomAccRatio = bottomAccRatio ?: 0f,
+                bottomTimeLeadMs = bottomTimeLeadMs ?: 0L,
+                bottomSyncScore = bottomSyncScore ?: 0f,
+                s1BottomGyroMag = s1BottomGyroMag,
+                s1BottomDeltaZ = s1BottomDeltaZ,
+                s1BottomAccMag = s1BottomAccMag,
+                s2BottomAccMean = s2BottomAccMean,
+                s2DynamicRatioSlope = s2DynamicRatioSlope,
+                s3BottomPronationDeg = s3BottomPronationDeg,
+                s3BottomGyroYMin = s3BottomGyroYMin,
+                s3BottomAccPeak = s3BottomAccPeak
+            )
+
+            val predictedQuality = if (hasPolarData) {
+                com.mrpeel.cricketbattingtracker.ml.GeneratedDualQualityForest.predict(features)
+            } else {
+                com.mrpeel.cricketbattingtracker.ml.GeneratedTopQualityForest.predict(features)
+            }
+
+            val finalSweetSpot = when (predictedQuality) {
+                "good" -> "Excellent"
+                "poor" -> "Poor"
+                "miss" -> "Miss"
+                "edge" -> "Edge"
+                else -> "Good"
+            }
+
+            val accSpikeWin = watchAcc.filter { it.timeNanos in (targetSensorNs - 150_000_000L)..(targetSensorNs + 100_000_000L) }
+            val accImpactNs = if (accSpikeWin.isNotEmpty()) accSpikeWin.maxByOrNull { it.mag }?.timeNanos ?: targetSensorNs else targetSensorNs
+            val downswingGyroWin = watchGyro.filter { it.timeNanos in (targetSensorNs - 300_000_000L)..(targetSensorNs + 100_000_000L) }
+            val maxDownswingGyro = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.maxOf { it.mag } else 0.01f
+            val gyroAtImpact = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.minByOrNull { kotlin.math.abs(it.timeNanos - accImpactNs) }?.mag ?: maxDownswingGyro else maxDownswingGyro
+            val finalEfficiency = if (maxDownswingGyro > 0.1f) kotlin.math.min(100f, (gyroAtImpact / maxDownswingGyro) * 100f) else 90f
+            val finalPeakAccel = if (bottomAccPeak != null && bottomAccPeak > 0f) bottomAccPeak else (accSpikeWin.maxOfOrNull { it.mag } ?: 15f)
+            val batSpeedKmh = maxDownswingGyro * 4.5f
+            val bladeAndLaunch = calculateBladeAndLaunch(targetSensorNs, watchRot, finalShotType)
+
+            finalShots.add(InningsEvent(
+                inningsId = inningsId,
+                timestamp = shotWallMs,
+                description = "$finalShotType ($finalSweetSpot)",
+                batSpeed = batSpeedKmh,
+                impactForce = finalPeakAccel,
+                impactTimeMs = 350L,
+                shotType = finalShotType,
+                efficiency = finalEfficiency,
+                location = "Net Practice",
+                bladeAngle = bladeAndLaunch.bladeAngle,
+                bladeClass = bladeAndLaunch.bladeClass,
+                launchAngle = bladeAndLaunch.launchAngle,
+                launchClass = bladeAndLaunch.launchClass,
+                bottom_hand_gyro_peak = bottomGyroPeak,
+                bottom_hand_acc_peak = bottomAccPeak,
+                bottom_hand_gyro_ratio = bottomGyroRatio,
+                bottom_hand_acc_ratio = bottomAccRatio,
+                bottom_hand_time_lead_ms = bottomTimeLeadMs,
+                bottom_hand_sync_score = bottomSyncScore,
+                swing_feature_s1_gyro_y_std = features.s1_gyro_y_std,
+                swing_feature_s1_gyro_z_std = features.s1_gyro_z_std,
+                swing_feature_s1_delta_x = features.s1_deltaX,
+                swing_feature_s1_delta_z = features.s1_deltaZ,
+                swing_feature_s2_gyro_mag = features.s2_gyroMag,
+                swing_feature_s2_grav_y_mean = features.s2_grav_y_mean,
+                swing_feature_s2_delta_x = features.s2_deltaX,
+                swing_feature_s2_delta_z = features.s2_deltaZ,
+                swing_feature_s3_roll_deg = features.s3_rollImpactDeg,
+                swing_feature_s3_yaw_deg = features.s3_yawImpactDeg,
+                swing_feature_s3_delta_x = features.s3_deltaX,
+                swing_feature_s3_delta_z = features.s3_deltaZ,
+                swing_feature_s3_plane_ratio = features.s3_planeRatio,
+                swing_feature_s3_gyro_y_min = features.s3_gyro_y_min
+            ))
         }
-        
+
         var shotCount = 0
         var maxSpeed = 0f
-        
+
         for (dbEvent in finalShots) {
             dao.insertEvent(dbEvent)
             shotCount++
@@ -669,9 +708,100 @@ object PhoneSwingDetector {
         outV[2] = vz + qw*tz + (qx*ty - qy*tx)
     }
 
+    private fun rotateVectorQuat(qx: Float, qy: Float, qz: Float, qw: Float, vx: Float, vy: Float, vz: Float): FloatArray {
+        val tx = 2.0f * (qy * vz - qz * vy)
+        val ty = 2.0f * (qz * vx - qx * vz)
+        val tz = 2.0f * (qx * vy - qy * vx)
+        val rx = vx + qw * tx + (qy * tz - qz * ty)
+        val ry = vy + qw * ty + (qz * tx - qx * tz)
+        val rz = vz + qw * tz + (qx * ty - qy * tx)
+        return floatArrayOf(rx, ry, rz)
+    }
+
     private fun calcRelativeRoll(q: FloatArray): Float {
         val x = q[0]; val y = q[1]; val z = q[2]; val w = q[3]
         return atan2(2.0f*(w*y + x*z), 1.0f - 2.0f*(y*y + z*z)) * 57.29578f
+    }
+
+    data class BladeAndLaunch(
+        val bladeAngle: Float,
+        val bladeClass: String,
+        val launchAngle: Float,
+        val launchClass: String
+    )
+
+    private fun calculateBladeAndLaunch(
+        targetSensorNs: Long,
+        watchRot: List<WatchRotSample>,
+        shotType: String
+    ): BladeAndLaunch {
+        if (watchRot.isEmpty()) {
+            return BladeAndLaunch(0f, "FULL_FACE", 0f, "FLAT")
+        }
+
+        val stanceStart = targetSensorNs - 2_500_000_000L
+        val stanceEnd = targetSensorNs - 1_000_000_000L
+        val stanceRots = watchRot.filter { it.timeNanos in stanceStart..stanceEnd }
+        val qStance = findMostStableStance(stanceRots.ifEmpty { watchRot.take(5) }, 800_000_000L)
+            ?: floatArrayOf(0f, 0f, 0f, 1f)
+        val qStanceInv = FloatArray(4)
+        conjugateQuat(qStance, qStanceInv)
+
+        val impactRot = findClosestRotation(watchRot, targetSensorNs - 50_000_000L)
+            ?: findClosestRotation(watchRot, targetSensorNs)
+            ?: return BladeAndLaunch(0f, "FULL_FACE", 0f, "FLAT")
+
+        val qCurr = floatArrayOf(impactRot.qx, impactRot.qy, impactRot.qz, impactRot.qw)
+        val qRel = FloatArray(4)
+        multiplyQuats(qStanceInv, qCurr, qRel)
+
+        val rollImpact = calcRelativeRoll(qRel)
+
+        val isHorizontalBat = shotType.contains("CUT", ignoreCase = true) ||
+                              shotType.contains("PULL", ignoreCase = true) ||
+                              shotType.contains("SWEEP", ignoreCase = true) ||
+                              shotType.contains("SLOG", ignoreCase = true)
+
+        val targetYaw = when {
+            shotType.contains("COVER", ignoreCase = true) -> -45f
+            shotType.contains("ON DRIVE", ignoreCase = true) -> 15f
+            shotType.contains("CUT", ignoreCase = true) -> 40f
+            shotType.contains("PULL", ignoreCase = true) || shotType.contains("SLOG", ignoreCase = true) -> 55f
+            shotType.contains("SWEEP", ignoreCase = true) -> 65f
+            shotType.contains("GLANCE", ignoreCase = true) || shotType.contains("FLICK", ignoreCase = true) -> 75f
+            else -> 0f
+        }
+
+        val vFaceRel = FloatArray(3)
+        val localX = floatArrayOf(1f, 0f, 0f)
+        rotateVector(qRel, localX, vFaceRel)
+        val yawFaceRel = atan2(vFaceRel[1], vFaceRel[0]) * 57.29578f
+        var bAngle = yawFaceRel - targetYaw
+        bAngle = ((bAngle + 180f) % 360f + 360f) % 360f - 180f
+
+        val bladeClass = when {
+            bAngle <= -15f -> "OPEN"
+            bAngle >= 15f -> "CLOSED"
+            else -> "FULL_FACE"
+        }
+
+        val launchAngle = if (isHorizontalBat) {
+            rollImpact
+        } else {
+            val vFaceWorld = FloatArray(3)
+            rotateVector(qCurr, localX, vFaceWorld)
+            -asin(vFaceWorld[2].coerceIn(-1f, 1f)) * 57.29578f
+        }
+
+        val launchClass = when {
+            launchAngle < -45f -> "HIGH_LOFT"
+            launchAngle < -35f -> "POWER_ZONE"
+            launchAngle < -15f -> "LOFTED"
+            launchAngle < 0f -> "FLAT"
+            else -> "INTO_GROUND"
+        }
+
+        return BladeAndLaunch(bAngle, bladeClass, launchAngle, launchClass)
     }
 
     // --- Parser helpers ---
@@ -951,7 +1081,7 @@ object PhoneSwingDetector {
                         list.add(PolarSample(phoneMs, sensorNs, x, y, z, mag))
                     }
                 }
-                return list.sortedBy { it.sensorNs }
+                return list.sortedBy { it.phoneMs }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse binary Polar file ${file.name}: ${e.message}, falling back to CSV parser")
             }

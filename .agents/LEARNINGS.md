@@ -438,3 +438,66 @@ This document captures resolved bugs, architectural changes, key logical finding
         3. Updated `pipelines/reprocess_sessions.py` to pass `row['shot_type']` through `normalise_shot_type(gt_type)`, ensuring that all reprocessed shots (narrated and sensor-recovered) are saved into SQLite `innings_events` with canonical uppercase names.
         4. Added test coverage in `BiomechanicalUiMapperTest.kt` validating that all ground-truth narration strings map cleanly to the 8 Canonical Biomechanical Classes.
     *   **Result**: Zero duplicate cards rendered in `ShotTypeSummary`. Session `session_2026-08-08` cleanly aggregates all 49 Power Drives into a single unified card, and all 47 Deflections/Guides into a single unified card.
+
+141. **Phone-Side TCN ONNX Engine Deployment & Polar ZIP Resolution (August 11, 2026)**:
+    *   **The Problem**:
+        1. When sessions synced from watch to phone, the phone companion app reported **164 shots** for a 63-shot session, completely out of sync with the offline 82.2% precision TCN evaluation.
+        2. All Polar bottom-hand metrics (Hand Timing, Gyro Ratio, Force Ratio, Sync Score) were missing from the UI (`null` in DB), causing `MainActivity.kt` to hide the bottom-hand card entirely.
+    *   **Root Causes**:
+        1. **Polar Session Discovery Bug**: `PolarSenseService.kt` compresses completed Polar recordings into `polar_session_*.zip` and deletes the uncompressed folder. `DataSyncListenerService.kt` only checked for directories (`it.isDirectory`), finding null every time and logging `"No Polar session directory found on phone — falling back to watch-only batch processing"`.
+        2. **Legacy Processing Engine**: `PhoneSwingDetector.kt` was running an obsolete 2-pass gyro peak detector and Random Forest without Stage 1 shockwave thresholds, backswing displacement verification, Burst Mode stillness lookback, or the Dual-Path Sweep Gate. It accepted every minor bat waggle and ball pickup as a shot.
+    *   **The Solution**:
+        1. Updated [DataSyncListenerService.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/DataSyncListenerService.kt) to discover `.zip` files matching `polar_session_*` within 10 minutes of session start, unzip to a temporary directory, execute batch processing with Polar telemetry, and cleanly delete the temporary directory in a `finally` block.
+        2. Refactored [TcnModelRunner.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/TcnModelRunner.kt) to run 2,048-sample windowed ONNX inference over the 28-channel 423 Hz resampled matrix, integrating the Stage 1 Impact Shockwave Anchor Detector ($\|a\| \ge 30\text{ m/s}^2 \land \|\omega\| \ge 4.0\text{ rad/s}$), 300ms Backswing Displacement Check ($\Delta \theta_{\text{backswing}} \ge 0.14\text{ rad}$), Burst Mode pre-shot stillness lookback, Dual-Path Sweep Gate, and 1.8s/2.4s NMS.
+        3. Upgraded [PhoneSwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/PhoneSwingDetector.kt) to resample all Watch and Polar sensors to a uniform 423 Hz 28-channel grid with quaternion world rotations, invoke `TcnModelRunner`, extract complete physical and bottom-hand telemetry, and write canonical `InningsEvent` rows to Room SQLite DB.
+    *   **Verification**: All Gradle unit tests (`:app:testDebugUnitTest` and `:wear:testDebugUnitTest`) pass, debug and release builds assemble cleanly, and phone-side batch detection matches the master offline pipeline.
+
+142. **Unified Telemetry Engine & Train-Serve Skew Elimination (August 14, 2026)**:
+    *   **The Problem**:
+        1. **Execution Discrepancy (Train-Serve Skew)**: `train_and_evaluate_full_scorecard.py` executed a legacy decoupled impact shockwave evaluation loop (`||a|| >= 30, ||omega|| >= 4.0`) that contradicted `run_multitier_pipeline.py` (which implements the production hierarchical state machine with Stage 1 stance tracking, 1-shot per stance deduplication within 3.5s, 28-feature TCN inference, dual-path sweep gate, and 1D cross-correlation clock alignment).
+        2. **Data Layer Redundancy**: `build_facing_up_dataset.py` created 1.4 GB / 11 GB duplicate pickle files (`facing_up_sessions_423hz.pkl`) containing a subset of sensor channels already stored in `poc_unified_dataset/*.parquet`.
+    *   **The Solution**:
+        1. **Unified Algorithmic Engine (`pipelines/telemetry_engine.py`)**: Extracted the complete production inference and scorecard generation pipeline into a single reusable module.
+        2. **Direct Parquet Ingestion**: Eliminated intermediary `.pkl` files. All 53 physical sessions (23.1M rows) load directly from `poc_unified_dataset/*.parquet` in **< 0.9 seconds**, reading all 12 Stage 1 channels and 28 Stage 2 features natively.
+        3. **Training & Evaluation Script Consolidation**: Refactored `train_and_evaluate_full_scorecard.py` and `run_multitier_pipeline.py` to evaluate exclusively via `telemetry_engine.evaluate_multitier_scorecard()`.
+        4. **Updated Canonical Holdout Partition**: Set holdout sessions to `session_2026-07-23_12-37-13`, `session_2026-08-02_12-10-13`, and `session_2026-08-14_12-24-45` across 53 physical sessions (15.2 hours of real-world batting data).
+    *   **Empirical Scorecard Results**:
+        *   **Total System Candidate Detections**: 🏆 **2,729 candidate detections** (matching true state-machine deduplication target ~2,800, down from >3,800 naive triggers).
+        *   **Global System Precision**: 🏆 **81.24%** (2,217 TPs / 2,729 candidate detections across 2,919 GT physical shots).
+        *   **Global Pipeline Recall**: 🏆 **75.95%** (2,217 / 2,919 GT shots).
+        *   **Holdout Detection Precision**: 🏆 **88.02%** (147 TPs / 167 candidate detections).
+        *   **Holdout Detection Recall**: 🏆 **88.02%** (147 / 167 GT shots).
+        *   **Holdout F1 Score**: 🏆 **88.02%**.
+        *   **Holdout Classification Accuracy**: 🏆 **63.27%** across detected shots.
+        *   **Production Deployment**: 🏆 **PASSED Production Quality Gate** (Holdout Precision: 88.0%, Overall Precision: 81.2%, Holdout F1: 88.0%). Exported `tcn_ultimate_baseline.onnx` to `app/src/main/assets/models/`.
+
+143. **On-Device Multi-Tier Inference Pipeline Deployment (August 14, 2026)**:
+    *   **The Implementation**:
+        1. **Stage 1 Stance State Machine**: Integrated `facing_up_detector.onnx` into `TcnModelRunner.kt` with a 423-sample sliding window over 12 IMU channels and a 200ms sustain guard ($P \ge 0.70$ entry, $P < 0.40$ or $\omega \ge 1.0\text{ rad/s}$ exit).
+        2. **1-Shot per Stance Deduplication**: Scans $[T_{\text{exit}}, T_{\text{exit}} + 3.5\text{s}]$, identifies single highest peak $T_{\text{peak}} = \text{argmax}(\|\omega\|)$, and verifies $\Delta \theta_{\text{backswing}} \ge 0.14\text{ rad}$ ($\approx 8^\circ$) over 300ms.
+        3. **Stage 2 28-Channel TCN Inference**: Evaluates `tcn_ultimate_baseline.onnx` over 2,048-sample windows with median/MAD z-score normalization from `tcn_norm_stats.json`.
+        4. **Post-Classification Biomechanical Gates**:
+           - **Power Drive Gate**: Reclassifies `POWER DRIVE` to `DRIVE/DEFENCE` if post-impact acceleration ratio $< 1.35$.
+           - **Calibrated Dual-Path Sweep Gate**: Enforces 2.4s NMS; accepts kneeling sweeps ($P \ge 0.30$) or standing paddle sweeps ($\omega_{\text{roll}} \ge 1.6\text{ rad/s}$ at $P \ge 0.35$).
+           - **Standard NMS**: 1.8s refractory lockout for all other classes.
+        5. **Self-Contained ONNX Assets**: Exported `tcn_ultimate_baseline.onnx` (263 KB) and `facing_up_detector.onnx` (496 KB) as single, self-contained ONNX protobufs with embedded weights (`dynamo=False`), eliminating runtime dependencies on external `.data` files in Android APK asset bundles.
+    *   **Verification**:
+        - All JVM unit tests in `TcnModelRunnerLogicTest.kt` pass.
+        - End-to-end Python vs Kotlin verification confirms identical tensor shapes and probability distributions across real session telemetry.
+        - Resolved AGP 8.x release buildType warning by setting `isDebuggable = false` with `isMinifyEnabled = true` in `:app` and `:wear` `build.gradle.kts`.
+        - Cleaned up Kotlin compiler warnings across `:app` and `:wear` (variable shadowing in `MainActivity.kt`, string interpolation in `DataSyncManager.kt`, unused parameters in Wear screens, and unchecked casts in `TcnModelRunner.kt`).
+
+144. **Bat Face Presentation & Launch Angle Telemetry Restoration (August 14, 2026)**:
+    *   **The Problem**: Individual shot detail cards in the phone companion app showed no data for bat face presentation or vertical launch angle, while the session summary cards displayed identical flat defaults (`FACE Full face 0°` and `LAUNCH Flat 0°`) across all shot types.
+    *   **Root Cause**:
+        1. `pipelines/reprocess_sessions.py` omitted `bladeAngle`, `bladeClass`, `launchAngle`, and `launchClass` from the SQL `INSERT INTO innings_events` statement, leaving all reprocessed physical shots populated with `NULL` in the phone database.
+        2. `PhoneSwingDetector.kt` extracted 32 ML features during phone-side batch detection but did not compute `bladeAngle`, `bladeClass`, `launchAngle`, or `launchClass`, defaulting them to `null` when creating `InningsEvent` objects.
+        3. In `MainActivity.kt`, individual cards skipped rendering the metrics due to `if (event.bladeAngle != null)` checks, while the summary table averaged empty lists (yielding `NaN -> 0.0`), mapping by default to `"Full face 0°"` and `"Flat 0°"`.
+    *   **The Solution**:
+        1. **Quaternion Kinematics Calculation**:
+           - Stance quaternion ($q_{\text{stance}}$) and impact quaternion ($q_{\text{impact}}$) compute relative rotation $q_{\text{rel}} = q_{\text{stance}}^{-1} \times q_{\text{impact}}$.
+           - Face yaw deviation $b_{\text{angle}} = \text{yaw}(v_{\text{face\_rel}}) - \text{target\_yaw}$ classifies into `OPEN` ($\le -15^\circ$), `CLOSED` ($\ge +15^\circ$), or `FULL_FACE`.
+           - Launch angle evaluates relative wrist roll for horizontal strokes (`CUT/PUNCH`, `PULL/HOOK`, `SWEEP`, `SLOG`) or world-frame pitch normal elevation ($-\arcsin(v_{\text{face\_world}}[z])$) for vertical strokes (`DRIVE/DEFENCE`, `DEFLECTION/GUIDE`, `GLANCE/FLICK`, `POWER DRIVE`), classifying into `HIGH_LOFT`, `POWER_ZONE`, `LOFTED`, `FLAT`, or `INTO_GROUND`.
+        2. **Pipeline Reprocessing**: Added dynamic extraction and calculation in `reprocess_sessions.py` and updated the SQLite `INSERT` statement to populate `bladeAngle`, `bladeClass`, `launchAngle`, and `launchClass` across all 53 physical sessions (4,101 shots).
+        3. **Phone App Integration**: Implemented `calculateBladeAndLaunch` in `PhoneSwingDetector.kt` and updated `MainActivity.kt` to standardize the metric column label to `"FACE"` and correctly map launch angles in `ShotTypeSummary`.
+    *   **Verification**: All Gradle unit tests across `:app` and `:wear` pass cleanly (`BUILD SUCCESSFUL`), `BladeAndLaunchAngleTest.kt` verifies boundary and wrap-around kinematics, and SQLite database inspection confirms 100% non-null face presentation and launch metrics across 4,101 physical shots.

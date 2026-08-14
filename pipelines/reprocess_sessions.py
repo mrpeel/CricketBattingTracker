@@ -465,6 +465,90 @@ def extract_features_single_shot(sensors, t_shot):
             
     return feats
 
+def classify_blade(angle):
+    if angle <= -15.0: return "OPEN"
+    if angle >= 15.0: return "CLOSED"
+    return "FULL_FACE"
+
+def classify_launch(angle):
+    if angle < -45.0: return "HIGH_LOFT"
+    if angle < -35.0: return "POWER_ZONE"
+    if angle < -15.0: return "LOFTED"
+    if angle < 0.0: return "FLAT"
+    return "INTO_GROUND"
+
+CANONICAL_TARGETS = {
+    "COVER_DRIVE": -45.0,
+    "COVER DRIVE": -45.0,
+    "STRAIGHT_DRIVE": 0.0,
+    "STRAIGHT DRIVE": 0.0,
+    "ON_DRIVE": 15.0,
+    "ON DRIVE": 15.0,
+    "DEFENCE/BLOCK": 0.0,
+    "DEFENCE": 0.0,
+    "DRIVE/DEFENCE": 0.0,
+    "POWER DRIVE": 0.0,
+    "CUT/PUNCH": 40.0,
+    "CUT": 40.0,
+    "GLANCE/FLICK": 75.0,
+    "FLICK": 75.0,
+    "GLANCE": 75.0,
+    "PULL/HOOK": 55.0,
+    "PULL": 55.0,
+    "SWEEP": 65.0,
+    "SLOG": 55.0,
+    "DEFLECTION/GUIDE": 0.0,
+    "GUIDE": 0.0,
+}
+
+def calculate_blade_and_launch(sensors, t_shot, shot_type):
+    orient = sensors.get("game_orient") if sensors.get("game_orient") is not None else sensors.get("orientation")
+    if orient is None or len(orient) < 5:
+        return 0.0, "FULL_FACE", 0.0, "FLAT"
+
+    window_df = orient[(orient['seconds_elapsed'] >= t_shot - 3.0) & (orient['seconds_elapsed'] <= t_shot - 1.0)]
+    if len(window_df) >= 2:
+        q_stance = average_quats(window_df['qx'].values, window_df['qy'].values, window_df['qz'].values, window_df['qw'].values)
+    else:
+        q_stance = np.array([0.0, 0.0, 0.0, 1.0])
+    q_stance_inv = conjugate_quat(q_stance)
+
+    sub = orient[(orient['seconds_elapsed'] >= t_shot - 0.05) & (orient['seconds_elapsed'] <= t_shot + 0.10)]
+    if len(sub) == 0:
+        return 0.0, "FULL_FACE", 0.0, "FLAT"
+    closest_idx = np.argmin(np.abs(sub['seconds_elapsed'].values - t_shot))
+    row = sub.iloc[closest_idx]
+    q_curr = np.array([row['qx'], row['qy'], row['qz'], row['qw']])
+
+    q_rel = multiply_quats(q_stance_inv, q_curr)
+    
+    x, y, z, w = q_rel
+    roll_impact = float(np.degrees(np.arctan2(2.0 * (w*y + x*z), 1.0 - 2.0 * (y*y + z*z))))
+
+    norm_type = normalise_shot_type(str(shot_type)) or str(shot_type).upper()
+    target_yaw = CANONICAL_TARGETS.get(norm_type, 0.0)
+    if "cover" in str(shot_type).lower():
+        target_yaw = -45.0
+    elif "on drive" in str(shot_type).lower():
+        target_yaw = 15.0
+
+    v_face_rel = rotate_vector(q_rel, np.array([1.0, 0.0, 0.0]))
+    yaw_face_rel = float(np.degrees(np.arctan2(v_face_rel[1], v_face_rel[0])))
+    
+    b_angle = yaw_face_rel - target_yaw
+    b_angle = float(((b_angle + 180.0) % 360.0 + 360.0) % 360.0 - 180.0)
+    b_class = classify_blade(b_angle)
+
+    is_horizontal_bat = norm_type in ["CUT/PUNCH", "PULL/HOOK", "SWEEP", "SLOG"] or "cut" in str(shot_type).lower() or "pull" in str(shot_type).lower() or "sweep" in str(shot_type).lower()
+    if is_horizontal_bat:
+        l_angle = roll_impact
+    else:
+        v_face_world = rotate_vector(q_curr, np.array([1.0, 0.0, 0.0]))
+        l_angle = float(-np.degrees(np.arcsin(np.clip(v_face_world[2], -1.0, 1.0))))
+        
+    l_class = classify_launch(l_angle)
+    return round(b_angle, 1), b_class, round(l_angle, 1), l_class
+
 def load_raw_sensor_dir(session_dir):
     sensors = {}
     for name, key in [("WatchAccelerometer", "accel"), ("WatchGyroscope", "gyro"), 
@@ -534,6 +618,8 @@ def detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf
         gyro_peak = float(g_win.max()) if len(g_win) > 0 else 10.0
         bat_speed = float(gyro_peak * 4.5)
         
+        b_angle, b_class, l_angle, l_class = calculate_blade_and_launch(sensors, t_shot, pred_shot_type)
+
         detected_shots.append({
             "timestamp_offset_s": t_shot,
             "timestamp_ns": ts_ns,
@@ -543,6 +629,10 @@ def detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf
             "impact_force": float(accel_mags[peak_idx]),
             "efficiency": 90.0,
             "impact_time_ms": 350,
+            "blade_angle": b_angle,
+            "blade_class": b_class,
+            "launch_angle": l_angle,
+            "launch_class": l_class,
             "features": feats
         })
     return detected_shots
@@ -629,6 +719,32 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 eff = float(row.get('efficiency', 90.0)) if pd.notna(row.get('efficiency')) else 90.0
                 react_ms = int(row.get('reaction_time_ms', 350)) if pd.notna(row.get('reaction_time_ms')) else 350
 
+                # Extract blade/launch angles from ground_truth_aligned.csv or compute dynamically
+                b_angle = row.get('blade_angle_deg')
+                b_class = row.get('blade_class')
+                l_angle = row.get('launch_angle_deg')
+                l_class = row.get('launch_class')
+
+                if pd.isna(b_angle):
+                    b_angle, b_class_calc, _, _ = calculate_blade_and_launch(sensors, t_shot, pred_shot_type)
+                    b_class = b_class_calc
+                else:
+                    b_angle = float(b_angle)
+                    if pd.isna(b_class) or str(b_class).strip().lower() in ['', 'nan', 'n/a', 'none']:
+                        b_class = classify_blade(b_angle)
+                    else:
+                        b_class = str(b_class).strip()
+
+                if pd.isna(l_angle):
+                    _, _, l_angle, l_class_calc = calculate_blade_and_launch(sensors, t_shot, pred_shot_type)
+                    l_class = l_class_calc
+                else:
+                    l_angle = float(l_angle)
+                    if pd.isna(l_class) or str(l_class).strip().lower() in ['', 'nan', 'n/a', 'none']:
+                        l_class = classify_launch(l_angle)
+                    else:
+                        l_class = str(l_class).strip()
+
                 shots.append({
                     "timestamp_offset_s": t_shot,
                     "timestamp_ns": ts_ns,
@@ -638,6 +754,10 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     "impact_force": acc_peak,
                     "efficiency": eff,
                     "impact_time_ms": react_ms,
+                    "blade_angle": b_angle,
+                    "blade_class": b_class,
+                    "launch_angle": l_angle,
+                    "launch_class": l_class,
                     "features": feats
                 })
             # Also check if additional sensor-only physical shots exist in the session data
@@ -880,14 +1000,16 @@ def main():
 
             c.execute("""
                 INSERT INTO innings_events (
-                    inningsId, timestamp, description, batSpeed, impactForce, impactTimeMs, shotType, efficiency, location,
+                    inningsId, timestamp, description, batSpeed, impactForce, impactTimeMs, shotType, efficiency,
+                    bladeAngle, bladeClass, launchAngle, launchClass, location,
                     bottom_hand_gyro_peak, bottom_hand_acc_peak, bottom_hand_gyro_ratio, bottom_hand_acc_ratio, bottom_hand_time_lead_ms, bottom_hand_sync_score,
                     swing_feature_s1_gyro_y_std, swing_feature_s1_gyro_z_std, swing_feature_s1_delta_x, swing_feature_s1_delta_z,
                     swing_feature_s2_gyro_mag, swing_feature_s2_grav_y_mean, swing_feature_s2_delta_x, swing_feature_s2_delta_z,
                     swing_feature_s3_roll_deg, swing_feature_s3_yaw_deg, swing_feature_s3_delta_x, swing_feature_s3_delta_z,
                     swing_feature_s3_plane_ratio, swing_feature_s3_gyro_y_min
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, '26 Aldinga Street, Blackburn South',
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, '26 Aldinga Street, Blackburn South',
                     ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
@@ -896,6 +1018,7 @@ def main():
                 )
             """, (
                 session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], impact_time_ms, shot["shot_type"], efficiency,
+                shot.get("blade_angle"), shot.get("blade_class"), shot.get("launch_angle"), shot.get("launch_class"),
                 f.get('bottom_hand_gyro_peak'), f.get('bottom_hand_acc_peak'), f.get('bottom_hand_gyro_ratio'), f.get('bottom_hand_acc_ratio'), f.get('bottom_hand_time_lead_ms'), f.get('bottom_hand_sync_score'),
                 f.get('s1_gyro_y_std'), f.get('s1_gyro_z_std'), f.get('s1_deltaX'), f.get('s1_deltaZ'),
                 f.get('s2_gyroMag'), f.get('s2_grav_y_mean'), f.get('s2_deltaX'), f.get('s2_deltaZ'),

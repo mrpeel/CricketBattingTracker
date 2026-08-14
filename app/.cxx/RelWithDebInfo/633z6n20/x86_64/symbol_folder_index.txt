@@ -1,1 +1,0 @@
-/Users/neilkloot/Code/CricketBattingTracker/app/build/intermediates/cxx/RelWithDebInfo/633z6n20/obj/x86_64

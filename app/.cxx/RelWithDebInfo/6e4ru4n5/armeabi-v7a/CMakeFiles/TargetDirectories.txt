@@ -1,3 +1,0 @@
-/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/RelWithDebInfo/6e4ru4n5/armeabi-v7a/CMakeFiles/cricketbattingtracker.dir
-/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/RelWithDebInfo/6e4ru4n5/armeabi-v7a/CMakeFiles/edit_cache.dir
-/Users/neilkloot/Code/CricketBattingTracker/app/.cxx/RelWithDebInfo/6e4ru4n5/armeabi-v7a/CMakeFiles/rebuild_cache.dir

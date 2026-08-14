@@ -1125,8 +1125,8 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
 
             val avgLaunch = group.mapNotNull { it.launchAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
             val avgLaunchDesc = when {
-                avgLaunch > 1.5f -> "Lofted"
-                avgLaunch < -1.5f -> "Ground"
+                avgLaunch < -1.5f -> "Lofted"
+                avgLaunch > 1.5f -> "Ground"
                 else -> "Flat"
             }
             val avgLaunchAngleText = "${String.format(java.util.Locale.US, "%.0f", Math.abs(avgLaunch.toDouble()))}°"
@@ -2120,7 +2120,7 @@ fun TimelineItem(
                             } else {
                                 desc
                             }
-                            MetricSmallCompact("BLADE", displayValue, modifier = Modifier.weight(1.8f))
+                            MetricSmallCompact("FACE", displayValue, modifier = Modifier.weight(1.8f))
                         }
                         if (event.launchAngle != null || !event.launchClass.isNullOrEmpty()) {
                             val cls = event.launchClass ?: ""
@@ -2164,12 +2164,12 @@ fun TimelineItem(
                     )
 
                     val statusColor = if (bioState.displaysWarning) Color(0xFFFFBF00) else Color(0xFF58FF63)
-                    val cardBgColor = if (bioState.displaysWarning) Color(0x1AFFBF00) else Color.White.copy(alpha = 0.03f)
+                    val handCardBgColor = if (bioState.displaysWarning) Color(0x1AFFBF00) else Color.White.copy(alpha = 0.03f)
 
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(cardBgColor, RoundedCornerShape(12.dp))
+                            .background(handCardBgColor, RoundedCornerShape(12.dp))
                             .then(if (bioState.displaysWarning) Modifier.border(1.dp, Color(0xFFFFBF00).copy(alpha = 0.6f), RoundedCornerShape(12.dp)) else Modifier)
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
