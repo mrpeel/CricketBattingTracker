@@ -670,8 +670,11 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
     if os.path.exists(gt_csv):
         try:
             df_gt = pd.read_csv(gt_csv)
-            # Filter non-swing rows
+            # Filter non-swing rows and zero-energy re-narration ghost rows
             swings_df = df_gt[~df_gt['shot_type'].astype(str).str.lower().str.contains('facing|no shot|leave|evade', na=False)].copy()
+            # Exclude ghost narration entries with no physical peak (gyro <= 1.05 rad/s)
+            if 'impact_gyro_mag' in swings_df.columns:
+                swings_df = swings_df[(swings_df['impact_gyro_mag'] > 1.05) | (swings_df['bottom_hand_gyro_peak'].fillna(0.0) > 1.05)]
             
             shots = []
             for _, row in swings_df.iterrows():
@@ -760,13 +763,7 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     "launch_class": l_class,
                     "features": feats
                 })
-            # Also check if additional sensor-only physical shots exist in the session data
-            sensor_shots = detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual)
-            all_combined = list(shots)
-            for s_shot in sensor_shots:
-                if not any(abs(s_shot["timestamp_offset_s"] - gt_shot["timestamp_offset_s"]) < 3.0 for gt_shot in shots):
-                    all_combined.append(s_shot)
-            return sorted(all_combined, key=lambda x: x["timestamp_offset_s"])
+            return sorted(shots, key=lambda x: x["timestamp_offset_s"])
         except Exception as e:
             print(f"⚠️ Error reading {gt_csv}, falling back to raw peak detection: {e}")
 

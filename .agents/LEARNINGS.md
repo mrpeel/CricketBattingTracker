@@ -515,3 +515,18 @@ This document captures resolved bugs, architectural changes, key logical finding
         3. **Zero-Allocation Loop & Safe Multidimensional Unpacking**: Optimized `TcnModelRunner.kt` with a direct primitive float accumulator loop (zero allocations) and polymorphic pattern matching for 1D/2D tensor outputs.
         4. **Loading Screen State Guard**: Updated `MainActivity.kt` to check `timeline.any { it.description == "Session Ended" }` alongside shot events, and ensured `processed_innings_$id` is committed to `SharedPreferences`.
         5. **Full Pipeline Reprocessing**: Executed `reprocess_sessions.py` across all 54 physical sessions, successfully detecting **104 physical shots** from the August 15 session (48.2 km/h avg speed, 105.5 km/h max speed), restoring the complete SQLite database to the connected phone, and deploying the updated release APK via `./deploy_physical.sh`.
+
+146. **Shot Overcounting Remediation & Reprocessing Pipeline Fix (August 15, 2026)**:
+    *   **The Problem**: Phone app showed 105 shots for session `2026-08-15_11-00-15` (and +30 average ghost shots across historical sessions), despite the user facing only 73 balls across 3 sets (23, 26, 24 balls, max feeder capacity 26 balls). Anomalous 30s gaps (13:31, 14:09, 14:46, 15:25, 15:29, 16:00) and rapid ~3s clusters appeared during 5-minute set breaks.
+    *   **Root Cause**:
+        1. **Un-gated Sensor Shockwave Injection**: `pipelines/reprocess_sessions.py` contained `detect_sensor_only_shots()`, which scanned the raw IMU streams for any shockwave exceeding $a \ge 30\text{ m/s}^2$ and $\omega \ge 4.0\text{ rad/s}$ without any Stance Gate or ML model. During the 5.5-minute rest break (12:50 to 18:26) where the user walked, collected balls, tapped the bat, and refilled the feeder, it detected 33 false positive peaks, classified them with legacy Random Forest (mostly as `DEFLECTION/GUIDE`), and appended them to the database on top of the 73 ground-truth shots (73 + 33 = 106 records).
+        2. **Zero-Energy Re-narration Ghost Entries**: 5 audio re-narration/correction utterances in the ground-truth file had no physical swing and were assigned a dummy floor `impact_gyro_mag = 1.0 rad/s`.
+    *   **The Solution**:
+        1. **Removed Injected Sensor Shots**: Eliminated `detect_sensor_only_shots()` appending from `process_single_session_raw()` in `pipelines/reprocess_sessions.py` when `ground_truth_aligned.csv` is present.
+        2. **Filtered Zero-Energy Re-narrations**: Filtered out rows with `impact_gyro_mag <= 1.05` from ground-truth loading.
+        3. **Reprocessed Master Database**: Re-ran `reprocess_sessions.py` across all 54 physical sessions, pruning >400 ghost shots across the dataset.
+    *   **Verification**:
+        - Audited session `2026-08-15_11-00-15` in `cricket_tracker_database.db`: exactly 73 genuine physical shots (Set 1: 23 shots, Set 2: 26 shots, Set 3: 24 shots) and **0 shots** during the 13:00–18:00 break.
+        - Production Multi-Tier TCN Telemetry Engine (`telemetry_engine.py`) detected 69 shots (94.5% recall) with 0 false positives during rest breaks.
+        - All Gradle unit tests in `:app` and `:wear` pass cleanly (`BUILD SUCCESSFUL`).
+
