@@ -1364,25 +1364,25 @@ object PhoneSwingDetector {
         val bsGyroSamples = watchGyro.filter { it.timeNanos in backswingStart..backswingEnd }
         if (bsGyroSamples.isEmpty()) return false
         val peakGyro = bsGyroSamples.maxOf { it.mag }
-        if (peakGyro < 3.0f) return false  // Require meaningful backswing, not just fidgeting
+        if (peakGyro < 2.0f) return false  // Require meaningful backswing
         
         // 2. Verify Stance
         val stanceStart = impactSensorNs - 2_500_000_000L
         val stanceEnd = impactSensorNs - 1_000_000_000L
         val stanceRotSamples = watchRot.filter { it.timeNanos in stanceStart..stanceEnd }
-        if (stanceRotSamples.size < 5) return false
-        
-        val meanQx = stanceRotSamples.map { it.qx }.average().toFloat()
-        val meanQy = stanceRotSamples.map { it.qy }.average().toFloat()
-        val meanQz = stanceRotSamples.map { it.qz }.average().toFloat()
-        val meanQw = stanceRotSamples.map { it.qw }.average().toFloat()
-        
-        var devSum = 0f
-        for (s in stanceRotSamples) {
-            devSum += (s.qx - meanQx).pow(2) + (s.qy - meanQy).pow(2) + (s.qz - meanQz).pow(2) + (s.qw - meanQw).pow(2)
+        if (stanceRotSamples.size >= 5) {
+            val meanQx = stanceRotSamples.map { it.qx }.average().toFloat()
+            val meanQy = stanceRotSamples.map { it.qy }.average().toFloat()
+            val meanQz = stanceRotSamples.map { it.qz }.average().toFloat()
+            val meanQw = stanceRotSamples.map { it.qw }.average().toFloat()
+            
+            var devSum = 0f
+            for (s in stanceRotSamples) {
+                devSum += (s.qx - meanQx).pow(2) + (s.qy - meanQy).pow(2) + (s.qz - meanQz).pow(2) + (s.qw - meanQw).pow(2)
+            }
+            val stdDev = sqrt(devSum / stanceRotSamples.size)
+            if (stdDev > 0.45f) return false  // Filter out running/fidgeting
         }
-        val stdDev = sqrt(devSum / stanceRotSamples.size)
-        if (stdDev > 0.30f) return false  // Require genuine stance stability
         
         return true
     }

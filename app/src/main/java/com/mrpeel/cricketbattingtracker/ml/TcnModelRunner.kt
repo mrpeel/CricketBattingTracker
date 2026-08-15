@@ -227,14 +227,25 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 val prob = try {
                     val s1Tensor = OnnxTensor.createTensor(ortEnv, s1InputBuffer, s1Shape)
                     val s1Out = s1Session.run(mapOf("input_imu_12ch" to s1Tensor))
-                    val logitVal = (s1Out[0].value as FloatArray)[0]
+                    val outVal = s1Out[0].value
+                    val logitVal = when (outVal) {
+                        is Array<*> -> {
+                            val row0 = outVal[0]
+                            if (row0 is FloatArray) row0[0] else (row0 as Array<*>)[0] as Float
+                        }
+                        is FloatArray -> outVal[0]
+                        is Float -> outVal
+                        else -> 0f
+                    }
                     val p = (1.0 / (1.0 + exp(-logitVal.toDouble()))).toFloat()
                     s1Tensor.close()
                     s1Out.close()
                     p
                 } catch (e: Exception) {
                     // Fallback heuristic if ONNX execution fails
-                    val meanGy = (startIdx until endIdx).map { sensorMatrix[13][it] }.average().toFloat()
+                    var gySum = 0f
+                    for (k in startIdx until endIdx) gySum += sensorMatrix[13][k]
+                    val meanGy = gySum / windowLenS1
                     if (maxW < 1.0f && meanGy <= -3.0f) 0.85f else 0.15f
                 }
                 s1Probs.add(prob)
@@ -245,11 +256,13 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 val endIdx = startIdx + windowLenS1
                 s1MidFrames.add(startIdx + windowLenS1 / 2)
                 var maxW = 0f
+                var gySum = 0f
                 for (k in startIdx until endIdx) {
                     if (wGyroMag[k] > maxW) maxW = wGyroMag[k]
+                    gySum += sensorMatrix[13][k]
                 }
                 s1MaxWMags.add(maxW)
-                val meanGy = (startIdx until endIdx).map { sensorMatrix[13][it] }.average().toFloat()
+                val meanGy = gySum / windowLenS1
                 val prob = if (maxW < 1.0f && meanGy <= -3.0f) 0.85f else 0.15f
                 s1Probs.add(prob)
             }

@@ -432,7 +432,8 @@ class MainActivity : ComponentActivity() {
 
                         val isProcessing = remember(timeline, selectedSession, processedByRecovery) {
                             val hasShots = timeline.any { it.description.contains("Shot:") || it.batSpeed != null }
-                            val isProcessed = hasShots || processedByRecovery || context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                            val hasEnded = timeline.any { it.description == "Session Ended" }
+                            val isProcessed = hasShots || hasEnded || processedByRecovery || context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
                                 .getBoolean("processed_innings_$selectedSessionId", false)
                             !isProcessed
                         }
