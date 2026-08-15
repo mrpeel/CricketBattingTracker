@@ -105,6 +105,7 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.microsoft.onnxruntime:onnxruntime:1.22.0")
 }
 
 // Automatically enforce 16 KB (16384 bytes) Zip offset alignment & re-signing on packaged APK outputs
