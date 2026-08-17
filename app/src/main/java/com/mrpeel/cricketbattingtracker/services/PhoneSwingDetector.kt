@@ -280,19 +280,32 @@ object PhoneSwingDetector {
 
             if (hasPolarData && alignment != null) {
                 val polarPeakTimeMs = alignment.watchToPolarMs(shotWallMs)
-                val polarAccWin = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
-                val polarGyroWin = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs + 100L) }
+                var pAccPeak = 0f
+                var pAccPeakTime = polarPeakTimeMs
+                forEachPolarInRange(polarAcc, polarPeakTimeMs - 200L, polarPeakTimeMs + 100L) { s ->
+                    if (s.mag > pAccPeak) {
+                        pAccPeak = s.mag
+                        pAccPeakTime = s.phoneMs
+                    }
+                }
 
-                val pAccPeak = if (polarAccWin.isNotEmpty()) polarAccWin.maxOf { it.mag } else 0f
-                val pGyroPeak = if (polarGyroWin.isNotEmpty()) polarGyroWin.maxOf { it.mag } else 0f
+                var pGyroPeak = 0f
+                forEachPolarInRange(polarGyro, polarPeakTimeMs - 200L, polarPeakTimeMs + 100L) { s ->
+                    if (s.mag > pGyroPeak) pGyroPeak = s.mag
+                }
+
                 val watchGyroPeak = getGyroPeak(watchGyro, targetSensorNs - 200_000_000L, targetSensorNs + 100_000_000L)
                 val gyroRatio = if (watchGyroPeak > 0.01f) pGyroPeak / watchGyroPeak else 0f
-                val accRatio = if (watchAcc.isNotEmpty()) {
-                    val wAccPeak = watchAcc.filter { it.timeNanos in (targetSensorNs - 200_000_000L)..(targetSensorNs + 100_000_000L) }.maxOfOrNull { it.mag } ?: 1f
-                    pAccPeak / wAccPeak
-                } else 0f
+                var wAccPeak = 1f
+                var foundWAcc = false
+                forEachWatchIMUInRange(watchAcc, targetSensorNs - 200_000_000L, targetSensorNs + 100_000_000L) { s ->
+                    if (!foundWAcc || s.mag > wAccPeak) {
+                        wAccPeak = s.mag
+                        foundWAcc = true
+                    }
+                }
+                val accRatio = if (watchAcc.isNotEmpty() && foundWAcc) pAccPeak / wAccPeak else 0f
 
-                val pAccPeakTime = polarAccWin.maxByOrNull { it.mag }?.phoneMs ?: polarPeakTimeMs
                 val timeLeadMs = pAccPeakTime - polarPeakTimeMs
                 val timePenalty = kotlin.math.min(1.0f, kotlin.math.abs(timeLeadMs) / 200f)
                 val ratioPenalty = kotlin.math.min(1.0f, kotlin.math.abs(gyroRatio - 1.0f))
@@ -306,46 +319,71 @@ object PhoneSwingDetector {
                 bottomSyncScore = syncScore
 
                 // Segmented Polar extraction
-                val s1Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
-                if (s1Gyro.isNotEmpty()) {
-                    s1BottomGyroMag = s1Gyro.maxOf { it.mag }
-                    s1BottomDeltaZ = s1Gyro.maxOf { it.z } - s1Gyro.minOf { it.z }
+                var s1GMag = 0f; var s1GMinZ = Float.MAX_VALUE; var s1GMaxZ = -Float.MAX_VALUE; var foundS1G = false
+                forEachPolarInRange(polarGyro, polarPeakTimeMs - 800L, polarPeakTimeMs - 200L) { s ->
+                    if (s.mag > s1GMag) s1GMag = s.mag
+                    if (s.z < s1GMinZ) s1GMinZ = s.z
+                    if (s.z > s1GMaxZ) s1GMaxZ = s.z
+                    foundS1G = true
+                }
+                if (foundS1G) {
+                    s1BottomGyroMag = s1GMag
+                    s1BottomDeltaZ = s1GMaxZ - s1GMinZ
                 }
 
                 // S1 bottom-hand acc (backswing: -800ms to -200ms)
-                val s1AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 800L)..(polarPeakTimeMs - 200L) }
-                if (s1AccBottom.isNotEmpty()) {
-                    s1BottomAccMag = s1AccBottom.maxOf { it.mag }
+                forEachPolarInRange(polarAcc, polarPeakTimeMs - 800L, polarPeakTimeMs - 200L) { s ->
+                    if (s.mag > s1BottomAccMag) s1BottomAccMag = s.mag
                 }
 
-                val s2Acc = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
-                if (s2Acc.isNotEmpty()) {
-                    s2BottomAccMean = s2Acc.map { it.mag }.average().toFloat()
+                // S2 acc
+                var s2AccSum = 0.0; var s2AccCount = 0
+                forEachPolarInRange(polarAcc, polarPeakTimeMs - 200L, polarPeakTimeMs - 50L) { s ->
+                    s2AccSum += s.mag
+                    s2AccCount++
+                }
+                if (s2AccCount > 0) {
+                    s2BottomAccMean = (s2AccSum / s2AccCount).toFloat()
                 }
 
-                val s2Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 200L)..(polarPeakTimeMs - 50L) }
-                if (s2Gyro.size >= 2 && watchGyroPeak > 0.01f) {
-                    val gStart = s2Gyro.first().mag
-                    val gEnd = s2Gyro.last().mag
-                    val dtSec = (s2Gyro.last().phoneMs - s2Gyro.first().phoneMs) / 1000f + 1e-4f
+                // S2 gyro
+                var gStart = 0f; var gEnd = 0f; var tStartMs = 0L; var tEndMs = 0L; var s2GyroCount = 0
+                forEachPolarInRange(polarGyro, polarPeakTimeMs - 200L, polarPeakTimeMs - 50L) { s ->
+                    if (s2GyroCount == 0) {
+                        gStart = s.mag
+                        tStartMs = s.phoneMs
+                    }
+                    gEnd = s.mag
+                    tEndMs = s.phoneMs
+                    s2GyroCount++
+                }
+                if (s2GyroCount >= 2 && watchGyroPeak > 0.01f) {
+                    val dtSec = (tEndMs - tStartMs) / 1000f + 1e-4f
                     s2DynamicRatioSlope = ((gEnd - gStart) / dtSec) / watchGyroPeak
                 }
 
-                val s3Gyro = polarGyro.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
-                if (s3Gyro.isNotEmpty()) {
-                    var trapz = 0f
-                    for (i in 1 until s3Gyro.size) {
-                        val dt = (s3Gyro[i].phoneMs - s3Gyro[i-1].phoneMs) / 1000f
-                        trapz += 0.5f * (s3Gyro[i].y + s3Gyro[i-1].y) * dt
+                // S3 gyro pronation
+                var prevS3Gyro: PolarSample? = null
+                var trapz = 0f
+                var s3MinY = Float.MAX_VALUE
+                var foundS3Gyro = false
+                forEachPolarInRange(polarGyro, polarPeakTimeMs - 50L, polarPeakTimeMs + 300L) { curr ->
+                    foundS3Gyro = true
+                    if (curr.y < s3MinY) s3MinY = curr.y
+                    prevS3Gyro?.let { prev ->
+                        val dt = (curr.phoneMs - prev.phoneMs) / 1000f
+                        trapz += 0.5f * (curr.y + prev.y) * dt
                     }
+                    prevS3Gyro = curr
+                }
+                if (foundS3Gyro) {
                     s3BottomPronationDeg = trapz * (180f / Math.PI.toFloat())
-                    s3BottomGyroYMin = s3Gyro.minOf { it.y }
+                    s3BottomGyroYMin = s3MinY
                 }
 
                 // S3 bottom-hand acc peak (impact/follow-through: -50ms to +300ms)
-                val s3AccBottom = polarAcc.filter { it.phoneMs in (polarPeakTimeMs - 50L)..(polarPeakTimeMs + 300L) }
-                if (s3AccBottom.isNotEmpty()) {
-                    s3BottomAccPeak = s3AccBottom.maxOf { it.mag }
+                forEachPolarInRange(polarAcc, polarPeakTimeMs - 50L, polarPeakTimeMs + 300L) { s ->
+                    if (s.mag > s3BottomAccPeak) s3BottomAccPeak = s.mag
                 }
             }
 
@@ -386,13 +424,33 @@ object PhoneSwingDetector {
                 else -> "Good"
             }
 
-            val accSpikeWin = watchAcc.filter { it.timeNanos in (targetSensorNs - 150_000_000L)..(targetSensorNs + 100_000_000L) }
-            val accImpactNs = if (accSpikeWin.isNotEmpty()) accSpikeWin.maxByOrNull { it.mag }?.timeNanos ?: targetSensorNs else targetSensorNs
-            val downswingGyroWin = watchGyro.filter { it.timeNanos in (targetSensorNs - 300_000_000L)..(targetSensorNs + 100_000_000L) }
-            val maxDownswingGyro = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.maxOf { it.mag } else 0.01f
-            val gyroAtImpact = if (downswingGyroWin.isNotEmpty()) downswingGyroWin.minByOrNull { kotlin.math.abs(it.timeNanos - accImpactNs) }?.mag ?: maxDownswingGyro else maxDownswingGyro
+            var maxAccSpike = 0f
+            var accImpactNs = targetSensorNs
+            forEachWatchIMUInRange(watchAcc, targetSensorNs - 150_000_000L, targetSensorNs + 100_000_000L) { s ->
+                if (s.mag > maxAccSpike) {
+                    maxAccSpike = s.mag
+                    accImpactNs = s.timeNanos
+                }
+            }
+
+            var maxDownswingGyro = 0.01f
+            var gyroAtImpact = 0.01f
+            var minGyroDiff = Long.MAX_VALUE
+            var foundDownswingGyro = false
+            forEachWatchIMUInRange(watchGyro, targetSensorNs - 300_000_000L, targetSensorNs + 100_000_000L) { s ->
+                foundDownswingGyro = true
+                if (s.mag > maxDownswingGyro) maxDownswingGyro = s.mag
+                val diff = kotlin.math.abs(s.timeNanos - accImpactNs)
+                if (diff < minGyroDiff) {
+                    minGyroDiff = diff
+                    gyroAtImpact = s.mag
+                }
+            }
+            if (!foundDownswingGyro) {
+                gyroAtImpact = maxDownswingGyro
+            }
             val finalEfficiency = if (maxDownswingGyro > 0.1f) kotlin.math.min(100f, (gyroAtImpact / maxDownswingGyro) * 100f) else 90f
-            val finalPeakAccel = if (bottomAccPeak != null && bottomAccPeak > 0f) bottomAccPeak else (accSpikeWin.maxOfOrNull { it.mag } ?: 15f)
+            val finalPeakAccel = if (bottomAccPeak != null && bottomAccPeak > 0f) bottomAccPeak else (if (maxAccSpike > 0f) maxAccSpike else 15f)
             val batSpeedKmh = maxDownswingGyro * 4.5f
             val bladeAndLaunch = calculateBladeAndLaunch(targetSensorNs, watchRot, finalShotType)
 
@@ -490,6 +548,98 @@ object PhoneSwingDetector {
         return list
     }
 
+    // --- Zero-allocation binary search range lookups for sorted time-series ---
+
+    fun findPolarStart(samples: List<PolarSample>, minPhoneMs: Long): Int {
+        var low = 0
+        var high = samples.size - 1
+        var ans = samples.size
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            if (samples[mid].phoneMs >= minPhoneMs) {
+                ans = mid
+                high = mid - 1
+            } else {
+                low = mid + 1
+            }
+        }
+        return ans
+    }
+
+    fun findWatchIMUStart(samples: List<WatchIMUSample>, minTimeNanos: Long): Int {
+        var low = 0
+        var high = samples.size - 1
+        var ans = samples.size
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            if (samples[mid].timeNanos >= minTimeNanos) {
+                ans = mid
+                high = mid - 1
+            } else {
+                low = mid + 1
+            }
+        }
+        return ans
+    }
+
+    fun findWatchRotStart(samples: List<WatchRotSample>, minTimeNanos: Long): Int {
+        var low = 0
+        var high = samples.size - 1
+        var ans = samples.size
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            if (samples[mid].timeNanos >= minTimeNanos) {
+                ans = mid
+                high = mid - 1
+            } else {
+                low = mid + 1
+            }
+        }
+        return ans
+    }
+
+    inline fun forEachPolarInRange(
+        samples: List<PolarSample>,
+        minMs: Long,
+        maxMs: Long,
+        action: (PolarSample) -> Unit
+    ) {
+        val start = findPolarStart(samples, minMs)
+        for (i in start until samples.size) {
+            val s = samples[i]
+            if (s.phoneMs > maxMs) break
+            action(s)
+        }
+    }
+
+    inline fun forEachWatchIMUInRange(
+        samples: List<WatchIMUSample>,
+        minNanos: Long,
+        maxNanos: Long,
+        action: (WatchIMUSample) -> Unit
+    ) {
+        val start = findWatchIMUStart(samples, minNanos)
+        for (i in start until samples.size) {
+            val s = samples[i]
+            if (s.timeNanos > maxNanos) break
+            action(s)
+        }
+    }
+
+    inline fun forEachWatchRotInRange(
+        samples: List<WatchRotSample>,
+        minNanos: Long,
+        maxNanos: Long,
+        action: (WatchRotSample) -> Unit
+    ) {
+        val start = findWatchRotStart(samples, minNanos)
+        for (i in start until samples.size) {
+            val s = samples[i]
+            if (s.timeNanos > maxNanos) break
+            action(s)
+        }
+    }
+
     // --- Biomechanical stability and rotation math ---
 
     private fun extractFeaturesAtSensorNs(
@@ -515,8 +665,7 @@ object PhoneSwingDetector {
     ): com.mrpeel.cricketbattingtracker.ml.SwingFeatures {
         val stanceStart = targetSensorNs - 2_500_000_000L
         val stanceEnd = targetSensorNs - 1_000_000_000L
-        val stanceRots = watchRot.filter { it.timeNanos in stanceStart..stanceEnd }
-        val qStance = findMostStableStance(stanceRots.ifEmpty { watchRot.take(5) }, 800_000_000L)
+        val qStance = findMostStableStanceInRange(watchRot, stanceStart, stanceEnd, 800_000_000L)
             ?: floatArrayOf(0f, 0f, 0f, 1f)
         val qStanceInv = FloatArray(4)
         conjugateQuat(qStance, qStanceInv)
@@ -530,9 +679,8 @@ object PhoneSwingDetector {
         val s1GyroYStd = getGyroStd(watchGyro, tStart, tSplit1, isY = true)
         val s1GyroZStd = getGyroStd(watchGyro, tStart, tSplit1, isY = false)
         // Top-hand linear acceleration in backswing (F=ma proxy for load-up force)
-        val s1AccMag = watchAcc
-            .filter { it.timeNanos in tStart..tSplit1 }
-            .maxOfOrNull { it.mag } ?: 0f
+        var s1AccMag = 0f
+        forEachWatchIMUInRange(watchAcc, tStart, tSplit1) { if (it.mag > s1AccMag) s1AccMag = it.mag }
 
         val (s2Dx, s2Dz) = getDisplacement(watchRot, tSplit1, tSplit2, qStanceInv)
         val s2GyroMag = getGyroPeak(watchGyro, tSplit1, tSplit2)
@@ -542,9 +690,8 @@ object PhoneSwingDetector {
         val s3PlaneRatio = if (s3Dz > 0f) s3Dx / s3Dz else 0f
         val s3GyroYMin = getGyroMinY(watchGyro, tSplit2, tEnd)
         // Top-hand linear acceleration at impact (F=ma proxy for strike force)
-        val s3AccPeak = watchAcc
-            .filter { it.timeNanos in tSplit2..tEnd }
-            .maxOfOrNull { it.mag } ?: 0f
+        var s3AccPeak = 0f
+        forEachWatchIMUInRange(watchAcc, tSplit2, tEnd) { if (it.mag > s3AccPeak) s3AccPeak = it.mag }
 
         val impactRot = findClosestRotation(watchRot, tSplit2)
         var s3RollImpactDeg = 0f
@@ -594,19 +741,31 @@ object PhoneSwingDetector {
         )
     }
 
-    private fun findMostStableStance(samples: List<WatchRotSample>, windowSizeNanos: Long): FloatArray? {
+    private fun findMostStableStanceInRange(
+        samples: List<WatchRotSample>,
+        minNanos: Long,
+        maxNanos: Long,
+        windowSizeNanos: Long
+    ): FloatArray? {
+        if (samples.isEmpty()) return null
+        val startIdx = findWatchRotStart(samples, minNanos)
+        if (startIdx >= samples.size) return null
+
+        val startTime = samples[startIdx].timeNanos
+        if (startTime > maxNanos) return null
+
+        val endIdx = findWatchRotStart(samples, maxNanos)
+        val endTime = if (endIdx < samples.size) samples[endIdx].timeNanos else samples.last().timeNanos
+
         var bestQuat: FloatArray? = null
         var minVariance = Double.MAX_VALUE
 
-        // Slide window by 50ms (50,000,000ns)
-        val startTime = samples.first().timeNanos
-        val endTime = samples.last().timeNanos
-
         var t = startTime
+        val winSamples = mutableListOf<WatchRotSample>()
         while (t + windowSizeNanos <= endTime) {
-            val winSamples = samples.filter { it.timeNanos in t..(t + windowSizeNanos) }
+            winSamples.clear()
+            forEachWatchRotInRange(samples, t, t + windowSizeNanos) { winSamples.add(it) }
             if (winSamples.size >= 5) {
-                // Compute average displacement
                 var totalDisp = 0.0
                 var count = 0
                 for (i in 1 until winSamples.size) {
@@ -619,67 +778,109 @@ object PhoneSwingDetector {
                 val avgDisp = totalDisp / count
                 if (avgDisp < minVariance) {
                     minVariance = avgDisp
-                    // Average components
-                    val sumX = winSamples.map { it.qx }.sum()
-                    val sumY = winSamples.map { it.qy }.sum()
-                    val sumZ = winSamples.map { it.qz }.sum()
-                    val sumW = winSamples.map { it.qw }.sum()
+                    var sumX = 0f; var sumY = 0f; var sumZ = 0f; var sumW = 0f
+                    for (s in winSamples) {
+                        sumX += s.qx; sumY += s.qy; sumZ += s.qz; sumW += s.qw
+                    }
                     val norm = sqrt(sumX*sumX + sumY*sumY + sumZ*sumZ + sumW*sumW)
-                    bestQuat = floatArrayOf(sumX/norm, sumY/norm, sumZ/norm, sumW/norm)
+                    if (norm > 1e-6f) {
+                        bestQuat = floatArrayOf(sumX/norm, sumY/norm, sumZ/norm, sumW/norm)
+                    }
                 }
             }
             t += 50_000_000L
+        }
+
+        if (bestQuat == null && samples.isNotEmpty()) {
+            val fallback = samples.take(5)
+            var sumX = 0f; var sumY = 0f; var sumZ = 0f; var sumW = 0f
+            for (s in fallback) {
+                sumX += s.qx; sumY += s.qy; sumZ += s.qz; sumW += s.qw
+            }
+            val norm = sqrt(sumX*sumX + sumY*sumY + sumZ*sumZ + sumW*sumW)
+            if (norm > 1e-6f) {
+                bestQuat = floatArrayOf(sumX/norm, sumY/norm, sumZ/norm, sumW/norm)
+            }
         }
 
         return bestQuat
     }
 
     private fun getDisplacement(rotations: List<WatchRotSample>, tStart: Long, tEnd: Long, qStanceInv: FloatArray): Pair<Float, Float> {
-        val sub = rotations.filter { it.timeNanos in tStart..tEnd }
-        if (sub.size < 2) return Pair(0f, 0f)
-
         var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE
         var minZ = Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
+        var count = 0
         val qCurr = FloatArray(4)
         val qRel = FloatArray(4)
         val vLocal = floatArrayOf(0f, -1f, 0f)
         val vRot = FloatArray(3)
 
-        for (s in sub) {
+        forEachWatchRotInRange(rotations, tStart, tEnd) { s ->
+            count++
             qCurr[0] = s.qx; qCurr[1] = s.qy; qCurr[2] = s.qz; qCurr[3] = s.qw
             multiplyQuats(qStanceInv, qCurr, qRel)
             rotateVector(qRel, vLocal, vRot)
             if (vRot[0] < minX) minX = vRot[0]; if (vRot[0] > maxX) maxX = vRot[0]
             if (vRot[2] < minZ) minZ = vRot[2]; if (vRot[2] > maxZ) maxZ = vRot[2]
         }
+        if (count < 2) return Pair(0f, 0f)
         return Pair(maxX - minX, maxZ - minZ)
     }
 
     private fun getGyroStd(gyros: List<WatchIMUSample>, tStart: Long, tEnd: Long, isY: Boolean): Float {
-        val sub = gyros.filter { it.timeNanos in tStart..tEnd }
-        if (sub.size < 2) return 0f
-        val vals = sub.map { if (isY) it.y else it.z }
-        val mean = vals.average()
-        return sqrt(vals.map { (it - mean).pow(2) }.average()).toFloat()
+        var sum = 0.0
+        var count = 0
+        forEachWatchIMUInRange(gyros, tStart, tEnd) { s ->
+            sum += if (isY) s.y else s.z
+            count++
+        }
+        if (count < 2) return 0f
+        val mean = sum / count
+        var varSum = 0.0
+        forEachWatchIMUInRange(gyros, tStart, tEnd) { s ->
+            val v = if (isY) s.y else s.z
+            val diff = v - mean
+            varSum += diff * diff
+        }
+        return sqrt(varSum / count).toFloat()
     }
 
     private fun getGyroPeak(gyros: List<WatchIMUSample>, tStart: Long, tEnd: Long): Float {
-        val sub = gyros.filter { it.timeNanos in tStart..tEnd }
-        return if (sub.isNotEmpty()) sub.maxOf { it.mag } else 0f
+        var maxMag = 0f
+        forEachWatchIMUInRange(gyros, tStart, tEnd) { s ->
+            if (s.mag > maxMag) maxMag = s.mag
+        }
+        return maxMag
     }
 
     private fun getGyroMinY(gyros: List<WatchIMUSample>, tStart: Long, tEnd: Long): Float {
-        val sub = gyros.filter { it.timeNanos in tStart..tEnd }
-        return if (sub.isNotEmpty()) sub.minOf { it.y } else 0f
+        var minY = Float.MAX_VALUE
+        var hasSample = false
+        forEachWatchIMUInRange(gyros, tStart, tEnd) { s ->
+            if (s.y < minY) minY = s.y
+            hasSample = true
+        }
+        return if (hasSample) minY else 0f
     }
 
     private fun getGravityMeanY(gravs: List<WatchIMUSample>, tStart: Long, tEnd: Long): Float {
-        val sub = gravs.filter { it.timeNanos in tStart..tEnd }
-        return if (sub.isNotEmpty()) sub.map { it.y }.average().toFloat() else -9.8f
+        var sum = 0.0
+        var count = 0
+        forEachWatchIMUInRange(gravs, tStart, tEnd) { s ->
+            sum += s.y
+            count++
+        }
+        return if (count > 0) (sum / count).toFloat() else -9.8f
     }
 
     private fun findClosestRotation(rotations: List<WatchRotSample>, targetTime: Long): WatchRotSample? {
-        return rotations.minByOrNull { abs(it.timeNanos - targetTime) }
+        if (rotations.isEmpty()) return null
+        val idx = findWatchRotStart(rotations, targetTime)
+        if (idx >= rotations.size) return rotations.last()
+        if (idx == 0) return rotations.first()
+        val prev = rotations[idx - 1]
+        val curr = rotations[idx]
+        return if (abs(prev.timeNanos - targetTime) <= abs(curr.timeNanos - targetTime)) prev else curr
     }
 
     // --- Quaternion and vector rotation helpers ---
@@ -741,8 +942,7 @@ object PhoneSwingDetector {
 
         val stanceStart = targetSensorNs - 2_500_000_000L
         val stanceEnd = targetSensorNs - 1_000_000_000L
-        val stanceRots = watchRot.filter { it.timeNanos in stanceStart..stanceEnd }
-        val qStance = findMostStableStance(stanceRots.ifEmpty { watchRot.take(5) }, 800_000_000L)
+        val qStance = findMostStableStanceInRange(watchRot, stanceStart, stanceEnd, 800_000_000L)
             ?: floatArrayOf(0f, 0f, 0f, 1f)
         val qStanceInv = FloatArray(4)
         conjugateQuat(qStance, qStanceInv)
@@ -1161,11 +1361,11 @@ object PhoneSwingDetector {
         val maxGapMs = 1500L
         val maxSpanMs = 5000L
 
-        val candidateIndices = samples.indices.filter { samples[it].mag >= tapThreshold }
         val localPeaks = mutableListOf<PolarSample>()
 
-        for (idx in candidateIndices) {
+        for (idx in samples.indices) {
             val sample = samples[idx]
+            if (sample.mag < tapThreshold) continue
             val wStart = samples.binarySearchBy(sample.phoneMs - 150L) { it.phoneMs }.let { if (it < 0) -(it + 1) else it }
             val wEnd = samples.binarySearchBy(sample.phoneMs + 150L) { it.phoneMs }.let { if (it < 0) -(it + 1) else it }
             val maxInWindow = samples.subList(wStart, min(wEnd + 1, samples.size)).maxOf { it.mag }
@@ -1205,9 +1405,9 @@ object PhoneSwingDetector {
         val peaks = mutableListOf<Long>()
         val minGapMs = 1500L
         
-        val candidates = samples.indices.filter { samples[it].mag >= threshold }
-        for (idx in candidates) {
+        for (idx in samples.indices) {
             val s = samples[idx]
+            if (s.mag < threshold) continue
             // Ensure local maximum within +-500ms
             val wStart = samples.binarySearchBy(s.phoneMs - 500L) { it.phoneMs }.let { if (it < 0) -(it + 1) else it }
             val wEnd = samples.binarySearchBy(s.phoneMs + 500L) { it.phoneMs }.let { if (it < 0) -(it + 1) else it }
@@ -1361,29 +1561,38 @@ object PhoneSwingDetector {
         // 1. Verify Backswing
         val backswingStart = impactSensorNs - 1_500_000_000L
         val backswingEnd = impactSensorNs - 150_000_000L
-        val bsGyroSamples = watchGyro.filter { it.timeNanos in backswingStart..backswingEnd }
-        if (bsGyroSamples.isEmpty()) return false
-        val peakGyro = bsGyroSamples.maxOf { it.mag }
-        if (peakGyro < 2.0f) return false  // Require meaningful backswing
-        
+        var peakGyro = 0f
+        var hasBsGyro = false
+        forEachWatchIMUInRange(watchGyro, backswingStart, backswingEnd) { s ->
+            if (s.mag > peakGyro) peakGyro = s.mag
+            hasBsGyro = true
+        }
+        if (!hasBsGyro || peakGyro < 2.0f) return false  // Require meaningful backswing
+
         // 2. Verify Stance
         val stanceStart = impactSensorNs - 2_500_000_000L
         val stanceEnd = impactSensorNs - 1_000_000_000L
-        val stanceRotSamples = watchRot.filter { it.timeNanos in stanceStart..stanceEnd }
-        if (stanceRotSamples.size >= 5) {
-            val meanQx = stanceRotSamples.map { it.qx }.average().toFloat()
-            val meanQy = stanceRotSamples.map { it.qy }.average().toFloat()
-            val meanQz = stanceRotSamples.map { it.qz }.average().toFloat()
-            val meanQw = stanceRotSamples.map { it.qw }.average().toFloat()
-            
-            var devSum = 0f
-            for (s in stanceRotSamples) {
-                devSum += (s.qx - meanQx).pow(2) + (s.qy - meanQy).pow(2) + (s.qz - meanQz).pow(2) + (s.qw - meanQw).pow(2)
+        var count = 0
+        var sumQx = 0.0; var sumQy = 0.0; var sumQz = 0.0; var sumQw = 0.0
+        forEachWatchRotInRange(watchRot, stanceStart, stanceEnd) { s ->
+            sumQx += s.qx; sumQy += s.qy; sumQz += s.qz; sumQw += s.qw
+            count++
+        }
+        if (count >= 5) {
+            val meanQx = (sumQx / count).toFloat()
+            val meanQy = (sumQy / count).toFloat()
+            val meanQz = (sumQz / count).toFloat()
+            val meanQw = (sumQw / count).toFloat()
+
+            var devSum = 0.0
+            forEachWatchRotInRange(watchRot, stanceStart, stanceEnd) { s ->
+                val dx = s.qx - meanQx; val dy = s.qy - meanQy; val dz = s.qz - meanQz; val dw = s.qw - meanQw
+                devSum += (dx*dx + dy*dy + dz*dz + dw*dw)
             }
-            val stdDev = sqrt(devSum / stanceRotSamples.size)
+            val stdDev = sqrt(devSum / count).toFloat()
             if (stdDev > 0.45f) return false  // Filter out running/fidgeting
         }
-        
+
         return true
     }
 

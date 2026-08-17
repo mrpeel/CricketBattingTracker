@@ -202,53 +202,90 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
 
         val s1Session = stage1Session
         if (s1Session != null) {
-            val s1InputBuffer = FloatBuffer.allocate(12 * windowLenS1)
-            val s1Shape = longArrayOf(1, 12, windowLenS1.toLong())
+            val startIndices = (0 until (numFrames - windowLenS1) step strideS1).toList()
+            val totalWindows = startIndices.size
+            val batchSize = 256
+            val s1InputBuffer = FloatBuffer.allocate(batchSize * 12 * windowLenS1)
 
-            for (startIdx in 0 until (numFrames - windowLenS1) step strideS1) {
-                val endIdx = startIdx + windowLenS1
-                s1MidFrames.add(startIdx + windowLenS1 / 2)
-
-                var maxW = 0f
-                for (k in startIdx until endIdx) {
-                    if (wGyroMag[k] > maxW) maxW = wGyroMag[k]
-                }
-                s1MaxWMags.add(maxW)
+            for (bStart in 0 until totalWindows step batchSize) {
+                val bEnd = min(totalWindows, bStart + batchSize)
+                val currentBatchCount = bEnd - bStart
 
                 s1InputBuffer.clear()
-                for (cIdx in stage1ChannelIndices) {
-                    val channelData = sensorMatrix[cIdx]
+                for (b in bStart until bEnd) {
+                    val startIdx = startIndices[b]
+                    val endIdx = startIdx + windowLenS1
+                    s1MidFrames.add(startIdx + windowLenS1 / 2)
+
+                    var maxW = 0f
                     for (k in startIdx until endIdx) {
-                        s1InputBuffer.put(channelData[k])
+                        if (wGyroMag[k] > maxW) maxW = wGyroMag[k]
+                    }
+                    s1MaxWMags.add(maxW)
+
+                    for (cIdx in stage1ChannelIndices) {
+                        val channelData = sensorMatrix[cIdx]
+                        for (k in startIdx until endIdx) {
+                            s1InputBuffer.put(channelData[k])
+                        }
                     }
                 }
                 s1InputBuffer.rewind()
 
-                val prob = try {
-                    val s1Tensor = OnnxTensor.createTensor(ortEnv, s1InputBuffer, s1Shape)
-                    val s1Out = s1Session.run(mapOf("input_imu_12ch" to s1Tensor))
+                val s1Shape = longArrayOf(currentBatchCount.toLong(), 12, windowLenS1.toLong())
+                var s1Tensor: OnnxTensor? = null
+                var s1Out: OrtSession.Result? = null
+
+                try {
+                    s1Tensor = OnnxTensor.createTensor(ortEnv, s1InputBuffer, s1Shape)
+                    s1Out = s1Session.run(mapOf("input_imu_12ch" to s1Tensor))
                     val outVal = s1Out[0].value
-                    val logitVal = when (outVal) {
-                        is Array<*> -> {
-                            val row0 = outVal[0]
-                            if (row0 is FloatArray) row0[0] else (row0 as Array<*>)[0] as Float
+
+                    when (outVal) {
+                        is FloatArray -> {
+                            for (i in 0 until currentBatchCount) {
+                                val logitVal = if (i < outVal.size) outVal[i] else 0f
+                                val p = (1.0 / (1.0 + exp(-logitVal.toDouble()))).toFloat()
+                                s1Probs.add(p)
+                            }
                         }
-                        is FloatArray -> outVal[0]
-                        is Float -> outVal
-                        else -> 0f
+                        is Array<*> -> {
+                            for (i in 0 until currentBatchCount) {
+                                val row = if (i < outVal.size) outVal[i] else null
+                                val logitVal = when (row) {
+                                    is FloatArray -> if (row.isNotEmpty()) row[0] else 0f
+                                    is Array<*> -> if (row.isNotEmpty()) ((row[0] as? Float) ?: 0f) else 0f
+                                    is Float -> row
+                                    else -> 0f
+                                }
+                                val p = (1.0 / (1.0 + exp(-logitVal.toDouble()))).toFloat()
+                                s1Probs.add(p)
+                            }
+                        }
+                        is Float -> {
+                            val p = (1.0 / (1.0 + exp(-outVal.toDouble()))).toFloat()
+                            s1Probs.add(p)
+                        }
+                        else -> {
+                            for (i in 0 until currentBatchCount) s1Probs.add(0.15f)
+                        }
                     }
-                    val p = (1.0 / (1.0 + exp(-logitVal.toDouble()))).toFloat()
-                    s1Tensor.close()
-                    s1Out.close()
-                    p
                 } catch (e: Exception) {
-                    // Fallback heuristic if ONNX execution fails
-                    var gySum = 0f
-                    for (k in startIdx until endIdx) gySum += sensorMatrix[13][k]
-                    val meanGy = gySum / windowLenS1
-                    if (maxW < 1.0f && meanGy <= -3.0f) 0.85f else 0.15f
+                    // Fallback heuristic if batch ONNX execution fails
+                    for (b in bStart until bEnd) {
+                        val startIdx = startIndices[b]
+                        val endIdx = startIdx + windowLenS1
+                        val maxW = s1MaxWMags.getOrElse(b) { 0f }
+                        var gySum = 0f
+                        for (k in startIdx until endIdx) gySum += sensorMatrix[13][k]
+                        val meanGy = gySum / windowLenS1
+                        val p = if (maxW < 1.0f && meanGy <= -3.0f) 0.85f else 0.15f
+                        s1Probs.add(p)
+                    }
+                } finally {
+                    try { s1Tensor?.close() } catch (_: Exception) {}
+                    try { s1Out?.close() } catch (_: Exception) {}
                 }
-                s1Probs.add(prob)
             }
         } else {
             // Kinematic fallback for Stage 1 if session is unavailable
@@ -374,54 +411,48 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
             inputBuffer.rewind()
 
             val shape = longArrayOf(1, numFeatures.toLong(), windowLen.toLong())
-            val inputTensor = try {
-                OnnxTensor.createTensor(ortEnv, inputBuffer, shape)
-            } catch (e: Exception) {
-                candidatePredictions.add(Pair("DRIVE/DEFENCE", 0.50f))
-                continue
-            }
+            var inputTensor: OnnxTensor? = null
+            var results: OrtSession.Result? = null
 
-            val results = try {
-                s2Session.run(mapOf("input_imu_stream" to inputTensor))
-            } catch (e: Exception) {
-                inputTensor.close()
-                candidatePredictions.add(Pair("DRIVE/DEFENCE", 0.50f))
-                continue
-            }
+            try {
+                inputTensor = OnnxTensor.createTensor(ortEnv, inputBuffer, shape)
+                results = s2Session.run(mapOf("input_imu_stream" to inputTensor))
 
-            @Suppress("UNCHECKED_CAST")
-            val outputTensor = results[0].value as Array<Array<FloatArray>>
-            val logits = outputTensor[0] // 10 x windowLen
+                @Suppress("UNCHECKED_CAST")
+                val outputTensor = results[0].value as Array<Array<FloatArray>>
+                val logits = outputTensor[0] // 10 x windowLen
 
-            val wStart = max(0, cOffset - 42)
-            val wEnd = min(windowLen - 1, cOffset + 42)
+                val wStart = max(0, cOffset - 42)
+                val wEnd = min(windowLen - 1, cOffset + 42)
 
-            var maxShotProb = 0f
-            var topShotIdx = 3 // default to DRIVE/DEFENCE
+                var maxShotProb = 0f
+                var topShotIdx = 3 // default to DRIVE/DEFENCE
 
-            for (t in wStart..wEnd) {
-                val frameLogits = FloatArray(10) { c -> logits[c][t] }
-                val maxLogit = frameLogits.maxOrNull() ?: 0f
-                var sumExp = 0f
-                val probs = FloatArray(10) { c ->
-                    val e = exp((frameLogits[c] - maxLogit).toDouble()).toFloat()
-                    sumExp += e
-                    e
-                }
-                for (c in 0 until 10) probs[c] /= sumExp
+                for (t in wStart..wEnd) {
+                    val frameLogits = FloatArray(10) { c -> logits[c][t] }
+                    val maxLogit = frameLogits.maxOrNull() ?: 0f
+                    var sumExp = 0f
+                    val probs = FloatArray(10) { c ->
+                        val e = exp((frameLogits[c] - maxLogit).toDouble()).toFloat()
+                        sumExp += e
+                        e
+                    }
+                    for (c in 0 until 10) probs[c] /= sumExp
 
-                for (c in 2 until 10) {
-                    if (probs[c] > maxShotProb) {
-                        maxShotProb = probs[c]
-                        topShotIdx = c
+                    for (c in 2 until 10) {
+                        if (probs[c] > maxShotProb) {
+                            maxShotProb = probs[c]
+                            topShotIdx = c
+                        }
                     }
                 }
+                candidatePredictions.add(Pair(classes[topShotIdx], maxShotProb))
+            } catch (e: Exception) {
+                candidatePredictions.add(Pair("DRIVE/DEFENCE", 0.50f))
+            } finally {
+                try { inputTensor?.close() } catch (_: Exception) {}
+                try { results?.close() } catch (_: Exception) {}
             }
-
-            inputTensor.close()
-            results.close()
-
-            candidatePredictions.add(Pair(classes[topShotIdx], maxShotProb))
         }
 
         // =========================================================================

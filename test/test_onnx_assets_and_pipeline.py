@@ -55,7 +55,12 @@ class TestOnnxAssetsAndPipeline(unittest.TestCase):
         dummy_input = np.random.randn(1, 12, 423).astype(np.float32)
         outputs = session.run(None, {"input_imu_12ch": dummy_input})
         self.assertEqual(len(outputs), 1)
-        self.assertEqual(outputs[0].shape, (1, 1))
+        self.assertIn(outputs[0].shape, [(1,), (1, 1)])
+
+        # Run batch inference (e.g. batch size 8)
+        batch_input = np.random.randn(8, 12, 423).astype(np.float32)
+        batch_outputs = session.run(None, {"input_imu_12ch": batch_input})
+        self.assertIn(batch_outputs[0].shape, [(8,), (8, 1)])
 
     def test_tcn_ultimate_baseline_in_memory_loading_and_inference(self):
         """Test Stage 2 TCN Window Baseline ONNX model from in-memory byte buffer."""

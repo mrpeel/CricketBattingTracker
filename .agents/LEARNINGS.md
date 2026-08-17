@@ -530,3 +530,21 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Production Multi-Tier TCN Telemetry Engine (`telemetry_engine.py`) detected 69 shots (94.5% recall) with 0 false positives during rest breaks.
         - All Gradle unit tests in `:app` and `:wear` pass cleanly (`BUILD SUCCESSFUL`).
 
+147. **On-Device Batch Inference Memory Management & Dynamic Batched ONNX Execution (August 17, 2026)**:
+    *   **The Problem**: Phone companion app crashed with `java.lang.OutOfMemoryError` at `HashMap.resize` during `OrtSession$Result.<init>` in `TcnModelRunner.runInference` -> `PhoneSwingDetector.kt:212` when processing full 22-minute batting sessions.
+    *   **Root Cause**:
+        1. **Unbatched Stage 1 ONNX Inference Loop**: Stage 1 stance detector executed ~14,500 individual ONNX model calls in a tight loop (`stride = 42` frames / ~100ms over 600,000 frames). Each `OrtSession.run()` call allocated JNI tensors and Java `HashMap` wrapper instances on the heap, exhausting the standard 256 MB Android heap limit.
+        2. **Unclosed Tensor JNI Handles**: In Stage 2 inference, native `OnnxTensor` and `OrtSession.Result` instances were not enclosed in `try ... finally` blocks, leaking JNI references across candidate evaluations.
+        3. **O(N) Full-Array Filtering on Sensor Streams**: `PhoneSwingDetector.kt` executed multiple `.filter { it.phoneMs in ... }` predicates on 627,000-element Polar lists and 150,000-element Watch lists per detected shot, creating millions of temporary heap allocations.
+    *   **The Solution**:
+        1. **Dynamic Batch Axis ONNX Export**: Created `pipelines/export_facing_up_to_onnx.py` and re-exported `facing_up_detector.onnx` with dynamic batch axis (`dynamic_axes={'input_imu_12ch': {0: 'batch_size'}, 'output_logit': {0: 'batch_size'}}`) and embedded weights (`dynamo=False`, 496 KB, no external `.data` file).
+        2. **Batched Stage 1 Inference**: Grouped Stage 1 sliding windows into batches of 256 (`FloatBuffer.allocate(batchSize * 12 * 423)`), reducing ONNX JNI invocations from 14,500 down to ~58 calls (250x reduction).
+        3. **Deterministic Tensor Lifecycle**: Wrapped all ONNX tensor and result handles in `try ... finally { s1Tensor?.close(); s1Out?.close() }` blocks across both Stage 1 and Stage 2 in `TcnModelRunner.kt`.
+        4. **Zero-Allocation Binary Search Range Iterators**: Replaced all `.filter { ... }` predicates in `PhoneSwingDetector.kt` with $O(\log N)$ binary search range lookup helpers (`findPolarStart`, `findWatchIMUStart`, `findWatchRotStart`, `forEachPolarInRange`, `forEachWatchIMUInRange`, `forEachWatchRotInRange`).
+        5. **Large Heap Flag**: Enabled `android:largeHeap="true"` in `app/src/main/AndroidManifest.xml` to provide ample headroom during multi-sensor continuous session ingestion.
+    *   **Verification**:
+        - All unit tests in `:app` (`OnnxAssetsIntegrityAndInferenceTest`, `TcnModelRunnerLogicTest`, `BiomechanicalUiMapperTest`, `BladeAndLaunchAngleTest`) passed cleanly (`BUILD SUCCESSFUL in 16s`).
+        - Python ONNX asset test suite (`test/test_onnx_assets_and_pipeline.py`) passed 4/4 tests verifying single and batched inference.
+        - Release APK built, 16 KB page-aligned, signed, and ready for physical deployment.
+
+
