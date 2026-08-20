@@ -72,6 +72,9 @@ object PhoneSwingDetector {
         val watchStartWallMs = parseSessionStartWallMs(watchDir)
         val watchStartSensorNs = watchAcc.first().timeNanos
 
+        // Clear any pre-existing timeline entries for this innings to prevent duplicate insertions
+        dao.deleteTimelineForInningsSync(inningsId)
+
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
             timestamp = watchStartWallMs,

@@ -71,14 +71,14 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-059 | Session 2026-08-15 Ingestion & On-Device ONNX Loading Fix | Secure August 15 raw session files to `live_watch_sessions/session_2026-08-15_11-00-15`, resolve `facing_up_detector.onnx` external `.data` loading failure by exporting single self-contained ONNX protobuf, eliminate 5.6M heap allocations in Stage 1 fallback loop, fix multidimensional output tensor extraction in `TcnModelRunner.kt`, and update `MainActivity.kt` loading screen guard so completed sessions never freeze in an infinite spinner. | **Completed** | Discovered and processed 104 shots from August 15 session (48.2 km/h avg speed, 105.5 km/h max speed), restored SQLite database to phone, deployed updated APK via `deploy_physical.sh`. |
 | B-060 | Shot Overcounting Remediation & Reprocessing Pipeline Fix | Eliminate un-gated sensor shot injection (`detect_sensor_only_shots()`) from `reprocess_sessions.py` on ground-truth sessions, filter out zero-energy dummy re-narration entries ($\le 1.05\text{ rad/s}$), and re-sync clean SQLite database. | **Completed** | Cleanly reduced session 2026-08-15 from 105 down to exactly 73 genuine physical shots (23 Set 1, 26 Set 2, 24 Set 3) with 0 false positives during rest breaks, pruned >400 ghost shots across the dataset, and passed all unit tests. |
 | B-061 | On-Device Batch Inference Memory Management & Dynamic Batched ONNX Execution | Re-export `facing_up_detector.onnx` with dynamic batch axis and embedded weights, implement 256-window batched Stage 1 ONNX inference, enforce deterministic tensor lifecycle closing in `TcnModelRunner.kt`, replace O(N) array filtering with binary search range iterators in `PhoneSwingDetector.kt`, and enable `largeHeap="true"`. | **Completed** | Passed all unit tests in `:app` and Python ONNX tests, eliminated OutOfMemoryError crashes during full 22-minute session processing, built and 16 KB page-aligned release APKs. |
-
+| B-062 | Database Event Idempotency & Duplicate Insertion Gate | Add explicit deletion gates (`deleteTimelineForInningsSync` & `deleteHeartRatesForInningsSync`) in `DataSyncListenerService.kt` and `PhoneSwingDetector.kt` to guarantee idempotent database writes, and deduplicate on-device SQLite database rows. | **Completed** | Passed all unit tests (`BUILD SUCCESSFUL in 17s`), verified on-device database `cricket_tracker_database` contains exactly 63 shots / 65 events (1786935082001), deployed release APK to device. |
 
 ---
 
-## 🔖 Current Session State (session_2026-08-17_12-51-22)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session_2026-08-17_12-51-22`
-*   **Audio File**: `narration_20260817_122705.m4a`
-*   **Status**: Raw watch and Polar session binaries secured. Stage 1 dynamic batched ONNX stance detector and zero-allocation binary search range lookups implemented to resolve Android companion app OutOfMemoryError on continuous batch ingestion. Release APKs compiled, 16 KB page-aligned, and verified.
+## 🔖 Current Session State (session_2026-08-20_12-57-09)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session_2026-08-20_12-57-09`
+*   **Audio File**: `narration_20260820_123449.m4a`
+*   **Status**: Ground truth aligned (66 narrated shots: 51 Pull, 8 Glance, 6 Back foot defense, 1 Flick). On-device watch detector detected exactly 63 unique shots (Round 1: 19, Round 2: 24, Round 3: 20; 0 false positives during rest breaks). Companion app database deduplication fix verified and deployed to phone.
 
 
 

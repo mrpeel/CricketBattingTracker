@@ -145,4 +145,7 @@ interface InningsEventDao {
 
     @Query("DELETE FROM innings_events WHERE inningsId = :inningsId")
     suspend fun deleteTimelineForInningsSync(inningsId: Long)
+
+    @Query("DELETE FROM heart_rate_events WHERE inningsId = :inningsId")
+    suspend fun deleteHeartRatesForInningsSync(inningsId: Long)
 }

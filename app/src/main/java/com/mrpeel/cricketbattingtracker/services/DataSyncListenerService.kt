@@ -298,6 +298,10 @@ class DataSyncListenerService : WearableListenerService() {
             val newInningsId = systemStartTs?.let { dao.findInningsIdNearTime(it) }
                 ?: ((dao.getLatestInningsId() ?: 0) + 1)
 
+            // Clear any pre-existing timeline/heart rate entries for this innings to prevent duplicate insertions
+            dao.deleteTimelineForInningsSync(newInningsId)
+            dao.deleteHeartRatesForInningsSync(newInningsId)
+
             val resolvedLocation = getPhoneLocation()
             var maxSpeed = 0f
             var shotCount = 0

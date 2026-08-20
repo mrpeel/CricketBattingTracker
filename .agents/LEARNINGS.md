@@ -542,9 +542,17 @@ This document captures resolved bugs, architectural changes, key logical finding
         3. **Deterministic Tensor Lifecycle**: Wrapped all ONNX tensor and result handles in `try ... finally { s1Tensor?.close(); s1Out?.close() }` blocks across both Stage 1 and Stage 2 in `TcnModelRunner.kt`.
         4. **Zero-Allocation Binary Search Range Iterators**: Replaced all `.filter { ... }` predicates in `PhoneSwingDetector.kt` with $O(\log N)$ binary search range lookup helpers (`findPolarStart`, `findWatchIMUStart`, `findWatchRotStart`, `forEachPolarInRange`, `forEachWatchIMUInRange`, `forEachWatchRotInRange`).
         5. **Large Heap Flag**: Enabled `android:largeHeap="true"` in `app/src/main/AndroidManifest.xml` to provide ample headroom during multi-sensor continuous session ingestion.
+148. **Database Event Idempotency & Multi-Sync Deduplication Gate (August 20, 2026)**:
+    *   **The Problem**: After a session with 3 rounds of 25 balls (~70–73 playable balls), the companion app UI displayed 126 shots.
+    *   **Root Cause**:
+        1. **Duplicate Synchronization Paths**: When a session ends on the watch, it sends `/cricket_timeline` via Wearable `DataClient` (triggering `DataSyncListenerService.ingestTimeline()`) and `/raw_session_data` via `ChannelClient` (triggering `PhoneSwingDetector.processSession()`). Additionally, Google Play Services `DataClient` can deliver `onDataChanged` again on device reconnect or sync re-evaluation.
+        2. **Lack of Idempotent Event Clearing**: Both `DataSyncListenerService.kt` and `PhoneSwingDetector.kt` used unconditional `dao.insertEvent(dbEvent)` without first clearing pre-existing events for `inningsId`. Every single event was inserted twice, resulting in 63 unique shots becoming 126 entries in `innings_events`.
+    *   **The Solution**:
+        1. **Idempotent Deletion Gates**: Added `dao.deleteTimelineForInningsSync(newInningsId)` and `dao.deleteHeartRatesForInningsSync(newInningsId)` to `DataSyncListenerService.ingestTimeline()`, and `dao.deleteTimelineForInningsSync(inningsId)` to `PhoneSwingDetector.processSession()` before inserting session start/shots/end events.
+        2. **Device Database Deduplication**: Ran SQL deduplication on `cricket_tracker_database` on the connected Pixel phone, restoring session `1786935082001` from 130 rows (126 shots) to exactly 65 rows (63 shots + 1 start + 1 end).
     *   **Verification**:
-        - All unit tests in `:app` (`OnnxAssetsIntegrityAndInferenceTest`, `TcnModelRunnerLogicTest`, `BiomechanicalUiMapperTest`, `BladeAndLaunchAngleTest`) passed cleanly (`BUILD SUCCESSFUL in 16s`).
-        - Python ONNX asset test suite (`test/test_onnx_assets_and_pipeline.py`) passed 4/4 tests verifying single and batched inference.
-        - Release APK built, 16 KB page-aligned, signed, and ready for physical deployment.
+        - All unit tests in `:app` passed cleanly (`BUILD SUCCESSFUL in 17s`).
+        - Polled device database `cricket_tracker_database` via `exec-out run-as` and verified exactly 63 shots (Round 1: 19, Round 2: 24, Round 3: 20; 0 false positives during rest breaks).
+        - Release APK built, 16 KB page-aligned, signed, and deployed to physical phone.
 
 
