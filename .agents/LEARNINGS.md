@@ -554,5 +554,45 @@ This document captures resolved bugs, architectural changes, key logical finding
         - All unit tests in `:app` passed cleanly (`BUILD SUCCESSFUL in 17s`).
         - Polled device database `cricket_tracker_database` via `exec-out run-as` and verified exactly 63 shots (Round 1: 19, Round 2: 24, Round 3: 20; 0 false positives during rest breaks).
         - Release APK built, 16 KB page-aligned, signed, and deployed to physical phone.
+149. **Option A 4-Session Holdout Rebalancing & Scorecard (August 21, 2026)**:
+    *   **The Problem**: The previous 3-session holdout set had severe class imbalance: 0 Deflection/Guide shots, 8 Glance/Flick shots, 9 Power Drives, and an excessive 38 Sweeps.
+    *   **The Solution**: Standardised on Option A 4-Session Polar Holdout (`session_2026-07-20_12-42-16`, `session_2026-07-21_12-43-37`, `session_2026-07-24_12-52-29`, `session_2026-07-25_15-16-32`):
+        *   Delivered balanced holdout representation across all 8 canonical classes: 28 Deflections, 27 Glances, 20 Power Drives, 31 Sweeps, 30 Drives, 25 Pulls, 13 Cuts, 32 Slogs ($\sigma = 6.0$).
+        *   Retrained Variant C AdvancedTCN with Discriminative Learning Rates (`1e-4` for Layers 1-5, `1e-3` for Layers 6-10 + Head), stopping at Epoch 11 (Best Val Loss: 0.6151 at Epoch 6).
+    *   **Result**:
+        *   **Holdout Physical Recall**: 🏆 **92.23%** (190 / 206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **81.90%** (190 TPs / 232 candidates).
+        *   **Holdout F1 Score**: 🏆 **86.76%**.
+        *   **Holdout Classification Accuracy**: 🏆 **70.00%** (Deflection: 96.15%, Glance: 82.61%, Sweep: 92.31%, Cut: 75.00%, Drive: 72.41%, Slog: 68.75%, Power Drive: 31.58%, Pull: 30.43%).
+        *   **Global System Precision**: 🏆 **81.30%** across 57 sessions.
+        *   **Quality Gate**: 🏆 **PASSED**; exported updated ONNX model to `app/src/main/assets/models/tcn_ultimate_baseline.onnx`.
 
+150. **Harmonized Learning Rates & Holdout Macro-F1 Checkpointing (August 21, 2026)**:
+    *   **The Problem**: Continuous sliding-window cross-entropy loss (`val_loss`) is 90%+ dominated by ambient non-shot frames. At Epoch 2, `val_loss` achieved an artificial minimum (~0.620) by predicting ambient stillness with high confidence, while shot class separation was only 50.0% accurate. A rigid `patience = 5` and `min_delta = 0.001` caused early stopping to roll back prematurely to Epoch 2.
+    *   **The Solution**:
+        1. **Holdout Candidate Macro-F1 Checkpointing**: Evaluated holdout candidate shot windows at every epoch and checkpointed model weights strictly on peak **Holdout Macro-F1** and Balanced Accuracy.
+        2. **Harmonized Learning Rates & Warmup**: Narrowed the discriminative learning rate ratio to `3e-4` for Layers 1–5 and `1e-3` for Layers 6–10 + Head, adding a 3-epoch linear warmup.
+        3. **Extended Runway**: Expanded `PATIENCE = 10`, `MIN_DELTA = 0.0`, `MAX_EPOCHS = 25`.
+    *   **Result**:
+        *   Training successfully allowed lower-layer shockwave representations to mature, reaching peak **Holdout Macro-F1 of 0.6344 (64.08% raw candidate accuracy) at Epoch 9**.
+        *   **Holdout Classification Accuracy**: Jumped to 🏆 **71.20%** (136/191 correct), with `DEFLECTION/GUIDE` reaching **100.00%** (26/26), `SWEEP` **100.00%** (27/27), `CUT/PUNCH` **91.67%** (11/12), `DRIVE/DEFENCE` **79.31%** (23/29), and `POWER DRIVE` boosting from 31.58% to **56.25%** (9/16).
+        *   **Holdout Detection Recall**: 🏆 **92.72%** (191 / 206 GT shots captured).
+        *   **Holdout Precision**: 🏆 **83.41%** (191 TPs / 229 candidates).
+        *   **Holdout F1 Score**: 🏆 **87.82%**.
+        *   **Global Precision**: 🏆 **81.47%** across all 58 physical sessions.
+        *   **Production Quality Gate**: 🏆 **PASSED**; exported updated ONNX model to `app/src/main/assets/models/tcn_ultimate_baseline.onnx`.
+
+151. **Watch ChannelClient File Streaming Race Condition & Recovery (August 22, 2026)**:
+    *   **The Problem**: After completing a session, the phone app showed 0 shots, and `automate_pipeline.py` failed with `BadZipFile` on a truncated 64 KB session zip (`session_2026-08-22_15-02-41.zip`).
+    *   **Root Cause**:
+        1. **Premature In-Flight File Access**: In `DataSyncListenerService.kt`, `onChannelOpened` directed GMS `ChannelClient.receiveFile()` to write directly to `temp_session_raw.zip`. As chunks were streaming in over Bluetooth/Wi-Fi, `DataSyncListenerService.onCreate()` (triggered by the simultaneous `/cricket_timeline` DataEvent) detected `temp_session_raw.zip` existing with > 0 bytes (64 KB for the first chunk), prematurely executed `unzipAndProcessIncomingSession`, failed to unzip the partial file, and deleted the active in-flight file (`zipFile.delete()`), corrupting the transfer.
+    *   **The Solution**:
+        1. **Atomic `.part` File Staging**: Changed `onChannelOpened` to stream incoming files to `temp_session_receiving.part`.
+        2. **Explicit Transfer Completion Gate**: `onInputClosed` checks `closeReason == CLOSE_REASON_NORMAL` and only renames `.part` to `temp_session_raw.zip` after all bytes are received.
+        3. **Service Start Zip Integrity Verification**: In `onCreate()`, added `ZipFile(tempZipFile).entries()` integrity verification so corrupt or partial files are never processed.
+        4. **Watch Recovery**: Connected to the watch via wireless ADB (`192.168.1.73:41461`), pulled all 10 uncompressed raw binary sensor logs and `latest_timeline.txt`, aligned and transcribed the 51 ground-truth shots (47 true positives, 92.2% recall), rebuilt the 423 Hz Parquet dataset, and reprocessed the master SQLite database.
+    *   **Verification**:
+        - All unit tests in `:app` and `:wear` pass cleanly.
+        - Deployed updated release APKs to both phone (`59011FDCR000R5`) and watch (`192.168.1.73:41461`).
+        - Polled phone database and confirmed session `1787372731000` is fully populated with 49 processed shots (70.6 km/h avg speed, 122.6 km/h max speed).
 

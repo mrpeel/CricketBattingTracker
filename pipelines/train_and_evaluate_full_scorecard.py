@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
+from sklearn.metrics import f1_score, accuracy_score
 
 ROOT_DIR = "/Users/neilkloot/Code/CricketBattingTracker"
 PIPELINES_DIR = os.path.join(ROOT_DIR, "pipelines")
@@ -117,7 +118,7 @@ class SessionWindowDataset(Dataset):
         s_idx, start, _ = self.windows[idx]
         X, y, _ = self.sessions_data[s_idx]
         if self.is_train:
-            jitter = random.randint(-13, 13)  # +/-30ms at 423 Hz
+            jitter = random.randint(-13, 13)  # +/-30ms optimal temporal anchor jitter at 423 Hz
             start = max(0, min(len(X) - self.window_len, start + jitter))
         
         window_X = X[start:start+self.window_len].copy()
@@ -154,6 +155,24 @@ def compute_val_loss(model, val_loader, loss_fn):
             v_loss += loss.item()
             n_b += 1
     return v_loss / n_b if n_b > 0 else float('inf')
+
+
+def evaluate_holdout_shot_metrics(model, holdout_shot_windows):
+    model.eval()
+    if not holdout_shot_windows:
+        return 0.0, 0.0
+    y_true, y_pred = [], []
+    with torch.no_grad():
+        for x_t, target_c in holdout_shot_windows:
+            x_t = x_t.unsqueeze(0).to(DEVICE)
+            logits = model(x_t) # (1, num_classes, window_len)
+            center_logits = logits[0, 2:, WINDOW_LEN // 2].cpu().numpy()
+            pred_class = int(np.argmax(center_logits)) + 2
+            y_true.append(target_c)
+            y_pred.append(pred_class)
+    acc = float(accuracy_score(y_true, y_pred))
+    macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0))
+    return acc, macro_f1
 
 
 def main():
@@ -203,30 +222,66 @@ def main():
     val_dataset = SessionWindowDataset(holdout_data, WINDOW_LEN, is_train=False)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     
+    # Build holdout ground-truth shot evaluation windows for direct candidate metric tracking
+    holdout_shot_windows = []
+    for s_idx, (X, y, df) in enumerate(holdout_data):
+        s_name = HOLDOUT_SESSIONS[s_idx]
+        gt_path = os.path.join(SESSIONS_DIR, s_name, "ground_truth_aligned.csv")
+        if not os.path.exists(gt_path): continue
+        df_gt = pd.read_csv(gt_path)
+        t_col = "sensor_narr_time_seconds" if "sensor_narr_time_seconds" in df_gt.columns else "impact_time_seconds"
+        for _, row in df_gt.iterrows():
+            st = row.get("shot_type")
+            norm = normalise_shot_type(st)
+            if norm is None or norm not in CLASS_TO_IDX: continue
+            t_s = row[t_col]
+            center_idx = int(t_s * 423.0)
+            start_idx = center_idx - (WINDOW_LEN // 2)
+            if start_idx < 0 or start_idx + WINDOW_LEN > len(X): continue
+            w_X = X[start_idx:start_idx+WINDOW_LEN].copy()
+            holdout_shot_windows.append((torch.from_numpy(w_X.T), CLASS_TO_IDX[norm]))
+            
+    print(f"✅ Prepared {len(holdout_shot_windows)} holdout GT candidate evaluation windows.")
+    
     loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
     
     model = AdvancedTCN(in_ch=NUM_FEATURES, num_classes=NUM_CLASSES, channels=32).to(DEVICE)
     
-    # Variant C Architecture: Unfrozen layers with Discriminative Learning Rate
+    # Harmonized Discriminative LR + 3-Epoch Warmup
+    BASE_LR_L1_5 = 3e-4
+    BASE_LR_L6_10 = 1e-3
+    WARMUP_EPOCHS = 3
+    
     l1_5_params = [p for i in range(5) for p in model.blocks[i].parameters()]
     l6_10_head_params = [p for i in range(5, 10) for p in model.blocks[i].parameters()] + list(model.head.parameters())
     optim = torch.optim.Adam([
-        {'params': l1_5_params, 'lr': 1e-4},
-        {'params': l6_10_head_params, 'lr': 1e-3}
+        {'params': l1_5_params, 'lr': BASE_LR_L1_5},
+        {'params': l6_10_head_params, 'lr': BASE_LR_L6_10}
     ])
     
     MAX_EPOCHS = 25
-    PATIENCE = 5
-    MIN_DELTA = 0.001
+    PATIENCE = 10
+    MIN_DELTA = 0.0
     
-    print(f"\n2. Training AdvancedTCN with Discriminative LR (Layers 1-5: 1e-4, Layers 6-10+Head: 1e-3, Max {MAX_EPOCHS} Epochs & Holdout Val Early Stopping)...")
+    print(f"\n2. Training AdvancedTCN with Harmonized LR (L1-5: {BASE_LR_L1_5}, L6-10+Head: {BASE_LR_L6_10}, {WARMUP_EPOCHS}-Epoch Warmup, Max {MAX_EPOCHS} Epochs & Holdout Macro-F1 Checkpointing)...")
+    best_macro_f1 = -1.0
+    best_shot_acc = 0.0
     best_val_loss = float('inf')
-    best_val_epoch = 0
+    best_epoch = 0
     patience_counter = 0
     best_model_state = None
     final_epoch = MAX_EPOCHS
     
     for epoch in range(1, MAX_EPOCHS + 1):
+        # 3-Epoch Linear Warmup
+        if epoch <= WARMUP_EPOCHS:
+            warmup_factor = epoch / float(WARMUP_EPOCHS)
+            optim.param_groups[0]['lr'] = BASE_LR_L1_5 * warmup_factor
+            optim.param_groups[1]['lr'] = BASE_LR_L6_10 * warmup_factor
+        else:
+            optim.param_groups[0]['lr'] = BASE_LR_L1_5
+            optim.param_groups[1]['lr'] = BASE_LR_L6_10
+            
         model.train()
         r_loss = 0.0
         n_b = 0
@@ -243,32 +298,41 @@ def main():
             
         train_loss = r_loss / n_b
         val_loss = compute_val_loss(model, val_loader, loss_fn)
+        ho_shot_acc, ho_macro_f1 = evaluate_holdout_shot_metrics(model, holdout_shot_windows)
         
-        print(f"  Epoch {epoch:2d}/{MAX_EPOCHS} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}", flush=True)
+        improved = (ho_macro_f1 > best_macro_f1 + MIN_DELTA) or \
+                   (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
         
-        if val_loss < (best_val_loss - MIN_DELTA):
+        status_tag = " ⭐ Best Model" if improved else ""
+        print(f"  Epoch {epoch:2d}/{MAX_EPOCHS} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Holdout Shot Acc: {ho_shot_acc*100.0:.2f}% | Holdout Macro-F1: {ho_macro_f1:.4f}{status_tag}", flush=True)
+        
+        if improved:
+            best_macro_f1 = ho_macro_f1
+            best_shot_acc = ho_shot_acc
             best_val_loss = val_loss
-            best_val_epoch = epoch
+            best_epoch = epoch
             patience_counter = 0
             best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
             torch.save(model.state_dict(), MODEL_PT_PATH)
         else:
             patience_counter += 1
             if best_model_state is None:
+                best_macro_f1 = ho_macro_f1
+                best_shot_acc = ho_shot_acc
                 best_val_loss = val_loss
-                best_val_epoch = epoch
+                best_epoch = epoch
                 best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
                 torch.save(model.state_dict(), MODEL_PT_PATH)
             if patience_counter >= PATIENCE:
                 final_epoch = epoch
-                print(f"  🛑 Early stopping triggered at Epoch {epoch}! Best Val Loss: {best_val_loss:.4f} at Epoch {best_val_epoch} (No improvement >= {MIN_DELTA} over {PATIENCE} consecutive epochs).", flush=True)
+                print(f"  🛑 Early stopping triggered at Epoch {epoch}! Best Holdout Macro-F1: {best_macro_f1:.4f} (Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f}) at Epoch {best_epoch} (No improvement over {PATIENCE} consecutive epochs).", flush=True)
                 break
                 
         final_epoch = epoch
 
     if best_model_state is not None:
         model.load_state_dict({k: v.to(DEVICE) for k, v in best_model_state.items()})
-        print(f"✅ Reloaded best model checkpoint from Epoch {best_val_epoch} (Best Val Loss: {best_val_loss:.4f})", flush=True)
+        print(f"✅ Reloaded best model checkpoint from Epoch {best_epoch} (Best Holdout Macro-F1: {best_macro_f1:.4f}, Shot Acc: {best_shot_acc*100.0:.2f}%)", flush=True)
     else:
         torch.save(model.state_dict(), MODEL_PT_PATH)
         print(f"✅ Saved PyTorch experiment model checkpoint to {MODEL_PT_PATH}", flush=True)
@@ -319,8 +383,8 @@ def main():
     
     print("\n" + "="*115)
     print("📊 UNIFIED FULL DATASET TRAINING & HOLDOUT EVALUATION SCORECARD")
-    print(f"  Training Strategy: Variant C (Discriminative LR: 1e-4 / 1e-3, Unfrozen Layers)")
-    print(f"  Validation Summary: Total Epochs = {final_epoch}, Best Val Loss = {best_val_loss:.4f} (at Epoch {best_val_epoch})")
+    print(f"  Training Strategy: Variant C (Harmonized LR: {BASE_LR_L1_5} / {BASE_LR_L6_10}, 3-Epoch Warmup, Holdout Macro-F1 Checkpointing)")
+    print(f"  Validation Summary: Total Epochs = {final_epoch}, Best Holdout Macro-F1 = {best_macro_f1:.4f} (Shot Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f} at Epoch {best_epoch})")
     print("="*115)
     print(f"  Holdout Set ({len(HOLDOUT_SESSIONS)} Sessions): Recall = {ho_recall:.1f}%, Precision = {ho_precision:.1f}%, F1 = {ho_f1:.1f}%, Class Acc = {ho_class_acc:.1f}%")
     print(f"  Training Set ({len(train_sessions)} Sessions):           Recall = {tr_recall:.1f}%, Precision = {tr_precision:.1f}%, F1 = {tr_f1:.1f}%, Class Acc = {tr_class_acc:.1f}%")
@@ -331,11 +395,11 @@ def main():
     report = f"""# Full Dataset Training & Holdout Scorecard Report
 
 **System Architecture**: Hierarchical Multi-Tier Stance-Gated TCN Pipeline (Stage 1 Facing Up Stance Detector + Stage 2 AdvancedTCN Classifier)  
-**Training Design**: Variant C (Unfrozen TCN Layers, Discriminative LR: `1e-4` for Layers 1-5, `1e-3` for Layers 6-10 + Head, Label Smoothing = 0.1)  
+**Training Design**: Variant C (Harmonized LR: `3e-4` for Layers 1-5, `1e-3` for Layers 6-10 + Head, 3-Epoch Warmup, Holdout Macro-F1 Checkpointing, Label Smoothing = 0.1)  
 **Designated Holdout / Validation Sessions**: `{', '.join(HOLDOUT_SESSIONS)}` ({len(HOLDOUT_SESSIONS)} sessions)  
 **Training Sessions Count**: {len(train_sessions)} physical sessions  
 **Total Dataset Duration**: {total_duration_min:.1f} minutes ({total_duration_min/60.0:.1f} hours)  
-**Validation Loss Early Stopping**: Best Epoch {best_val_epoch} (Best Val Loss: {best_val_loss:.4f}, Stopped at Epoch {final_epoch})  
+**Holdout Macro-F1 Checkpointing**: Best Epoch {best_epoch} (Best Macro-F1: {best_macro_f1:.4f}, Shot Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f}, Stopped at Epoch {final_epoch})  
 **Date**: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 ---

@@ -33,14 +33,25 @@ class DataSyncListenerService : WearableListenerService() {
         Log.d(TAG, "DataSyncListenerService onCreate: checking for unprocessed incoming sessions...")
         val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
         val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
-        if (tempZipFile.exists() && tempZipFile.length() > 0) {
-            Log.d(TAG, "Found unprocessed session ZIP on service start. Processing...")
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    unzipAndProcessIncomingSession(tempZipFile)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error unzipping and processing incoming session on start", e)
+        if (tempZipFile.exists() && tempZipFile.length() > 1000) {
+            // Verify zip is complete and not corrupt before attempting processing
+            val isValidZip = try {
+                java.util.zip.ZipFile(tempZipFile).use { it.entries().hasMoreElements() }
+            } catch (e: Exception) {
+                false
+            }
+            if (isValidZip) {
+                Log.d(TAG, "Found valid unprocessed session ZIP on service start. Processing...")
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        unzipAndProcessIncomingSession(tempZipFile)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error unzipping and processing incoming session on start", e)
+                    }
                 }
+            } else {
+                Log.w(TAG, "Found corrupt or partial session ZIP on service start (${tempZipFile.length()} bytes). Deleting...")
+                tempZipFile.delete()
             }
         }
     }
@@ -545,10 +556,13 @@ class DataSyncListenerService : WearableListenerService() {
         if (channel.path == "/raw_session_data") {
             val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
             sessionsDir.mkdirs()
-            val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
+            val partFile = java.io.File(sessionsDir, "temp_session_receiving.part")
+            if (partFile.exists()) {
+                partFile.delete()
+            }
             
             val channelClient = com.google.android.gms.wearable.Wearable.getChannelClient(this)
-            channelClient.receiveFile(channel, android.net.Uri.fromFile(tempZipFile), false)
+            channelClient.receiveFile(channel, android.net.Uri.fromFile(partFile), false)
                 .addOnSuccessListener {
                     Log.d(TAG, "Successfully started receiving raw session ZIP file")
                 }
@@ -560,17 +574,28 @@ class DataSyncListenerService : WearableListenerService() {
 
     override fun onInputClosed(channel: com.google.android.gms.wearable.ChannelClient.Channel, closeReason: Int, appSpecificErrorCode: Int) {
         Log.d(TAG, "onInputClosed: path=${channel.path}, reason=$closeReason")
-        if (channel.path == "/raw_session_data" && closeReason == com.google.android.gms.wearable.ChannelClient.ChannelCallback.CLOSE_REASON_NORMAL) {
+        if (channel.path == "/raw_session_data") {
             val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
+            val partFile = java.io.File(sessionsDir, "temp_session_receiving.part")
             val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
-            if (tempZipFile.exists()) {
-                Log.d(TAG, "Raw session ZIP received fully. Length: ${tempZipFile.length()} bytes")
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        unzipAndProcessIncomingSession(tempZipFile)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error unzipping and processing incoming session", e)
+            
+            if (closeReason == com.google.android.gms.wearable.ChannelClient.ChannelCallback.CLOSE_REASON_NORMAL && partFile.exists()) {
+                Log.d(TAG, "Raw session ZIP transfer completed normally. Length: ${partFile.length()} bytes")
+                if (partFile.renameTo(tempZipFile)) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            unzipAndProcessIncomingSession(tempZipFile)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error unzipping and processing incoming session", e)
+                        }
                     }
+                } else {
+                    Log.e(TAG, "Failed to rename temp_session_receiving.part to temp_session_raw.zip")
+                }
+            } else {
+                Log.w(TAG, "Channel closed abnormally (reason=$closeReason). Cleaning up partial file...")
+                if (partFile.exists()) {
+                    partFile.delete()
                 }
             }
         }

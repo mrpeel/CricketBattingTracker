@@ -49,9 +49,10 @@ APP_ASSETS_DIR = os.path.join(ROOT_DIR, "app", "src", "main", "assets", "models"
 REPORT_OUT = os.path.join(ROOT_DIR, "full_dataset_training_scorecard.md")
 
 HOLDOUT_SESSIONS = [
-    "session_2026-07-23_12-37-13",
-    "session_2026-08-02_12-10-13",
-    "session_2026-08-14_12-24-45"
+    "session_2026-07-20_12-42-16",
+    "session_2026-07-21_12-43-37",
+    "session_2026-07-24_12-52-29",
+    "session_2026-07-25_15-16-32"
 ]
 
 STAGE1_CHANNELS = [
