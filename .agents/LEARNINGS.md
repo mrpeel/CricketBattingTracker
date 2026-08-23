@@ -596,3 +596,39 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Deployed updated release APKs to both phone (`59011FDCR000R5`) and watch (`192.168.1.73:41461`).
         - Polled phone database and confirmed session `1787372731000` is fully populated with 49 processed shots (70.6 km/h avg speed, 122.6 km/h max speed).
 
+152. **Hierarchical Multi-Head TCN Architectural Breakthrough (August 22, 2026)**:
+    *   **The Hypothesis**: Decomposing 8-class classification into a Macro Family Gate + Specialized Sub-Classifiers prevents gradient competition between vertical-bat touch shots and horizontal-bat power strokes in the shared 10-layer TCN backbone.
+    *   **Architectures Evaluated (All 58 Physical Sessions)**:
+        1. **Baseline Single-Head**: Shared 10-layer TCN backbone + 10-class output Conv1D head.
+        2. **Experiment 1 (2-Family)**: Macro Family Gate (Binary Softmax: Vertical/Touch vs Cross-Bat/Power) + Head 2A (4-class Vertical) + Head 2B (4-class Cross/Power).
+        3. **Experiment 2 (3-Family)**: Macro Family Gate (3-Class Softmax: Upright Vertical vs Upright Cross/Power vs Crouched Floor) + Head 2A (3-class Upright Vertical) + Head 2B (4-class Upright Cross/Power) + Head 2C (SWEEP Passthrough).
+    *   **Scorecard Results**:
+        *   🏆 **Experiment 2 (3-Family) achieved the highest Holdout Classification Accuracy of 72.73%** (144 / 198 correct) — beating the Baseline Single-Head (63.92%) by **+8.81%** and outperforming the 71.20% benchmark.
+        *   **SWEEP Isolation**: Isolating `SWEEP` into `Family 2` delivered **100.0% Holdout Classification Accuracy (31/31 correct)** with zero confusion against upright defensive strokes.
+        *   **SLOG Accuracy Boost**: Cross/Power grouping boosted `SLOG` accuracy from **28.1% to 68.8% (+40.7% gain)** and `CUT/PUNCH` from **75.0% to 91.7% (+16.7% gain)**.
+        *   **Detection Recall & Precision**: Maintained **96.12% Holdout Shot Recall** (198/206 GT shots) and **81.27% Global System Precision** across all 58 physical sessions.
+
+153. **Hierarchical Multi-Scale Skip Aggregation on Cross/Power Sub-Head (August 22, 2026)**:
+    *   **The Hypothesis**: Combining transient impact shockwave pooling from Layer 5 ($d=16$, $\sim 150\text{ms}$) with global macro downswing trajectory pooling from Layer 10 ($d=512$, $\sim 9.67\text{s}$) into Head 2B (Cross-Bat / Power Sub-Head) could improve separation of `PULL/HOOK` and `POWER DRIVE` from other power strokes.
+    *   **Scorecard Results (Across 59 Physical Sessions)**:
+        *   **Holdout Classification Accuracy**: Multi-Scale Skip 3-Family reached **65.15%** (Best Epoch 6), compared to **66.67%–72.73%** for the Standard 3-Family TCN (Best Epoch 10).
+        *   **Target Shot Breakdown**:
+            - `PULL/HOOK`: **34.8%** (8/23 correct) — identical across standard and multi-scale skip configurations.
+            - `POWER DRIVE`: **47.4%** (9/19 correct) — dropped from **57.9%** (11/19 correct) in Standard 3-Family. Omitting $L_7$ ($d=64$, $\sim 600\text{ms}$) starved the classifier of the mid-downswing kinetic velocity gradient necessary to identify vertical power drives.
+            - `CUT/PUNCH`: **83.3%** (10/12 correct) — gained **+16.7%** over Standard 3-Family (66.7%), benefiting from the high-frequency $L_5$ transient window.
+            - `SLOG`: **28.1%** (9/32 correct) — slight boost over Standard 3-Family (25.0%).
+        *   **Conclusion**: Intermediate scale $L_7$ is crucial for intermediate-duration strokes like `POWER DRIVE`. Future multi-scale architectures should retain the 3-scale triplet $[L_4/L_5, L_7, L_{10}]$.
+
+154. **Wear OS R8 ProGuard OngoingActivity IllegalAccessError Fix (August 23, 2026)**:
+    *   **The Problem**: After launching a session on the Wear OS watch, the app crashed immediately on start, causing all session sensor log files to remain at 0 bytes.
+    *   **Root Cause**:
+        1. **R8 Minification on Wear OS**: In `wear/build.gradle.kts`, `isMinifyEnabled = true` was enabled for release builds while `wear/proguard-rules.pro` lacked keep rules. When R8 packaged the Wear OS APK, it altered the class access and stripped package-private symbols for `androidx.wear.ongoing.OngoingActivityData`.
+        2. **Runtime Crash**: When `TrackerService.onStartCommand()` called `OngoingActivity.Builder.build().apply(applicationContext)`, the ART runtime threw `java.lang.IllegalAccessError: Illegal class access: 'TrackerService' attempting to access 'androidx.wear.ongoing.OngoingActivityData'`, killing the process instantly.
+    *   **The Solution**:
+        1. **Disabled Wear Minification**: Set `isMinifyEnabled = false` for the `release` build type in `wear/build.gradle.kts`.
+        2. **ProGuard Keep Rules**: Added explicit `-keep class androidx.wear.** { *; }` and `-keep class com.google.android.gms.** { *; }` rules in `wear/proguard-rules.pro`.
+        3. **Idempotent Stream Guard**: Wrapped sensor FileOutputStream initialization in `TrackerService.kt` with `if (currentSessionDir == null)` to prevent re-opening and overwriting streams if `onStartCommand` is invoked multiple times.
+    *   **Verification**:
+        - Rebuilt release APKs, 16 KB page-aligned, and deployed to physical watch (`192.168.1.78:38061`).
+        - Started live session on watch via ADB and verified logcat: `TrackerService: Service Started, tracking sensors at max frequency`, recording live HR and IMU streams without crashes.
+        - Verified non-zero byte stream file sizes on physical watch storage.

@@ -8,10 +8,15 @@ Compares:
      - Head 1: Binary Macro Family Gate (Vertical/Touch vs Cross-Bat/Power)
      - Head 2A: 4-class Sub-Classifier (DRIVE/DEFENCE, GLANCE/FLICK, DEFLECTION/GUIDE, SWEEP)
      - Head 2B: 4-class Sub-Classifier (PULL/HOOK, CUT/PUNCH, POWER DRIVE, SLOG)
-  3. Experiment 2: 3-Family Hierarchical Multi-Head TCN
+  3. Experiment 2: 3-Family Hierarchical Multi-Head TCN (Standard Skip)
      - Head 1: 3-class Macro Family Gate (Upright Vertical vs Upright Cross/Power vs Crouched Floor)
      - Head 2A: 3-class Sub-Classifier (DRIVE/DEFENCE, GLANCE/FLICK, DEFLECTION/GUIDE)
      - Head 2B: 4-class Sub-Classifier (PULL/HOOK, CUT/PUNCH, POWER DRIVE, SLOG)
+     - Head 2C: Identity / Passthrough to SWEEP
+  4. Experiment 3: 3-Family Multi-Scale Skip Aggregation TCN
+     - Head 1: 3-class Macro Family Gate on [L4, L7, L10]
+     - Head 2A: 3-class Sub-Classifier on [L4, L7, L10]
+     - Head 2B: Multi-Scale Skip Aggregation on [Pool(L5), Pool(L10)] with Dense Conv1D (64->32->4)
      - Head 2C: Identity / Passthrough to SWEEP
 
 Fixed Hyperparameters across all runs:
@@ -94,7 +99,6 @@ class TwoFamilyHierarchicalTCN(nn.Module):
             self.blocks.append(AdvancedTCNBlock(prev, channels, 3, d, dropout=0.1))
             prev = channels
         
-        # Concat feature dimension from layers 4, 7, 10
         concat_dim = channels * 3  # 96
         self.head_family = nn.Conv1d(concat_dim, 2, 1)  # Head 1: Macro Family Gate (Binary Softmax)
         self.head_sub0 = nn.Conv1d(concat_dim, 4, 1)    # Head 2A: Sub-Classifier Family 0 (4-class Softmax)
@@ -119,10 +123,6 @@ class TwoFamilyHierarchicalTCN(nn.Module):
         return logits_family, logits_sub0, logits_sub1
 
     def forward(self, x):
-        """
-        Returns full reconstructed 10-class pseudo-logits for direct drop-in compatibility
-        with telemetry_engine.py unleaked candidate inference.
-        """
         logits_family, logits_sub0, logits_sub1 = self.forward_heads(x)
         p_fam = F.softmax(logits_family, dim=1)  # (B, 2, L)
         p_sub0 = F.softmax(logits_sub0, dim=1)   # (B, 4, L)
@@ -130,7 +130,6 @@ class TwoFamilyHierarchicalTCN(nn.Module):
         
         B, _, L = logits_family.shape
         probs = torch.zeros((B, 10, L), device=x.device, dtype=x.dtype)
-        # Background channels
         probs[:, 0, :] = 0.0  # no_shot
         probs[:, 1, :] = 0.0  # pre_shot
         
@@ -150,7 +149,7 @@ class TwoFamilyHierarchicalTCN(nn.Module):
 
 
 # =============================================================================
-# Architecture 2: 3-Family Hierarchical Multi-Head TCN
+# Architecture 2: 3-Family Hierarchical Multi-Head TCN (Standard Skip)
 # =============================================================================
 class ThreeFamilyHierarchicalTCN(nn.Module):
     def __init__(self, in_ch=NUM_FEATURES, channels=32, dilations=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512]):
@@ -165,7 +164,7 @@ class ThreeFamilyHierarchicalTCN(nn.Module):
         self.head_family = nn.Conv1d(concat_dim, 3, 1)  # Head 1: Macro Family Gate (3-Class Softmax)
         self.head_sub0 = nn.Conv1d(concat_dim, 3, 1)    # Head 2A: Sub-Classifier Family 0 (3-class: Drive/Glance/Guide)
         self.head_sub1 = nn.Conv1d(concat_dim, 4, 1)    # Head 2B: Sub-Classifier Family 1 (4-class: Pull/Cut/Power/Slog)
-        # Head 2C: Identity / Passthrough to SWEEP (no additional parameters)
+        # Head 2C: Identity / Passthrough to SWEEP
 
     def extract_features(self, x):
         layer_outputs = []
@@ -193,7 +192,92 @@ class ThreeFamilyHierarchicalTCN(nn.Module):
         
         B, _, L = logits_family.shape
         probs = torch.zeros((B, 10, L), device=x.device, dtype=x.dtype)
-        # Background channels
+        probs[:, 0, :] = 0.0  # no_shot
+        probs[:, 1, :] = 0.0  # pre_shot
+        
+        # Family 0 (Upright Vertical)
+        probs[:, 3, :] = p_fam[:, 0, :] * p_sub0[:, 0, :]  # DRIVE/DEFENCE (3)
+        probs[:, 4, :] = p_fam[:, 0, :] * p_sub0[:, 1, :]  # GLANCE/FLICK (4)
+        probs[:, 6, :] = p_fam[:, 0, :] * p_sub0[:, 2, :]  # DEFLECTION/GUIDE (6)
+        
+        # Family 1 (Upright Cross/Power)
+        probs[:, 2, :] = p_fam[:, 1, :] * p_sub1[:, 0, :]  # PULL/HOOK (2)
+        probs[:, 5, :] = p_fam[:, 1, :] * p_sub1[:, 1, :]  # CUT/PUNCH (5)
+        probs[:, 7, :] = p_fam[:, 1, :] * p_sub1[:, 2, :]  # POWER DRIVE (7)
+        probs[:, 8, :] = p_fam[:, 1, :] * p_sub1[:, 3, :]  # SLOG (8)
+        
+        # Family 2 (Crouched Floor - Passthrough to SWEEP)
+        probs[:, 9, :] = p_fam[:, 2, :]                    # SWEEP (9)
+        
+        return torch.log(probs + 1e-12)
+
+
+# =============================================================================
+# Architecture 3: 3-Family Multi-Scale Skip Aggregation TCN (Modified Head 2B)
+# =============================================================================
+class ThreeFamilyMultiScaleTCN(nn.Module):
+    def __init__(self, in_ch=NUM_FEATURES, channels=32, dilations=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512]):
+        super().__init__()
+        self.blocks = nn.ModuleList()
+        prev = in_ch
+        for d in dilations:
+            self.blocks.append(AdvancedTCNBlock(prev, channels, 3, d, dropout=0.1))
+            prev = channels
+            
+        concat_dim = channels * 3  # 96 (L4 + L7 + L10)
+        self.head_family = nn.Conv1d(concat_dim, 3, 1)  # Head 1: Macro Family Gate (3-Class Softmax)
+        self.head_sub0 = nn.Conv1d(concat_dim, 3, 1)    # Head 2A: Sub-Classifier Family 0 (3-class)
+        
+        # Multi-Scale Skip Aggregation on Head 2B:
+        # Layer 5 (d=16, ~150ms transient focus) + Layer 10 (d=512, global macro focus)
+        self.pool_l5 = nn.AvgPool1d(kernel_size=15, stride=1, padding=7)
+        self.pool_l10 = nn.AvgPool1d(kernel_size=63, stride=1, padding=31)
+        
+        # Head 2B Dense Classification Layers (Pool(L5)[32] + Pool(L10)[32] = 64 channels)
+        self.head_sub1 = nn.Sequential(
+            nn.Conv1d(64, 32, kernel_size=1),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Conv1d(32, 4, kernel_size=1)
+        )
+        # Head 2C: Identity / Passthrough to SWEEP
+
+    def extract_features(self, x):
+        layer_outputs = []
+        out = x
+        for blk in self.blocks:
+            out = blk(out)
+            layer_outputs.append(out)
+        return layer_outputs
+
+    def forward_heads(self, x):
+        layer_outputs = self.extract_features(x)
+        l4  = layer_outputs[3]
+        l5  = layer_outputs[4]
+        l7  = layer_outputs[6]
+        l10 = layer_outputs[9]
+        
+        # Standard skip concatenation for Head 1 and Head 2A
+        concat_feat = torch.cat([l4, l7, l10], dim=1)
+        logits_family = self.head_family(concat_feat)  # (B, 3, L)
+        logits_sub0 = self.head_sub0(concat_feat)      # (B, 3, L)
+        
+        # Multi-Scale Skip Aggregation for Head 2B: [Pool(L5), Pool(L10)]
+        p_l5 = self.pool_l5(l5)
+        p_l10 = self.pool_l10(l10)
+        cross_feat = torch.cat([p_l5, p_l10], dim=1)   # (B, 64, L)
+        logits_sub1 = self.head_sub1(cross_feat)       # (B, 4, L)
+        
+        return logits_family, logits_sub0, logits_sub1
+
+    def forward(self, x):
+        logits_family, logits_sub0, logits_sub1 = self.forward_heads(x)
+        p_fam = F.softmax(logits_family, dim=1)  # (B, 3, L)
+        p_sub0 = F.softmax(logits_sub0, dim=1)   # (B, 3, L)
+        p_sub1 = F.softmax(logits_sub1, dim=1)   # (B, 4, L)
+        
+        B, _, L = logits_family.shape
+        probs = torch.zeros((B, 10, L), device=x.device, dtype=x.dtype)
         probs[:, 0, :] = 0.0  # no_shot
         probs[:, 1, :] = 0.0  # pre_shot
         
@@ -371,9 +455,9 @@ def evaluate_holdout_hierarchical_3fam(model, holdout_shot_windows):
 # =============================================================================
 def train_and_eval_experiment(exp_name, model_type, train_loader, val_loader, holdout_shot_windows,
                               all_parquet_sessions, train_sessions, stats_data, max_epochs=25, patience=10):
-    print("\n" + "="*80)
-    print(f"🚀 STARTING {exp_name.upper()}")
-    print("="*80)
+    print("\n" + "="*80, flush=True)
+    print(f"🚀 STARTING {exp_name.upper()}", flush=True)
+    print("="*80, flush=True)
     
     torch.manual_seed(42)
     np.random.seed(42)
@@ -390,6 +474,11 @@ def train_and_eval_experiment(exp_name, model_type, train_loader, val_loader, ho
                             list(model.head_family.parameters()) + list(model.head_sub0.parameters()) + list(model.head_sub1.parameters())
     elif model_type == "3fam":
         model = ThreeFamilyHierarchicalTCN(in_ch=NUM_FEATURES, channels=32).to(DEVICE)
+        l1_5_params = [p for i in range(5) for p in model.blocks[i].parameters()]
+        l6_10_head_params = [p for i in range(5, 10) for p in model.blocks[i].parameters()] + \
+                            list(model.head_family.parameters()) + list(model.head_sub0.parameters()) + list(model.head_sub1.parameters())
+    elif model_type == "3fam_multiscale":
+        model = ThreeFamilyMultiScaleTCN(in_ch=NUM_FEATURES, channels=32).to(DEVICE)
         l1_5_params = [p for i in range(5) for p in model.blocks[i].parameters()]
         l6_10_head_params = [p for i in range(5, 10) for p in model.blocks[i].parameters()] + \
                             list(model.head_family.parameters()) + list(model.head_sub0.parameters()) + list(model.head_sub1.parameters())
@@ -415,7 +504,7 @@ def train_and_eval_experiment(exp_name, model_type, train_loader, val_loader, ho
     best_model_state = None
     final_epoch = max_epochs
     
-    print(f"Training {exp_name} (Discriminative LR: {BASE_LR_L1_5}/{BASE_LR_L6_10}, {WARMUP_EPOCHS}-Epoch Warmup, Patience: {patience})...")
+    print(f"Training {exp_name} (Discriminative LR: {BASE_LR_L1_5}/{BASE_LR_L6_10}, {WARMUP_EPOCHS}-Epoch Warmup, Patience: {patience})...", flush=True)
     
     for epoch in range(1, max_epochs + 1):
         if epoch <= WARMUP_EPOCHS:
@@ -439,7 +528,7 @@ def train_and_eval_experiment(exp_name, model_type, train_loader, val_loader, ho
             elif model_type == "2fam":
                 logits_tuple = model.forward_heads(xb)
                 loss = compute_hierarchical_loss_2fam(logits_tuple, yb, loss_ce)
-            elif model_type == "3fam":
+            elif model_type in ["3fam", "3fam_multiscale"]:
                 logits_tuple = model.forward_heads(xb)
                 loss = compute_hierarchical_loss_3fam(logits_tuple, yb, loss_ce)
                 
@@ -463,7 +552,7 @@ def train_and_eval_experiment(exp_name, model_type, train_loader, val_loader, ho
                     l = loss_ce(model(xb), yb)
                 elif model_type == "2fam":
                     l = compute_hierarchical_loss_2fam(model.forward_heads(xb), yb, loss_ce)
-                elif model_type == "3fam":
+                elif model_type in ["3fam", "3fam_multiscale"]:
                     l = compute_hierarchical_loss_3fam(model.forward_heads(xb), yb, loss_ce)
                 v_loss += l.item()
                 v_n += 1
@@ -473,7 +562,7 @@ def train_and_eval_experiment(exp_name, model_type, train_loader, val_loader, ho
             ho_shot_acc, ho_macro_f1 = evaluate_holdout_baseline(model, holdout_shot_windows)
         elif model_type == "2fam":
             ho_shot_acc, ho_macro_f1 = evaluate_holdout_hierarchical_2fam(model, holdout_shot_windows)
-        elif model_type == "3fam":
+        elif model_type in ["3fam", "3fam_multiscale"]:
             ho_shot_acc, ho_macro_f1 = evaluate_holdout_hierarchical_3fam(model, holdout_shot_windows)
             
         improved = (ho_macro_f1 > best_macro_f1) or (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
@@ -534,10 +623,10 @@ def train_and_eval_experiment(exp_name, model_type, train_loader, val_loader, ho
 # Main Orchestrator
 # =============================================================================
 def main():
-    print("="*100)
-    print("  ARCHITECTURAL EXPERIMENT: 2-FAMILY vs 3-FAMILY HIERARCHICAL TCN vs CANONICAL BASELINE")
-    print(f"  Designated Holdout Sessions ({len(HOLDOUT_SESSIONS)}): {', '.join(HOLDOUT_SESSIONS)}")
-    print("="*100)
+    print("="*100, flush=True)
+    print("  HIERARCHICAL MULTI-SCALE SKIP AGGREGATION EXPERIMENT: 3-FAMILY TCN", flush=True)
+    print(f"  Designated Holdout Sessions ({len(HOLDOUT_SESSIONS)}): {', '.join(HOLDOUT_SESSIONS)}", flush=True)
+    print("="*100, flush=True)
     
     sync_unified_dataset()
     
@@ -545,7 +634,7 @@ def main():
     all_parquet_sessions = sorted([os.path.basename(p).replace("_unified.parquet", "") for p in glob.glob(pattern) if '_aug_' not in p])
     train_sessions = [s for s in all_parquet_sessions if s not in HOLDOUT_SESSIONS]
     
-    print(f"Loading {len(train_sessions)} training sessions & {len(HOLDOUT_SESSIONS)} holdout validation sessions (Total: {len(all_parquet_sessions)})...")
+    print(f"Loading {len(train_sessions)} training sessions & {len(HOLDOUT_SESSIONS)} holdout validation sessions (Total: {len(all_parquet_sessions)})...", flush=True)
     train_data = [load_dataset_for_training(s) for s in train_sessions]
     train_data = [d for d in train_data if d is not None]
     
@@ -595,34 +684,22 @@ def main():
     # Run Experiments
     results = {}
     
-    # 1. Baseline Single-Head TCN
-    results["baseline"] = train_and_eval_experiment(
-        exp_name="Baseline Single-Head (Canonical 10-Class)",
-        model_type="baseline",
-        train_loader=train_loader,
-        val_loader=val_loader,
-        holdout_shot_windows=holdout_shot_windows,
-        all_parquet_sessions=all_parquet_sessions,
-        train_sessions=train_sessions,
-        stats_data=stats_data
-    )
-    
-    # 2. Experiment 1: 2-Family Hierarchical Multi-Head TCN
-    results["2fam"] = train_and_eval_experiment(
-        exp_name="Experiment 1: 2-Family Hierarchical Multi-Head TCN",
-        model_type="2fam",
-        train_loader=train_loader,
-        val_loader=val_loader,
-        holdout_shot_windows=holdout_shot_windows,
-        all_parquet_sessions=all_parquet_sessions,
-        train_sessions=train_sessions,
-        stats_data=stats_data
-    )
-    
-    # 3. Experiment 2: 3-Family Hierarchical Multi-Head TCN
+    # 1. Experiment 2: 3-Family Hierarchical Multi-Head TCN (Standard Skip)
     results["3fam"] = train_and_eval_experiment(
-        exp_name="Experiment 2: 3-Family Hierarchical Multi-Head TCN",
+        exp_name="Standard 3-Family Hierarchical TCN",
         model_type="3fam",
+        train_loader=train_loader,
+        val_loader=val_loader,
+        holdout_shot_windows=holdout_shot_windows,
+        all_parquet_sessions=all_parquet_sessions,
+        train_sessions=train_sessions,
+        stats_data=stats_data
+    )
+    
+    # 2. Experiment 3: 3-Family Multi-Scale Skip Aggregation TCN (Head 2B: Pool(L5) + Pool(L10))
+    results["3fam_multiscale"] = train_and_eval_experiment(
+        exp_name="Multi-Scale Skip 3-Family TCN (Head 2B: Pool(L5)+Pool(L10))",
+        model_type="3fam_multiscale",
         train_loader=train_loader,
         val_loader=val_loader,
         holdout_shot_windows=holdout_shot_windows,
@@ -634,12 +711,13 @@ def main():
     # =========================================================================
     # Comparison Analysis & Scorecard Generation
     # =========================================================================
-    print("\n" + "="*115)
-    print("🏆 MASTER ARCHITECTURAL COMPARISON: 2-FAMILY vs 3-FAMILY vs CANONICAL BASELINE")
-    print("="*115)
+    print("\n" + "="*115, flush=True)
+    print("🏆 MULTI-SCALE SKIP AGGREGATION SCORECARD: STANDARD 3-FAMILY vs MULTI-SCALE SKIP 3-FAMILY", flush=True)
+    print("="*115, flush=True)
     
+    eval_keys = ["3fam", "3fam_multiscale"]
     summary_rows = []
-    for k in ["baseline", "2fam", "3fam"]:
+    for k in eval_keys:
         r = results[k]
         m = r["metrics"]
         summary_rows.append({
@@ -655,18 +733,18 @@ def main():
             "Global Recall": f"{m['global_rec']:.2f}%"
         })
     df_summary = pd.DataFrame(summary_rows)
-    print(df_summary.to_string(index=False))
+    print(df_summary.to_string(index=False), flush=True)
     
-    # Key Focus Shots Table (PULL/HOOK, SLOG, POWER DRIVE, SWEEP)
-    focus_shots = ["PULL/HOOK", "SLOG", "POWER DRIVE", "SWEEP", "CUT/PUNCH", "DRIVE/DEFENCE", "GLANCE/FLICK", "DEFLECTION/GUIDE"]
-    print("\n" + "="*115)
-    print("🎯 HOLDOUT PER-SHOT ACCURACY BREAKDOWN COMPARISON")
-    print("="*115)
+    # Key Focus Shots Table (PULL/HOOK, POWER DRIVE, SLOG, SWEEP)
+    focus_shots = ["PULL/HOOK", "POWER DRIVE", "SLOG", "SWEEP", "CUT/PUNCH", "DRIVE/DEFENCE", "GLANCE/FLICK", "DEFLECTION/GUIDE"]
+    print("\n" + "="*115, flush=True)
+    print("🎯 HOLDOUT PER-SHOT ACCURACY BREAKDOWN COMPARISON", flush=True)
+    print("="*115, flush=True)
     
     per_shot_rows = []
     for s_cls in focus_shots:
         row = {"Shot Class": s_cls}
-        for k, col_name in [("baseline", "Baseline Single-Head"), ("2fam", "2-Family Multi-Head"), ("3fam", "3-Family Multi-Head")]:
+        for k, col_name in [("3fam", "Standard 3-Family"), ("3fam_multiscale", "Multi-Scale Skip 3-Family")]:
             agg = results[k]["metrics"]["holdout_agg"][s_cls]
             gt = agg["gt_count"]
             det = agg["detected_count"]
@@ -675,14 +753,14 @@ def main():
             row[f"{col_name} (Corr/Det)"] = f"{corr}/{det} ({acc:.1f}%)"
         per_shot_rows.append(row)
     df_per_shot = pd.DataFrame(per_shot_rows)
-    print(df_per_shot.to_string(index=False))
+    print(df_per_shot.to_string(index=False), flush=True)
     
     # Save Comprehensive Experiment Scorecard Markdown
-    exp_report_path = os.path.join(ROOT_DIR, "hierarchical_tcn_experiments_scorecard.md")
-    report_md = f"""# Hierarchical Multi-Head TCN Architectural Experiment Report
+    exp_report_path = os.path.join(ROOT_DIR, "multiscale_skip_3fam_scorecard.md")
+    report_md = f"""# Multi-Scale Skip Aggregation 3-Family TCN Experiment Report
 
-**Comparison**: Canonical Single-Head Baseline vs 2-Family Hierarchical Multi-Head TCN vs 3-Family Hierarchical Multi-Head TCN  
-**Fixed Hyperparameters**: 10-Layer TCN Backbone (Skip Concatenation L4+L7+L10), Discriminative LR (`3e-4` L1–5, `1e-3` L6–10+Heads, 3-Epoch Warmup), Label-Smoothed Cross-Entropy Loss (`label_smoothing=0.1`), $\\pm 30\\text{{ms}}$ Jitter, Holdout Macro-F1 Checkpointing (`patience=10`, `min_delta=0.0`)  
+**Comparison**: Standard 3-Family Hierarchical TCN vs Multi-Scale Skip Aggregation 3-Family TCN (Head 2B: `[Pool(L5), Pool(L10)]`)  
+**Fixed Hyperparameters**: 10-Layer TCN Backbone, Discriminative LR (`3e-4` L1–5, `1e-3` L6–10+Heads, 3-Epoch Warmup), Label-Smoothed Cross-Entropy Loss (`label_smoothing=0.1`), $\\pm 30\\text{{ms}}$ Jitter, Holdout Macro-F1 Checkpointing (`patience=10`, `min_delta=0.0`)  
 **Designated Holdout Sessions**: `{', '.join(HOLDOUT_SESSIONS)}` ({len(HOLDOUT_SESSIONS)} sessions)  
 **Total Evaluated Dataset**: {len(all_parquet_sessions)} physical sessions ({len(train_sessions)} training sessions + {len(HOLDOUT_SESSIONS)} holdout sessions)  
 **Date**: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -693,59 +771,49 @@ def main():
 
 | Architecture | Best Epoch | Holdout Macro-F1 | **Holdout Classification Acc** | **Holdout Recall** | **Holdout Precision** | **Holdout F1** | **Training Class Acc** | **Global Precision** | **Global Recall** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 🏛️ **Baseline Single-Head (Canonical 10-Class)** | Epoch {results['baseline']['best_epoch']} | {results['baseline']['best_macro_f1']:.4f} | **{results['baseline']['metrics']['ho_cls_acc']:.2f}%** | {results['baseline']['metrics']['ho_rec']:.2f}% ({results['baseline']['metrics']['ho_tp']}/{results['baseline']['metrics']['ho_total_gt']}) | {results['baseline']['metrics']['ho_prec']:.2f}% | {results['baseline']['metrics']['ho_f1']:.2f}% | {results['baseline']['metrics']['tr_cls_acc']:.2f}% | {results['baseline']['metrics']['global_prec']:.2f}% | {results['baseline']['metrics']['global_rec']:.2f}% |
-| 🌿 **Experiment 1: 2-Family Hierarchical Multi-Head** | Epoch {results['2fam']['best_epoch']} | {results['2fam']['best_macro_f1']:.4f} | **{results['2fam']['metrics']['ho_cls_acc']:.2f}%** | {results['2fam']['metrics']['ho_rec']:.2f}% ({results['2fam']['metrics']['ho_tp']}/{results['2fam']['metrics']['ho_total_gt']}) | {results['2fam']['metrics']['ho_prec']:.2f}% | {results['2fam']['metrics']['ho_f1']:.2f}% | {results['2fam']['metrics']['tr_cls_acc']:.2f}% | {results['2fam']['metrics']['global_prec']:.2f}% | {results['2fam']['metrics']['global_rec']:.2f}% |
-| 🌳 **Experiment 2: 3-Family Hierarchical Multi-Head** | Epoch {results['3fam']['best_epoch']} | {results['3fam']['best_macro_f1']:.4f} | **{results['3fam']['metrics']['ho_cls_acc']:.2f}%** | {results['3fam']['metrics']['ho_rec']:.2f}% ({results['3fam']['metrics']['ho_tp']}/{results['3fam']['metrics']['ho_total_gt']}) | {results['3fam']['metrics']['ho_prec']:.2f}% | {results['3fam']['metrics']['ho_f1']:.2f}% | {results['3fam']['metrics']['tr_cls_acc']:.2f}% | {results['3fam']['metrics']['global_prec']:.2f}% | {results['3fam']['metrics']['global_rec']:.2f}% |
+| 🌳 **Standard 3-Family TCN** | Epoch {results['3fam']['best_epoch']} | {results['3fam']['best_macro_f1']:.4f} | **{results['3fam']['metrics']['ho_cls_acc']:.2f}%** | {results['3fam']['metrics']['ho_rec']:.2f}% ({results['3fam']['metrics']['ho_tp']}/{results['3fam']['metrics']['ho_total_gt']}) | {results['3fam']['metrics']['ho_prec']:.2f}% | {results['3fam']['metrics']['ho_f1']:.2f}% | {results['3fam']['metrics']['tr_cls_acc']:.2f}% | {results['3fam']['metrics']['global_prec']:.2f}% | {results['3fam']['metrics']['global_rec']:.2f}% |
+| ⚡ **Multi-Scale Skip 3-Family TCN** | Epoch {results['3fam_multiscale']['best_epoch']} | {results['3fam_multiscale']['best_macro_f1']:.4f} | **{results['3fam_multiscale']['metrics']['ho_cls_acc']:.2f}%** | {results['3fam_multiscale']['metrics']['ho_rec']:.2f}% ({results['3fam_multiscale']['metrics']['ho_tp']}/{results['3fam_multiscale']['metrics']['ho_total_gt']}) | {results['3fam_multiscale']['metrics']['ho_prec']:.2f}% | {results['3fam_multiscale']['metrics']['ho_f1']:.2f}% | {results['3fam_multiscale']['metrics']['tr_cls_acc']:.2f}% | {results['3fam_multiscale']['metrics']['global_prec']:.2f}% | {results['3fam_multiscale']['metrics']['global_rec']:.2f}% |
 
 ---
 
 ## 🎯 Per-Shot Holdout Classification Accuracy Breakdown
 
-| Shot Class | Ground-Truth Shots | **Baseline Single-Head** (Corr/Det) | **Experiment 1: 2-Family** (Corr/Det) | **Experiment 2: 3-Family** (Corr/Det) | Focus Shot Highlights |
+| Shot Class | Ground-Truth Shots | **Standard 3-Family** (Corr/Det) | **Multi-Scale Skip 3-Family** (Corr/Det) | Delta | Focus Highlights |
 |---|:---:|:---:|:---:|:---:|---|
 """
     for s_cls in focus_shots:
-        gt_cnt = results["baseline"]["metrics"]["holdout_agg"][s_cls]["gt_count"]
-        
-        b_agg = results["baseline"]["metrics"]["holdout_agg"][s_cls]
-        b_det = b_agg["detected_count"]
-        b_corr = b_agg["correct_class_count"]
-        b_acc = (b_corr / max(1, b_det)) * 100.0 if b_det > 0 else 0.0
-        
-        f2_agg = results["2fam"]["metrics"]["holdout_agg"][s_cls]
-        f2_det = f2_agg["detected_count"]
-        f2_corr = f2_agg["correct_class_count"]
-        f2_acc = (f2_corr / max(1, f2_det)) * 100.0 if f2_det > 0 else 0.0
+        gt_cnt = results["3fam"]["metrics"]["holdout_agg"][s_cls]["gt_count"]
         
         f3_agg = results["3fam"]["metrics"]["holdout_agg"][s_cls]
         f3_det = f3_agg["detected_count"]
         f3_corr = f3_agg["correct_class_count"]
         f3_acc = (f3_corr / max(1, f3_det)) * 100.0 if f3_det > 0 else 0.0
         
-        highlight = ""
-        if s_cls in ["PULL/HOOK", "SLOG", "POWER DRIVE", "SWEEP"]:
-            highlight = f"🔥 Key Focus ({s_cls})"
-            
-        report_md += f"| **{s_cls}** | {gt_cnt} | **{b_acc:.1f}%** ({b_corr}/{b_det}) | **{f2_acc:.1f}%** ({f2_corr}/{f2_det}) | **{f3_acc:.1f}%** ({f3_corr}/{f3_det}) | {highlight} |\n"
+        ms_agg = results["3fam_multiscale"]["metrics"]["holdout_agg"][s_cls]
+        ms_det = ms_agg["detected_count"]
+        ms_corr = ms_agg["correct_class_count"]
+        ms_acc = (ms_corr / max(1, ms_det)) * 100.0 if ms_det > 0 else 0.0
+        
+        delta = ms_acc - f3_acc
+        delta_str = f"{delta:+.1f}%" if delta != 0 else "0.0%"
+        highlight = "🔥 Focus" if s_cls in ["PULL/HOOK", "POWER DRIVE", "SLOG", "SWEEP"] else ""
+        report_md += f"| **{s_cls}** | {gt_cnt} | **{f3_acc:.1f}%** ({f3_corr}/{f3_det}) | **{ms_acc:.1f}%** ({ms_corr}/{ms_det}) | **{delta_str}** | {highlight} |\n"
 
     report_md += """
 ---
 
-## 🔬 Architectural Findings & Conclusions
+## 🔬 Multi-Scale Skip Aggregation Key Insights
 
-1. **Macro Family Gating Impact**:
-   - Decomposing the output into Macro Family Gate + Specialized Sub-Classifiers tests whether separating vertical-bat touch shots from horizontal-bat power strokes prevents feature competition in the shared backbone representation.
-2. **Key Class Performance**:
-   - **PULL/HOOK**: Evaluated on cross-bat power strokes.
-   - **SLOG**: Evaluated on high-energy horizontal rotational swings.
-   - **POWER DRIVE**: Evaluated on vertical downswing with high impact force.
-   - **SWEEP**: Evaluated on low torso tilt / knee-down crouched ground strokes.
+1. **Head 2B Multi-Scale Skip Dynamics**:
+   - Aggregating Layer 5 ($d=16$, $\sim 150\\text{ms}$) captures the high-frequency impact shockwave transient and wrist snap.
+   - Aggregating Layer 10 ($d=512$, $\sim 9.67\\text{s}$) captures the full rotational downswing trajectory and bodily stance.
+   - Concatenating $[\text{Pool}(L_5) \,\|\, \text{Pool}(L_{10})]$ provides Head 2B with both temporal scales to separate `PULL/HOOK` and `POWER DRIVE` from `SLOG` and `CUT/PUNCH`.
 """
 
     with open(exp_report_path, "w") as f:
         f.write(report_md)
-    print(f"\n✅ Master experimental scorecard report saved to {exp_report_path}")
-    print("="*115)
+    print(f"\n✅ Multi-Scale Skip scorecard report saved to {exp_report_path}", flush=True)
+    print("="*115, flush=True)
 
 
 if __name__ == "__main__":

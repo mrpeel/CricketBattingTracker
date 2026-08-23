@@ -148,28 +148,30 @@ class TrackerService : Service(), SensorEventListener {
             return START_NOT_STICKY
         }
 
-        enableRawLogging = true // Force raw logging to always be active in raw-only recording mode
-        try {
-            val ts = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
-            val sessionDir = File(getExternalFilesDir(null), "sessions/session-$ts")
-            sessionDir.mkdirs()
-            currentSessionDir = sessionDir
+        if (currentSessionDir == null) {
+            enableRawLogging = true // Force raw logging to always be active in raw-only recording mode
+            try {
+                val ts = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
+                val sessionDir = File(getExternalFilesDir(null), "sessions/session-$ts")
+                sessionDir.mkdirs()
+                currentSessionDir = sessionDir
 
-            for (config in sensorConfigs) {
-                val sensor = sensorManager.getDefaultSensor(config.type)
-                if (sensor != null) {
-                    try {
-                        val file = File(sessionDir, config.fileName)
-                        val stream = FileOutputStream(file)
-                        streams[config.type] = stream
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to create stream for ${config.fileName}", e)
+                for (config in sensorConfigs) {
+                    val sensor = sensorManager.getDefaultSensor(config.type)
+                    if (sensor != null) {
+                        try {
+                            val file = File(sessionDir, config.fileName)
+                            val stream = FileOutputStream(file)
+                            streams[config.type] = stream
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to create stream for ${config.fileName}", e)
+                        }
                     }
                 }
+                Log.d(TAG, "Raw Logging ENABLED for all supported sensors in: ${sessionDir.absolutePath}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to prep log writers: ${e.message}")
             }
-            Log.d(TAG, "Raw Logging ENABLED for all supported sensors in: ${sessionDir.absolutePath}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to prep log writers: ${e.message}")
         }
 
         if (sessionTimeline.isEmpty()) {
