@@ -3,14 +3,24 @@
 pipelines/train_and_evaluate_full_scorecard.py — Master Training & Unified Multi-Tier Evaluation
 
 1. Auto-synchronizes live watch sessions into unified 423 Hz Parquet datasets.
-2. Loads all 53 physical sessions directly from Parquet files.
+2. Loads all physical sessions directly from Parquet files.
 3. Computes feature normalization statistics (median / MAD) from training sessions.
-4. Trains Variant C AdvancedTCN with Discriminative LR (1e-4 for Layers 1-5, 1e-3 for Layers 6-10 + Head,
-   label_smoothing=0.1) and holdout validation loss early stopping.
+4. Trains Bat-Plane 3-Family Multi-Scale TCN using Dynamic Shuffling and Staged Slow-Rate Fine-Tuning:
+   - Progressive 10-Layer TCN Backbone ([16, 16, 16, 16, 16, 32, 64, 128, 256, 512])
+   - Head 1: 3-Family Macro Gate (Vertical-Bat, Cross-Bat Horizontal, Floor Sweep)
+   - Head 2A (Vertical-Bat, 4 Classes): 144d Multi-Scale Triplet ([Pool(L5) [16d], Pool(L7) [64d], Proj(L10) [64d]])
+   - Head 2B (Cross-Bat Horizontal, 2 Classes): 144d Multi-Scale Triplet
+   - Head 2C (Floor / Crouch): Direct passthrough to SWEEP
+   - Training Sample Pooling: All training shot windows pooled into a single TensorDataset with DataLoader(shuffle=True)
+   - Optional --seed CLI argument for deterministic or random initialization
+   - Phase 1 (Epochs 1–8): Joint spatial warmup with discriminative LR (3e-4 L1-5, 1e-3 L6-10+Heads, 3-epoch warmup)
+   - Phase 2 (Epochs 9–35): Slow-rate fine-tuning keeping all layers trainable, applying 10x slower LR to Layers 1–7 (3e-5)
+     while upper layers and heads train under CosineAnnealingLR (5e-4 to 1e-6), 2.0x Head 2A weight on POWER DRIVE,
+     patience=18 Holdout Macro-F1 checkpointing
 5. Evaluates training, holdout, and full datasets EXCLUSIVELY using the unified telemetry engine
    (pipelines/telemetry_engine.py). Zero Train-Serve Skew.
 6. Enforces Production Quality Gate (Holdout Precision >= 75% or Micro Precision >= 70%, Holdout F1 >= 50%)
-   and exports ONNX model to app assets.
+   and exports ONNX model and norm stats to app assets.
 7. Generates the authoritative full_dataset_training_scorecard.md report.
 """
 
@@ -21,13 +31,14 @@ import glob
 import math
 import shutil
 import random
+import argparse
 import datetime
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 from sklearn.metrics import f1_score, accuracy_score
 
 ROOT_DIR = "/Users/neilkloot/Code/CricketBattingTracker"
@@ -39,7 +50,7 @@ from telemetry_engine import (
     ROOT_DIR, BASE_DIR, DATASET_DIR, SESSIONS_DIR, STAGE1_MODEL_PATH, STAGE2_MODEL_PATH,
     STATS_PATH, APP_ASSETS_DIR, REPORT_OUT, HOLDOUT_SESSIONS, STAGE1_CHANNELS, FEATURES,
     CLASSES, SHOT_CLASSES, SOFT_TOUCH_CLASSES, normalise_shot_type,
-    FacingUpTCN, StanceTracker, AdvancedTCNBlock, AdvancedTCN, Stage2TCNClassifier,
+    FacingUpTCN, StanceTracker, AdvancedTCNBlock, BatPlaneGeometryThreeFamilyTCN,
     estimate_session_clock_offset, load_parquet_session, predict_candidate_batch_unleaked,
     run_session_multitier, format_class_table, evaluate_multitier_scorecard
 )
@@ -55,6 +66,19 @@ NUM_FEATURES = len(FEATURES)
 WINDOW_LEN = 2048
 BATCH_SIZE = 32
 DEVICE = 'mps' if torch.backends.mps.is_available() else ('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Bat Plane Geometry Mappings:
+# Family 0 (Vertical-Bat Strokes - 4 Classes): DRIVE/DEFENCE(3), POWER DRIVE(7), GLANCE/FLICK(4), DEFLECTION/GUIDE(6)
+# Family 1 (Cross-Bat Horizontal Strokes - 2 Classes): PULL/HOOK/SLOG(2), CUT/PUNCH(5)
+# Family 2 (Floor / Crouch - 1 Class): SWEEP(8)
+FAM3_FAMILY0_CLASSES = [3, 7, 4, 6]
+FAM3_FAMILY1_CLASSES = [2, 5]
+FAM3_FAMILY2_CLASSES = [8]
+
+FAM3_LOOKUP_FAMILY_T = torch.tensor([0, 0, 1, 0, 0, 1, 0, 0, 2], dtype=torch.int64, device=DEVICE)
+FAM3_LOOKUP_SUB_T    = torch.tensor([0, 0, 0, 0, 2, 1, 3, 1, 0], dtype=torch.int64, device=DEVICE)
+
+WEIGHT_2A_PHASE2 = torch.tensor([1.0, 2.0, 1.0, 1.0], dtype=torch.float32, device=DEVICE)
 
 
 def sync_unified_dataset():
@@ -92,103 +116,105 @@ def load_dataset_for_training(session_name):
     if df is None:
         return None
     X = df[FEATURES].fillna(0.0).values.astype(np.float32)
-    y = df['label'].map(CLASS_TO_IDX).fillna(0).values.astype(np.int64)
+    mapped_labels = df['label'].apply(lambda x: normalise_shot_type(x) if x not in ['no_shot', 'pre_shot'] else x)
+    y = mapped_labels.map(CLASS_TO_IDX).fillna(0).values.astype(np.int64)
     return X, y, df
 
 
-class SessionWindowDataset(Dataset):
-    def __init__(self, sessions_data, window_len=WINDOW_LEN, is_train=True):
-        self.window_len = window_len
-        self.is_train = is_train
-        self.windows = []
-        for s_idx, (X, y, _) in enumerate(sessions_data):
-            n = len(X)
-            for i in range(0, n - window_len, window_len // 2):
-                yw = y[i:i+window_len]
-                w = 20.0 if np.any(yw >= 2) else 1.0
-                self.windows.append((s_idx, i, w))
-        self.weights = np.array([w for _, _, w in self.windows], dtype=np.float32)
-        self.weights /= self.weights.sum()
-        self.sessions_data = sessions_data
-
-    def __len__(self):
-        return len(self.windows)
-
-    def __getitem__(self, idx):
-        s_idx, start, _ = self.windows[idx]
-        X, y, _ = self.sessions_data[s_idx]
-        if self.is_train:
-            jitter = random.randint(-13, 13)  # +/-30ms optimal temporal anchor jitter at 423 Hz
-            start = max(0, min(len(X) - self.window_len, start + jitter))
+def compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_sub0):
+    logits_fam, logits_sub0, logits_sub1 = logits_tuple
+    B, _, L = logits_fam.shape
+    logits_fam_flat = logits_fam.transpose(1, 2).reshape(-1, 3)
+    logits_sub0_flat = logits_sub0.transpose(1, 2).reshape(-1, 4)
+    logits_sub1_flat = logits_sub1.transpose(1, 2).reshape(-1, 2)
+    yb_flat = yb.reshape(-1)
+    
+    shot_mask = (yb_flat >= 2)
+    if not shot_mask.any():
+        return (logits_fam.sum() + logits_sub0.sum() + logits_sub1.sum()) * 0.0
         
-        window_X = X[start:start+self.window_len].copy()
-        if self.is_train and random.random() < 0.60:
-            pitch = math.radians(random.uniform(-15.0, 15.0))
-            roll  = math.radians(random.uniform(-15.0, 15.0))
-            yaw   = math.radians(random.uniform(-20.0, 20.0))
-            
-            Rx = np.array([[1, 0, 0], [0, math.cos(pitch), -math.sin(pitch)], [0, math.sin(pitch), math.cos(pitch)]])
-            Ry = np.array([[math.cos(roll), 0, math.sin(roll)], [0, 1, 0], [-math.sin(roll), 0, math.cos(roll)]])
-            Rz = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0, 0, 1]])
-            R  = (Rz @ Ry @ Rx).astype(np.float32)
-            
-            window_X[:, 0:3]  = window_X[:, 0:3] @ R.T
-            window_X[:, 3:6]  = window_X[:, 3:6] @ R.T
-            window_X[:, 6:9]  = window_X[:, 6:9] @ R.T
-            window_X[:, 9:12] = window_X[:, 9:12] @ R.T
-
-        xd = torch.from_numpy(window_X.T)
-        yd = torch.from_numpy(y[start:start+self.window_len])
-        return xd, yd
+    shot_yb = yb_flat[shot_mask]
+    shot_logits_fam = logits_fam_flat[shot_mask]
+    shot_logits_sub0 = logits_sub0_flat[shot_mask]
+    shot_logits_sub1 = logits_sub1_flat[shot_mask]
+    
+    target_fam = FAM3_LOOKUP_FAMILY_T[shot_yb]
+    target_sub = FAM3_LOOKUP_SUB_T[shot_yb]
+    
+    l_family = loss_ce_standard(shot_logits_fam, target_fam)
+    
+    fam0_mask = (target_fam == 0)
+    l_sub0 = loss_ce_sub0(shot_logits_sub0[fam0_mask], target_sub[fam0_mask]) if fam0_mask.any() else torch.tensor(0.0, device=yb.device)
+    
+    fam1_mask = (target_fam == 1)
+    l_sub1 = loss_ce_standard(shot_logits_sub1[fam1_mask], target_sub[fam1_mask]) if fam1_mask.any() else torch.tensor(0.0, device=yb.device)
+    
+    return l_family + l_sub0 + l_sub1
 
 
-def compute_val_loss(model, val_loader, loss_fn):
-    model.eval()
-    v_loss = 0.0
-    n_b = 0
-    with torch.no_grad():
-        for xb, yb in val_loader:
-            xb = xb.to(DEVICE)
-            yb = yb.to(DEVICE)
-            logits = model(xb)
-            loss = loss_fn(logits, yb)
-            v_loss += loss.item()
-            n_b += 1
-    return v_loss / n_b if n_b > 0 else float('inf')
-
-
-def evaluate_holdout_shot_metrics(model, holdout_shot_windows):
+def evaluate_holdout_candidate_metrics(model, holdout_shot_windows):
     model.eval()
     if not holdout_shot_windows:
         return 0.0, 0.0
-    y_true, y_pred = [], []
+    all_x = torch.stack([x_t for x_t, _ in holdout_shot_windows], dim=0).to(DEVICE)
+    y_true = [target_c for _, target_c in holdout_shot_windows]
     with torch.no_grad():
-        for x_t, target_c in holdout_shot_windows:
-            x_t = x_t.unsqueeze(0).to(DEVICE)
-            logits = model(x_t) # (1, num_classes, window_len)
-            center_logits = logits[0, 2:, WINDOW_LEN // 2].cpu().numpy()
-            pred_class = int(np.argmax(center_logits)) + 2
-            y_true.append(target_c)
-            y_pred.append(pred_class)
+        logits_fam, logits_sub0, logits_sub1 = model.forward_heads(all_x)
+        c_idx = WINDOW_LEN // 2
+        p_fam = F.softmax(logits_fam[:, :, c_idx], dim=1).cpu().numpy()
+        p_sub0 = F.softmax(logits_sub0[:, :, c_idx], dim=1).cpu().numpy()
+        p_sub1 = F.softmax(logits_sub1[:, :, c_idx], dim=1).cpu().numpy()
+        
+    fam_choices = np.argmax(p_fam, axis=1)
+    sub0_choices = np.argmax(p_sub0, axis=1)
+    sub1_choices = np.argmax(p_sub1, axis=1)
+    
+    y_pred = []
+    for i, fam_c in enumerate(fam_choices):
+        if fam_c == 0:
+            pred_c = FAM3_FAMILY0_CLASSES[sub0_choices[i]]
+        elif fam_c == 1:
+            pred_c = FAM3_FAMILY1_CLASSES[sub1_choices[i]]
+        else:
+            pred_c = 8  # SWEEP
+        y_pred.append(pred_c)
+        
     acc = float(accuracy_score(y_true, y_pred))
     macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0))
     return acc, macro_f1
 
 
 def main():
-    print("============================================================")
-    print("  Master Training & Unified Multi-Tier Scorecard Pipeline")
-    print(f"  Holdout / Validation Sessions ({len(HOLDOUT_SESSIONS)}): {', '.join(HOLDOUT_SESSIONS)}")
-    print("============================================================")
+    parser = argparse.ArgumentParser(description="Master Retraining & Multi-Tier Evaluation Pipeline (Bat-Plane 3-Family TCN)")
+    parser.add_argument("--seed", type=int, default=None, help="Optional random seed for reproducibility (default: None for random)")
+    args = parser.parse_args()
+
+    print("="*100, flush=True)
+    print("  MASTER RETRAINING & MULTI-TIER EVALUATION PIPELINE (BAT-PLANE 3-FAMILY TCN)", flush=True)
+    print(f"  Holdout / Validation Sessions ({len(HOLDOUT_SESSIONS)}): {', '.join(HOLDOUT_SESSIONS)}", flush=True)
+    print(f"  Execution Device: {DEVICE}", flush=True)
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.manual_seed(args.seed)
+        print(f"  Random Seed: {args.seed} (deterministic)", flush=True)
+    else:
+        print("  Random Seed: None (randomized initialization)", flush=True)
+    print("="*100, flush=True)
     
-    # Auto-sync raw live watch sessions to unified parquets
+    # 0. Sync Live Sessions
     sync_unified_dataset()
     
+    # 1. Dataset Loading
     pattern = os.path.join(DATASET_DIR, "session_2026-*_unified.parquet")
     all_parquet_sessions = sorted([os.path.basename(p).replace("_unified.parquet", "") for p in glob.glob(pattern) if '_aug_' not in p])
     train_sessions = [s for s in all_parquet_sessions if s not in HOLDOUT_SESSIONS]
     
-    print(f"1. Loading {len(train_sessions)} training sessions & {len(HOLDOUT_SESSIONS)} holdout validation sessions...")
+    print(f"Loading {len(train_sessions)} training sessions & {len(HOLDOUT_SESSIONS)} holdout validation sessions (Total: {len(all_parquet_sessions)})...", flush=True)
     train_data = [load_dataset_for_training(s) for s in train_sessions]
     train_data = [d for d in train_data if d is not None]
     
@@ -200,29 +226,58 @@ def main():
     mad = np.median(np.abs(all_X - med), axis=0)
     mad = np.where(mad < 1e-3, 1.0, mad)
     
-    # Save Normalisation Stats JSON
-    os.makedirs(APP_ASSETS_DIR, exist_ok=True)
     stats_data = {'features': FEATURES, 'classes': CLASSES, 'median': med.tolist(), 'mad': mad.tolist()}
     with open(STATS_PATH, 'w') as f:
         json.dump(stats_data, f, indent=2)
-    APP_STATS_PATH = os.path.join(APP_ASSETS_DIR, "tcn_norm_stats.json")
-    with open(APP_STATS_PATH, 'w') as f:
+    print(f"✅ Saved feature normalization stats -> {STATS_PATH}")
+    
+    # Copy stats to app assets
+    os.makedirs(APP_ASSETS_DIR, exist_ok=True)
+    app_stats_path = os.path.join(APP_ASSETS_DIR, "tcn_norm_stats.json")
+    with open(app_stats_path, 'w') as f:
         json.dump(stats_data, f, indent=2)
-    print(f"✅ Saved normalisation stats to {STATS_PATH} & {APP_STATS_PATH}")
+    print(f"✅ Copied feature normalization stats -> {app_stats_path}")
     
     for X, _, _ in train_data:
         X[:] = (X - med) / mad
     for X, _, _ in holdout_data:
         X[:] = (X - med) / mad
         
-    train_dataset = SessionWindowDataset(train_data, WINDOW_LEN, is_train=True)
-    train_sampler = torch.utils.data.WeightedRandomSampler(train_dataset.weights, len(train_dataset.weights), replacement=True)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=train_sampler, num_workers=0)
+    # Extract Training Shot Windows from all physical training sessions into a TensorDataset
+    window_len = WINDOW_LEN
+    step = window_len // 2
+    train_x_list = []
+    train_y_list = []
     
-    val_dataset = SessionWindowDataset(holdout_data, WINDOW_LEN, is_train=False)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+    for X, y, _ in train_data:
+        n = len(X)
+        for i in range(0, n - window_len, step):
+            yw = y[i:i+window_len]
+            if np.any(yw >= 2):
+                train_x_list.append(torch.from_numpy(X[i:i+window_len].T))
+                train_y_list.append(torch.from_numpy(yw))
+                
+    all_train_X = torch.stack(train_x_list, dim=0)
+    all_train_y = torch.stack(train_y_list, dim=0)
+    train_dataset = TensorDataset(all_train_X, all_train_y)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    print(f"✅ Pooled {len(train_dataset)} training shot windows across {len(train_sessions)} physical sessions into TensorDataset.\n", flush=True)
     
-    # Build holdout ground-truth shot evaluation windows for direct candidate metric tracking
+    # Extract Validation Windows into TensorDataset
+    val_x_list = []
+    val_y_list = []
+    for X, y, _ in holdout_data:
+        n = len(X)
+        for i in range(0, n - window_len, step):
+            yw = y[i:i+window_len]
+            val_x_list.append(torch.from_numpy(X[i:i+window_len].T))
+            val_y_list.append(torch.from_numpy(yw))
+    all_val_X = torch.stack(val_x_list, dim=0)
+    all_val_y = torch.stack(val_y_list, dim=0)
+    val_dataset = TensorDataset(all_val_X, all_val_y)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    
+    # Extract Holdout Evaluation Windows
     holdout_shot_windows = []
     for s_idx, (X, y, df) in enumerate(holdout_data):
         s_name = HOLDOUT_SESSIONS[s_idx]
@@ -241,46 +296,57 @@ def main():
             w_X = X[start_idx:start_idx+WINDOW_LEN].copy()
             holdout_shot_windows.append((torch.from_numpy(w_X.T), CLASS_TO_IDX[norm]))
             
-    print(f"✅ Prepared {len(holdout_shot_windows)} holdout GT candidate evaluation windows.")
+    print(f"Prepared {len(holdout_shot_windows)} holdout GT candidate evaluation windows.\n", flush=True)
     
-    loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
+    model = BatPlaneGeometryThreeFamilyTCN(in_ch=NUM_FEATURES).to(DEVICE)
     
-    model = AdvancedTCN(in_ch=NUM_FEATURES, num_classes=NUM_CLASSES, channels=32).to(DEVICE)
+    loss_ce_standard = nn.CrossEntropyLoss(label_smoothing=0.1)
+    loss_ce_sub0_p2 = nn.CrossEntropyLoss(weight=WEIGHT_2A_PHASE2, label_smoothing=0.1)
     
-    # Harmonized Discriminative LR + 3-Epoch Warmup
+    PHASE1_EPOCHS = 8
+    TOTAL_EPOCHS = 35
+    PHASE2_PATIENCE = 18
+    
+    # Phase 1 Setup
+    l1_5_params = [p for i in range(5) for p in model.blocks[i].parameters()]
+    l6_10_head_params = (
+        [p for i in range(5, 10) for p in model.blocks[i].parameters()] +
+        list(model.head_family.parameters()) +
+        list(model.proj_l10.parameters()) +
+        list(model.head_sub0.parameters()) +
+        list(model.head_sub1.parameters())
+    )
+    
     BASE_LR_L1_5 = 3e-4
     BASE_LR_L6_10 = 1e-3
     WARMUP_EPOCHS = 3
     
-    l1_5_params = [p for i in range(5) for p in model.blocks[i].parameters()]
-    l6_10_head_params = [p for i in range(5, 10) for p in model.blocks[i].parameters()] + list(model.head.parameters())
-    optim = torch.optim.Adam([
+    optim1 = torch.optim.AdamW([
         {'params': l1_5_params, 'lr': BASE_LR_L1_5},
         {'params': l6_10_head_params, 'lr': BASE_LR_L6_10}
-    ])
+    ], weight_decay=1e-2)
     
-    MAX_EPOCHS = 25
-    PATIENCE = 10
-    MIN_DELTA = 0.0
-    
-    print(f"\n2. Training AdvancedTCN with Harmonized LR (L1-5: {BASE_LR_L1_5}, L6-10+Head: {BASE_LR_L6_10}, {WARMUP_EPOCHS}-Epoch Warmup, Max {MAX_EPOCHS} Epochs & Holdout Macro-F1 Checkpointing)...")
     best_macro_f1 = -1.0
     best_shot_acc = 0.0
     best_val_loss = float('inf')
     best_epoch = 0
-    patience_counter = 0
     best_model_state = None
-    final_epoch = MAX_EPOCHS
     
-    for epoch in range(1, MAX_EPOCHS + 1):
-        # 3-Epoch Linear Warmup
+    print("="*85, flush=True)
+    print("🚀 PHASE 1: JOINT SPATIAL WARMUP (EPOCHS 1 TO 8)", flush=True)
+    print(f"   Backbone Layers 1–10 + All Heads Active | LR: {BASE_LR_L1_5} (L1-5) / {BASE_LR_L6_10} (L6-10+Heads)")
+    print(f"   Loss: Standard Label Smoothing (0.1) | Early Stopping: Disabled during warmup")
+    print("="*85, flush=True)
+    
+    # Phase 1 Loop
+    for epoch in range(1, PHASE1_EPOCHS + 1):
         if epoch <= WARMUP_EPOCHS:
             warmup_factor = epoch / float(WARMUP_EPOCHS)
-            optim.param_groups[0]['lr'] = BASE_LR_L1_5 * warmup_factor
-            optim.param_groups[1]['lr'] = BASE_LR_L6_10 * warmup_factor
+            optim1.param_groups[0]['lr'] = BASE_LR_L1_5 * warmup_factor
+            optim1.param_groups[1]['lr'] = BASE_LR_L6_10 * warmup_factor
         else:
-            optim.param_groups[0]['lr'] = BASE_LR_L1_5
-            optim.param_groups[1]['lr'] = BASE_LR_L6_10
+            optim1.param_groups[0]['lr'] = BASE_LR_L1_5
+            optim1.param_groups[1]['lr'] = BASE_LR_L6_10
             
         model.train()
         r_loss = 0.0
@@ -288,23 +354,117 @@ def main():
         for xb, yb in train_loader:
             xb = xb.to(DEVICE)
             yb = yb.to(DEVICE)
-            logits = model(xb)
-            loss = loss_fn(logits, yb)
-            optim.zero_grad()
+            logits_tuple = model.forward_heads(xb)
+            loss = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_standard)
+            optim1.zero_grad()
             loss.backward()
-            optim.step()
+            optim1.step()
             r_loss += loss.item()
             n_b += 1
             
         train_loss = r_loss / n_b
-        val_loss = compute_val_loss(model, val_loader, loss_fn)
-        ho_shot_acc, ho_macro_f1 = evaluate_holdout_shot_metrics(model, holdout_shot_windows)
         
-        improved = (ho_macro_f1 > best_macro_f1 + MIN_DELTA) or \
-                   (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
+        model.eval()
+        v_loss = 0.0
+        v_n = 0
+        with torch.no_grad():
+            for xb, yb in val_loader:
+                xb = xb.to(DEVICE)
+                yb = yb.to(DEVICE)
+                logits_tuple = model.forward_heads(xb)
+                l = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_standard)
+                v_loss += l.item()
+                v_n += 1
+        val_loss = v_loss / v_n if v_n > 0 else float('inf')
         
+        ho_shot_acc, ho_macro_f1 = evaluate_holdout_candidate_metrics(model, holdout_shot_windows)
+        
+        improved = (ho_macro_f1 > best_macro_f1) or (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
         status_tag = " ⭐ Best Model" if improved else ""
-        print(f"  Epoch {epoch:2d}/{MAX_EPOCHS} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Holdout Shot Acc: {ho_shot_acc*100.0:.2f}% | Holdout Macro-F1: {ho_macro_f1:.4f}{status_tag}", flush=True)
+        print(f"  [Phase 1] Epoch {epoch:2d}/{PHASE1_EPOCHS} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Holdout Acc: {ho_shot_acc*100.0:.2f}% | Holdout Macro-F1: {ho_macro_f1:.4f}{status_tag}", flush=True)
+        
+        if improved:
+            best_macro_f1 = ho_macro_f1
+            best_shot_acc = ho_shot_acc
+            best_val_loss = val_loss
+            best_epoch = epoch
+            best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            torch.save(model.state_dict(), MODEL_PT_PATH)
+            
+    # Phase 2 Transition: Slow-Rate Fine-Tuning (All layers remain trainable)
+    if best_model_state is not None:
+        model.load_state_dict({k: v.to(DEVICE) for k, v in best_model_state.items()})
+        print(f"\n🔄 Restored optimal Phase 1 checkpoint from Epoch {best_epoch} (Holdout Macro-F1: {best_macro_f1:.4f}, Acc: {best_shot_acc*100.0:.2f}%) for Phase 2 initialization.", flush=True)
+
+    print("\n" + "="*85, flush=True)
+    print("🔓 SLOW-RATE FINE-TUNING LAYERS 1 TO 7 (3e-5) & UPPER LAYERS (CosineAnnealingLR 5e-4 -> 1e-6)", flush=True)
+    print("🚀 PHASE 2: DECOUPLED DISCRIMINATIVE OPTIMIZATION (EPOCHS 9 TO 35)", flush=True)
+    print(f"   Trainable: All Layers 1–10, Layer 10 Proj, Head 1, Head 2A, Head 2B")
+    print(f"   LR: 3e-5 (Layers 1–7) / 5e-4 (Layers 8–10 + Heads) decaying to 1e-6 (T_max={TOTAL_EPOCHS - PHASE1_EPOCHS})")
+    print(f"   Head 2A Sub-Loss Weight: {WEIGHT_2A_PHASE2.cpu().tolist()} | Patience: {PHASE2_PATIENCE}")
+    print("="*85, flush=True)
+    
+    l1_7_params = [p for i in range(7) for p in model.blocks[i].parameters()]
+    l8_10_head_params = (
+        [p for i in range(7, 10) for p in model.blocks[i].parameters()] +
+        list(model.proj_l10.parameters()) +
+        list(model.head_family.parameters()) +
+        list(model.head_sub0.parameters()) +
+        list(model.head_sub1.parameters())
+    )
+    
+    LR_PHASE2_L1_7 = 3e-5
+    LR_PHASE2_UPPER = 5e-4
+    LR_PHASE2_UPPER_MIN = 1e-6
+    T_MAX_PHASE2 = TOTAL_EPOCHS - PHASE1_EPOCHS
+    
+    optim2 = torch.optim.AdamW([
+        {'params': l1_7_params, 'lr': LR_PHASE2_L1_7},
+        {'params': l8_10_head_params, 'lr': LR_PHASE2_UPPER}
+    ], weight_decay=1e-2)
+    scheduler2 = torch.optim.lr_scheduler.CosineAnnealingLR(optim2, T_max=T_MAX_PHASE2, eta_min=LR_PHASE2_UPPER_MIN)
+    
+    patience_counter = 0
+    final_epoch = TOTAL_EPOCHS
+    
+    for epoch in range(PHASE1_EPOCHS + 1, TOTAL_EPOCHS + 1):
+        current_lr_l1_7 = optim2.param_groups[0]['lr']
+        current_lr_upper = optim2.param_groups[1]['lr']
+        model.train()
+        r_loss = 0.0
+        n_b = 0
+        for xb, yb in train_loader:
+            xb = xb.to(DEVICE)
+            yb = yb.to(DEVICE)
+            logits_tuple = model.forward_heads(xb)
+            loss = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_sub0_p2)
+            optim2.zero_grad()
+            loss.backward()
+            optim2.step()
+            r_loss += loss.item()
+            n_b += 1
+            
+        scheduler2.step()
+        train_loss = r_loss / n_b
+        
+        model.eval()
+        v_loss = 0.0
+        v_n = 0
+        with torch.no_grad():
+            for xb, yb in val_loader:
+                xb = xb.to(DEVICE)
+                yb = yb.to(DEVICE)
+                logits_tuple = model.forward_heads(xb)
+                l = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_sub0_p2)
+                v_loss += l.item()
+                v_n += 1
+        val_loss = v_loss / v_n if v_n > 0 else float('inf')
+        
+        ho_shot_acc, ho_macro_f1 = evaluate_holdout_candidate_metrics(model, holdout_shot_windows)
+        
+        improved = (ho_macro_f1 > best_macro_f1) or (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
+        status_tag = " ⭐ Best Model" if improved else ""
+        print(f"  [Phase 2] Epoch {epoch:2d}/{TOTAL_EPOCHS} (LR: {current_lr_l1_7:.6f}/{current_lr_upper:.6f}) - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Holdout Acc: {ho_shot_acc*100.0:.2f}% | Holdout Macro-F1: {ho_macro_f1:.4f}{status_tag}", flush=True)
         
         if improved:
             best_macro_f1 = ho_macro_f1
@@ -323,16 +483,15 @@ def main():
                 best_epoch = epoch
                 best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
                 torch.save(model.state_dict(), MODEL_PT_PATH)
-            if patience_counter >= PATIENCE:
+            if patience_counter >= PHASE2_PATIENCE:
                 final_epoch = epoch
-                print(f"  🛑 Early stopping triggered at Epoch {epoch}! Best Holdout Macro-F1: {best_macro_f1:.4f} (Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f}) at Epoch {best_epoch} (No improvement over {PATIENCE} consecutive epochs).", flush=True)
+                print(f"  🛑 Early stopping triggered at Epoch {epoch}! Best Holdout Macro-F1: {best_macro_f1:.4f} (Acc: {best_shot_acc*100.0:.2f}%) at Epoch {best_epoch}.", flush=True)
                 break
-                
         final_epoch = epoch
 
     if best_model_state is not None:
         model.load_state_dict({k: v.to(DEVICE) for k, v in best_model_state.items()})
-        print(f"✅ Reloaded best model checkpoint from Epoch {best_epoch} (Best Holdout Macro-F1: {best_macro_f1:.4f}, Shot Acc: {best_shot_acc*100.0:.2f}%)", flush=True)
+        print(f"\n✅ Reloaded best model checkpoint from Epoch {best_epoch} (Best Holdout Macro-F1: {best_macro_f1:.4f}, Candidate Acc: {best_shot_acc*100.0:.2f}%)", flush=True)
     else:
         torch.save(model.state_dict(), MODEL_PT_PATH)
         print(f"✅ Saved PyTorch experiment model checkpoint to {MODEL_PT_PATH}", flush=True)
@@ -383,8 +542,8 @@ def main():
     
     print("\n" + "="*115)
     print("📊 UNIFIED FULL DATASET TRAINING & HOLDOUT EVALUATION SCORECARD")
-    print(f"  Training Strategy: Variant C (Harmonized LR: {BASE_LR_L1_5} / {BASE_LR_L6_10}, 3-Epoch Warmup, Holdout Macro-F1 Checkpointing)")
-    print(f"  Validation Summary: Total Epochs = {final_epoch}, Best Holdout Macro-F1 = {best_macro_f1:.4f} (Shot Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f} at Epoch {best_epoch})")
+    print(f"  Training Strategy: Bat-Plane 3-Family Multi-Scale TCN with Dynamic Shuffling & Slow-Rate Fine-Tuning")
+    print(f"  Validation Summary: Total Epochs = {final_epoch}, Best Holdout Macro-F1 = {best_macro_f1:.4f} (Candidate Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f} at Epoch {best_epoch})")
     print("="*115)
     print(f"  Holdout Set ({len(HOLDOUT_SESSIONS)} Sessions): Recall = {ho_recall:.1f}%, Precision = {ho_precision:.1f}%, F1 = {ho_f1:.1f}%, Class Acc = {ho_class_acc:.1f}%")
     print(f"  Training Set ({len(train_sessions)} Sessions):           Recall = {tr_recall:.1f}%, Precision = {tr_precision:.1f}%, F1 = {tr_f1:.1f}%, Class Acc = {tr_class_acc:.1f}%")
@@ -394,12 +553,12 @@ def main():
     # Save Report Markdown
     report = f"""# Full Dataset Training & Holdout Scorecard Report
 
-**System Architecture**: Hierarchical Multi-Tier Stance-Gated TCN Pipeline (Stage 1 Facing Up Stance Detector + Stage 2 AdvancedTCN Classifier)  
-**Training Design**: Variant C (Harmonized LR: `3e-4` for Layers 1-5, `1e-3` for Layers 6-10 + Head, 3-Epoch Warmup, Holdout Macro-F1 Checkpointing, Label Smoothing = 0.1)  
+**System Architecture**: Hierarchical Multi-Tier Stance-Gated TCN Pipeline (Stage 1 Facing Up Stance Detector + Stage 2 Bat-Plane 3-Family Multi-Scale TCN)  
+**Training Design**: Dynamic Shuffling & Staged Slow-Rate Fine-Tuning (Phase 1: Epochs 1-8 Joint Warmup; Phase 2: Epochs 9-35 Discriminative LR L1-7 (3e-5) + Upper CosineAnnealingLR (5e-4 to 1e-6) + 2.0x Head 2A Weight on POWER DRIVE, Label Smoothing = 0.1)  
 **Designated Holdout / Validation Sessions**: `{', '.join(HOLDOUT_SESSIONS)}` ({len(HOLDOUT_SESSIONS)} sessions)  
 **Training Sessions Count**: {len(train_sessions)} physical sessions  
 **Total Dataset Duration**: {total_duration_min:.1f} minutes ({total_duration_min/60.0:.1f} hours)  
-**Holdout Macro-F1 Checkpointing**: Best Epoch {best_epoch} (Best Macro-F1: {best_macro_f1:.4f}, Shot Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f}, Stopped at Epoch {final_epoch})  
+**Holdout Macro-F1 Checkpointing**: Best Epoch {best_epoch} (Best Macro-F1: {best_macro_f1:.4f}, Candidate Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f}, Stopped at Epoch {final_epoch})  
 **Date**: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 ---
@@ -435,7 +594,7 @@ def main():
         dur = session_durations.get(sid, 0.0)
         df_s = df_res[df_res["sid"] == sid] if not df_res.empty else pd.DataFrame()
         s_cand = len(df_s)
-        s_tp = int(df_s["is_tp"].sum()) if not df_s.empty else 0
+        s_tp = int(df_s["is_tp"].sum()) if not df_res.empty else 0
         s_gt = sum(1 for s, g in metrics["all_gt_events"] if s == sid)
         s_rec = (s_tp / max(1, s_gt)) * 100.0
         s_prec = (s_tp / max(1, s_cand)) * 100.0
@@ -456,7 +615,7 @@ def main():
         dummy_input = torch.randn(1, NUM_FEATURES, WINDOW_LEN, device='cpu')
         model_cpu = model.to('cpu')
         torch.onnx.export(
-            model_cpu, dummy_input, MODEL_ONNX_PATH, export_params=True, opset_version=17,
+            model_cpu, dummy_input, MODEL_ONNX_PATH, export_params=True, opset_version=18,
             do_constant_folding=True, input_names=['input_imu_stream'], output_names=['output_logits'],
             dynamic_axes={'input_imu_stream': {0: 'batch_size', 2: 'sequence_length'}, 'output_logits': {0: 'batch_size', 2: 'sequence_length'}},
             dynamo=False

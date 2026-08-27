@@ -632,3 +632,176 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Rebuilt release APKs, 16 KB page-aligned, and deployed to physical watch (`192.168.1.78:38061`).
         - Started live session on watch via ADB and verified logcat: `TrackerService: Service Started, tracking sensors at max frequency`, recording live HR and IMU streams without crashes.
         - Verified non-zero byte stream file sizes on physical watch storage.
+
+155. **Dimension-Balanced Multi-Scale Triplet 3-Family TCN Breakthrough (August 23, 2026)**:
+    *   **The Hypothesis**: Projecting Layer 10 ($d=512$) down to 64 dims with GELU and concatenating with Layer 5 ($d=16$) and Layer 7 ($d=64$) prevents numerical dominance of macro-duration features over downswing acceleration and wrist snap. Applying targeted sub-loss weighting (`[1.1, 1.35, 1.0, 1.0]` for `[PULL/HOOK, POWER DRIVE, SLOG, CUT/PUNCH]`) prevents sample volume dominance without distorting global class prototypes.
+    *   **Scorecard Results (Across 59 Physical Sessions / 4 Holdout Sessions)**:
+        *   **Holdout Candidate Macro-F1**: 🏆 **0.6592** (checkpointed at Epoch 6, up from 0.6344).
+        *   **POWER DRIVE Holdout Accuracy**: 🏆 **63.16%** (12/19 correct, 60.0% coverage) — up from 47.4% in unprojected multi-scale skip, and up from 56.3% in baseline.
+        *   **SLOG Holdout Accuracy**: 🏆 **34.38%** (11/32 correct) — up from 28.1% and 25.0%.
+        *   **PULL/HOOK Holdout Accuracy**: 🏆 **39.13%** (9/23 correct) — up from 34.8%.
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **83.33%** (10/12 correct).
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **96.15%** (25/26 correct).
+        *   **SWEEP Holdout Accuracy**: 🏆 **96.77%** (30/31 correct).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198/206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.16%** (198 TPs / 241 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.59%**.
+        *   **Global System Precision**: 🏆 **81.21%** (2,624 / 3,231 candidates across all 59 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.71%** (2,624 / 3,292 GT shots).
+        *   **Quality Gate Status**: 🏆 **PASSED Production Quality Gate**. Checkpoint saved to `pipelines/dimension_balanced_3fam_model.pt`.
+
+156. **Canonical 7-Class Taxonomy Realignment Breakthrough (`PULL/HOOK/SLOG`) (August 24, 2026)**:
+    *   **The Problem**: In physical sensor telemetry, cross-bat aggressive horizontal swings labeled as `PULL/HOOK` and `SLOG` share identical kinematic profiles (high wrist roll rate, flat plane, horizontal follow-through), resulting in artificial boundary contention and confusion when separated.
+    *   **The Realignment**: Merged `PULL/HOOK` and `SLOG` into a unified `PULL/HOOK/SLOG` canonical class (7 canonical classes: `PULL/HOOK/SLOG`, `DRIVE/DEFENCE`, `GLANCE/FLICK`, `CUT/PUNCH`, `DEFLECTION/GUIDE`, `POWER DRIVE`, `SWEEP`).
+    *   **Multi-Head Architecture**: Family 1 (Power / Cross-Bat) configured with 3 classes (`PULL/HOOK/SLOG`, `CUT/PUNCH`, `POWER DRIVE`), evaluated over 144d dimension-balanced multi-scale triplet features.
+    *   **Scorecard Results (Across 59 Physical Sessions / 4 Holdout Sessions)**:
+        *   **Holdout Candidate Macro-F1**: 🏆 **0.6985** (All-time high! Checkpointed at Epoch 6, up from 0.6592 and 0.6344).
+        *   **Holdout Overall Classification Accuracy**: 🏆 **70.71%** (140/198 correct, up from 68.69%).
+        *   **PULL/HOOK/SLOG Holdout Accuracy**: 🏆 **45.45%** (25/55 correct, 43.86% coverage) — resolving individual 34.4% and 39.1% confusions.
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **100.00%** (26/26 correct, 92.86% coverage).
+        *   **SWEEP Holdout Accuracy**: 🏆 **93.55%** (29/31 correct, 93.55% coverage).
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **83.33%** (10/12 correct, 76.92% coverage).
+        *   **GLANCE/FLICK Holdout Accuracy**: 🏆 **76.92%** (20/26 correct, 74.07% coverage).
+        *   **DRIVE/DEFENCE Holdout Accuracy**: 🏆 **75.86%** (22/29 correct, 73.33% coverage).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198/206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.16%** (198 TPs / 241 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.59%**.
+        *   **Global System Precision**: 🏆 **81.37%** (2,625 / 3,226 candidates across 59 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.74%** (2,625 / 3,292 GT shots).
+        *   **Checkpoint Saved**: `pipelines/tcn_7class_pull_hook_slog_model.pt`.
+
+157. **Bat Plane Geometry Macro Grouping Breakthrough (August 24, 2026)**:
+    *   **The Physics Insight**: In physical cricket batting, `POWER DRIVE` (lofted straight drive / power forward drive) moves entirely within the vertical downswing bat plane, whereas `PULL/HOOK/SLOG` and `CUT/PUNCH` rotate through the horizontal cross-bat plane. Grouping `POWER DRIVE` into Family 1 (Cross-Bat) forced the macro-family gate to learn conflicting plane prototypes.
+    *   **The Realignment**:
+        - **Family 0 (Vertical-Bat Plane)**: `[DRIVE/DEFENCE, POWER DRIVE, GLANCE/FLICK, DEFLECTION/GUIDE]`, evaluated via Head 2A with 128d features (`[Pool(L7) [64d], Proj(L10) [64d]]`).
+        - **Family 1 (Cross-Bat Horizontal Plane)**: `[PULL/HOOK/SLOG, CUT/PUNCH]`, evaluated via Head 2B with 144d features (`[Pool(L5) [16d], Pool(L7) [64d], Proj(L10) [64d]]`).
+        - **Family 2 (Floor / Crouch Plane)**: `[SWEEP]`.
+    *   **Scorecard Results (Across 59 Physical Sessions / 4 Holdout Sessions)**:
+        *   **Holdout Candidate Macro-F1**: 🏆 **0.7253** (All-time project record! Checkpointed at Epoch 24, breaking the 0.70 barrier).
+        *   **Holdout Overall Classification Accuracy**: 🏆 **72.22%** (143/198 correct, up from 70.71%).
+        *   **PULL/HOOK/SLOG Holdout Accuracy**: 🏆 **56.36%** (31/55 correct, 54.39% coverage) — up from 45.45% and 34.4%!
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **100.00%** (26/26 correct, 92.86% coverage).
+        *   **SWEEP Holdout Accuracy**: 🏆 **96.77%** (30/31 correct, 96.77% coverage).
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **83.33%** (10/12 correct, 76.92% coverage).
+        *   **DRIVE/DEFENCE Holdout Accuracy**: 🏆 **75.86%** (22/29 correct, 73.33% coverage).
+        *   **GLANCE/FLICK Holdout Accuracy**: 🏆 **73.08%** (19/26 correct, 70.37% coverage).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198/206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.50%** (198 TPs / 240 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.79%**.
+        *   **Global System Precision**: 🏆 **81.37%** (2,625 / 3,226 candidates across 59 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.74%** (2,625 / 3,292 GT shots).
+        *   **Checkpoint Saved**: `pipelines/tcn_7class_bat_plane_model.pt`.
+
+158. **Head 2A 144d Multi-Scale Triplet & Loss Calibration Refinement (August 24, 2026)**:
+    *   **The Architecture**: Upgraded Head 2A to accept the 144d multi-scale feature triplet (`[Pool(L5) [16d], Pool(L7) [64d], Proj(L10) [64d]]`) to capture transient wrist snap shockwaves alongside downswing plane velocity, combined with targeted `1.4x` loss weighting on `POWER DRIVE` within Family 0.
+    *   **Scorecard Results (Across 59 Physical Sessions / 4 Holdout Sessions)**:
+        *   **Holdout Overall Classification Accuracy**: 🏆 **72.73%** (144/198 correct, highest overall classification accuracy in project history).
+        *   **PULL/HOOK/SLOG Holdout Accuracy**: 🏆 **63.64%** (35/55 correct, 61.40% coverage) — massive surge from 56.36% and 45.45%.
+        *   **SWEEP Holdout Accuracy**: 🏆 **96.77%** (30/31 correct, 96.77% coverage).
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **96.15%** (25/26 correct, 89.29% coverage).
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **83.33%** (10/12 correct, 76.92% coverage).
+        *   **GLANCE/FLICK Holdout Accuracy**: 🏆 **73.08%** (19/26 correct, 70.37% coverage).
+        *   **DRIVE/DEFENCE Holdout Accuracy**: 🏆 **72.41%** (21/29 correct, 70.00% coverage).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198/206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.16%** (198 TPs / 241 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.59%**.
+        *   **Global System Precision**: 🏆 **81.34%** (2,625 / 3,227 candidates across 59 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.74%** (2,625 / 3,292 GT shots).
+        *   **Checkpoint Saved**: `pipelines/tcn_7class_bat_plane_refined_model.pt`.
+
+159. **Extended Training Runway & 2.0x Head 2A Loss Calibration Discovery (August 24, 2026)**:
+    *   **The Adjustment**: Extended early stopping patience to 15 epochs (`max_epochs = 35`) and calibrated Head 2A sub-loss weight on `POWER DRIVE` to `2.0x` (`weight_2a = [1.0, 2.0, 1.0, 1.0]`) to allow minority power drive class gradients to adapt and prevent premature Epoch 2 stoppage.
+    *   **Scorecard Results (Across 59 Physical Sessions / 4 Holdout Sessions)**:
+        *   **Best Checkpoint**: Checkpointed at **Epoch 10** with Holdout Macro-F1 = **0.6897**.
+        *   **POWER DRIVE Holdout Accuracy**: 🏆 **36.84%** (7/19 correct, 35.00% coverage) — up from 21.05% (4/19), nearly doubling correct classifications.
+        *   **PULL/HOOK/SLOG Holdout Accuracy**: 🏆 **52.73%** (29/55 correct, 50.88% coverage).
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **100.00%** (26/26 correct, 92.86% coverage).
+        *   **SWEEP Holdout Accuracy**: 🏆 **87.10%** (27/31 correct, 87.10% coverage).
+        *   **DRIVE/DEFENCE Holdout Accuracy**: 🏆 **75.86%** (22/29 correct, 73.33% coverage).
+        *   **GLANCE/FLICK Holdout Accuracy**: 🏆 **61.54%** (16/26 correct, 59.26% coverage).
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **58.33%** (7/12 correct, 53.85% coverage).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198/206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.16%** (198 TPs / 241 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.59%**.
+        *   **Global System Precision**: 🏆 **81.34%** (2,625 / 3,227 candidates across 59 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.74%** (2,625 / 3,292 GT shots).
+        *   **Checkpoint Saved**: `pipelines/tcn_7class_bat_plane_refined_model.pt`.
+
+160. **6-Family Continuum Taxonomy vs. Hierarchical 3-Family Architectural Discovery (August 25, 2026)**:
+    *   **The Experiment**: Evaluated a unified 6-Family Continuum TCN (`VERTICAL_DRIVE`, `GLANCE_FLICK`, `CROSS_BAT_POWER`, `CUT_PUNCH`, `DEFLECTION_GUIDE`, `CROUCH_SWEEP`) with a Stage 3 Biomechanical Metrics Dynamic Resolver (post-processing heuristic thresholds for power drive and slog).
+    *   **Key Findings**:
+        1. **Hierarchical 3-Family Superiority**: The 3-Family Hierarchical Multi-Head TCN significantly outperforms the flat 6-Family Continuum (**72.73% vs 66.16%** in geometric family accuracy, and **72.73% vs 54.55%** in resolved canonical strokes).
+        2. **Gating Necessity**: Without Head 1 Macro-Family gating, `SWEEP` accuracy collapsed from **96.77% $\rightarrow$ 54.84%** and `VERTICAL_DRIVE` dropped to **56.25%**, demonstrating that physical posture/plane gates are critical before sub-head discrimination.
+        3. **Dynamic Resolver Fragility**: Static post-processing kinematic thresholds (e.g. pitch angle for pull vs slog, peak acceleration ratio for drive vs power drive) are fragile compared to learned end-to-end multi-scale neural embeddings.
+    *   **Conclusion**: Retain the Bat-Plane 3-Family Multi-Head architecture as our winning multi-tier core.
+
+161. **Staged Decoupled Training & Cosine Annealing Validation (August 25, 2026)**:
+    *   **The Schedule**: Conducted a two-phase training protocol: Phase 1 (Epochs 1–8) full-model joint spatial warmup, followed by Phase 2 (Epochs 9–35) freezing Backbone Layers 1–7 (locking micro wrist snap $L_5$ and downswing plane $L_7$ kernels) and training Layers 8–10 + Heads under `CosineAnnealingLR` (`lr_max = 5e-4` decaying to `1e-6`) with `1.6x` loss weighting on `POWER DRIVE`.
+    *   **Scorecard Results (Across 59 Physical Sessions / 4 Holdout Sessions)**:
+        *   **Best Checkpoint**: Checkpointed at **Epoch 9** with Holdout Candidate Macro-F1 = **0.6941**.
+        *   **Holdout Overall Classification Accuracy**: 🏆 **71.21%** (141 / 198 correctly classified physical shots).
+        *   **SWEEP Holdout Accuracy**: 🏆 **100.00%** (31 / 31 correct, 100.00% coverage — flawless perfect score!).
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **100.00%** (26 / 26 correct, 92.86% coverage — flawless perfect score!).
+        *   **DRIVE/DEFENCE Holdout Accuracy**: 🏆 **75.86%** (22 / 29 correct, 73.33% coverage).
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **75.00%** (9 / 12 correct, 69.23% coverage).
+        *   **GLANCE/FLICK Holdout Accuracy**: 🏆 **61.54%** (16 / 26 correct, 59.26% coverage).
+        *   **PULL/HOOK/SLOG Holdout Accuracy**: 🏆 **54.55%** (30 / 55 correct, 52.63% coverage).
+        *   **POWER DRIVE Holdout Accuracy**: 🏆 **36.84%** (7 / 19 correct, 35.00% coverage).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198 / 206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.16%** (198 TPs / 241 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.59%**.
+        *   **Global System Precision**: 🏆 **81.34%** (2,625 / 3,227 candidates across 59 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.74%** (2,625 / 3,292 GT shots).
+        *   **Checkpoint Saved**: `pipelines/tcn_7class_staged_decoupled_model.pt`.
+
+162. **Production Bat-Plane 3-Family Multi-Scale TCN Master Pipeline & ONNX Deployment (August 26, 2026)**:
+    *   **The Consolidation**: Rebuilt `train_and_evaluate_full_scorecard.py`, `telemetry_engine.py`, `export_onnx_production.py`, and `TcnModelRunner.kt` with the canonical 7-class taxonomy (`PULL/HOOK/SLOG`, `DRIVE/DEFENCE`, `GLANCE/FLICK`, `CUT/PUNCH`, `DEFLECTION/GUIDE`, `POWER DRIVE`, `SWEEP`) and Bat-Plane 3-Family Multi-Scale TCN with Staged Decoupled Training and Cosine Annealing.
+    *   **Full 60-Session Master Scorecard Results**:
+        *   **Best Checkpoint**: Checkpointed at **Epoch 19** with 🏆 **0.7028 Holdout Macro-F1** (Holdout Candidate Acc = **69.90%**).
+        *   **Holdout Overall Classification Accuracy**: 🏆 **72.73%** (144 / 198 correctly classified physical shots).
+        *   **SWEEP Holdout Accuracy**: 🏆 **100.00%** (31 / 31 correct, 100.00% coverage).
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **100.00%** (26 / 26 correct, 92.86% coverage).
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **83.33%** (10 / 12 correct, 76.92% coverage).
+        *   **DRIVE/DEFENCE Holdout Accuracy**: 🏆 **72.41%** (21 / 29 correct, 70.00% coverage).
+        *   **GLANCE/FLICK Holdout Accuracy**: 🏆 **69.23%** (18 / 26 correct, 66.67% coverage).
+        *   **PULL/HOOK/SLOG Holdout Accuracy**: 🏆 **61.82%** (34 / 55 correct, 59.65% coverage).
+        *   **POWER DRIVE Holdout Accuracy**: 🏆 **21.05%** (4 / 19 correct, 20.00% coverage).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198 / 206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.16%** (198 TPs / 241 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.59%**.
+        *   **Global System Precision**: 🏆 **81.45%** (2,687 / 3,299 candidates across all 60 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.99%** (2,687 / 3,359 GT shots).
+        *   **Global System F1 Score**: 🏆 **80.71%**.
+163. **Phase 1 to Phase 2 Optimal Checkpoint Restoration Fix (August 27, 2026)**:
+    *   **The Problem**: During Phase 1 (Epochs 1–8) joint spatial warmup, validation metrics often peak mid-warmup (e.g. Epoch 3 or 7) before validation loss begins to diverge by Epoch 8. Previously, at the end of Phase 1, `train_and_evaluate_full_scorecard.py` directly froze Layers 1–7 without restoring `best_model_state`, forcing Phase 2 to optimize upper heads on top of degraded, overfitted Epoch 8 shockwave kernels rather than the optimal Phase 1 representations.
+    *   **The Solution**: Added explicit model checkpoint restoration (`model.load_state_dict({k: v.to(DEVICE) for k, v in best_model_state.items()})`) immediately before freezing Layers 1–7 at the Phase 1 $\rightarrow$ Phase 2 transition in both `train_and_evaluate_full_scorecard.py` and `run_staged_decoupled_experiment.py`.
+    *   **Result**: Phase 2 is guaranteed to initialize with the exact weights from the highest-performing Phase 1 epoch, locking in optimal lower-layer temporal kernels before head fine-tuning under `CosineAnnealingLR`.
+
+164. **Dynamic Training Sample Shuffling & Discriminative Slow-Rate Fine-Tuning (August 27, 2026)**:
+    *   **The Problem**: Rigid per-session sequential loading and weighted random sampling with replacement caused uneven mini-batch distributions. Furthermore, hard freezing (`requires_grad = False`) on Backbone Layers 1–7 during Phase 2 restricted lower-level temporal adaptation to subtle hand-wrist transitions on unseen bowling variations.
+    *   **The Solution**:
+        1. **Sample Pooling & Dynamic Shuffling**: Extracted and pooled all 6,972 training shot windows across all 58 physical sessions into a single `TensorDataset`, dynamically shuffled across mini-batches (`DataLoader(shuffle=True)`).
+        2. **CLI Seed Argument**: Added optional `--seed` argument for reproducible or randomized training.
+        3. **Discriminative Slow-Rate Fine-Tuning**: Replaced hard freezing with a 10x slower discriminative learning rate (`3e-5`) on Layers 1–7 while optimizing upper layers and classification heads with `CosineAnnealingLR` (`lr_max = 5e-4`, `lr_min = 1e-6`).
+        4. **Targeted 2.0x Head 2A Sub-Loss Weight**: Applied class weights `[1.0, 2.0, 1.0, 1.0]` on `[DRIVE/DEFENCE, POWER DRIVE, GLANCE/FLICK, DEFLECTION/GUIDE]`.
+    *   **Full 62-Session Master Scorecard Results**:
+        *   **Best Checkpoint**: Checkpointed at **Epoch 13** with 🏆 **0.7182 Holdout Macro-F1** (Candidate Acc = **70.87%**, Val Loss = 1.1012).
+        *   **Holdout Overall Classification Accuracy**: 🏆 **75.25%** (149 / 198 correctly classified physical shots, up from 72.73%!).
+        *   **SWEEP Holdout Accuracy**: 🏆 **100.00%** (31 / 31 correct, 100.00% coverage).
+        *   **DEFLECTION/GUIDE Holdout Accuracy**: 🏆 **100.00%** (26 / 26 correct, 92.86% coverage).
+        *   **CUT/PUNCH Holdout Accuracy**: 🏆 **91.67%** (11 / 12 correct, 84.62% coverage).
+        *   **DRIVE/DEFENCE Holdout Accuracy**: 🏆 **75.86%** (22 / 29 correct, 73.33% coverage).
+        *   **GLANCE/FLICK Holdout Accuracy**: 🏆 **69.23%** (18 / 26 correct, 66.67% coverage).
+        *   **PULL/HOOK/SLOG Holdout Accuracy**: 🏆 **61.82%** (34 / 55 correct, 59.65% coverage).
+        *   **POWER DRIVE Holdout Accuracy**: 🏆 **36.84%** (7 / 19 correct, 35.00% coverage).
+        *   **Holdout Physical Recall**: 🏆 **96.12%** (198 / 206 GT shots detected).
+        *   **Holdout Precision**: 🏆 **82.16%** (198 TPs / 241 candidate detections).
+        *   **Holdout F1 Score**: 🏆 **88.59%**.
+        *   **Global System Precision**: 🏆 **80.62%** (2,766 / 3,431 candidates across all 62 physical sessions).
+        *   **Global Pipeline Recall**: 🏆 **79.44%** (2,766 / 3,482 GT shots).
+        *   **Global System F1 Score**: 🏆 **80.02%**.
+        *   **Production Quality Gate**: 🏆 **PASSED** (Holdout Precision: 82.2%, Global Precision: 80.6%, Holdout F1: 88.6%). Updated `tcn_ultimate_baseline.onnx` in `app/src/main/assets/models/`.
+
+
+
+

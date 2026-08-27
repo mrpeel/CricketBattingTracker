@@ -76,18 +76,18 @@ FEATURES = [
     'wrist_gyro_roll_delta',
 ]
 
-CLASSES = ['no_shot', 'pre_shot', 'PULL/HOOK', 'DRIVE/DEFENCE', 'GLANCE/FLICK', 'CUT/PUNCH', 'DEFLECTION/GUIDE', 'POWER DRIVE', 'SLOG', 'SWEEP']
-SHOT_CLASSES = ['PULL/HOOK', 'DRIVE/DEFENCE', 'GLANCE/FLICK', 'CUT/PUNCH', 'DEFLECTION/GUIDE', 'POWER DRIVE', 'SLOG', 'SWEEP']
+CLASSES = ['no_shot', 'pre_shot', 'PULL/HOOK/SLOG', 'DRIVE/DEFENCE', 'GLANCE/FLICK', 'CUT/PUNCH', 'DEFLECTION/GUIDE', 'POWER DRIVE', 'SWEEP']
+SHOT_CLASSES = ['PULL/HOOK/SLOG', 'DRIVE/DEFENCE', 'GLANCE/FLICK', 'CUT/PUNCH', 'DEFLECTION/GUIDE', 'POWER DRIVE', 'SWEEP']
 SOFT_TOUCH_CLASSES = ['DEFLECTION/GUIDE', 'SWEEP']
 
 
 def normalise_shot_type(st):
-    """Maps arbitrary shot narration string into one of the 8 canonical classes."""
+    """Maps arbitrary shot narration string into one of the 7 canonical classes."""
     s = (st or '').lower()
     if 'power drive' in s or 'lofted drive' in s:
         return 'POWER DRIVE'
-    if 'pull' in s or 'hook' in s or 'full shot' in s or 'foot shot' in s or 'push up' in s or 'which shot' in s:
-        return 'PULL/HOOK'
+    if 'pull' in s or 'hook' in s or 'full shot' in s or 'foot shot' in s or 'push up' in s or 'which shot' in s or 'slog' in s:
+        return 'PULL/HOOK/SLOG'
     if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s:
         return 'GLANCE/FLICK'
     if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
@@ -96,8 +96,6 @@ def normalise_shot_type(st):
         return 'DRIVE/DEFENCE'
     if 'cut' in s or 'punch' in s:
         return 'CUT/PUNCH'
-    if 'slog' in s:
-        return 'SLOG'
     if 'sweep' in s:
         return 'SWEEP'
     return None
@@ -214,8 +212,107 @@ class AdvancedTCNBlock(nn.Module):
         return o + self.downsample(x)
 
 
+class BatPlaneGeometryThreeFamilyTCN(nn.Module):
+    def __init__(
+        self,
+        in_ch=len(FEATURES),
+        channels_list=[16, 16, 16, 16, 16, 32, 64, 128, 256, 512],
+        dilations=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+    ):
+        super().__init__()
+        self.blocks = nn.ModuleList()
+        prev = in_ch
+        for ch, d in zip(channels_list, dilations):
+            self.blocks.append(AdvancedTCNBlock(prev, ch, kernel_size=3, dilation=d, dropout=0.1))
+            prev = ch
+            
+        concat_dim = channels_list[3] + channels_list[6] + channels_list[9]  # 16 + 64 + 512 = 592
+        self.head_family = nn.Conv1d(concat_dim, 3, 1)  # Head 1: Macro Family Gate (3-Class Softmax)
+        
+        self.proj_l10 = nn.Linear(channels_list[9], 64)
+        
+        # Head 2A: Vertical-Bat Sub-Classifier (4 Classes: DRIVE/DEFENCE, POWER DRIVE, GLANCE/FLICK, DEFLECTION/GUIDE)
+        self.head_sub0 = nn.Sequential(
+            nn.Linear(144, 64),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, 4)
+        )
+        
+        # Head 2B: Cross-Bat Sub-Classifier (2 Classes: PULL/HOOK/SLOG, CUT/PUNCH)
+        self.head_sub1 = nn.Sequential(
+            nn.Linear(144, 64),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, 2)
+        )
+
+    def extract_features(self, x):
+        layer_outputs = []
+        out = x
+        for blk in self.blocks:
+            out = blk(out)
+            layer_outputs.append(out)
+        return layer_outputs
+
+    def forward_heads(self, x):
+        layer_outputs = self.extract_features(x)
+        l4  = layer_outputs[3]  # (B, 16, L)
+        l5  = layer_outputs[4]  # (B, 16, L)
+        l7  = layer_outputs[6]  # (B, 64, L)
+        l10 = layer_outputs[9]  # (B, 512, L)
+        
+        B, _, L = x.shape
+        
+        concat_feat = torch.cat([l4, l7, l10], dim=1)  # (B, 592, L)
+        logits_family = self.head_family(concat_feat)  # (B, 3, L)
+        
+        f_l5 = l5.mean(dim=2)                          # (B, 16)
+        f_l7 = l7.mean(dim=2)                          # (B, 64)
+        f_l10 = l10.mean(dim=2)                        # (B, 512)
+        f_l10_proj = F.gelu(self.proj_l10(f_l10))      # (B, 64)
+        
+        feat_triplet = torch.cat([f_l5, f_l7, f_l10_proj], dim=1)  # (B, 144)
+        
+        out_sub0 = self.head_sub0(feat_triplet)                     # (B, 4)
+        logits_sub0 = out_sub0.unsqueeze(-1).expand(-1, -1, L)       # (B, 4, L)
+        
+        out_sub1 = self.head_sub1(feat_triplet)                     # (B, 2)
+        logits_sub1 = out_sub1.unsqueeze(-1).expand(-1, -1, L)       # (B, 2, L)
+        
+        return logits_family, logits_sub0, logits_sub1
+
+    def forward(self, x):
+        logits_family, logits_sub0, logits_sub1 = self.forward_heads(x)
+        p_fam = F.softmax(logits_family, dim=1)  # (B, 3, L)
+        p_sub0 = F.softmax(logits_sub0, dim=1)   # (B, 4, L)
+        p_sub1 = F.softmax(logits_sub1, dim=1)   # (B, 2, L)
+        
+        B, _, L = logits_family.shape
+        probs = torch.zeros((B, 9, L), device=x.device, dtype=x.dtype)
+        probs[:, 0, :] = 0.0  # no_shot
+        probs[:, 1, :] = 0.0  # pre_shot
+        
+        # Family 0 (Vertical-Bat Strokes)
+        probs[:, 3, :] = p_fam[:, 0, :] * p_sub0[:, 0, :]  # DRIVE/DEFENCE (3)
+        probs[:, 7, :] = p_fam[:, 0, :] * p_sub0[:, 1, :]  # POWER DRIVE (7)
+        probs[:, 4, :] = p_fam[:, 0, :] * p_sub0[:, 2, :]  # GLANCE/FLICK (4)
+        probs[:, 6, :] = p_fam[:, 0, :] * p_sub0[:, 3, :]  # DEFLECTION/GUIDE (6)
+        
+        # Family 1 (Cross-Bat Horizontal Strokes)
+        probs[:, 2, :] = p_fam[:, 1, :] * p_sub1[:, 0, :]  # PULL/HOOK/SLOG (2)
+        probs[:, 5, :] = p_fam[:, 1, :] * p_sub1[:, 1, :]  # CUT/PUNCH (5)
+        
+        # Family 2 (Floor / Crouch Strokes)
+        probs[:, 8, :] = p_fam[:, 2, :]                    # SWEEP (8)
+        
+        return torch.log(probs + 1e-12)
+
+
 class AdvancedTCN(nn.Module):
-    def __init__(self, in_ch=28, num_classes=10, channels=32, dilations=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512]):
+    def __init__(self, in_ch=28, num_classes=9, channels=32, dilations=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512]):
         super().__init__()
         self.blocks = nn.ModuleList()
         prev = in_ch
@@ -237,7 +334,7 @@ class AdvancedTCN(nn.Module):
         return self.head(concat_feat)
 
 # Backward-compatible alias
-Stage2TCNClassifier = AdvancedTCN
+Stage2TCNClassifier = BatPlaneGeometryThreeFamilyTCN
 
 
 # =============================================================================
@@ -360,7 +457,7 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
             preds.append(("DRIVE/DEFENCE", 0.50))
             continue
             
-        shot_class_probs = win_probs[2:10, :].max(axis=1)
+        shot_class_probs = win_probs[2:len(CLASSES), :].max(axis=1)
         top_class_rel_idx = np.argmax(shot_class_probs)
         top_class_idx = top_class_rel_idx + 2
         top_prob = float(shot_class_probs[top_class_rel_idx])

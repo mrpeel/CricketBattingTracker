@@ -14,8 +14,7 @@ import torch
 import torch.nn as nn
 
 ROOT_DIR = "/Users/neilkloot/Code/CricketBattingTracker"
-sys.path.append(os.path.join(ROOT_DIR, "pipelines"))
-from train_and_evaluate_full_scorecard import AdvancedTCN, NUM_FEATURES, WINDOW_LEN
+from telemetry_engine import BatPlaneGeometryThreeFamilyTCN, NUM_FEATURES, WINDOW_LEN
 
 MODEL_PT_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.pt")
 MODEL_ONNX_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.onnx")
@@ -24,7 +23,7 @@ APP_ONNX_PATH = os.path.join(APP_ASSETS_DIR, "tcn_ultimate_baseline.onnx")
 
 def main():
     print("==========================================================", flush=True)
-    print("   EXPORTING RETRAINED STAGE 2 ADVANCED TCN TO ONNX ASSET", flush=True)
+    print("   EXPORTING RETRAINED STAGE 2 BAT-PLANE 3-FAMILY TCN TO ONNX ASSET", flush=True)
     print("==========================================================", flush=True)
     
     if not os.path.exists(MODEL_PT_PATH):
@@ -33,7 +32,7 @@ def main():
         
     device = torch.device("cpu")
     print(f"Loading PyTorch checkpoint from {MODEL_PT_PATH}...", flush=True)
-    model = AdvancedTCN(in_ch=NUM_FEATURES, num_classes=10).to(device)
+    model = BatPlaneGeometryThreeFamilyTCN(in_ch=NUM_FEATURES).to(device)
 
     model.load_state_dict(torch.load(MODEL_PT_PATH, map_location=device))
     model.eval()

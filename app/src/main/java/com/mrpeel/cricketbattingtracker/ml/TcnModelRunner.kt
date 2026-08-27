@@ -56,9 +56,9 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
         0.1034f, 0.0595f
     )
 
-    val classes = arrayOf(
-        "no_shot", "pre_shot", "PULL/HOOK", "DRIVE/DEFENCE",
-        "GLANCE/FLICK", "CUT/PUNCH", "DEFLECTION/GUIDE", "POWER DRIVE", "SLOG", "SWEEP"
+    var classes = arrayOf(
+        "no_shot", "pre_shot", "PULL/HOOK/SLOG", "DRIVE/DEFENCE",
+        "GLANCE/FLICK", "CUT/PUNCH", "DEFLECTION/GUIDE", "POWER DRIVE", "SWEEP"
     )
 
     // Stage 1 indices within 28-channel matrix:
@@ -74,6 +74,10 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
             if (medJson.length() > 0 && madJson.length() > 0) {
                 median = FloatArray(medJson.length()) { i -> medJson.getDouble(i).toFloat() }
                 mad = FloatArray(madJson.length()) { i -> madJson.getDouble(i).toFloat() }
+            }
+            val clsJson = statsJson.optJSONArray("classes")
+            if (clsJson != null && clsJson.length() > 0) {
+                classes = Array(clsJson.length()) { i -> clsJson.getString(i) }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -420,7 +424,8 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
 
                 @Suppress("UNCHECKED_CAST")
                 val outputTensor = results[0].value as Array<Array<FloatArray>>
-                val logits = outputTensor[0] // 10 x windowLen
+                val logits = outputTensor[0] // numClasses x windowLen
+                val numClasses = logits.size
 
                 val wStart = max(0, cOffset - 42)
                 val wEnd = min(windowLen - 1, cOffset + 42)
@@ -429,24 +434,25 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 var topShotIdx = 3 // default to DRIVE/DEFENCE
 
                 for (t in wStart..wEnd) {
-                    val frameLogits = FloatArray(10) { c -> logits[c][t] }
+                    val frameLogits = FloatArray(numClasses) { c -> logits[c][t] }
                     val maxLogit = frameLogits.maxOrNull() ?: 0f
                     var sumExp = 0f
-                    val probs = FloatArray(10) { c ->
+                    val probs = FloatArray(numClasses) { c ->
                         val e = exp((frameLogits[c] - maxLogit).toDouble()).toFloat()
                         sumExp += e
                         e
                     }
-                    for (c in 0 until 10) probs[c] /= sumExp
+                    for (c in 0 until numClasses) probs[c] /= sumExp
 
-                    for (c in 2 until 10) {
+                    for (c in 2 until numClasses) {
                         if (probs[c] > maxShotProb) {
                             maxShotProb = probs[c]
                             topShotIdx = c
                         }
                     }
                 }
-                candidatePredictions.add(Pair(classes[topShotIdx], maxShotProb))
+                val predClass = if (topShotIdx < classes.size) classes[topShotIdx] else "DRIVE/DEFENCE"
+                candidatePredictions.add(Pair(predClass, maxShotProb))
             } catch (e: Exception) {
                 candidatePredictions.add(Pair("DRIVE/DEFENCE", 0.50f))
             } finally {
