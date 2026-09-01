@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Outer Activity Frame -->
+    <path
+        android:pathData="M3,4 C3,3.45 3.45,3 4,3 H20 C20.55,3 21,3.45 21,4 V20 C21,20.55 20.55,21 20,21 H4 C3.45,21 3,20.55 3,20 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"/>
+    <!-- Biomechanical Sparkline Pulse -->
+    <path
+        android:pathData="M5,14 L8.5,14 L10.5,8 L13,17 L15.5,11 L17.5,14 L19,14"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+    <!-- Upper Target Calibration Dot -->
+    <path
+        android:pathData="M16.5,6.5 A1,1 0 1,1 14.5,6.5 A1,1 0 1,1 16.5,6.5"
+        android:fillColor="#FFFFFF"/>
+</vector>

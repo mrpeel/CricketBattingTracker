@@ -19,6 +19,7 @@ cricket_tracker_database*
 logs/
 latest_timeline.txt
 *.log
+!pipelines/training_logs/**
 
 # Python cache
 __pycache__/

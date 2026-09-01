@@ -374,7 +374,7 @@ def main():
             is_non_swing = any(term in shot_type.lower() for term in NON_SWING_TYPES)
             normalized_gt = normalize_shot_class(shot_type)
             
-            t_impact = float(row["impact_time_seconds"])
+            t_impact = float(row["impact_time_seconds"]) if ("impact_time_seconds" in row and pd.notna(row["impact_time_seconds"])) else float(row.get("sensor_narr_time_seconds", 0.0))
             t_impact_ns = int(row["impact_timestamp_ns"]) if ("impact_timestamp_ns" in row and pd.notna(row["impact_timestamp_ns"])) else int(t_impact * 1e9)
 
             s1_start_ns = row.get("s1_start_ns", t_impact_ns - 800_000_000)
@@ -397,13 +397,13 @@ def main():
                 non_swing_entry = {
                     "session_id": session_id,
                     "session_date": session_date,
-                    "shot_index": row["shot_index"],
-                    "shot_number": row["shot_number"],
-                    "audio_time_seconds": row["audio_time_seconds"],
-                    "sensor_narr_time_seconds": row["sensor_narr_time_seconds"],
-                    "impact_time_seconds": row["impact_time_seconds"],
-                    "impact_timestamp_ns": row["impact_timestamp_ns"],
-                    "impact_gyro_mag": row["impact_gyro_mag"],
+                    "shot_index": row.get("shot_index", idx),
+                    "shot_number": row.get("shot_number", idx),
+                    "audio_time_seconds": row.get("audio_time_seconds", t_impact),
+                    "sensor_narr_time_seconds": row.get("sensor_narr_time_seconds", t_impact),
+                    "impact_time_seconds": t_impact,
+                    "impact_timestamp_ns": t_impact_ns,
+                    "impact_gyro_mag": float(row.get("impact_gyro_mag", 0.0)),
                     "s1_start_ns": s1_start_ns,
                     "s1_end_ns": s1_end_ns,
                     "s1_start_sec": s1_start_sec,
@@ -420,8 +420,8 @@ def main():
                     "reaction_time_ms": int(row.get("reaction_time_ms", 350)),
                     "shot_type": shot_type,
                     "normalized_gt": "NON-SWING",
-                    "quality": row["quality"],
-                    "narrated_text": row["narrated_text"],
+                    "quality": row.get("quality", "good"),
+                    "narrated_text": row.get("narrated_text", shot_type),
                     "predicted_shot_type": "N/A",
                     "is_correct": "N/A"
                 }
@@ -431,7 +431,7 @@ def main():
                 all_aligned_rows.append(non_swing_entry)
                 continue
                 
-            t_impact = float(row["impact_time_seconds"])
+            t_impact = float(row["impact_time_seconds"]) if ("impact_time_seconds" in row and pd.notna(row["impact_time_seconds"])) else float(row.get("sensor_narr_time_seconds", 0.0))
             t_impact_ns = int(row["impact_timestamp_ns"]) if ("impact_timestamp_ns" in row and pd.notna(row["impact_timestamp_ns"])) else int(t_impact * 1e9)
             feats = extract_shot_features(sensors, t_impact)
 
@@ -478,13 +478,13 @@ def main():
             aligned_entry = {
                 "session_id": session_id,
                 "session_date": session_date,
-                "shot_index": row["shot_index"],
-                "shot_number": row["shot_number"],
-                "audio_time_seconds": row["audio_time_seconds"],
-                "sensor_narr_time_seconds": row["sensor_narr_time_seconds"],
-                "impact_time_seconds": row["impact_time_seconds"],
-                "impact_timestamp_ns": row["impact_timestamp_ns"],
-                "impact_gyro_mag": row["impact_gyro_mag"],
+                "shot_index": row.get("shot_index", idx),
+                "shot_number": row.get("shot_number", idx),
+                "audio_time_seconds": row.get("audio_time_seconds", t_impact),
+                "sensor_narr_time_seconds": row.get("sensor_narr_time_seconds", t_impact),
+                "impact_time_seconds": t_impact,
+                "impact_timestamp_ns": t_impact_ns,
+                "impact_gyro_mag": impact_gyro_mag,
                 "s1_start_ns": s1_start_ns,
                 "s1_end_ns": s1_end_ns,
                 "s1_start_sec": s1_start_sec,
@@ -501,8 +501,8 @@ def main():
                 "reaction_time_ms": react_ms,
                 "shot_type": shot_type,
                 "normalized_gt": normalized_gt,
-                "quality": row["quality"],
-                "narrated_text": row["narrated_text"],
+                "quality": row.get("quality", "good"),
+                "narrated_text": row.get("narrated_text", shot_type),
                 "predicted_shot_type": pred,
                 "is_correct": is_correct
             }
@@ -518,8 +518,8 @@ def main():
             feats_row = feats.copy()
             feats_row["session_id"] = session_id
             feats_row["session_date"] = session_date
-            feats_row["shot_index"] = row["shot_index"]
-            feats_row["shot_number"] = row["shot_number"]
+            feats_row["shot_index"] = row.get("shot_index", idx)
+            feats_row["shot_number"] = row.get("shot_number", idx)
             feats_row["shot_type"] = shot_type
             feats_row["normalized_gt"] = normalized_gt
             feats_row["quality"] = str(row.get("quality", ""))

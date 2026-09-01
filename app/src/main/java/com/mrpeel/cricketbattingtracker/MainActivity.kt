@@ -31,6 +31,7 @@ import com.mrpeel.cricketbattingtracker.data.InningsEvent
 import com.mrpeel.cricketbattingtracker.data.HeartRateEvent
 import com.mrpeel.cricketbattingtracker.services.HealthConnectManager
 import com.mrpeel.cricketbattingtracker.ui.biomechanics.BiomechanicalUiMapper
+import com.mrpeel.cricketbattingtracker.ui.insights.InsightsDashboardScreen
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.lifecycle.lifecycleScope
@@ -353,6 +354,7 @@ class MainActivity : ComponentActivity() {
             val timeline by viewModel.currentTimeline.collectAsState()
             val allSessions by viewModel.allSessions.collectAsState()
             val selectedSessionId by viewModel.selectedInningsId.collectAsState()
+            val longitudinalInsights by viewModel.longitudinalInsights.collectAsState()
 
             val isRecording by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.isRecording.collectAsState()
             val elapsedSeconds by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.elapsedSeconds.collectAsState()
@@ -360,7 +362,7 @@ class MainActivity : ComponentActivity() {
             val recordingsList by com.mrpeel.cricketbattingtracker.services.AudioRecordManager.recordingsList.collectAsState()
             val context = LocalContext.current
 
-            // Tab navigation state: 0=Dashboard, 1=Record, 2=History
+            // Tab navigation state: 0=Dashboard, 1=Insights, 2=Record, 3=History
             var selectedTab by remember { mutableStateOf(0) }
 
             // Athlete Profile preference state management
@@ -382,7 +384,7 @@ class MainActivity : ComponentActivity() {
             }
 
             // Tab labels and icons
-            val tabSubtitles = listOf("YOUR CAREER", "SESSION CONSOLE", "SESSIONS HISTORY")
+            val tabSubtitles = listOf("YOUR CAREER", "BIOMECHANICAL INSIGHTS", "SESSION CONSOLE", "SESSIONS HISTORY")
 
             MaterialTheme(
                 colorScheme = darkColorScheme(
@@ -687,16 +689,43 @@ class MainActivity : ComponentActivity() {
                                             indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                         )
                                     )
-                                    // Record tab — badge pulses when recording
+                                    // Insights tab
                                     NavigationBarItem(
                                         selected = selectedTab == 1,
                                         onClick = { selectedTab = 1 },
+                                        icon = {
+                                            Icon(
+                                                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_insights),
+                                                contentDescription = "Insights",
+                                                modifier = Modifier.size(if (selectedTab == 1) 24.dp else 20.dp)
+                                            )
+                                        },
+                                        label = {
+                                            Text(
+                                                "INSIGHTS",
+                                                fontSize = 8.sp,
+                                                fontWeight = if (selectedTab == 1) FontWeight.Black else FontWeight.Normal,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                        },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                                            unselectedIconColor = Color.Gray,
+                                            unselectedTextColor = Color.Gray,
+                                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        )
+                                    )
+                                    // Record tab — badge pulses when recording
+                                    NavigationBarItem(
+                                        selected = selectedTab == 2,
+                                        onClick = { selectedTab = 2 },
                                         icon = {
                                             Box {
                                                 Icon(
                                                     painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_record),
                                                     contentDescription = "Record",
-                                                    modifier = Modifier.size(if (selectedTab == 1) 24.dp else 20.dp)
+                                                    modifier = Modifier.size(if (selectedTab == 2) 24.dp else 20.dp)
                                                 )
                                                 if (isRecording) {
                                                     val infiniteTransition = rememberInfiniteTransition(label = "badge")
@@ -723,9 +752,9 @@ class MainActivity : ComponentActivity() {
                                             Text(
                                                 "RECORD",
                                                 fontSize = 8.sp,
-                                                fontWeight = if (selectedTab == 1) FontWeight.Black else FontWeight.Normal,
+                                                fontWeight = if (selectedTab == 2) FontWeight.Black else FontWeight.Normal,
                                                 letterSpacing = 0.5.sp,
-                                                color = if (isRecording && selectedTab != 1) Color(0xFFFF5252) else Color.Unspecified
+                                                color = if (isRecording && selectedTab != 2) Color(0xFFFF5252) else Color.Unspecified
                                             )
                                         },
                                         colors = NavigationBarItemDefaults.colors(
@@ -738,20 +767,20 @@ class MainActivity : ComponentActivity() {
                                     )
                                     // History tab
                                     NavigationBarItem(
-                                        selected = selectedTab == 2,
-                                        onClick = { selectedTab = 2 },
+                                        selected = selectedTab == 3,
+                                        onClick = { selectedTab = 3 },
                                         icon = {
                                             Icon(
                                                 painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_history),
                                                 contentDescription = "History",
-                                                modifier = Modifier.size(if (selectedTab == 2) 24.dp else 20.dp)
+                                                modifier = Modifier.size(if (selectedTab == 3) 24.dp else 20.dp)
                                             )
                                         },
                                         label = {
                                             Text(
                                                 "HISTORY",
                                                 fontSize = 8.sp,
-                                                fontWeight = if (selectedTab == 2) FontWeight.Black else FontWeight.Normal,
+                                                fontWeight = if (selectedTab == 3) FontWeight.Black else FontWeight.Normal,
                                                 letterSpacing = 0.5.sp
                                             )
                                         },
@@ -780,8 +809,15 @@ class MainActivity : ComponentActivity() {
                                     onProfileClick = { showProfileDialog = true }
                                 )
                                 when (selectedTab) {
-                                    0 -> DashboardScreen(allSessions)
-                                    1 -> RecordScreen(
+                                    0 -> DashboardScreen(
+                                        allSessions = allSessions,
+                                        onNavigateToInsights = { selectedTab = 1 }
+                                    )
+                                    1 -> InsightsDashboardScreen(
+                                        insightsState = longitudinalInsights,
+                                        onStartDualSensorSession = { selectedTab = 2 }
+                                    )
+                                    2 -> RecordScreen(
                                         isRecording = isRecording,
                                         elapsedSeconds = elapsedSeconds,
                                         maxAmplitude = maxAmplitude,
@@ -804,7 +840,7 @@ class MainActivity : ComponentActivity() {
                                         },
                                         context = context
                                     )
-                                    2 -> HistoryScreen(allSessions) { session ->
+                                    3 -> HistoryScreen(allSessions) { session ->
                                         viewModel.selectInnings(session.inningsId)
                                     }
                                 }
@@ -1270,7 +1306,10 @@ fun ShotTypeMetricCol(
 
 // ── Dashboard Tab ──────────────────────────────────────────────────────────────
 @Composable
-fun DashboardScreen(allSessions: List<SessionHistoryItem>) {
+fun DashboardScreen(
+    allSessions: List<SessionHistoryItem>,
+    onNavigateToInsights: () -> Unit = {}
+) {
     val careerMaxSpeed = allSessions.map { it.maxSpeed }.maxOrNull() ?: 0f
     val totalShots = allSessions.sumOf { it.totalShots }
     val sessionCount = allSessions.size
@@ -1321,6 +1360,55 @@ fun DashboardScreen(allSessions: List<SessionHistoryItem>) {
                 }
             }
         }
+
+        // Longitudinal Biomechanics Engine Callout Banner
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF00224D)),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Color(0xFF58FF63).copy(alpha = 0.35f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToInsights() }
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("📊", fontSize = 28.sp)
+                        Column {
+                            Text(
+                                "BIOMECHANICAL INSIGHTS",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF58FF63),
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                "View longitudinal hand coordination, flaw patterns & drills",
+                                fontSize = 11.sp,
+                                color = Color(0xFFBCD2FE).copy(alpha = 0.9f),
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                    Text(
+                        "OPEN →",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF58FF63),
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
+        }
+
         // Shots + Sessions side by side
         item {
             Row(

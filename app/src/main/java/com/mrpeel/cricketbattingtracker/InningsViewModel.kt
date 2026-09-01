@@ -5,6 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mrpeel.cricketbattingtracker.data.AppDatabase
 import com.mrpeel.cricketbattingtracker.data.InningsEvent
+import com.mrpeel.cricketbattingtracker.analytics.BiomechanicsAggregator
+import com.mrpeel.cricketbattingtracker.analytics.DiagnosticRulesEngine
+import com.mrpeel.cricketbattingtracker.ui.insights.LongitudinalInsightsUiState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,6 +42,27 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
     fun selectInnings(id: Long?) {
         _selectedInningsId.value = id
     }
+
+    // Longitudinal Biomechanical Insights Flow
+    val longitudinalInsights: StateFlow<LongitudinalInsightsUiState> = dao.getAllEventsFlow()
+        .map { events ->
+            val aggregation = BiomechanicsAggregator.aggregate(events)
+            val diagnosis = DiagnosticRulesEngine.diagnose(aggregation)
+            LongitudinalInsightsUiState(
+                aggregation = aggregation,
+                diagnosis = diagnosis,
+                isLoading = false
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = LongitudinalInsightsUiState(
+                aggregation = BiomechanicsAggregator.aggregate(emptyList()),
+                diagnosis = DiagnosticRulesEngine.diagnose(BiomechanicsAggregator.aggregate(emptyList())),
+                isLoading = true
+            )
+        )
 
     // Historical Sessions List Flow
     val allSessions: StateFlow<List<SessionHistoryItem>> = dao.getAllEventsFlow()

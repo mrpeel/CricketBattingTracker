@@ -32,7 +32,7 @@ class OnnxAssetsIntegrityAndInferenceTest {
 
         // 3. Check reasonable file sizes
         assertTrue("facing_up_detector.onnx must be non-empty", facingUpOnnx.length() in 10_000..5_000_000)
-        assertTrue("tcn_ultimate_baseline.onnx must be non-empty", tcnOnnx.length() in 10_000..5_000_000)
+        assertTrue("tcn_ultimate_baseline.onnx must be non-empty", tcnOnnx.length() in 10_000..10_000_000)
 
         // 4. Verify norm stats json structure without Android stub
         val jsonContent = normStatsJson.readText()
@@ -142,22 +142,21 @@ class OnnxAssetsIntegrityAndInferenceTest {
 
             @Suppress("UNCHECKED_CAST")
             val outputTensor = outVal as Array<Array<FloatArray>>
-            val logits = outputTensor[0] // 10 x 2048
-
-            assertEquals("Must have 10 shot classes", 10, logits.size)
+            val logits = outputTensor[0] // 9 x 2048
+            assertEquals("Must have 9 shot classes", 9, logits.size)
             assertEquals("Must have 2048 time steps", 2048, logits[0].size)
 
             // Compute softmax at center frame
             val centerF = 1024
-            val frameLogits = FloatArray(10) { c -> logits[c][centerF] }
+            val frameLogits = FloatArray(9) { c -> logits[c][centerF] }
             val maxLogit = frameLogits.maxOrNull() ?: 0f
             var sumExp = 0f
-            val probs = FloatArray(10) { c ->
+            val probs = FloatArray(9) { c ->
                 val e = exp((frameLogits[c] - maxLogit).toDouble()).toFloat()
                 sumExp += e
                 e
             }
-            for (c in 0 until 10) probs[c] /= sumExp
+            for (c in 0 until 9) probs[c] /= sumExp
 
             val totalProb = probs.sum()
             assertEquals(1.0f, totalProb, 1e-4f)

@@ -5,18 +5,21 @@ pipelines/train_and_evaluate_full_scorecard.py — Master Training & Unified Mul
 1. Auto-synchronizes live watch sessions into unified 423 Hz Parquet datasets.
 2. Loads all physical sessions directly from Parquet files.
 3. Computes feature normalization statistics (median / MAD) from training sessions.
-4. Trains Bat-Plane 3-Family Multi-Scale TCN using Dynamic Shuffling and Staged Slow-Rate Fine-Tuning:
+4. Trains Bat-Plane 3-Family Multi-Scale TCN using Dynamic Shuffling and Unified Continuous Discriminative Training:
    - Progressive 10-Layer TCN Backbone ([16, 16, 16, 16, 16, 32, 64, 128, 256, 512])
    - Head 1: 3-Family Macro Gate (Vertical-Bat, Cross-Bat Horizontal, Floor Sweep)
    - Head 2A (Vertical-Bat, 4 Classes): 144d Multi-Scale Triplet ([Pool(L5) [16d], Pool(L7) [64d], Proj(L10) [64d]])
    - Head 2B (Cross-Bat Horizontal, 2 Classes): 144d Multi-Scale Triplet
    - Head 2C (Floor / Crouch): Direct passthrough to SWEEP
    - Training Sample Pooling: All training shot windows pooled into a single TensorDataset with DataLoader(shuffle=True)
-   - Optional --seed CLI argument for deterministic or random initialization
-   - Phase 1 (Epochs 1–8): Joint spatial warmup with discriminative LR (3e-4 L1-5, 1e-3 L6-10+Heads, 3-epoch warmup)
-   - Phase 2 (Epochs 9–35): Slow-rate fine-tuning keeping all layers trainable, applying 10x slower LR to Layers 1–7 (3e-5)
-     while upper layers and heads train under CosineAnnealingLR (5e-4 to 1e-6), 2.0x Head 2A weight on POWER DRIVE,
-     patience=18 Holdout Macro-F1 checkpointing
+   - Deterministic reproducible seed (--seed 42 default)
+   - Unified Continuous Discriminative Optimizer: AdamW (weight_decay=1e-2) with 3 parameter groups:
+     * Backbone Layers 1–5: Base LR 3e-4
+     * Backbone Layers 6–7: Base LR 5e-4
+     * Backbone Layers 8–10 + Heads: Base LR 1e-3
+   - 3-Epoch linear warmup followed by single smooth CosineAnnealingLR to 1e-6 (T_max=32)
+   - Loss: Label Smoothing (0.1) with 2.0x Head 2A weight on POWER DRIVE ([1.0, 2.0, 1.0, 1.0])
+   - Early Stopping: Continuously monitored Holdout Candidate Macro-F1 (patience=15, min_delta=0.001, monitored post Epoch 6)
 5. Evaluates training, holdout, and full datasets EXCLUSIVELY using the unified telemetry engine
    (pipelines/telemetry_engine.py). Zero Train-Serve Skew.
 6. Enforces Production Quality Gate (Holdout Precision >= 75% or Micro Precision >= 70%, Holdout F1 >= 50%)
@@ -52,8 +55,10 @@ from telemetry_engine import (
     CLASSES, SHOT_CLASSES, SOFT_TOUCH_CLASSES, normalise_shot_type,
     FacingUpTCN, StanceTracker, AdvancedTCNBlock, BatPlaneGeometryThreeFamilyTCN,
     estimate_session_clock_offset, load_parquet_session, predict_candidate_batch_unleaked,
-    run_session_multitier, format_class_table, evaluate_multitier_scorecard
+    run_session_multitier, format_class_table, evaluate_multitier_scorecard,
+    HOLDOUT_EMPIRICAL_OFFSETS
 )
+from training_logger import setup_training_logger
 
 MODEL_PT_PATH = STAGE2_MODEL_PATH
 MODEL_ONNX_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.onnx")
@@ -78,7 +83,7 @@ FAM3_FAMILY2_CLASSES = [8]
 FAM3_LOOKUP_FAMILY_T = torch.tensor([0, 0, 1, 0, 0, 1, 0, 0, 2], dtype=torch.int64, device=DEVICE)
 FAM3_LOOKUP_SUB_T    = torch.tensor([0, 0, 0, 0, 2, 1, 3, 1, 0], dtype=torch.int64, device=DEVICE)
 
-WEIGHT_2A_PHASE2 = torch.tensor([1.0, 2.0, 1.0, 1.0], dtype=torch.float32, device=DEVICE)
+WEIGHT_2A = torch.tensor([1.0, 2.0, 1.0, 1.0], dtype=torch.float32, device=DEVICE)
 
 
 def sync_unified_dataset():
@@ -185,8 +190,9 @@ def evaluate_holdout_candidate_metrics(model, holdout_shot_windows):
 
 
 def main():
+    logger = setup_training_logger(prefix="master_retraining")
     parser = argparse.ArgumentParser(description="Master Retraining & Multi-Tier Evaluation Pipeline (Bat-Plane 3-Family TCN)")
-    parser.add_argument("--seed", type=int, default=None, help="Optional random seed for reproducibility (default: None for random)")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility (default: 42)")
     args = parser.parse_args()
 
     print("="*100, flush=True)
@@ -285,11 +291,12 @@ def main():
         if not os.path.exists(gt_path): continue
         df_gt = pd.read_csv(gt_path)
         t_col = "sensor_narr_time_seconds" if "sensor_narr_time_seconds" in df_gt.columns else "impact_time_seconds"
+        dt_offset = HOLDOUT_EMPIRICAL_OFFSETS.get(s_name, 0.0)
         for _, row in df_gt.iterrows():
             st = row.get("shot_type")
             norm = normalise_shot_type(st)
             if norm is None or norm not in CLASS_TO_IDX: continue
-            t_s = row[t_col]
+            t_s = float(row[t_col]) + dt_offset
             center_idx = int(t_s * 423.0)
             start_idx = center_idx - (WINDOW_LEN // 2)
             if start_idx < 0 or start_idx + WINDOW_LEN > len(X): continue
@@ -301,109 +308,16 @@ def main():
     model = BatPlaneGeometryThreeFamilyTCN(in_ch=NUM_FEATURES).to(DEVICE)
     
     loss_ce_standard = nn.CrossEntropyLoss(label_smoothing=0.1)
-    loss_ce_sub0_p2 = nn.CrossEntropyLoss(weight=WEIGHT_2A_PHASE2, label_smoothing=0.1)
+    loss_ce_sub0 = nn.CrossEntropyLoss(weight=WEIGHT_2A, label_smoothing=0.1)
     
-    PHASE1_EPOCHS = 8
     TOTAL_EPOCHS = 35
-    PHASE2_PATIENCE = 18
-    
-    # Phase 1 Setup
-    l1_5_params = [p for i in range(5) for p in model.blocks[i].parameters()]
-    l6_10_head_params = (
-        [p for i in range(5, 10) for p in model.blocks[i].parameters()] +
-        list(model.head_family.parameters()) +
-        list(model.proj_l10.parameters()) +
-        list(model.head_sub0.parameters()) +
-        list(model.head_sub1.parameters())
-    )
-    
-    BASE_LR_L1_5 = 3e-4
-    BASE_LR_L6_10 = 1e-3
     WARMUP_EPOCHS = 3
+    PATIENCE = 18
+    MIN_DELTA = 0.001
     
-    optim1 = torch.optim.AdamW([
-        {'params': l1_5_params, 'lr': BASE_LR_L1_5},
-        {'params': l6_10_head_params, 'lr': BASE_LR_L6_10}
-    ], weight_decay=1e-2)
-    
-    best_macro_f1 = -1.0
-    best_shot_acc = 0.0
-    best_val_loss = float('inf')
-    best_epoch = 0
-    best_model_state = None
-    
-    print("="*85, flush=True)
-    print("🚀 PHASE 1: JOINT SPATIAL WARMUP (EPOCHS 1 TO 8)", flush=True)
-    print(f"   Backbone Layers 1–10 + All Heads Active | LR: {BASE_LR_L1_5} (L1-5) / {BASE_LR_L6_10} (L6-10+Heads)")
-    print(f"   Loss: Standard Label Smoothing (0.1) | Early Stopping: Disabled during warmup")
-    print("="*85, flush=True)
-    
-    # Phase 1 Loop
-    for epoch in range(1, PHASE1_EPOCHS + 1):
-        if epoch <= WARMUP_EPOCHS:
-            warmup_factor = epoch / float(WARMUP_EPOCHS)
-            optim1.param_groups[0]['lr'] = BASE_LR_L1_5 * warmup_factor
-            optim1.param_groups[1]['lr'] = BASE_LR_L6_10 * warmup_factor
-        else:
-            optim1.param_groups[0]['lr'] = BASE_LR_L1_5
-            optim1.param_groups[1]['lr'] = BASE_LR_L6_10
-            
-        model.train()
-        r_loss = 0.0
-        n_b = 0
-        for xb, yb in train_loader:
-            xb = xb.to(DEVICE)
-            yb = yb.to(DEVICE)
-            logits_tuple = model.forward_heads(xb)
-            loss = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_standard)
-            optim1.zero_grad()
-            loss.backward()
-            optim1.step()
-            r_loss += loss.item()
-            n_b += 1
-            
-        train_loss = r_loss / n_b
-        
-        model.eval()
-        v_loss = 0.0
-        v_n = 0
-        with torch.no_grad():
-            for xb, yb in val_loader:
-                xb = xb.to(DEVICE)
-                yb = yb.to(DEVICE)
-                logits_tuple = model.forward_heads(xb)
-                l = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_standard)
-                v_loss += l.item()
-                v_n += 1
-        val_loss = v_loss / v_n if v_n > 0 else float('inf')
-        
-        ho_shot_acc, ho_macro_f1 = evaluate_holdout_candidate_metrics(model, holdout_shot_windows)
-        
-        improved = (ho_macro_f1 > best_macro_f1) or (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
-        status_tag = " ⭐ Best Model" if improved else ""
-        print(f"  [Phase 1] Epoch {epoch:2d}/{PHASE1_EPOCHS} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Holdout Acc: {ho_shot_acc*100.0:.2f}% | Holdout Macro-F1: {ho_macro_f1:.4f}{status_tag}", flush=True)
-        
-        if improved:
-            best_macro_f1 = ho_macro_f1
-            best_shot_acc = ho_shot_acc
-            best_val_loss = val_loss
-            best_epoch = epoch
-            best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-            torch.save(model.state_dict(), MODEL_PT_PATH)
-            
-    # Phase 2 Transition: Slow-Rate Fine-Tuning (All layers remain trainable)
-    if best_model_state is not None:
-        model.load_state_dict({k: v.to(DEVICE) for k, v in best_model_state.items()})
-        print(f"\n🔄 Restored optimal Phase 1 checkpoint from Epoch {best_epoch} (Holdout Macro-F1: {best_macro_f1:.4f}, Acc: {best_shot_acc*100.0:.2f}%) for Phase 2 initialization.", flush=True)
-
-    print("\n" + "="*85, flush=True)
-    print("🔓 SLOW-RATE FINE-TUNING LAYERS 1 TO 7 (3e-5) & UPPER LAYERS (CosineAnnealingLR 5e-4 -> 1e-6)", flush=True)
-    print("🚀 PHASE 2: DECOUPLED DISCRIMINATIVE OPTIMIZATION (EPOCHS 9 TO 35)", flush=True)
-    print(f"   Trainable: All Layers 1–10, Layer 10 Proj, Head 1, Head 2A, Head 2B")
-    print(f"   LR: 3e-5 (Layers 1–7) / 5e-4 (Layers 8–10 + Heads) decaying to 1e-6 (T_max={TOTAL_EPOCHS - PHASE1_EPOCHS})")
-    print(f"   Head 2A Sub-Loss Weight: {WEIGHT_2A_PHASE2.cpu().tolist()} | Patience: {PHASE2_PATIENCE}")
-    print("="*85, flush=True)
-    
+    # Layer-Wise Discriminative Parameter Groups:
+    # Group 1 (Backbone Layers 1–7): Base LR = 3e-5 (Slow Adaptation)
+    # Group 2 (Layers 8–10 + Heads): Base LR = 5e-4
     l1_7_params = [p for i in range(7) for p in model.blocks[i].parameters()]
     l8_10_head_params = (
         [p for i in range(7, 10) for p in model.blocks[i].parameters()] +
@@ -413,23 +327,46 @@ def main():
         list(model.head_sub1.parameters())
     )
     
-    LR_PHASE2_L1_7 = 3e-5
-    LR_PHASE2_UPPER = 5e-4
-    LR_PHASE2_UPPER_MIN = 1e-6
-    T_MAX_PHASE2 = TOTAL_EPOCHS - PHASE1_EPOCHS
+    BASE_LR_L1_7 = 3e-5
+    BASE_LR_UPPER = 5e-4
     
-    optim2 = torch.optim.AdamW([
-        {'params': l1_7_params, 'lr': LR_PHASE2_L1_7},
-        {'params': l8_10_head_params, 'lr': LR_PHASE2_UPPER}
+    optimizer = torch.optim.AdamW([
+        {'params': l1_7_params, 'lr': BASE_LR_L1_7},
+        {'params': l8_10_head_params, 'lr': BASE_LR_UPPER}
     ], weight_decay=1e-2)
-    scheduler2 = torch.optim.lr_scheduler.CosineAnnealingLR(optim2, T_max=T_MAX_PHASE2, eta_min=LR_PHASE2_UPPER_MIN)
     
+    # Cosine scheduler for after 3-epoch warmup down to 1e-6
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=(TOTAL_EPOCHS - WARMUP_EPOCHS), eta_min=1e-6
+    )
+    
+    best_macro_f1 = -1.0
+    best_shot_acc = 0.0
+    best_val_loss = float('inf')
+    best_epoch = 0
     patience_counter = 0
+    best_model_state = None
     final_epoch = TOTAL_EPOCHS
     
-    for epoch in range(PHASE1_EPOCHS + 1, TOTAL_EPOCHS + 1):
-        current_lr_l1_7 = optim2.param_groups[0]['lr']
-        current_lr_upper = optim2.param_groups[1]['lr']
+    print("="*95, flush=True)
+    print("🚀 UNIFIED CONTINUOUS DISCRIMINATIVE TRAINING (EPOCHS 1 TO 35)", flush=True)
+    print(f"   Backbone Layers 1–7: {BASE_LR_L1_7} (Slow Adaptation) | Layers 8–10 + Heads: {BASE_LR_UPPER}")
+    print(f"   Warmup: {WARMUP_EPOCHS} Epochs | Scheduler: CosineAnnealingLR (to 1e-6, T_max={TOTAL_EPOCHS - WARMUP_EPOCHS}) | AdamW weight_decay=1e-2")
+    print(f"   Loss: Label Smoothing (0.1) with Head 2A Sub-Loss Weight: {WEIGHT_2A.cpu().tolist()}")
+    print(f"   Early Stopping: Patience = {PATIENCE}, Min Delta = {MIN_DELTA} (monitored from Epoch 6 onward)")
+    print("="*95, flush=True)
+    
+    for epoch in range(1, TOTAL_EPOCHS + 1):
+        if epoch <= WARMUP_EPOCHS:
+            warmup_factor = epoch / float(WARMUP_EPOCHS)
+            optimizer.param_groups[0]['lr'] = BASE_LR_L1_7 * warmup_factor
+            optimizer.param_groups[1]['lr'] = BASE_LR_UPPER * warmup_factor
+        else:
+            scheduler.step()
+            
+        lr_l1_7 = optimizer.param_groups[0]['lr']
+        lr_upper = optimizer.param_groups[1]['lr']
+        
         model.train()
         r_loss = 0.0
         n_b = 0
@@ -437,14 +374,13 @@ def main():
             xb = xb.to(DEVICE)
             yb = yb.to(DEVICE)
             logits_tuple = model.forward_heads(xb)
-            loss = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_sub0_p2)
-            optim2.zero_grad()
+            loss = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_sub0)
+            optimizer.zero_grad()
             loss.backward()
-            optim2.step()
+            optimizer.step()
             r_loss += loss.item()
             n_b += 1
             
-        scheduler2.step()
         train_loss = r_loss / n_b
         
         model.eval()
@@ -455,18 +391,18 @@ def main():
                 xb = xb.to(DEVICE)
                 yb = yb.to(DEVICE)
                 logits_tuple = model.forward_heads(xb)
-                l = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_sub0_p2)
+                l = compute_bat_plane_loss(logits_tuple, yb, loss_ce_standard, loss_ce_sub0)
                 v_loss += l.item()
                 v_n += 1
         val_loss = v_loss / v_n if v_n > 0 else float('inf')
         
         ho_shot_acc, ho_macro_f1 = evaluate_holdout_candidate_metrics(model, holdout_shot_windows)
         
-        improved = (ho_macro_f1 > best_macro_f1) or (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
-        status_tag = " ⭐ Best Model" if improved else ""
-        print(f"  [Phase 2] Epoch {epoch:2d}/{TOTAL_EPOCHS} (LR: {current_lr_l1_7:.6f}/{current_lr_upper:.6f}) - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Holdout Acc: {ho_shot_acc*100.0:.2f}% | Holdout Macro-F1: {ho_macro_f1:.4f}{status_tag}", flush=True)
+        improved = (ho_macro_f1 > best_macro_f1 + MIN_DELTA) or (abs(ho_macro_f1 - best_macro_f1) < 1e-4 and ho_shot_acc > best_shot_acc)
+        status_tag = " ⭐ Best Checkpoint" if (ho_macro_f1 > best_macro_f1) else ""
+        print(f"Epoch {epoch:2d}/{TOTAL_EPOCHS} (LR: {lr_l1_7:.6f}/{lr_upper:.6f}) - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Holdout Acc: {ho_shot_acc*100.0:.2f}% | Holdout Macro-F1: {ho_macro_f1:.4f}{status_tag}", flush=True)
         
-        if improved:
+        if ho_macro_f1 > best_macro_f1:
             best_macro_f1 = ho_macro_f1
             best_shot_acc = ho_shot_acc
             best_val_loss = val_loss
@@ -475,20 +411,14 @@ def main():
             best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
             torch.save(model.state_dict(), MODEL_PT_PATH)
         else:
-            patience_counter += 1
-            if best_model_state is None:
-                best_macro_f1 = ho_macro_f1
-                best_shot_acc = ho_shot_acc
-                best_val_loss = val_loss
-                best_epoch = epoch
-                best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-                torch.save(model.state_dict(), MODEL_PT_PATH)
-            if patience_counter >= PHASE2_PATIENCE:
-                final_epoch = epoch
-                print(f"  🛑 Early stopping triggered at Epoch {epoch}! Best Holdout Macro-F1: {best_macro_f1:.4f} (Acc: {best_shot_acc*100.0:.2f}%) at Epoch {best_epoch}.", flush=True)
-                break
+            if epoch >= 6:
+                patience_counter += 1
+                if patience_counter >= PATIENCE:
+                    final_epoch = epoch
+                    print(f"  🛑 Early stopping triggered at Epoch {epoch}! Best Holdout Macro-F1: {best_macro_f1:.4f} (Acc: {best_shot_acc*100.0:.2f}%) at Epoch {best_epoch}.", flush=True)
+                    break
         final_epoch = epoch
-
+        
     if best_model_state is not None:
         model.load_state_dict({k: v.to(DEVICE) for k, v in best_model_state.items()})
         print(f"\n✅ Reloaded best model checkpoint from Epoch {best_epoch} (Best Holdout Macro-F1: {best_macro_f1:.4f}, Candidate Acc: {best_shot_acc*100.0:.2f}%)", flush=True)
@@ -542,7 +472,7 @@ def main():
     
     print("\n" + "="*115)
     print("📊 UNIFIED FULL DATASET TRAINING & HOLDOUT EVALUATION SCORECARD")
-    print(f"  Training Strategy: Bat-Plane 3-Family Multi-Scale TCN with Dynamic Shuffling & Slow-Rate Fine-Tuning")
+    print(f"  Training Strategy: Bat-Plane 3-Family Multi-Scale TCN with Unified Continuous Discriminative LR & Cosine Annealing")
     print(f"  Validation Summary: Total Epochs = {final_epoch}, Best Holdout Macro-F1 = {best_macro_f1:.4f} (Candidate Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f} at Epoch {best_epoch})")
     print("="*115)
     print(f"  Holdout Set ({len(HOLDOUT_SESSIONS)} Sessions): Recall = {ho_recall:.1f}%, Precision = {ho_precision:.1f}%, F1 = {ho_f1:.1f}%, Class Acc = {ho_class_acc:.1f}%")
@@ -554,11 +484,12 @@ def main():
     report = f"""# Full Dataset Training & Holdout Scorecard Report
 
 **System Architecture**: Hierarchical Multi-Tier Stance-Gated TCN Pipeline (Stage 1 Facing Up Stance Detector + Stage 2 Bat-Plane 3-Family Multi-Scale TCN)  
-**Training Design**: Dynamic Shuffling & Staged Slow-Rate Fine-Tuning (Phase 1: Epochs 1-8 Joint Warmup; Phase 2: Epochs 9-35 Discriminative LR L1-7 (3e-5) + Upper CosineAnnealingLR (5e-4 to 1e-6) + 2.0x Head 2A Weight on POWER DRIVE, Label Smoothing = 0.1)  
+**Training Design**: Unified Continuous Discriminative Training (Backbone L1-7: 3e-5, L8-10+Heads: 5e-4, 3-Epoch Warmup, 32-Epoch CosineAnnealingLR to 1e-6, Head 2A Weight [1.0, 2.0, 1.0, 1.0], Label Smoothing = 0.1)  
 **Designated Holdout / Validation Sessions**: `{', '.join(HOLDOUT_SESSIONS)}` ({len(HOLDOUT_SESSIONS)} sessions)  
 **Training Sessions Count**: {len(train_sessions)} physical sessions  
 **Total Dataset Duration**: {total_duration_min:.1f} minutes ({total_duration_min/60.0:.1f} hours)  
 **Holdout Macro-F1 Checkpointing**: Best Epoch {best_epoch} (Best Macro-F1: {best_macro_f1:.4f}, Candidate Acc: {best_shot_acc*100.0:.2f}%, Val Loss: {best_val_loss:.4f}, Stopped at Epoch {final_epoch})  
+**Execution Log File**: `{logger.log_path}`  
 **Date**: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 ---

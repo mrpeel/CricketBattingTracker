@@ -906,31 +906,40 @@ def main():
     conn = sqlite3.connect(LOCAL_DB_PATH)
     c = conn.cursor()
     
+    # Drop and recreate tables with the EXACT Room schema to guarantee 100% binary compatibility
+    c.execute("DROP TABLE IF EXISTS innings_events")
+    c.execute("DROP TABLE IF EXISTS heart_rate_events")
     c.execute("""
         CREATE TABLE IF NOT EXISTS innings_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            inningsId INTEGER,
-            timestamp INTEGER,
-            description TEXT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            inningsId INTEGER NOT NULL,
+            timestamp INTEGER NOT NULL,
+            description TEXT NOT NULL,
             batSpeed REAL,
             impactForce REAL,
             impactTimeMs INTEGER,
+            distanceRun REAL,
             shotType TEXT,
             efficiency REAL,
             backliftAngle REAL,
             followThroughAngle REAL,
             wristRollDeg REAL,
+            location TEXT,
             bladeAngle REAL,
             bladeClass TEXT,
             launchAngle REAL,
             launchClass TEXT,
-            location TEXT,
             bottom_hand_gyro_peak REAL,
             bottom_hand_acc_peak REAL,
             bottom_hand_gyro_ratio REAL,
             bottom_hand_acc_ratio REAL,
-            bottom_hand_time_lead_ms REAL,
+            bottom_hand_time_lead_ms INTEGER,
             bottom_hand_sync_score REAL,
+            bottom_hand_mag_peak REAL,
+            bottom_hand_mag_delta REAL,
+            bottom_hand_mag_x REAL,
+            bottom_hand_mag_y REAL,
+            bottom_hand_mag_z REAL,
             swing_feature_s1_gyro_y_std REAL,
             swing_feature_s1_gyro_z_std REAL,
             swing_feature_s1_delta_x REAL,
@@ -944,13 +953,20 @@ def main():
             swing_feature_s3_delta_x REAL,
             swing_feature_s3_delta_z REAL,
             swing_feature_s3_plane_ratio REAL,
-            swing_feature_s3_gyro_y_min REAL
+            swing_feature_s3_gyro_y_min REAL,
+            videoFilePath TEXT
         )
     """)
-    c.execute("CREATE TABLE IF NOT EXISTS heart_rate_events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, bpm REAL)")
-    print("🧹 Cleaning phone database events tables to prevent legacy duplicates...")
-    c.execute("DELETE FROM innings_events")
-    c.execute("DELETE FROM heart_rate_events")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS heart_rate_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            inningsId INTEGER NOT NULL,
+            timestamp INTEGER NOT NULL,
+            beatsPerMinute INTEGER NOT NULL
+        )
+    """)
+    c.execute("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY, identity_hash TEXT)")
+    c.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES(42, '4197930eacda110a86a6fdb1e037f5fe')")
     conn.commit()
 
     session_dirs = sorted(glob.glob(os.path.join(SESSIONS_DIR, "session-*")) + 
@@ -1016,7 +1032,9 @@ def main():
             """, (
                 session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], impact_time_ms, shot["shot_type"], efficiency,
                 shot.get("blade_angle"), shot.get("blade_class"), shot.get("launch_angle"), shot.get("launch_class"),
-                f.get('bottom_hand_gyro_peak'), f.get('bottom_hand_acc_peak'), f.get('bottom_hand_gyro_ratio'), f.get('bottom_hand_acc_ratio'), f.get('bottom_hand_time_lead_ms'), f.get('bottom_hand_sync_score'),
+                f.get('bottom_hand_gyro_peak'), f.get('bottom_hand_acc_peak'), f.get('bottom_hand_gyro_ratio'), f.get('bottom_hand_acc_ratio'),
+                int(f['bottom_hand_time_lead_ms']) if (f.get('bottom_hand_time_lead_ms') is not None and pd.notna(f['bottom_hand_time_lead_ms'])) else None,
+                f.get('bottom_hand_sync_score'),
                 f.get('s1_gyro_y_std'), f.get('s1_gyro_z_std'), f.get('s1_deltaX'), f.get('s1_deltaZ'),
                 f.get('s2_gyroMag'), f.get('s2_grav_y_mean'), f.get('s2_deltaX'), f.get('s2_deltaZ'),
                 f.get('s3_rollImpactDeg'), f.get('s3_yawImpactDeg'), f.get('s3_deltaX'), f.get('s3_deltaZ'),

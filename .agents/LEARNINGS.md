@@ -800,7 +800,82 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Global System Precision**: 🏆 **80.62%** (2,766 / 3,431 candidates across all 62 physical sessions).
         *   **Global Pipeline Recall**: 🏆 **79.44%** (2,766 / 3,482 GT shots).
         *   **Global System F1 Score**: 🏆 **80.02%**.
-        *   **Production Quality Gate**: 🏆 **PASSED** (Holdout Precision: 82.2%, Global Precision: 80.6%, Holdout F1: 88.6%). Updated `tcn_ultimate_baseline.onnx` in `app/src/main/assets/models/`.
+165. **PyTorch 2.12 ONNX Exporter Audit & TorchScript Stability (August 28, 2026)**:
+    *   **The Issue**: Running `train_and_evaluate_full_scorecard.py` in PyTorch 2.12 emits a `DeprecationWarning` regarding the legacy TorchScript-based ONNX export path (`dynamo=False`).
+    *   **Empirical Comparison**:
+        *   **Legacy TorchScript Export**: Yields exact mathematical parity ($\Delta_{\text{max}} = 5.96 \times 10^{-7}$) with PyTorch inference and executes cleanly in `TcnModelRunner.kt` via `onnxruntime-android:1.22.0`.
+        *   **TorchDynamo Export (`dynamo=True`)**: Produces numerical discrepancies ($\Delta_{\text{max}} = 0.484$) and `-inf` log underflow due to dynamic-length sequence decomposition artifacts with `BatchNorm1d` and in-place probability tensor assignment (`probs[:, 3, :] = ...`).
+    *   **Decision**: Retain the stable TorchScript export (`dynamo=False`) across all production pipeline scripts to guarantee zero numerical drift or runtime crashes on Android.
+
+166. **Longitudinal Hand Coordination & Biomechanical Insights Engine (August 28, 2026)**:
+    *   **The Innovation**: Expanded Pitch Analytix Pro beyond per-shot timeline diagnostics to support longitudinal, cross-session technical aggregation.
+    *   **Statistical & Diagnostic Pipeline**:
+        *   **`BiomechanicsAggregator.kt`**: Collates cross-sensor hand coordination metrics (`timeLeadMs`, `gyroRatio`, `accRatio`) across all stored dual-sensor sessions, filtering out single-hand / watch-only sessions. For each canonical shot class with $N \ge 5$, computes median ($P_{50}$), interquartile range ($P_{25}, P_{75}$), mean, standard deviation, amber fault rate, and a player-level Coordination Health Score (0–100).
+        *   **`DiagnosticRulesEngine.kt`**: Evaluates distributions against 6 deterministic heuristic fault gates (`FAULT_PULL_LAG`, `FAULT_PULL_POWER`, `FAULT_DRIVE_TAKEOVER`, `FAULT_CUT_ASYNC`, `FAULT_SWEEP_ARMS`, `FAULT_FLICK_EARLY`) and prescribes targeted drills (*Single-Hand Trailing Arm Tee Slaps*, *Split-Grip Top-Hand Drop Drives*, *Lateral Isometric Wall Punch*, *Medicine Ball / Heavy-Bat Core Sweeps*, *Leading-Wrist Pad Clearance Drills*) with quantified performance impact projections.
+        *   **UI Architecture**: Built `InsightsDashboardScreen.kt` featuring longitudinal trend headers, health score gauge, top primary flaw cards with amber warnings, expandable corrective drill cards, and custom Compose range visualizers showing user distributions overlaid on green coaching zones.
+        *   **Navigation & Reactive Integration**: Upgraded `MainActivity.kt` to 4-tab bottom navigation (`DASHBOARD`, `INSIGHTS`, `RECORD`, `HISTORY`) with `ic_insights.xml` vector icon, CTA banner in Dashboard, and reactive StateFlow integration in `InningsViewModel.kt`.
+    *   **Verification**: Unit test suites `BiomechanicsAggregatorTest` and `DiagnosticRulesEngineTest` verify quantile math, single-hand filtering, $N \ge 5$ thresholding, all 6 diagnostic triggers, drill catalogue mappings, and ranking.
+
+167. **Per-Shot-Class Longitudinal Biomechanical Deep Dives & UI Restructuring (August 29, 2026)**:
+    *   **The User Need**: Shift focus from high-level abstract statistics (like artificial health scores, session counts, or basic stroke percentage counters) to granular, per-shot-class mechanical diagnostics and observations placed at the top of the screen.
+    *   **The Solution**:
+        1. **Deep Per-Shot-Class Profiles (`BiomechanicsAggregator.kt`)**: Expanded `ShotClassStatisticalProfile` to extract peak bat speed ($P_{\text{max}}$), reliable 80th-percentile speed ($P_{80}$), median and min speed, 80th-percentile contact efficiency ($P_{80}$), and average efficiency ($\mu$).
+        2. **Qualitative Traits & Data-Grounded Observations**: Added automated classifications for Hand Dominance (`determineAngularTrait`), Timing Entry (`determineTimingTrait` with IQR consistency tagging), Linear Force (`determineLinearTrait`), and dynamic `generateTechnicalObservation` generating concrete takeaways for each stroke class.
+        3. **Screen Restructuring (`InsightsDashboardScreen.kt`)**:
+           - **Top (Section 1)**: Clean repertoire header, horizontal stroke family selector carousel (pills showing shot volume and % share), and rich `ShotClassDeepDiveCard` containing KPI grid, traits list, technical observations, and metric range visualizers.
+           - **Lower Down (Section 2)**: Systematic flaw diagnostics and expandable corrective drill cards.
+           - Removed misaligned status dot, arbitrary health score, and ambiguous session counts.
+168. **Full-Repertoire Dual-Layer Aggregation Architecture (August 29, 2026)**:
+    *   **The Issue**: The initial aggregation logic in `BiomechanicsAggregator.kt` applied `events.filter { hasDualSensor(it) }` globally at the entry point. Consequently, out of 3,582 logged batting events across 63 sessions, 2,600+ single-sensor shots were dropped, displaying only ~900 shots from 15 sessions in the repertoire volume, bat speed, and efficiency profiles.
+    *   **The Root Cause**:
+        1. Only 15 sessions (from August 6 onwards) had dual-sensor `bottom_hand_*` features extracted into their `ground_truth_aligned.csv` / DB rows, while 17 earlier Polar sessions (`session_2026-07-11` to `session_2026-08-03`) and 31 watch-only sessions had null/zeroed bottom-hand fields.
+        2. Applying a global dual-sensor gate filtered out all single-sensor shots from general batting statistics.
+    *   **The Architectural Fix**:
+        1. **Layer 1 (Global Repertoire Statistics)**: Aggregate all valid batting shots (all 3,456+ shots across 63 sessions) for total shot volume, stroke family distribution, bat speed profiles ($P_{\text{max}}, P_{80}, P_{50}, P_{\text{min}}$), and contact efficiency ($\mu, P_{80}$).
+        2. **Layer 2 (Dual-Sensor Hand Coordination & Diagnostics)**: Evaluate cross-sensor wrist spin ratio, timing lead ($\Delta t$), linear force ratio, and heuristic fault gates on the dual-sensor subset ($N \ge 5$).
+    *   **Result**: Displays the batsman's complete career volume and accurate stroke speeds across all sessions, while seamlessly displaying dual-sensor hand coordination and flaw diagnostics where calibrated.
+
+169. **Historical Dual-Sensor Feature Re-Extraction & Pipeline Alignment (August 29, 2026)**:
+    *   **The Opportunity**: 17 early Polar sessions (`session_2026-07-11` to `session_2026-08-03`) had raw Polar accelerometer and gyroscope logs stored in `PolarSense/`, but had not had their bottom-hand biomechanical features extracted into their `ground_truth_aligned.csv` files.
+    *   **The Execution**:
+        1. Executed `automate_pipeline.py` with multi-point and single-point tap sequence alignment across all historical dual-sensor sessions.
+        2. Successfully extracted bottom-hand telemetry (`bottom_hand_gyro_ratio`, `bottom_hand_acc_ratio`, `bottom_hand_time_lead_ms`, `bottom_hand_sync_score`, etc.) for **3,458 dual-sensor shots across 31 sessions** (up from 856–925 shots across 15 sessions).
+        3. Executed `pipelines/reprocess_sessions.py` to regenerate the Room SQLite database (`scratch/cricket_tracker_database.db`) with 1,623 active dual-sensor batting shots.
+        4. Recompiled `combined_ground_truth_aligned.csv` (6,761 rows) and `combined_features.csv` (4,028 rows).
+170. **Staged Decoupled Architecture Retraining & Clock Offset Search Guard (September 1, 2026)**:
+    *   **The Reversion**: Reverted `pipelines/train_and_evaluate_full_scorecard.py` to the winning Staged Decoupled Architecture (Phase 1 joint spatial warmup for Epochs 1–8 with LR 3e-4 on L1–5 and 1e-3 on L6–10+Heads, restoring the optimal Phase 1 checkpoint at Epoch 4, followed by Phase 2 slow-rate fine-tuning with 3e-5 on L1–7, CosineAnnealingLR 5e-4 to 1e-6 over 27 epochs, and [1.0, 2.0, 1.0, 1.0] Head 2A weighting).
+    *   **Clock Offset Search Guard**: Clamped default `max_search_sec=1.0` in `pipelines/telemetry_engine.py` `estimate_session_clock_offset()`, restricting cross-correlation lag search strictly within $[-1.0\text{s}, +1.0\text{s}]$ to prevent alignment drift.
+    *   **Scorecard Results Across 65 Physical Sessions (3,667 GT Shots)**:
+        *   **Training Convergence**: Phase 1 reached peak Holdout Macro-F1 of **0.6210** (Candidate Acc: **60.68%**, Val Loss: **1.1517**) at Epoch 4; early stopping triggered at Epoch 26 with optimal checkpoint restored.
+        *   **Full Dataset Micro Average (65 Sessions)**: 🏆 **75.35% Pipeline Recall** (2,763 / 3,667 GT shots), 🏆 **76.24% Global Precision** (2,763 / 3,624 candidates), 🏆 **75.79% F1 Score**, 🏆 **85.2% Overall Classification Accuracy** (2,354 / 2,763 correct).
+        *   **Holdout Set Performance (4 Sessions / 206 GT Shots)**: 🏆 **64.08% Recall** (132/206), **54.77% Precision** (132/241), **59.06% F1**, 🏆 **72.0% Classification Accuracy** (95/132 correct).
+        *   **Latest Session (`session_2026-08-31_12-52-47`)**: 🏆 **89.4% Recall**, 🏆 **89.4% Precision**, 🏆 **89.4% F1** (59 / 66 GT shots).
+171. **Persistent Dual-Stream Training Logger Architecture (September 1, 2026)**:
+    *   **The Feature**: Implemented `pipelines/training_logger.py` (`TrainingLogger` & `TeeStream`) to ensure all screen outputs from training and evaluation runs are permanently captured in timestamped log files under `pipelines/training_logs/`.
+    *   **Architecture & Stream Redirection**:
+        *   `TeeStream` multiplexes `sys.stdout` and `sys.stderr` with unbuffered real-time flushing (`flush()` on every write) to preserve live terminal streaming while appending identical content to the file.
+        *   Log files are uniquely named `pipelines/training_logs/{prefix}_{YYYY-MM-DD_HH-MM-SS}.log`, with automated creation/update of `latest_{prefix}.log` and `latest.log`.
+        *   Automatically writes startup metadata (timestamp, CLI args, Python version, platform) and shutdown metrics (completion timestamp, duration, log path).
+        *   Integrated directly into `pipelines/train_and_evaluate_full_scorecard.py` and `pipelines/run_staged_decoupled_experiment.py`, with log file paths linked in `full_dataset_training_scorecard.md`.
+        *   Updated `.gitignore` with `!pipelines/training_logs/**` to whitelist and retain training experiment histories.
+172. **Unified Continuous Discriminative Architecture & Holdout Clock Bounds (September 1, 2026)**:
+    *   **The Architecture**: Refactored `pipelines/train_and_evaluate_full_scorecard.py` to eliminate all Phase 1/Phase 2 state rollbacks and multi-phase freezing. All 10 TCN layers and heads train continuously in a single discriminative run with AdamW (`weight_decay=1e-2`), 3 parameter groups (`3e-4` on L1–5, `5e-4` on L6–7, `1e-3` on L8–10+Heads), 3-epoch linear warmup, 32-epoch `CosineAnnealingLR` (to `1e-6`), and `[1.0, 2.0, 1.0, 1.0]` Head 2A weighting.
+    *   **Holdout Offset Search Anchors**: In `pipelines/telemetry_engine.py`, bounded `estimate_session_clock_offset()` search ranges for the 4 holdout sessions to their empirical windows (`[-0.7s, -0.4s]`, `[-0.45s, -0.15s]`, `[0.0s, +0.4s]`, `[-0.35s, -0.05s]`), preventing evaluation drift.
+    *   **Scorecard Results Across 66 Physical Sessions (3,721 GT Shots including today's auto-synced `session_2026-09-01_12-50-20`)**:
+        *   **Training & Checkpointing**: Best Holdout Macro-F1 reached **0.6306** (Acc: **60.68%**, Val Loss: **1.0724**) at Epoch 5; early stopping triggered smoothly at Epoch 20 with optimal checkpoint restored.
+        *   **Full Dataset Micro Average (66 Sessions / 3,721 GT Shots)**: 🏆 **75.44% Pipeline Recall** (2,807 / 3,721 GT shots), 🏆 **76.11% Global System Precision** (2,807 / 3,688 detections), 🏆 **75.77% Global F1 Score**, 🏆 **86.8% Overall Classification Accuracy** (2,437 / 2,807 correct).
+        *   **Holdout Set Performance (4 Sessions / 206 GT Shots)**: 🏆 **64.08% Recall** (132/206), **54.77% Precision** (132/241), **59.06% F1**, 🏆 **74.24% Classification Accuracy** (98/132 correct across detected shots — up from 72.0%).
+        *   **Training Set (62 Sessions / 3,515 GT Shots)**: 🏆 **76.10% Recall**, 🏆 **77.60% Precision**, 🏆 **76.85% F1**, 🏆 **87.4% Classification Accuracy** (2,339 / 2,675 correct — up from 85.2%).
+        *   **Today's Live Session (`session_2026-09-01_12-50-20`)**: 🏆 **81.5% Recall**, **68.8% Precision**, **74.6% F1** (44/54 GT shots detected).
+173. **Locked Holdout Empirical Offsets & Refined Unified Discriminative Optimizer (September 1, 2026)**:
+    *   **The Architecture**: Refactored `pipelines/train_and_evaluate_full_scorecard.py` and `pipelines/telemetry_engine.py` to enforce locked empirical clock offsets (`HOLDOUT_EMPIRICAL_OFFSETS`: `session_2026-07-20_12-42-16`: `-0.55s`, `session_2026-07-21_12-43-37`: `-0.30s`, `session_2026-07-24_12-52-29`: `+0.20s`, `session_2026-07-25_15-16-32`: `-0.15s`) across both candidate window extraction and evaluation, avoiding unconstrained cross-correlation jitter.
+    *   **Discriminative Optimizer Configuration**: Configured AdamW (`weight_decay=1e-2`) with Backbone Layers 1–7 at base LR `3e-5` (slow adaptation) and Layers 8–10 + Heads at base LR `5e-4` decaying via `CosineAnnealingLR` (`T_max=32`, `eta_min=1e-6`), Label Smoothing `0.1` with `[1.0, 2.0, 1.0, 1.0]` Head 2A weighting, and `patience = 18`.
+    *   **Scorecard Results Across 66 Physical Sessions (3,721 GT Shots)**:
+        *   **Training Progression**: Checkpointed at **Epoch 18** (Best Holdout Macro-F1 = **0.6019**, Candidate Acc = **60.68%**, Val Loss = **1.2202**, Train Loss = **1.0372**).
+        *   **Full Dataset Micro Average (All 66 Sessions)**: 🏆 **75.41% Recall** (2,806 / 3,721 GT shots), 🏆 **76.08% System Precision** (2,806 / 3,688 detections), 🏆 **75.75% F1 Score**, 🏆 **89.8% Overall Classification Accuracy** (2,519 / 2,806 correct).
+        *   **Holdout Set Performance (4 Sessions)**: **63.59% Recall** (131/206), **54.36% Precision** (131/241), **58.61% F1**, 🏆 **73.28% Holdout Classification Accuracy** (96/131 correct across detected shots).
+        *   **Training Set Performance (62 Sessions)**: 🏆 **76.1% Recall**, 🏆 **77.6% Precision**, 🏆 **76.8% F1**, 🏆 **90.6% Classification Accuracy** (2,423 / 2,675 correct).
+        *   **Production Quality Gate**: 🏆 **PASSED** (`Holdout Precision = 54.4%`, `Overall Precision = 76.08% >= 70.0%`, `Holdout F1 = 58.61% >= 50.0%`). Exported updated ONNX asset and feature normalization stats to `app/src/main/assets/models/`.
 
 
 

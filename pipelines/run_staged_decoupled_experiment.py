@@ -46,6 +46,7 @@ from telemetry_engine import (
     FacingUpTCN, StanceTracker, AdvancedTCNBlock,
     estimate_session_clock_offset, load_parquet_session
 )
+from training_logger import setup_training_logger
 
 # Canonical 7-Class Taxonomy
 CLASSES_7 = [
@@ -620,6 +621,7 @@ def evaluate_7class_scorecard(session_ids, stage2_model, norm_stats, device=DEVI
 
 
 def main():
+    logger = setup_training_logger(prefix="staged_decoupled_experiment")
     print("="*100, flush=True)
     print("  STAGED DECOUPLED TRAINING EXPERIMENT (BAT-PLANE 3-FAMILY TCN + COSINE ANNEALING)", flush=True)
     print(f"  Holdout / Validation Sessions ({len(HOLDOUT_SESSIONS)}): {', '.join(HOLDOUT_SESSIONS)}", flush=True)

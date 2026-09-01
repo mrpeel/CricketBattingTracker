@@ -50,6 +50,10 @@ def parse_args():
         "--save-segments", action="store_true",
         help="Export individual 6-second watch sensor CSV slices under the segments/ directory (default: False)."
     )
+    parser.add_argument(
+        "--max-fallback-rate", type=float, default=0.25,
+        help="Maximum allowed proportion of fallback swings before alignment fails (default: 0.25)."
+    )
     return parser.parse_args()
 
 def resolve_sensor_path(session_dir, baseName):
@@ -1648,7 +1652,7 @@ def main():
     print(f"   Active swings:         {len(active_swings)}")
     print(f"   Fallback alignments:   {len(fallback_swings)} ({fallback_rate * 100:.1f}%)")
     
-    if fallback_rate > 0.25:
+    if fallback_rate > args.max_fallback_rate:
         # High fallback rate indicates a clock mismatch, bad alignment, or broken parser!
         aligned_csv_path = os.path.join(session_dir, "ground_truth_aligned.csv")
         if os.path.exists(aligned_csv_path):
@@ -1661,7 +1665,7 @@ def main():
         print("="*80 + "\n")
         raise RuntimeError(
             f"❌ Alignment failed due to high fallback rate ({fallback_rate * 100:.1f}%). "
-            f"Expected fallback rate to be <= 25%."
+            f"Expected fallback rate to be <= {args.max_fallback_rate * 100:.1f}%."
         )
 
     df_aligned = pd.DataFrame(aligned_shots)
