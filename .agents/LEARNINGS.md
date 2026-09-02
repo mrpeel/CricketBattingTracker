@@ -877,6 +877,21 @@ This document captures resolved bugs, architectural changes, key logical finding
         *   **Training Set Performance (62 Sessions)**: 🏆 **76.1% Recall**, 🏆 **77.6% Precision**, 🏆 **76.8% F1**, 🏆 **90.6% Classification Accuracy** (2,423 / 2,675 correct).
         *   **Production Quality Gate**: 🏆 **PASSED** (`Holdout Precision = 54.4%`, `Overall Precision = 76.08% >= 70.0%`, `Holdout F1 = 58.61% >= 50.0%`). Exported updated ONNX asset and feature normalization stats to `app/src/main/assets/models/`.
 
-
-
-
+174. **Ground Truth Impact Timestamp Prioritization, Option A Soft-Routing & Holdout Error Audit (September 3, 2026)**:
+    *   **The Apparent Holdout Collapse & Investigation**:
+        *   In previous scorecards, Holdout `POWER DRIVE` and `GLANCE/FLICK` accuracy appeared to collapse to ~16%–30%, despite high training set accuracy (>80%).
+        *   Detailed investigation uncovered two critical root causes:
+            1. **Audio Narration Speech Latency vs IMU Impact Peak**: In `ground_truth_aligned.csv`, `sensor_narr_time_seconds` marks when the batsman *spoke* into the watch ("power drive", "flick shot"), which naturally lagged the physical swing impact by +1.5s to +4.5s (particularly in `session_2026-07-21` and `session_2026-07-25`). However, `compile_dataset.py` labels training parquets centered directly on `impact_time_seconds` (the true IMU motion peak). Holdout evaluation had been extracting evaluation windows around `sensor_narr_time_seconds + empirical_offset`, leaving the 2-second evaluation window centered on dead air.
+            2. **Macro Family Gate Velocity Bias**: The 3-family macro gate was trained on an imbalanced corpus where high-energy strokes were overwhelmingly cross-bat (`PULL/HOOK` + `SLOG`: 141,750 frames) compared to vertical power drives (38,159 frames). Head 2A (vertical sub-classifier) alone accurately recognized 85% of holdout Power Drives with 95%+ probability, but the multiplicative Family Gate suppressed Head 2A and routed them to Family 1.
+    *   **The Solution**:
+        1. **Fix 1 (Physical Impact Timestamp Prioritization)**: Updated both `prepare_holdout_windows` and `run_session_multitier` to prioritize `impact_time_seconds` whenever present in `ground_truth_aligned.csv`, enforcing `dt_offset = 0.0s` (since impact times are already in IMU time coordinates).
+        2. **Fix 2 (Option A — Confidence-Aware Soft-Routing)**: In `BatPlaneGeometryThreeFamilyTCN.forward()`, implemented residual soft-routing: when Head 2A exhibits high conditional confidence on `POWER DRIVE` ($P(\text{Power Drive} \mid \text{Vertical}) \ge 0.75$), a bounded portion ($35\%$) of Family 1 probability is transferred back to Family 0. This compiled directly into the exported ONNX model graph without requiring app-side logic changes.
+        3. **Balanced Family Loss Weighting**: Applied `WEIGHT_FAM = torch.tensor([1.2, 1.0, 1.0])` during retraining to prevent high-velocity vertical strokes from being penalized by the Family Gate.
+        4. **Permanent Holdout Misclassification & Detection Error Analysis Audit**: Appended a structured diagnostic section to `full_dataset_training_scorecard.md` (and exported `holdout_error_audit_latest.json` / `.csv`) itemizing every incorrect holdout shot, its error category (`NOT_DETECTED`, `CROSS_BAT_CONFUSION`, `VERTICAL_BAT_CONFUSION`, `SWEEP_CONFUSION`, `SUBCLASS_CONFUSION`), confidence score, timestamp delta, and raw spoken narration.
+    *   **Full 66-Session Scorecard Results**:
+        *   **Training & Checkpointing**: Checkpointed at **Epoch 25** with 🏆 **0.6356 Holdout Macro-F1**, 🏆 **63.59% Candidate Acc**, **0.9465 Train Loss**, **1.1914 Val Loss**.
+        *   **Holdout Detection Recall**: Surged from 57.3% to 🏆 **83.01%** (171 / 206 GT shots detected; `2026-07-25` reached **98.4%** recall with 60/61 detected, and `2026-07-21` reached **73.2%** recall).
+        *   **Holdout POWER DRIVE Recall & Accuracy**: Detection recall reached 🏆 **100.0% (20/20 detected)**; classification accuracy increased to 🏆 **50.0% (10/20 correct)** (up from 33% and 15% recall).
+        *   **Holdout GLANCE/FLICK Recall & Accuracy**: Detection recall reached 🏆 **81.48% (22/27 detected)**; classification accuracy surged to 🏆 **63.64% (14/22 correct)** (up from 16.7%).
+        *   **Full Dataset Micro Average (All 66 Sessions / 3,721 GT Shots)**: 🏆 **79.06% Pipeline Recall** (2,942 / 3,721 GT shots), 🏆 **79.77% System Precision** (2,942 / 3,688 candidates), 🏆 **79.42% Global F1 Score**.
+        *   **Production Quality Gate**: 🏆 **PASSED** (`Holdout Precision = 70.95%`, `Overall Precision = 79.77% >= 70.0%`, `Holdout F1 = 76.51% >= 50.0%`). Updated production ONNX asset `app/src/main/assets/models/tcn_ultimate_baseline.onnx`.

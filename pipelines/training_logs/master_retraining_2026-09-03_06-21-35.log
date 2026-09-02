@@ -1,8 +1,8 @@
 ====================================================================================================
   PITCH ANALYTIX PRO — PERSISTENT RUN LOG
-  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-09-03_07-44-37.log
-  Start Time       : 2026-09-03 07:44:37
-  Command Line     : pipelines/train_and_evaluate_full_scorecard.py --eval-only
+  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-09-03_06-21-35.log
+  Start Time       : 2026-09-03 06:21:35
+  Command Line     : pipelines/train_and_evaluate_full_scorecard.py --seed 42
   Python Version   : 3.14.5 (/opt/homebrew/opt/python@3.14/bin/python3.14)
 ====================================================================================================
 
@@ -19,8 +19,54 @@
 Loading 62 training sessions & 4 holdout validation sessions (Total: 66)...
 ✅ Saved feature normalization stats -> /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_norm_stats.json
 ✅ Copied feature normalization stats -> /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/tcn_norm_stats.json
+✅ Pooled 7460 training shot windows across 62 physical sessions into TensorDataset.
 
-⚡ Eval-Only Mode: Loading model checkpoint from /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_ultimate_baseline.pt...
+Prepared 206 holdout GT candidate evaluation windows.
+
+===============================================================================================
+🚀 UNIFIED CONTINUOUS DISCRIMINATIVE TRAINING (EPOCHS 1 TO 35)
+   Backbone Layers 1–7: 3e-05 (Slow Adaptation) | Layers 8–10 + Heads: 0.0005
+   Warmup: 3 Epochs | Scheduler: CosineAnnealingLR (to 1e-6, T_max=32) | AdamW weight_decay=1e-2
+   Loss: Label Smoothing (0.1) with Head 2A Sub-Loss Weight: [1.0, 2.0, 1.0, 1.0]
+   Early Stopping: Patience = 18, Min Delta = 0.001 (monitored from Epoch 6 onward)
+===============================================================================================
+Epoch  1/35 (LR: 0.000010/0.000167) - Train Loss: 2.3326 | Val Loss: 1.6005 | Holdout Acc: 34.95% | Holdout Macro-F1: 0.2821 ⭐ Best Checkpoint
+Epoch  2/35 (LR: 0.000020/0.000333) - Train Loss: 1.8058 | Val Loss: 1.3810 | Holdout Acc: 43.69% | Holdout Macro-F1: 0.4122 ⭐ Best Checkpoint
+Epoch  3/35 (LR: 0.000030/0.000500) - Train Loss: 1.5983 | Val Loss: 1.3950 | Holdout Acc: 40.78% | Holdout Macro-F1: 0.3448
+Epoch  4/35 (LR: 0.000030/0.000499) - Train Loss: 1.4703 | Val Loss: 1.2206 | Holdout Acc: 48.54% | Holdout Macro-F1: 0.4429 ⭐ Best Checkpoint
+Epoch  5/35 (LR: 0.000030/0.000495) - Train Loss: 1.4021 | Val Loss: 1.1458 | Holdout Acc: 55.34% | Holdout Macro-F1: 0.5311 ⭐ Best Checkpoint
+Epoch  6/35 (LR: 0.000029/0.000489) - Train Loss: 1.3564 | Val Loss: 1.2108 | Holdout Acc: 51.46% | Holdout Macro-F1: 0.4888
+Epoch  7/35 (LR: 0.000029/0.000481) - Train Loss: 1.3100 | Val Loss: 1.1628 | Holdout Acc: 57.77% | Holdout Macro-F1: 0.5713 ⭐ Best Checkpoint
+Epoch  8/35 (LR: 0.000028/0.000471) - Train Loss: 1.2844 | Val Loss: 1.1784 | Holdout Acc: 54.85% | Holdout Macro-F1: 0.5307
+Epoch  9/35 (LR: 0.000028/0.000458) - Train Loss: 1.2482 | Val Loss: 1.1640 | Holdout Acc: 62.62% | Holdout Macro-F1: 0.5946 ⭐ Best Checkpoint
+Epoch 10/35 (LR: 0.000027/0.000443) - Train Loss: 1.2138 | Val Loss: 1.1617 | Holdout Acc: 62.62% | Holdout Macro-F1: 0.5748
+Epoch 11/35 (LR: 0.000026/0.000427) - Train Loss: 1.1933 | Val Loss: 1.2483 | Holdout Acc: 55.34% | Holdout Macro-F1: 0.5506
+Epoch 12/35 (LR: 0.000025/0.000409) - Train Loss: 1.1677 | Val Loss: 1.1329 | Holdout Acc: 59.71% | Holdout Macro-F1: 0.5917
+Epoch 13/35 (LR: 0.000024/0.000389) - Train Loss: 1.1344 | Val Loss: 1.2412 | Holdout Acc: 58.25% | Holdout Macro-F1: 0.5787
+Epoch 14/35 (LR: 0.000022/0.000368) - Train Loss: 1.1147 | Val Loss: 1.1488 | Holdout Acc: 59.22% | Holdout Macro-F1: 0.5913
+Epoch 15/35 (LR: 0.000021/0.000346) - Train Loss: 1.1004 | Val Loss: 1.1720 | Holdout Acc: 60.19% | Holdout Macro-F1: 0.6047 ⭐ Best Checkpoint
+Epoch 16/35 (LR: 0.000020/0.000323) - Train Loss: 1.0665 | Val Loss: 1.2102 | Holdout Acc: 59.22% | Holdout Macro-F1: 0.5821
+Epoch 17/35 (LR: 0.000018/0.000299) - Train Loss: 1.0445 | Val Loss: 1.1780 | Holdout Acc: 61.17% | Holdout Macro-F1: 0.5967
+Epoch 18/35 (LR: 0.000017/0.000275) - Train Loss: 1.0227 | Val Loss: 1.1964 | Holdout Acc: 61.17% | Holdout Macro-F1: 0.6086 ⭐ Best Checkpoint
+Epoch 19/35 (LR: 0.000015/0.000250) - Train Loss: 1.0016 | Val Loss: 1.2464 | Holdout Acc: 61.17% | Holdout Macro-F1: 0.5906
+Epoch 20/35 (LR: 0.000014/0.000226) - Train Loss: 0.9929 | Val Loss: 1.2037 | Holdout Acc: 64.56% | Holdout Macro-F1: 0.6318 ⭐ Best Checkpoint
+Epoch 21/35 (LR: 0.000013/0.000202) - Train Loss: 0.9791 | Val Loss: 1.2385 | Holdout Acc: 62.14% | Holdout Macro-F1: 0.6166
+Epoch 22/35 (LR: 0.000011/0.000178) - Train Loss: 0.9702 | Val Loss: 1.2198 | Holdout Acc: 60.19% | Holdout Macro-F1: 0.6011
+Epoch 23/35 (LR: 0.000010/0.000155) - Train Loss: 0.9586 | Val Loss: 1.2301 | Holdout Acc: 63.11% | Holdout Macro-F1: 0.6236
+Epoch 24/35 (LR: 0.000009/0.000133) - Train Loss: 0.9507 | Val Loss: 1.1915 | Holdout Acc: 62.14% | Holdout Macro-F1: 0.6047
+Epoch 25/35 (LR: 0.000007/0.000112) - Train Loss: 0.9465 | Val Loss: 1.1914 | Holdout Acc: 63.59% | Holdout Macro-F1: 0.6356 ⭐ Best Checkpoint
+Epoch 26/35 (LR: 0.000006/0.000092) - Train Loss: 0.9405 | Val Loss: 1.2192 | Holdout Acc: 60.68% | Holdout Macro-F1: 0.6081
+Epoch 27/35 (LR: 0.000005/0.000074) - Train Loss: 0.9359 | Val Loss: 1.2098 | Holdout Acc: 61.65% | Holdout Macro-F1: 0.6058
+Epoch 28/35 (LR: 0.000004/0.000058) - Train Loss: 0.9301 | Val Loss: 1.1930 | Holdout Acc: 63.11% | Holdout Macro-F1: 0.6227
+Epoch 29/35 (LR: 0.000003/0.000043) - Train Loss: 0.9289 | Val Loss: 1.2163 | Holdout Acc: 60.68% | Holdout Macro-F1: 0.6047
+Epoch 30/35 (LR: 0.000003/0.000030) - Train Loss: 0.9262 | Val Loss: 1.2017 | Holdout Acc: 61.17% | Holdout Macro-F1: 0.6139
+Epoch 31/35 (LR: 0.000002/0.000020) - Train Loss: 0.9247 | Val Loss: 1.2116 | Holdout Acc: 62.14% | Holdout Macro-F1: 0.6192
+Epoch 32/35 (LR: 0.000002/0.000012) - Train Loss: 0.9245 | Val Loss: 1.2029 | Holdout Acc: 61.65% | Holdout Macro-F1: 0.6109
+Epoch 33/35 (LR: 0.000001/0.000006) - Train Loss: 0.9220 | Val Loss: 1.2043 | Holdout Acc: 61.17% | Holdout Macro-F1: 0.6080
+Epoch 34/35 (LR: 0.000001/0.000002) - Train Loss: 0.9221 | Val Loss: 1.2066 | Holdout Acc: 61.65% | Holdout Macro-F1: 0.6119
+Epoch 35/35 (LR: 0.000001/0.000001) - Train Loss: 0.9225 | Val Loss: 1.2051 | Holdout Acc: 61.65% | Holdout Macro-F1: 0.6121
+
+✅ Reloaded best model checkpoint from Epoch 25 (Best Holdout Macro-F1: 0.6356, Candidate Acc: 63.59%)
 
 3. Evaluating FULL DATASET across ALL 66 physical sessions via Telemetry Engine...
 
@@ -95,30 +141,23 @@ Loading 62 training sessions & 4 holdout validation sessions (Total: 66)...
   🏆 OVERALL HOLDOUT CLASSIFICATION ACCURACY: 66.08% (113/171 correct across detected shots)
 ===================================================================================================
 
-
-===================================================================================================================
-📊 UNIFIED FULL DATASET TRAINING & HOLDOUT EVALUATION SCORECARD
-  Training Strategy: Bat-Plane 3-Family Multi-Scale TCN with Unified Continuous Discriminative LR & Cosine Annealing
-  Validation Summary: Total Epochs = 35, Best Holdout Macro-F1 = 0.6356 (Candidate Acc: 63.59%, Val Loss: 1.1914 at Epoch 25 (Reloaded Checkpoint))
-===================================================================================================================
-  Holdout Set (4 Sessions): Recall = 83.0%, Precision = 71.0%, F1 = 76.5%, Class Acc = 66.1%
-  Training Set (62 Sessions):           Recall = 78.8%, Precision = 80.4%, F1 = 79.6%, Class Acc = 91.1%
-  Full Dataset Total (66 Sessions):      Recall = 79.1%, Precision = 79.8%, F1 = 79.4%
-===================================================================================================================
-
-
-✅ Saved master scorecard report to /Users/neilkloot/Code/CricketBattingTracker/full_dataset_training_scorecard.md
-
-================================================================================
-🔒 PRODUCTION ONNX QUALITY GATE CHECK
-================================================================================
-/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py:581: DeprecationWarning: You are using the legacy TorchScript-based ONNX export. Starting in PyTorch 2.9, the new torch.export-based ONNX exporter has become the default. Learn more about the new export logic: https://docs.pytorch.org/docs/stable/onnx_export.html. For exporting control flow: https://pytorch.org/tutorials/beginner/onnx/export_control_flow_model_to_onnx_tutorial.html
-  torch.onnx.export(
-🏆 PASSED Quality Gate (Holdout Precision=71.0%, Overall Precision=79.8%, Holdout F1=76.5%). Exported ONNX model & updated production Android app assets: /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/tcn_ultimate_baseline.onnx
-================================================================================
+Traceback (most recent call last):
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py", line 583, in <module>
+    main()
+    ~~~~^^
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py", line 439, in main
+    metrics = evaluate_multitier_scorecard(
+        session_ids=all_parquet_sessions,
+    ...<5 lines>...
+        verbose=True
+    )
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/telemetry_engine.py", line 1049, in evaluate_multitier_scorecard
+    cat_counts = Counter(e["error_cat"] for e in holdout_errors)
+                 ^^^^^^^
+NameError: name 'Counter' is not defined
 
 ====================================================================================================
-  RUN COMPLETED: 2026-09-03 07:45:39
-  Total Duration: 0:01:01.476292
-  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-09-03_07-44-37.log
+  RUN COMPLETED: 2026-09-03 07:38:40
+  Total Duration: 1:17:05.331552
+  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-09-03_06-21-35.log
 ====================================================================================================

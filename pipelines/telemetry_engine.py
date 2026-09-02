@@ -33,6 +33,7 @@ import math
 import datetime
 import numpy as np
 import pandas as pd
+from collections import Counter
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -290,23 +291,33 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
         p_sub0 = F.softmax(logits_sub0, dim=1)   # (B, 4, L)
         p_sub1 = F.softmax(logits_sub1, dim=1)   # (B, 2, L)
         
+        # Option A: Confidence-Aware Soft-Routing for Vertical Power Drives
+        # When Head 2A (Sub0) exhibits high conditional confidence on POWER DRIVE (p_sub0[:, 1, :]),
+        # transfer a bounded portion of Family 1 (Cross-Bat) energy back to Family 0 (Vertical-Bat).
+        # This prevents the Macro Family Gate's velocity bias from suppressing high-energy vertical drives.
+        pd_conf = p_sub0[:, 1:2, :]  # (B, 1, L)
+        transfer_weight = torch.clamp((pd_conf - 0.75) / 0.25, min=0.0, max=1.0) * 0.35
+        p_fam_eff_0 = p_fam[:, 0:1, :] + transfer_weight * p_fam[:, 1:2, :]
+        p_fam_eff_1 = p_fam[:, 1:2, :] - transfer_weight * p_fam[:, 1:2, :]
+        p_fam_eff_2 = p_fam[:, 2:3, :]
+        
         B, _, L = logits_family.shape
         probs = torch.zeros((B, 9, L), device=x.device, dtype=x.dtype)
         probs[:, 0, :] = 0.0  # no_shot
         probs[:, 1, :] = 0.0  # pre_shot
         
         # Family 0 (Vertical-Bat Strokes)
-        probs[:, 3, :] = p_fam[:, 0, :] * p_sub0[:, 0, :]  # DRIVE/DEFENCE (3)
-        probs[:, 7, :] = p_fam[:, 0, :] * p_sub0[:, 1, :]  # POWER DRIVE (7)
-        probs[:, 4, :] = p_fam[:, 0, :] * p_sub0[:, 2, :]  # GLANCE/FLICK (4)
-        probs[:, 6, :] = p_fam[:, 0, :] * p_sub0[:, 3, :]  # DEFLECTION/GUIDE (6)
+        probs[:, 3, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 0, :]  # DRIVE/DEFENCE (3)
+        probs[:, 7, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 1, :]  # POWER DRIVE (7)
+        probs[:, 4, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 2, :]  # GLANCE/FLICK (4)
+        probs[:, 6, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 3, :]  # DEFLECTION/GUIDE (6)
         
         # Family 1 (Cross-Bat Horizontal Strokes)
-        probs[:, 2, :] = p_fam[:, 1, :] * p_sub1[:, 0, :]  # PULL/HOOK/SLOG (2)
-        probs[:, 5, :] = p_fam[:, 1, :] * p_sub1[:, 1, :]  # CUT/PUNCH (5)
+        probs[:, 2, :] = p_fam_eff_1[:, 0, :] * p_sub1[:, 0, :]  # PULL/HOOK/SLOG (2)
+        probs[:, 5, :] = p_fam_eff_1[:, 0, :] * p_sub1[:, 1, :]  # CUT/PUNCH (5)
         
         # Family 2 (Floor / Crouch Strokes)
-        probs[:, 8, :] = p_fam[:, 2, :]                    # SWEEP (8)
+        probs[:, 8, :] = p_fam_eff_2[:, 0, :]                    # SWEEP (8)
         
         return torch.log(probs + 1e-12)
 
@@ -605,26 +616,46 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
     # 4. Load Ground Truth Narrations for Session
     gt_path = os.path.join(sessions_dir, sid, "ground_truth_aligned.csv")
     gt_events = []
+    has_impact_col = False
     if os.path.exists(gt_path):
         df_gt = pd.read_csv(gt_path)
+        has_impact_col = ("impact_time_seconds" in df_gt.columns and df_gt["impact_time_seconds"].notna().sum() > 0)
         for _, row in df_gt.iterrows():
             stype = str(row.get("shot_type", "")).lower()
             c_name = normalise_shot_type(stype)
-            t_sec = float(row.get("sensor_narr_time_seconds", 0.0))
-            if c_name:
-                gt_events.append({"t": t_sec, "cls": c_name, "raw": stype})
+            if not c_name:
+                continue
+            if has_impact_col and pd.notna(row.get("impact_time_seconds")):
+                t_sec = float(row["impact_time_seconds"])
+                is_from_impact = True
+            else:
+                t_sec = float(row.get("sensor_narr_time_seconds", 0.0))
+                is_from_impact = False
+            gt_events.append({
+                "t": t_sec,
+                "cls": c_name,
+                "raw": stype,
+                "narr_text": str(row.get("narrated_text", "")),
+                "is_from_impact": is_from_impact
+            })
                 
-    # Calculate Session Clock Offset (dt_offset) via 1D Cross-Correlation Search
-    dt_offset = estimate_session_clock_offset(gt_events, t_grid, w_gyr_mag, session_id=sid)
+    # Calculate Session Clock Offset (dt_offset) via 1D Cross-Correlation Search if needed
+    if has_impact_col:
+        dt_offset = 0.0
+    else:
+        dt_offset = estimate_session_clock_offset(gt_events, t_grid, w_gyr_mag, session_id=sid)
     
     # Apply dt_offset to align GT timestamps: T_aligned = T_gt + dt_offset
     aligned_gt_events = []
     for g in gt_events:
+        effective_offset = 0.0 if g.get("is_from_impact", False) else dt_offset
         aligned_gt_events.append({
-            "t": g["t"] + dt_offset,
+            "t": g["t"] + effective_offset,
             "raw_t": g["t"],
             "cls": g["cls"],
-            "raw": g["raw"]
+            "raw": g["raw"],
+            "narr_text": g.get("narr_text", ""),
+            "is_from_impact": g.get("is_from_impact", False)
         })
         
     # 5. Evaluate Candidate Windows (Stage 2 Unleaked Batched GPU Pass)
@@ -956,6 +987,97 @@ def evaluate_multitier_scorecard(
         print(f"  🏆 OVERALL HOLDOUT CLASSIFICATION ACCURACY: {ho_cls_acc:.2f}% ({ho_corr_tot}/{ho_det_tot} correct across detected shots)", flush=True)
         print("===================================================================================================\n", flush=True)
 
+    # -------------------------------------------------------------------------
+    # Holdout Misclassification & Detection Error Analysis
+    # -------------------------------------------------------------------------
+    holdout_errors = []
+    for sid, g in ho_gt_events:
+        g_t = g["t"]
+        g_cls = g["cls"]
+        raw_narr = g.get("narr_text", "")
+        df_s = df_ho_all[df_ho_all["sid"] == sid] if not df_ho_all.empty else pd.DataFrame()
+        
+        matched = df_s[df_s["is_tp"] & (np.abs(df_s["t"] - g_t) <= 1.5)] if not df_s.empty else pd.DataFrame()
+        if matched.empty:
+            nearest_t = None
+            delta_s = None
+            if not df_s.empty:
+                diffs = np.abs(df_s["t"] - g_t)
+                min_i = diffs.argmin()
+                nearest_cand = df_s.iloc[min_i]
+                nearest_t = round(float(nearest_cand["t"]), 2)
+                delta_s = round(float(nearest_cand["t"] - g_t), 2)
+            holdout_errors.append({
+                "sid": sid,
+                "impact_t": round(g_t, 2),
+                "gt_cls": g_cls,
+                "status": "NOT_DETECTED",
+                "pred_cls": "NONE",
+                "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+                "prob": 0.0,
+                "cand_t": nearest_t,
+                "delta_s": delta_s,
+                "narr_text": raw_narr
+            })
+        else:
+            m = matched.iloc[0]
+            pred_cls = m["pred_cls"]
+            if pred_cls != g_cls:
+                if g_cls == "POWER DRIVE" and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
+                    cat = "CROSS_BAT_CONFUSION (Macro Gate)"
+                elif g_cls in ["DRIVE/DEFENCE", "GLANCE/FLICK", "DEFLECTION/GUIDE"] and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
+                    cat = "CROSS_BAT_CONFUSION"
+                elif g_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"] and pred_cls in ["DRIVE/DEFENCE", "POWER DRIVE", "GLANCE/FLICK", "DEFLECTION/GUIDE"]:
+                    cat = "VERTICAL_BAT_CONFUSION"
+                elif g_cls == "SWEEP" or pred_cls == "SWEEP":
+                    cat = "SWEEP_CONFUSION"
+                else:
+                    cat = "SUBCLASS_CONFUSION"
+                holdout_errors.append({
+                    "sid": sid,
+                    "impact_t": round(g_t, 2),
+                    "gt_cls": g_cls,
+                    "status": "MISCLASSIFIED",
+                    "pred_cls": pred_cls,
+                    "error_cat": cat,
+                    "prob": round(float(m["prob"]), 2),
+                    "cand_t": round(float(m["t"]), 2),
+                    "delta_s": round(float(m["t"] - g_t), 2),
+                    "narr_text": raw_narr
+                })
+
+    # Summary of Holdout Errors by Category
+    cat_counts = Counter(e["error_cat"] for e in holdout_errors)
+    holdout_error_summary_md = "### 📊 Holdout Error Categories Summary\n\n"
+    holdout_error_summary_md += "| Error Category | Count | Primary Impacted Shots |\n"
+    holdout_error_summary_md += "|---|:---:|---|\n"
+    for cat, cnt in cat_counts.most_common():
+        shots = [e["gt_cls"] for e in holdout_errors if e["error_cat"] == cat]
+        top_shots = ", ".join(f"{k} ({v})" for k, v in Counter(shots).most_common(3))
+        holdout_error_summary_md += f"| **{cat}** | **{cnt}** | {top_shots} |\n"
+    if not holdout_errors:
+        holdout_error_summary_md += "| **None** | 0 | None |\n"
+
+    # Itemized Breakdown Table
+    holdout_error_table_md = "\n### 📋 Itemized Holdout Error Audit\n\n"
+    holdout_error_table_md += "| Session | Impact Time (s) | Ground Truth Class | Status / Predicted | Error Category | Prob | Cand Time (s) | Delta (s) | Narrated Speech Text |\n"
+    holdout_error_table_md += "|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|---|\n"
+    for e in holdout_errors:
+        cand_str = f"{e['cand_t']:.2f}" if e['cand_t'] is not None else "-"
+        delta_str = f"{e['delta_s']:+.2f}" if e['delta_s'] is not None else "-"
+        pred_str = e['pred_cls'] if e['pred_cls'] != 'NONE' else "⚠️ NONE"
+        holdout_error_table_md += f"| `{e['sid']}` | {e['impact_t']:.2f} | **{e['gt_cls']}** | {pred_str} | `{e['error_cat']}` | {e['prob']:.2f} | {cand_str} | {delta_str} | *{e['narr_text']}* |\n"
+
+    # Save to disk
+    try:
+        logs_dir = os.path.join(ROOT_DIR, "pipelines", "training_logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        with open(os.path.join(logs_dir, "holdout_error_audit_latest.json"), "w") as f:
+            json.dump(holdout_errors, f, indent=2)
+        pd.DataFrame(holdout_errors).to_csv(os.path.join(logs_dir, "holdout_error_audit_latest.csv"), index=False)
+    except Exception as ex:
+        pass
+
     return {
         "total_sessions": len(session_ids),
         "total_gt": total_gt,
@@ -988,5 +1110,8 @@ def evaluate_multitier_scorecard(
         "full_table_md": full_table_md,
         "holdout_agg": ho_agg,
         "train_agg": tr_agg,
-        "full_agg": full_agg
+        "full_agg": full_agg,
+        "holdout_errors": holdout_errors,
+        "holdout_error_summary_md": holdout_error_summary_md,
+        "holdout_error_table_md": holdout_error_table_md
     }
