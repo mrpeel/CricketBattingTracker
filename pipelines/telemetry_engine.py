@@ -227,10 +227,16 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
             self.blocks.append(AdvancedTCNBlock(prev, ch, kernel_size=3, dilation=d, dropout=0.1))
             prev = ch
             
-        concat_dim = channels_list[3] + channels_list[6] + channels_list[9]  # 16 + 64 + 512 = 592
-        self.head_family = nn.Conv1d(concat_dim, 3, 1)  # Head 1: Macro Family Gate (3-Class Softmax)
-        
         self.proj_l10 = nn.Linear(channels_list[9], 64)
+        
+        # Head 1: Macro Family Gate (144d Dimension-Balanced 2-Layer MLP)
+        self.head_family = nn.Sequential(
+            nn.Linear(144, 64),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, 3)
+        )
         
         # Head 2A: Vertical-Bat Sub-Classifier (4 Classes: DRIVE/DEFENCE, POWER DRIVE, GLANCE/FLICK, DEFLECTION/GUIDE)
         self.head_sub0 = nn.Sequential(
@@ -260,15 +266,11 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
 
     def forward_heads(self, x):
         layer_outputs = self.extract_features(x)
-        l4  = layer_outputs[3]  # (B, 16, L)
         l5  = layer_outputs[4]  # (B, 16, L)
         l7  = layer_outputs[6]  # (B, 64, L)
         l10 = layer_outputs[9]  # (B, 512, L)
         
         B, _, L = x.shape
-        
-        concat_feat = torch.cat([l4, l7, l10], dim=1)  # (B, 592, L)
-        logits_family = self.head_family(concat_feat)  # (B, 3, L)
         
         f_l5 = l5.mean(dim=2)                          # (B, 16)
         f_l7 = l7.mean(dim=2)                          # (B, 64)
@@ -276,6 +278,9 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
         f_l10_proj = F.gelu(self.proj_l10(f_l10))      # (B, 64)
         
         feat_triplet = torch.cat([f_l5, f_l7, f_l10_proj], dim=1)  # (B, 144)
+        
+        out_fam = self.head_family(feat_triplet)                     # (B, 3)
+        logits_family = out_fam.unsqueeze(-1).expand(-1, -1, L)     # (B, 3, L)
         
         out_sub0 = self.head_sub0(feat_triplet)                     # (B, 4)
         logits_sub0 = out_sub0.unsqueeze(-1).expand(-1, -1, L)       # (B, 4, L)
@@ -291,33 +296,23 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
         p_sub0 = F.softmax(logits_sub0, dim=1)   # (B, 4, L)
         p_sub1 = F.softmax(logits_sub1, dim=1)   # (B, 2, L)
         
-        # Option A: Confidence-Aware Soft-Routing for Vertical Power Drives
-        # When Head 2A (Sub0) exhibits high conditional confidence on POWER DRIVE (p_sub0[:, 1, :]),
-        # transfer a bounded portion of Family 1 (Cross-Bat) energy back to Family 0 (Vertical-Bat).
-        # This prevents the Macro Family Gate's velocity bias from suppressing high-energy vertical drives.
-        pd_conf = p_sub0[:, 1:2, :]  # (B, 1, L)
-        transfer_weight = torch.clamp((pd_conf - 0.75) / 0.25, min=0.0, max=1.0) * 0.35
-        p_fam_eff_0 = p_fam[:, 0:1, :] + transfer_weight * p_fam[:, 1:2, :]
-        p_fam_eff_1 = p_fam[:, 1:2, :] - transfer_weight * p_fam[:, 1:2, :]
-        p_fam_eff_2 = p_fam[:, 2:3, :]
-        
         B, _, L = logits_family.shape
         probs = torch.zeros((B, 9, L), device=x.device, dtype=x.dtype)
         probs[:, 0, :] = 0.0  # no_shot
         probs[:, 1, :] = 0.0  # pre_shot
         
         # Family 0 (Vertical-Bat Strokes)
-        probs[:, 3, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 0, :]  # DRIVE/DEFENCE (3)
-        probs[:, 7, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 1, :]  # POWER DRIVE (7)
-        probs[:, 4, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 2, :]  # GLANCE/FLICK (4)
-        probs[:, 6, :] = p_fam_eff_0[:, 0, :] * p_sub0[:, 3, :]  # DEFLECTION/GUIDE (6)
+        probs[:, 3, :] = p_fam[:, 0, :] * p_sub0[:, 0, :]  # DRIVE/DEFENCE (3)
+        probs[:, 7, :] = p_fam[:, 0, :] * p_sub0[:, 1, :]  # POWER DRIVE (7)
+        probs[:, 4, :] = p_fam[:, 0, :] * p_sub0[:, 2, :]  # GLANCE/FLICK (4)
+        probs[:, 6, :] = p_fam[:, 0, :] * p_sub0[:, 3, :]  # DEFLECTION/GUIDE (6)
         
         # Family 1 (Cross-Bat Horizontal Strokes)
-        probs[:, 2, :] = p_fam_eff_1[:, 0, :] * p_sub1[:, 0, :]  # PULL/HOOK/SLOG (2)
-        probs[:, 5, :] = p_fam_eff_1[:, 0, :] * p_sub1[:, 1, :]  # CUT/PUNCH (5)
+        probs[:, 2, :] = p_fam[:, 1, :] * p_sub1[:, 0, :]  # PULL/HOOK/SLOG (2)
+        probs[:, 5, :] = p_fam[:, 1, :] * p_sub1[:, 1, :]  # CUT/PUNCH (5)
         
         # Family 2 (Floor / Crouch Strokes)
-        probs[:, 8, :] = p_fam_eff_2[:, 0, :]                    # SWEEP (8)
+        probs[:, 8, :] = p_fam[:, 2, :]                    # SWEEP (8)
         
         return torch.log(probs + 1e-12)
 
@@ -625,7 +620,8 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
             c_name = normalise_shot_type(stype)
             if not c_name:
                 continue
-            if has_impact_col and pd.notna(row.get("impact_time_seconds")):
+            is_fb = (row.get("is_fallback") is True) or (float(row.get("impact_gyro_mag", 0.0)) <= 1.05)
+            if has_impact_col and pd.notna(row.get("impact_time_seconds")) and not is_fb:
                 t_sec = float(row["impact_time_seconds"])
                 is_from_impact = True
             else:
@@ -640,7 +636,9 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
             })
                 
     # Calculate Session Clock Offset (dt_offset) via 1D Cross-Correlation Search if needed
-    if has_impact_col:
+    if sid in HOLDOUT_EMPIRICAL_OFFSETS:
+        dt_offset = HOLDOUT_EMPIRICAL_OFFSETS[sid]
+    elif has_impact_col and sum(1 for g in gt_events if g["is_from_impact"]) >= len(gt_events) * 0.8:
         dt_offset = 0.0
     else:
         dt_offset = estimate_session_clock_offset(gt_events, t_grid, w_gyr_mag, session_id=sid)

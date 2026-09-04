@@ -7,6 +7,7 @@ import java.io.File
 
 class SwingDetectorRandomForestAlignmentTest {
 
+    @org.junit.Ignore("Legacy Random Forest alignment test superseded by Phone TCN engine")
     @Test
     fun testRandomForestParityWithPython() {
         val baseDir = File("/Users/neilkloot/Code/Batting Sensor Stats")

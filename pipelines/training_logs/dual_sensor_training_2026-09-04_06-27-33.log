@@ -1,0 +1,85 @@
+====================================================================================================
+  PITCH ANALYTIX PRO — PERSISTENT RUN LOG
+  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/dual_sensor_training_2026-09-04_06-27-33.log
+  Start Time       : 2026-09-04 06:27:33
+  Command Line     : pipelines/train_dual_sensor_model.py
+  Python Version   : 3.14.5 (/opt/homebrew/opt/python@3.14/bin/python3.14)
+====================================================================================================
+
+====================================================================================================
+  DUAL-SENSOR EXPERT TCN TRAINING & EVALUATION PIPELINE (COMPLETE SENSORS ONLY)
+  Holdout / Validation Sessions (4): session_2026-07-20_12-42-16, session_2026-07-21_12-43-37, session_2026-07-24_12-52-29, session_2026-07-25_15-16-32
+  Execution Device: mps
+  Random Seed: 42 (deterministic)
+====================================================================================================
+Discovered 34 physical sessions with active Polar data.
+Training Pool: 30 sessions | Holdout Evaluation: 4 sessions.
+
+✅ Saved dual-sensor feature normalization stats -> /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_dual_norm_stats.json
+✅ Pooled 3675 training shot windows across 30 DUAL physical sessions into TensorDataset.
+
+Prepared 206 holdout GT candidate evaluation windows.
+
+===============================================================================================
+🚀 UNIFIED CONTINUOUS DISCRIMINATIVE TRAINING (DUAL-SENSOR EXPERT, EPOCHS 1 TO 35)
+   Backbone Layers 1–7: 3e-5 (Slow Adaptation) | Layers 8–10 + Heads: 0.0005
+   Warmup: 3 Epochs | Scheduler: CosineAnnealingLR (to 1e-6, T_max=32) | AdamW weight_decay=1e-2
+   Loss: Label Smoothing (0.1) with Head 2A Sub-Loss Weight: [1.0, 2.0, 1.0, 1.0]
+   Early Stopping: Patience = 18, Min Delta = 0.001 (monitored from Epoch 6 onward)
+===============================================================================================
+Epoch  1/35 (LR: 0.000010/0.000167) - Train Loss: 2.9404 | Val Loss: 1.7787 | Holdout Acc: 25.73% | Holdout Macro-F1: 0.1726
+Epoch  2/35 (LR: 0.000020/0.000333) - Train Loss: 2.1623 | Val Loss: 1.8054 | Holdout Acc: 27.18% | Holdout Macro-F1: 0.2205
+Epoch  3/35 (LR: 0.000030/0.000500) - Train Loss: 1.7389 | Val Loss: 1.4885 | Holdout Acc: 34.95% | Holdout Macro-F1: 0.3290 ⭐ Best Checkpoint
+Epoch  4/35 (LR: 0.000030/0.000499) - Train Loss: 1.5581 | Val Loss: 1.4360 | Holdout Acc: 48.54% | Holdout Macro-F1: 0.4777 ⭐ Best Checkpoint
+Epoch  5/35 (LR: 0.000030/0.000495) - Train Loss: 1.4511 | Val Loss: 1.4971 | Holdout Acc: 49.51% | Holdout Macro-F1: 0.4570
+Epoch  6/35 (LR: 0.000029/0.000489) - Train Loss: 1.3667 | Val Loss: 1.5045 | Holdout Acc: 42.72% | Holdout Macro-F1: 0.4029
+Epoch  7/35 (LR: 0.000029/0.000481) - Train Loss: 1.3331 | Val Loss: 1.3963 | Holdout Acc: 49.51% | Holdout Macro-F1: 0.4831 ⭐ Best Checkpoint
+Epoch  8/35 (LR: 0.000028/0.000471) - Train Loss: 1.2906 | Val Loss: 1.4833 | Holdout Acc: 43.20% | Holdout Macro-F1: 0.4306
+Epoch  9/35 (LR: 0.000028/0.000458) - Train Loss: 1.2496 | Val Loss: 1.4264 | Holdout Acc: 51.46% | Holdout Macro-F1: 0.4852 ⭐ Best Checkpoint
+Epoch 10/35 (LR: 0.000027/0.000443) - Train Loss: 1.2239 | Val Loss: 1.5071 | Holdout Acc: 53.40% | Holdout Macro-F1: 0.5324 ⭐ Best Checkpoint
+Epoch 11/35 (LR: 0.000026/0.000427) - Train Loss: 1.1819 | Val Loss: 1.4996 | Holdout Acc: 50.97% | Holdout Macro-F1: 0.4907
+Epoch 12/35 (LR: 0.000025/0.000409) - Train Loss: 1.1644 | Val Loss: 1.3875 | Holdout Acc: 58.25% | Holdout Macro-F1: 0.5539 ⭐ Best Checkpoint
+Epoch 13/35 (LR: 0.000024/0.000389) - Train Loss: 1.1334 | Val Loss: 1.3857 | Holdout Acc: 56.80% | Holdout Macro-F1: 0.5704 ⭐ Best Checkpoint
+Epoch 14/35 (LR: 0.000022/0.000368) - Train Loss: 1.1040 | Val Loss: 1.4366 | Holdout Acc: 54.85% | Holdout Macro-F1: 0.5483
+Epoch 15/35 (LR: 0.000021/0.000346) - Train Loss: 1.0697 | Val Loss: 1.6176 | Holdout Acc: 52.91% | Holdout Macro-F1: 0.5086
+Epoch 16/35 (LR: 0.000020/0.000323) - Train Loss: 1.0599 | Val Loss: 1.4135 | Holdout Acc: 50.97% | Holdout Macro-F1: 0.5308
+Epoch 17/35 (LR: 0.000018/0.000299) - Train Loss: 1.0345 | Val Loss: 1.4542 | Holdout Acc: 58.25% | Holdout Macro-F1: 0.5919 ⭐ Best Checkpoint
+Epoch 18/35 (LR: 0.000017/0.000275) - Train Loss: 1.0070 | Val Loss: 1.3657 | Holdout Acc: 59.22% | Holdout Macro-F1: 0.5935 ⭐ Best Checkpoint
+Epoch 19/35 (LR: 0.000015/0.000250) - Train Loss: 0.9954 | Val Loss: 1.4278 | Holdout Acc: 54.37% | Holdout Macro-F1: 0.5534
+Epoch 20/35 (LR: 0.000014/0.000226) - Train Loss: 0.9855 | Val Loss: 1.4205 | Holdout Acc: 62.62% | Holdout Macro-F1: 0.6242 ⭐ Best Checkpoint
+Epoch 21/35 (LR: 0.000013/0.000202) - Train Loss: 0.9626 | Val Loss: 1.4096 | Holdout Acc: 57.28% | Holdout Macro-F1: 0.5543
+Epoch 22/35 (LR: 0.000011/0.000178) - Train Loss: 0.9548 | Val Loss: 1.4351 | Holdout Acc: 58.25% | Holdout Macro-F1: 0.5878
+Epoch 23/35 (LR: 0.000010/0.000155) - Train Loss: 0.9471 | Val Loss: 1.4311 | Holdout Acc: 50.97% | Holdout Macro-F1: 0.5234
+Epoch 24/35 (LR: 0.000009/0.000133) - Train Loss: 0.9291 | Val Loss: 1.4315 | Holdout Acc: 56.31% | Holdout Macro-F1: 0.5644
+Epoch 25/35 (LR: 0.000007/0.000112) - Train Loss: 0.9257 | Val Loss: 1.4395 | Holdout Acc: 56.80% | Holdout Macro-F1: 0.5704
+Epoch 26/35 (LR: 0.000006/0.000092) - Train Loss: 0.9237 | Val Loss: 1.4432 | Holdout Acc: 58.74% | Holdout Macro-F1: 0.5993
+Epoch 27/35 (LR: 0.000005/0.000074) - Train Loss: 0.9137 | Val Loss: 1.4609 | Holdout Acc: 57.28% | Holdout Macro-F1: 0.5749
+Epoch 28/35 (LR: 0.000004/0.000058) - Train Loss: 0.9095 | Val Loss: 1.4114 | Holdout Acc: 58.25% | Holdout Macro-F1: 0.5825
+Epoch 29/35 (LR: 0.000003/0.000043) - Train Loss: 0.9083 | Val Loss: 1.4201 | Holdout Acc: 59.22% | Holdout Macro-F1: 0.5855
+Epoch 30/35 (LR: 0.000003/0.000030) - Train Loss: 0.9074 | Val Loss: 1.4124 | Holdout Acc: 60.19% | Holdout Macro-F1: 0.5956
+Epoch 31/35 (LR: 0.000002/0.000020) - Train Loss: 0.9032 | Val Loss: 1.4195 | Holdout Acc: 57.77% | Holdout Macro-F1: 0.5714
+Epoch 32/35 (LR: 0.000002/0.000012) - Train Loss: 0.9017 | Val Loss: 1.4140 | Holdout Acc: 59.22% | Holdout Macro-F1: 0.5931
+Epoch 33/35 (LR: 0.000001/0.000006) - Train Loss: 0.9032 | Val Loss: 1.4091 | Holdout Acc: 58.74% | Holdout Macro-F1: 0.5875
+Epoch 34/35 (LR: 0.000001/0.000002) - Train Loss: 0.9013 | Val Loss: 1.4166 | Holdout Acc: 58.74% | Holdout Macro-F1: 0.5832
+Epoch 35/35 (LR: 0.000001/0.000001) - Train Loss: 0.9061 | Val Loss: 1.4179 | Holdout Acc: 57.28% | Holdout Macro-F1: 0.5743
+
+✅ Reloaded best dual model checkpoint from Epoch 20 (Best Holdout Macro-F1: 0.6242, Candidate Acc: 62.62%)
+
+Evaluating Dual-Sensor Model across 34 dual physical sessions via Telemetry Engine...
+Traceback (most recent call last):
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_dual_sensor_model.py", line 448, in <module>
+    main()
+    ~~~~^^
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_dual_sensor_model.py", line 424, in main
+    metrics = evaluate_multitier_scorecard(
+        session_ids=eval_sessions,
+    ...<7 lines>...
+        report_out=REPORT_OUT
+    )
+TypeError: evaluate_multitier_scorecard() got an unexpected keyword argument 'report_out'
+
+====================================================================================================
+  RUN COMPLETED: 2026-09-04 07:09:31
+  Total Duration: 0:41:57.668480
+  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/dual_sensor_training_2026-09-04_06-27-33.log
+====================================================================================================

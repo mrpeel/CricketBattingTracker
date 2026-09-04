@@ -84,7 +84,7 @@ FAM3_LOOKUP_FAMILY_T = torch.tensor([0, 0, 1, 0, 0, 1, 0, 0, 2], dtype=torch.int
 FAM3_LOOKUP_SUB_T    = torch.tensor([0, 0, 0, 0, 2, 1, 3, 1, 0], dtype=torch.int64, device=DEVICE)
 
 WEIGHT_2A = torch.tensor([1.0, 2.0, 1.0, 1.0], dtype=torch.float32, device=DEVICE)
-WEIGHT_FAM = torch.tensor([1.2, 1.0, 1.0], dtype=torch.float32, device=DEVICE)
+WEIGHT_FAM = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32, device=DEVICE)
 
 
 def sync_unified_dataset():
@@ -233,18 +233,16 @@ def train_and_select_checkpoint(train_data, holdout_data, train_sessions):
         if not os.path.exists(gt_path): continue
         df_gt = pd.read_csv(gt_path)
         has_impact = ("impact_time_seconds" in df_gt.columns and df_gt["impact_time_seconds"].notna().sum() > 0)
-        t_col = "impact_time_seconds" if has_impact else "sensor_narr_time_seconds"
-        dt_offset = 0.0 if has_impact else HOLDOUT_EMPIRICAL_OFFSETS.get(s_name, 0.0)
         for _, row in df_gt.iterrows():
             st = row.get("shot_type")
             norm = normalise_shot_type(st)
             if norm is None or norm not in CLASS_TO_IDX: continue
-            raw_t = row.get(t_col)
-            if pd.isna(raw_t):
+            is_fb = (row.get("is_fallback") is True) or (float(row.get("impact_gyro_mag", 0.0)) <= 1.05)
+            if has_impact and pd.notna(row.get("impact_time_seconds")) and not is_fb:
+                t_s = float(row["impact_time_seconds"])
+            else:
                 raw_t = row.get("sensor_narr_time_seconds", 0.0)
                 t_s = float(raw_t) + HOLDOUT_EMPIRICAL_OFFSETS.get(s_name, 0.0)
-            else:
-                t_s = float(raw_t) + dt_offset
             center_idx = int(t_s * 423.0)
             start_idx = center_idx - (WINDOW_LEN // 2)
             if start_idx < 0 or start_idx + WINDOW_LEN > len(X): continue
@@ -413,6 +411,12 @@ def main():
     med = np.median(all_X, axis=0)
     mad = np.median(np.abs(all_X - med), axis=0)
     mad = np.where(mad < 1e-3, 1.0, mad)
+    
+    # Critical: Enforce unit variance (mad=1.0) on zero-filled Polar channels to prevent
+    # explosive amplification when active Polar sessions cross the 50% dataset threshold.
+    polar_indices = [FEATURES.index(c) for c in FEATURES if c.startswith('p_') or c == 'has_polar']
+    for idx in polar_indices:
+        mad[idx] = 1.0
     
     stats_data = {'features': FEATURES, 'classes': CLASSES, 'median': med.tolist(), 'mad': mad.tolist()}
     with open(STATS_PATH, 'w') as f:
