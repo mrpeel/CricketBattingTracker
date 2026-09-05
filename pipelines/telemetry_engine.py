@@ -446,7 +446,49 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
         return [("DRIVE/DEFENCE", 0.50) for _ in candidate_anchors]
         
     n_frames = len(df_parquet)
-    X_full = df_parquet[FEATURES].fillna(0.0).values.astype(np.float32)
+    feature_cols = norm_stats.get("features", FEATURES)
+    needed_cols = [c for c in feature_cols if c not in df_parquet.columns]
+    if needed_cols:
+        df_parquet = df_parquet.copy()
+        has_polar = df_parquet['has_polar'].values if 'has_polar' in df_parquet else np.zeros(len(df_parquet), dtype=np.float32)
+        w_gyro_mag = df_parquet['w_gyro_mag'].values if 'w_gyro_mag' in df_parquet else np.linalg.norm(df_parquet[['w_gyro_x', 'w_gyro_y', 'w_gyro_z']].values, axis=1)
+        p_gyro_mag = df_parquet['p_gyro_mag'].values if 'p_gyro_mag' in df_parquet else np.zeros(len(df_parquet), dtype=np.float32)
+        w_acc_mag = df_parquet['w_acc_mag'].values if 'w_acc_mag' in df_parquet else np.linalg.norm(df_parquet[['w_acc_x', 'w_acc_y', 'w_acc_z']].values, axis=1)
+        p_acc_mag = df_parquet['p_acc_mag'].values if 'p_acc_mag' in df_parquet else np.zeros(len(df_parquet), dtype=np.float32)
+
+        if 'p_gyro_mag' in needed_cols:
+            df_parquet['p_gyro_mag'] = p_gyro_mag.astype(np.float32)
+        if 'p_acc_mag' in needed_cols:
+            df_parquet['p_acc_mag'] = p_acc_mag.astype(np.float32)
+            
+        if 'p_gyro_d25ms' in needed_cols:
+            d25 = np.zeros_like(p_gyro_mag)
+            d25[11:] = (p_gyro_mag[11:] - p_gyro_mag[:-11]) * has_polar[11:]
+            df_parquet['p_gyro_d25ms'] = d25.astype(np.float32)
+            
+        if 'p_gyro_d100ms' in needed_cols:
+            d100 = np.zeros_like(p_gyro_mag)
+            d100[42:] = (p_gyro_mag[42:] - p_gyro_mag[:-42]) * has_polar[42:]
+            df_parquet['p_gyro_d100ms'] = d100.astype(np.float32)
+            
+        if 'p_acc_d25ms' in needed_cols:
+            d25a = np.zeros_like(p_acc_mag)
+            d25a[11:] = (p_acc_mag[11:] - p_acc_mag[:-11]) * has_polar[11:]
+            df_parquet['p_acc_d25ms'] = d25a.astype(np.float32)
+            
+        if 'p_rel_surge' in needed_cols:
+            surge = np.zeros_like(p_gyro_mag)
+            surge[42:] = ((p_gyro_mag[42:] - p_gyro_mag[:-42]) / (p_gyro_mag[:-42] + 1.0)) * has_polar[42:]
+            df_parquet['p_rel_surge'] = surge.astype(np.float32)
+            
+        if 'rel_torque_ratio' in needed_cols:
+            df_parquet['rel_torque_ratio'] = (p_gyro_mag / (w_gyro_mag + 1.0) * has_polar).astype(np.float32)
+        if 'rel_force_ratio' in needed_cols:
+            df_parquet['rel_force_ratio'] = (p_acc_mag / (w_acc_mag + 1.0) * has_polar).astype(np.float32)
+        if 'rel_diff_energy' in needed_cols:
+            df_parquet['rel_diff_energy'] = ((w_gyro_mag - p_gyro_mag) * has_polar).astype(np.float32)
+        
+    X_full = df_parquet[feature_cols].fillna(0.0).values.astype(np.float32)
     
     median = np.array(norm_stats["median"], dtype=np.float32)
     mad = np.array(norm_stats.get("mad", norm_stats.get("std", norm_stats.get("iqr"))), dtype=np.float32)

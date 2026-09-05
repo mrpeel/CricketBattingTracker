@@ -72,6 +72,9 @@ object PhoneSwingDetector {
         val watchStartWallMs = parseSessionStartWallMs(watchDir)
         val watchStartSensorNs = watchAcc.first().timeNanos
 
+        // Parse session config (mount mode and bat profiles / switches)
+        val sessionConfig = parseSessionConfig(watchDir, polarDir)
+
         // Clear any pre-existing timeline entries for this innings to prevent duplicate insertions
         dao.deleteTimelineForInningsSync(inningsId)
 
@@ -79,7 +82,9 @@ object PhoneSwingDetector {
             inningsId = inningsId,
             timestamp = watchStartWallMs,
             description = "Session Started",
-            location = "Net Practice"
+            location = "Net Practice",
+            polar_mount_mode = sessionConfig.polarMountMode,
+            bat_id = sessionConfig.defaultBatId
         ))
 
         // A. Load Polar data if available
@@ -457,6 +462,12 @@ object PhoneSwingDetector {
             val batSpeedKmh = maxDownswingGyro * 4.5f
             val bladeAndLaunch = calculateBladeAndLaunch(targetSensorNs, watchRot, finalShotType)
 
+            val batIdForShot = if (sessionConfig.batSwitches.isNotEmpty()) {
+                sessionConfig.batSwitches.filter { it.first <= shotWallMs }.lastOrNull()?.second ?: sessionConfig.defaultBatId
+            } else {
+                BatSessionManager.getBatIdAtTime(shotWallMs)
+            }
+
             finalShots.add(InningsEvent(
                 inningsId = inningsId,
                 timestamp = shotWallMs,
@@ -490,7 +501,9 @@ object PhoneSwingDetector {
                 swing_feature_s3_delta_x = features.s3_deltaX,
                 swing_feature_s3_delta_z = features.s3_deltaZ,
                 swing_feature_s3_plane_ratio = features.s3_planeRatio,
-                swing_feature_s3_gyro_y_min = features.s3_gyro_y_min
+                swing_feature_s3_gyro_y_min = features.s3_gyro_y_min,
+                polar_mount_mode = sessionConfig.polarMountMode,
+                bat_id = batIdForShot
             ))
         }
 
@@ -513,7 +526,9 @@ object PhoneSwingDetector {
             inningsId = inningsId,
             timestamp = sessionEndWallMs,
             description = "Session Ended",
-            location = "Net Practice"
+            location = "Net Practice",
+            polar_mount_mode = sessionConfig.polarMountMode,
+            bat_id = sessionConfig.defaultBatId
         ))
 
         // Set processed flag
@@ -1634,5 +1649,38 @@ object PhoneSwingDetector {
             }
         }
         return if (watchDir.lastModified() > 0) watchDir.lastModified() else System.currentTimeMillis()
+    }
+
+    private data class SessionConfigInfo(
+        val polarMountMode: String,
+        val batSwitches: List<Pair<Long, Int>>,
+        val defaultBatId: Int
+    )
+
+    private fun parseSessionConfig(watchDir: File, polarDir: File?): SessionConfigInfo {
+        val configFile = File(watchDir, "session_config.json").takeIf { it.exists() }
+            ?: polarDir?.let { File(it, "session_config.json").takeIf { f -> f.exists() } }
+
+        if (configFile != null) {
+            try {
+                val json = org.json.JSONObject(configFile.readText())
+                val mountMode = json.optString("polar_mount_mode", "WRIST")
+                val defaultBat = json.optInt("initial_bat_id", 1)
+                val switches = mutableListOf<Pair<Long, Int>>()
+                val switchesArr = json.optJSONArray("bat_switches")
+                if (switchesArr != null) {
+                    for (i in 0 until switchesArr.length()) {
+                        val sObj = switchesArr.getJSONObject(i)
+                        switches.add(Pair(sObj.getLong("timestamp_ms"), sObj.getInt("bat_id")))
+                    }
+                }
+                return SessionConfigInfo(mountMode, switches, defaultBat)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reading session_config.json", e)
+            }
+        }
+        val activeMount = BatSessionManager.polarMountMode.value.value
+        val activeBat = BatSessionManager.activeBatId.value
+        return SessionConfigInfo(activeMount, emptyList(), activeBat)
     }
 }

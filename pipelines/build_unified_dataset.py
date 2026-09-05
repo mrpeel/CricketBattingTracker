@@ -585,11 +585,112 @@ def build_session(session_name, verbose=True):
         p_gyro_grid = np.zeros((n_rows,3), np.float32)
         p_mag_grid  = np.zeros((n_rows,3), np.float32)
 
+    # ---- parse session config & bat metadata ----
+    config_path = os.path.join(session_dir, "session_config.json")
+    polar_mount_mode = 0  # 0: NONE, 1: WRIST, 2: BAT_HANDLE
+    polar_mount_mode_str = "NONE"
+    initial_bat_id = 0
+    bat_profiles = {}
+    bat_switches = []
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as cf:
+                cfg = json.load(cf)
+                polar_mount_mode_str = cfg.get("polar_mount_mode", "WRIST" if has_polar else "NONE")
+                if polar_mount_mode_str == "BAT_HANDLE":
+                    polar_mount_mode = 2
+                elif polar_mount_mode_str == "WRIST":
+                    polar_mount_mode = 1
+                else:
+                    polar_mount_mode = 0
+                initial_bat_id = int(cfg.get("initial_bat_id", 1 if polar_mount_mode > 0 else 0))
+                for p in cfg.get("bat_profiles", []):
+                    bat_profiles[int(p["bat_id"])] = p
+                bat_switches = cfg.get("bat_switches", [])
+        except Exception as e:
+            print(f"  Warning: failed to parse session_config.json: {e}")
+    else:
+        if has_polar:
+            polar_mount_mode = 1
+            polar_mount_mode_str = "WRIST"
+            initial_bat_id = 0
+        else:
+            polar_mount_mode = 0
+            polar_mount_mode_str = "NONE"
+            initial_bat_id = 0
+
+    # Bat ID array across the timeline (handling mid-session bat switches)
+    bat_id_arr = np.full(n_rows, initial_bat_id, dtype=np.int32)
+    if bat_switches and sys_start:
+        for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_ms", 0)):
+            sw_ms = sw.get("timestamp_ms", 0) - sys_start
+            sw_idx = int(sw_ms / grid_dt_ms)
+            if 0 <= sw_idx < n_rows:
+                bat_id_arr[sw_idx:] = int(sw.get("bat_id", initial_bat_id))
+
+    def get_bat_weight(bid):
+        if bid in bat_profiles:
+            return float(bat_profiles[bid].get("weight_grams", 1220.0))
+        return 1220.0 if bid > 0 else 0.0
+
+    def get_bat_offset_knob(bid):
+        if bid in bat_profiles:
+            return float(bat_profiles[bid].get("sensor_offset_from_knob_cm", 15.0))
+        return 15.0 if bid > 0 else 0.0
+
+    unique_bats = np.unique(bat_id_arr)
+    bat_weight_arr = np.zeros(n_rows, dtype=np.float32)
+    bat_offset_knob_arr = np.zeros(n_rows, dtype=np.float32)
+    for ub in unique_bats:
+        mask = (bat_id_arr == ub)
+        bat_weight_arr[mask] = get_bat_weight(ub)
+        bat_offset_knob_arr[mask] = get_bat_offset_knob(ub)
+
+    # Raw polar readings (preserved regardless of mounting position)
+    raw_polar_acc_x = p_acc_grid[:, 0]
+    raw_polar_acc_y = p_acc_grid[:, 1]
+    raw_polar_acc_z = p_acc_grid[:, 2]
+    raw_polar_gyro_x = p_gyro_grid[:, 0]
+    raw_polar_gyro_y = p_gyro_grid[:, 1]
+    raw_polar_gyro_z = p_gyro_grid[:, 2]
+    raw_polar_mag_x = p_mag_grid[:, 0]
+    raw_polar_mag_y = p_mag_grid[:, 1]
+    raw_polar_mag_z = p_mag_grid[:, 2]
+
+    # Mode-specific channel routing
+    if polar_mount_mode == 2:  # BAT_HANDLE
+        # b_* channels populated from Polar sensor on bat
+        b_acc_grid = p_acc_grid
+        b_gyro_grid = p_gyro_grid
+        # p_* channels (wrist) are zeroed out so wrist-trained models are unaffected
+        wrist_p_acc_grid = np.zeros((n_rows, 3), dtype=np.float32)
+        wrist_p_gyro_grid = np.zeros((n_rows, 3), dtype=np.float32)
+        wrist_p_mag_grid = np.zeros((n_rows, 3), dtype=np.float32)
+    elif polar_mount_mode == 1:  # WRIST
+        # p_* channels populated from Polar sensor on wrist
+        wrist_p_acc_grid = p_acc_grid
+        wrist_p_gyro_grid = p_gyro_grid
+        wrist_p_mag_grid = p_mag_grid
+        # b_* channels are zeroed out
+        b_acc_grid = np.zeros((n_rows, 3), dtype=np.float32)
+        b_gyro_grid = np.zeros((n_rows, 3), dtype=np.float32)
+    else:  # NONE
+        wrist_p_acc_grid = np.zeros((n_rows, 3), dtype=np.float32)
+        wrist_p_gyro_grid = np.zeros((n_rows, 3), dtype=np.float32)
+        wrist_p_mag_grid = np.zeros((n_rows, 3), dtype=np.float32)
+        b_acc_grid = np.zeros((n_rows, 3), dtype=np.float32)
+        b_gyro_grid = np.zeros((n_rows, 3), dtype=np.float32)
+
     # ---- build DataFrame ----
     df = pd.DataFrame()
     df['t_ms'] = grid_ms
     df['session_id'] = session_name
     df['has_polar'] = int(has_polar)
+    df['polar_mount_mode'] = polar_mount_mode
+    df['bat_id'] = bat_id_arr
+    df['bat_weight_grams'] = bat_weight_arr
+    df['bat_sensor_offset_knob_cm'] = bat_offset_knob_arr
+
     df['w_acc_x'] = w_acc_grid[:,0]; df['w_acc_y'] = w_acc_grid[:,1]; df['w_acc_z'] = w_acc_grid[:,2]
     df['w_gyro_x'] = w_gyro_grid[:,0]; df['w_gyro_y'] = w_gyro_grid[:,1]; df['w_gyro_z'] = w_gyro_grid[:,2]
     df['w_acc_world_x'] = w_acc_world_grid[:,0]; df['w_acc_world_y'] = w_acc_world_grid[:,1]; df['w_acc_world_z'] = w_acc_world_grid[:,2]
@@ -598,9 +699,20 @@ def build_session(session_name, verbose=True):
     df['w_lin_x'] = w_lin_grid[:,0]; df['w_lin_y'] = w_lin_grid[:,1]; df['w_lin_z'] = w_lin_grid[:,2]
     df['w_mag_x'] = w_mag_grid[:,0]; df['w_mag_y'] = w_mag_grid[:,1]; df['w_mag_z'] = w_mag_grid[:,2]
     df['w_rot_qx'] = w_rot_grid[:,0]; df['w_rot_qy'] = w_rot_grid[:,1]; df['w_rot_qz'] = w_rot_grid[:,2]; df['w_rot_qw'] = w_rot_grid[:,3]
-    df['p_acc_x'] = p_acc_grid[:,0]; df['p_acc_y'] = p_acc_grid[:,1]; df['p_acc_z'] = p_acc_grid[:,2]
-    df['p_gyro_x'] = p_gyro_grid[:,0]; df['p_gyro_y'] = p_gyro_grid[:,1]; df['p_gyro_z'] = p_gyro_grid[:,2]
-    df['p_mag_x'] = p_mag_grid[:,0]; df['p_mag_y'] = p_mag_grid[:,1]; df['p_mag_z'] = p_mag_grid[:,2]
+
+    # Wrist Polar channels (backward compatible with historical models)
+    df['p_acc_x'] = wrist_p_acc_grid[:,0]; df['p_acc_y'] = wrist_p_acc_grid[:,1]; df['p_acc_z'] = wrist_p_acc_grid[:,2]
+    df['p_gyro_x'] = wrist_p_gyro_grid[:,0]; df['p_gyro_y'] = wrist_p_gyro_grid[:,1]; df['p_gyro_z'] = wrist_p_gyro_grid[:,2]
+    df['p_mag_x'] = wrist_p_mag_grid[:,0]; df['p_mag_y'] = wrist_p_mag_grid[:,1]; df['p_mag_z'] = wrist_p_mag_grid[:,2]
+
+    # Bat-mount Polar channels
+    df['b_acc_x'] = b_acc_grid[:,0]; df['b_acc_y'] = b_acc_grid[:,1]; df['b_acc_z'] = b_acc_grid[:,2]
+    df['b_gyro_x'] = b_gyro_grid[:,0]; df['b_gyro_y'] = b_gyro_grid[:,1]; df['b_gyro_z'] = b_gyro_grid[:,2]
+
+    # Raw polar channels
+    df['raw_polar_acc_x'] = raw_polar_acc_x; df['raw_polar_acc_y'] = raw_polar_acc_y; df['raw_polar_acc_z'] = raw_polar_acc_z
+    df['raw_polar_gyro_x'] = raw_polar_gyro_x; df['raw_polar_gyro_y'] = raw_polar_gyro_y; df['raw_polar_gyro_z'] = raw_polar_gyro_z
+
     df['step_cum'] = step_cum
 
     # ---- Derived Kinematic Channels ----
@@ -608,8 +720,10 @@ def build_session(session_name, verbose=True):
     w_acc_mag  = np.linalg.norm(w_acc_grid, axis=1).astype(np.float32)
     w_jerk_mag = np.concatenate([[0.0], np.abs(np.diff(w_gyro_mag))]).astype(np.float32)
     w_gyro_energy = (w_gyro_grid[:,0]**2 + w_gyro_grid[:,1]**2 + w_gyro_grid[:,2]**2).astype(np.float32)
-    p_acc_mag  = np.linalg.norm(p_acc_grid, axis=1).astype(np.float32)
-    p_gyro_mag = np.linalg.norm(p_gyro_grid, axis=1).astype(np.float32)
+    p_acc_mag  = np.linalg.norm(wrist_p_acc_grid, axis=1).astype(np.float32)
+    p_gyro_mag = np.linalg.norm(wrist_p_gyro_grid, axis=1).astype(np.float32)
+    b_acc_mag  = np.linalg.norm(b_acc_grid, axis=1).astype(np.float32)
+    b_gyro_mag = np.linalg.norm(b_gyro_grid, axis=1).astype(np.float32)
 
     df['w_gyro_mag'] = w_gyro_mag
     df['w_acc_mag']  = w_acc_mag
@@ -617,6 +731,8 @@ def build_session(session_name, verbose=True):
     df['w_gyro_energy'] = w_gyro_energy
     df['p_acc_mag']  = p_acc_mag
     df['p_gyro_mag'] = p_gyro_mag
+    df['b_acc_mag']  = b_acc_mag
+    df['b_gyro_mag'] = b_gyro_mag
 
     # ---- Kinematic Features ----
     w_300ms = 127

@@ -146,6 +146,14 @@ class TrackerService : Service(), SensorEventListener {
             SessionManager.setTracking(false)
             stopSelf()
             return START_NOT_STICKY
+        } else if (intent?.action == "BAT_SWITCH") {
+            val batId = intent.getIntExtra("bat_id", 1)
+            val ts = intent.getLongExtra("timestamp_ms", System.currentTimeMillis())
+            synchronized(sessionTimeline) {
+                sessionTimeline.add("BAT_SWITCH: bat_id=$batId, Ts=$ts")
+            }
+            Log.d(TAG, "Recorded BAT_SWITCH: bat_id=$batId, Ts=$ts on timeline")
+            return START_STICKY
         }
 
         if (currentSessionDir == null) {

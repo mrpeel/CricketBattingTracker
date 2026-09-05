@@ -59,6 +59,8 @@ data class InningsEvent(
     val swing_feature_s3_plane_ratio: Float? = null,
     val swing_feature_s3_gyro_y_min: Float? = null,
     val videoFilePath: String? = null,
+    val polar_mount_mode: String? = null,
+    val bat_id: Int? = null,
 )
 
 @Entity(tableName = "heart_rate_events")

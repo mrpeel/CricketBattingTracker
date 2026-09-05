@@ -341,6 +341,7 @@ class MainActivity : ComponentActivity() {
         triggerForegroundLocationResolution()
         checkHealthConnectPermissions()
         com.mrpeel.cricketbattingtracker.services.AudioRecordManager.refreshRecordings(this)
+        com.mrpeel.cricketbattingtracker.services.BatSessionManager.initialize(this)
         
         // Explicitly start DataSyncListenerService to self-heal any stuck incoming sessions
         try {
@@ -2150,11 +2151,27 @@ fun TimelineItem(
                         )
                         if (event.bottom_hand_gyro_ratio != null && event.bottom_hand_gyro_ratio > 0f) {
                             Spacer(modifier = Modifier.width(6.dp))
+                            val isBat = event.polar_mount_mode == "BAT_HANDLE"
                             Text(
-                                text = "🧤",
+                                text = if (isBat) "🏏" else "🧤",
                                 fontSize = 12.sp,
                                 modifier = Modifier.clickable { expanded = !expanded }
                             )
+                        }
+                        if (event.bat_id != null && event.bat_id > 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    "BAT ${event.bat_id}",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
                         }
                         if (!event.videoFilePath.isNullOrEmpty()) {
                             Spacer(modifier = Modifier.width(8.dp))
@@ -2236,8 +2253,9 @@ fun TimelineItem(
                     Spacer(modifier = Modifier.height(10.dp))
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
                     Spacer(modifier = Modifier.height(8.dp))
+                    val isBatHandle = event.polar_mount_mode == "BAT_HANDLE"
                     Text(
-                        "🧤 HAND COORDINATION",
+                        if (isBatHandle) "🏏 BAT FRAME DYNAMICS" else "🧤 HAND COORDINATION",
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
@@ -2542,6 +2560,177 @@ fun ProfileDialog(
 }
 
 @Composable
+fun BatProfileEditDialog(
+    profile: com.mrpeel.cricketbattingtracker.services.BatProfile,
+    onSave: (com.mrpeel.cricketbattingtracker.services.BatProfile) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(profile.name) }
+    var weightText by remember { mutableStateOf(profile.weightGrams.toInt().toString()) }
+    var handleType by remember { mutableStateOf(profile.handleType) }
+    var knobOffsetText by remember { mutableStateOf(profile.sensorOffsetFromKnobCm.toString()) }
+    var toeOffsetText by remember { mutableStateOf(profile.sensorOffsetFromToeCm.toString()) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "EDIT BAT ${profile.batId} PROFILE",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.secondary,
+                        letterSpacing = 1.sp
+                    )
+                    Text("🏏", fontSize = 16.sp)
+                }
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Bat Name / Model") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { weightText = it.filter { c -> c.isDigit() } },
+                        label = { Text("Weight (g)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "HANDLE",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("ROUND", "OVAL").forEach { type ->
+                                val selected = handleType.equals(type, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (selected) MaterialTheme.colorScheme.primary
+                                            else Color.White.copy(alpha = 0.05f)
+                                        )
+                                        .clickable { handleType = type }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        type,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (selected) Color(0xFF000C1B) else Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = knobOffsetText,
+                        onValueChange = { knobOffsetText = it },
+                        label = { Text("Knob Offset (cm)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = toeOffsetText,
+                        onValueChange = { toeOffsetText = it },
+                        label = { Text("Toe Offset (cm)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Text("CANCEL", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            val updated = profile.copy(
+                                name = name.ifBlank { "Bat ${profile.batId}" },
+                                weightGrams = weightText.toFloatOrNull() ?: profile.weightGrams,
+                                handleType = handleType,
+                                sensorOffsetFromKnobCm = knobOffsetText.toFloatOrNull() ?: profile.sensorOffsetFromKnobCm,
+                                sensorOffsetFromToeCm = toeOffsetText.toFloatOrNull() ?: profile.sensorOffsetFromToeCm
+                            )
+                            onSave(updated)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("SAVE", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF000C1B))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun UnifiedConsoleCard(
     sessionActive: Boolean,
     audioEnabled: Boolean,
@@ -2563,6 +2752,22 @@ fun UnifiedConsoleCard(
     onRequestVideoPermission: () -> Unit,
     context: Context
 ) {
+    val mountMode by com.mrpeel.cricketbattingtracker.services.BatSessionManager.polarMountMode.collectAsState()
+    val batProfiles by com.mrpeel.cricketbattingtracker.services.BatSessionManager.batProfiles.collectAsState()
+    val activeBatId by com.mrpeel.cricketbattingtracker.services.BatSessionManager.activeBatId.collectAsState()
+    var editingProfile by remember { mutableStateOf<com.mrpeel.cricketbattingtracker.services.BatProfile?>(null) }
+
+    if (editingProfile != null) {
+        BatProfileEditDialog(
+            profile = editingProfile!!,
+            onSave = { updated ->
+                com.mrpeel.cricketbattingtracker.services.BatSessionManager.updateBatProfile(context, updated)
+                editingProfile = null
+            },
+            onDismiss = { editingProfile = null }
+        )
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier
@@ -2731,6 +2936,98 @@ fun UnifiedConsoleCard(
                         }
                     }
 
+                    if (polarEnabled && pairedDevice != null) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 32.dp, top = 2.dp, bottom = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "POLAR MOUNT POSITION",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary,
+                                letterSpacing = 1.sp
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val isWrist = mountMode == com.mrpeel.cricketbattingtracker.services.PolarMountMode.WRIST
+                                val isBat = mountMode == com.mrpeel.cricketbattingtracker.services.PolarMountMode.BAT_HANDLE
+
+                                // Wrist pill
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isWrist) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
+                                        .border(
+                                            1.dp,
+                                            if (isWrist) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            com.mrpeel.cricketbattingtracker.services.BatSessionManager.setMountMode(
+                                                context,
+                                                com.mrpeel.cricketbattingtracker.services.PolarMountMode.WRIST
+                                            )
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text("🧤", fontSize = 12.sp)
+                                        Text(
+                                            "WRIST",
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isWrist) FontWeight.Black else FontWeight.Normal,
+                                            color = if (isWrist) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+
+                                // Bat Handle pill
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isBat) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
+                                        .border(
+                                            1.dp,
+                                            if (isBat) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            com.mrpeel.cricketbattingtracker.services.BatSessionManager.setMountMode(
+                                                context,
+                                                com.mrpeel.cricketbattingtracker.services.PolarMountMode.BAT_HANDLE
+                                            )
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text("🏏", fontSize = 12.sp)
+                                        Text(
+                                            "BAT HANDLE",
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isBat) FontWeight.Black else FontWeight.Normal,
+                                            color = if (isBat) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
 
                     // Video toggle
@@ -2755,6 +3052,94 @@ fun UnifiedConsoleCard(
                                 onCheckedChange = onVideoToggle,
                                 colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
                             )
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                    // Bat Profile Selector
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "BAT PROFILE",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary,
+                                letterSpacing = 1.sp
+                            )
+                            val currentProfile = batProfiles.firstOrNull { it.batId == activeBatId } ?: batProfiles.firstOrNull()
+                            if (currentProfile != null) {
+                                Text(
+                                    "${currentProfile.weightGrams.toInt()}g • ${currentProfile.handleType}",
+                                    fontSize = 9.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            batProfiles.forEach { profile ->
+                                val isSelected = profile.batId == activeBatId
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            else Color.White.copy(alpha = 0.03f)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSelected) MaterialTheme.colorScheme.primary
+                                            else Color.White.copy(alpha = 0.08f),
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable {
+                                            com.mrpeel.cricketbattingtracker.services.BatSessionManager.selectBat(context, profile.batId)
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                                ) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "Bat ${profile.batId}",
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .clickable { editingProfile = profile },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text("⚙️", fontSize = 10.sp)
+                                            }
+                                        }
+                                        Text(
+                                            profile.name,
+                                            fontSize = 9.sp,
+                                            color = Color.Gray,
+                                            maxLines = 1,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -2806,6 +3191,9 @@ fun UnifiedConsoleCard(
                             }
                             context.startService(serviceIntent)
                         }
+
+                        // Notify BatSessionManager that session started
+                        com.mrpeel.cricketbattingtracker.services.BatSessionManager.onSessionStart()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier
@@ -2896,6 +3284,7 @@ fun UnifiedConsoleCard(
 
                     // Polar Sense status (only if streaming)
                     if (polarEnabled && polarState == com.mrpeel.cricketbattingtracker.services.PolarConnectionState.STREAMING) {
+                        val isBat = mountMode == com.mrpeel.cricketbattingtracker.services.PolarMountMode.BAT_HANDLE
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2905,12 +3294,88 @@ fun UnifiedConsoleCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🧤", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
-                                Text("Polar Verity Sense", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(if (isBat) "🏏" else "🧤", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                                Column {
+                                    Text(
+                                        if (isBat) "Polar Sense (Bat Handle)" else "Polar Sense (Wrist)",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        if (isBat) "Pure bat-frame kinematics" else "Wrist / arm kinematics",
+                                        fontSize = 9.sp,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("Live Stream (52Hz)", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                 Text("Samples: $polarSampleCount  •  Taps: $polarTaps", fontSize = 10.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+
+                    // Mid-Session Active Bat Switcher
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White.copy(alpha = 0.03f), shape = RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🏏", fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
+                                Text(
+                                    "ACTIVE BAT",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            val activeProfile = batProfiles.firstOrNull { it.batId == activeBatId }
+                            Text(
+                                activeProfile?.let { "${it.name} (${it.weightGrams.toInt()}g)" } ?: "Bat $activeBatId",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            batProfiles.forEach { profile ->
+                                val isSelected = profile.batId == activeBatId
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primary
+                                            else Color.White.copy(alpha = 0.05f)
+                                        )
+                                        .clickable {
+                                            com.mrpeel.cricketbattingtracker.services.BatSessionManager.selectBat(context, profile.batId)
+                                        }
+                                        .padding(vertical = 7.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        profile.name.take(12),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color(0xFF000C1B) else Color.White.copy(alpha = 0.8f),
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
@@ -2933,6 +3398,7 @@ fun UnifiedConsoleCard(
                                 if (videoEnabled) {
                                     com.mrpeel.cricketbattingtracker.services.VideoRecordManager.discard(context)
                                 }
+                                com.mrpeel.cricketbattingtracker.services.BatSessionManager.onSessionEnd()
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -2957,6 +3423,7 @@ fun UnifiedConsoleCard(
                                 if (videoEnabled) {
                                     com.mrpeel.cricketbattingtracker.services.VideoRecordManager.stopAndSave(context)
                                 }
+                                com.mrpeel.cricketbattingtracker.services.BatSessionManager.onSessionEnd()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
                             modifier = Modifier

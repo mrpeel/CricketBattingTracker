@@ -685,6 +685,12 @@ class DataSyncListenerService : WearableListenerService() {
 
         Log.d(TAG, "Resolved inningsId $newInningsId for session starting at $resolvedStartMs")
 
+        // Ensure session_config.json exists in filesDir
+        val sessionConfigFile = java.io.File(filesDir, "session_config.json")
+        if (!sessionConfigFile.exists()) {
+            BatSessionManager.writeSessionConfigFile(filesDir, resolvedStartMs, System.currentTimeMillis())
+        }
+
         // Find matching Polar session directory or zip file on the phone
         val polarRoot = getExternalFilesDir("polar_sessions")
         val polarItems = polarRoot?.listFiles()?.filter { it.name.startsWith("polar_session_") } ?: emptyList()

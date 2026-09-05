@@ -35,6 +35,7 @@ class PolarSenseService : Service() {
     private var gyroStream: BufferedOutputStream? = null
     private var magStream: BufferedOutputStream? = null
     private var sessionDir: File? = null
+    private var sessionStartTimeMs: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -76,6 +77,8 @@ class PolarSenseService : Service() {
         val dir = File(getExternalFilesDir("polar_sessions"), "polar_session_$timestamp")
         dir.mkdirs()
         sessionDir = dir
+        sessionStartTimeMs = System.currentTimeMillis()
+        BatSessionManager.writeSessionConfigFile(dir, sessionStartTimeMs, 0L)
 
         val accFile = File(dir, "PolarAccelerometer.bin")
         accStream = BufferedOutputStream(FileOutputStream(accFile))
@@ -168,6 +171,7 @@ class PolarSenseService : Service() {
         if (compress) {
             sessionDir?.let { dir ->
                 if (dir.exists()) {
+                    BatSessionManager.writeSessionConfigFile(dir, sessionStartTimeMs, System.currentTimeMillis())
                     val zipFile = File(dir.parentFile, "${dir.name}.zip")
                     try {
                         zipDirectory(dir, zipFile)

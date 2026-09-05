@@ -2510,6 +2510,36 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     df_aligned['s3_bottom_pronation_deg'] = s3_bottom_pronation_deg
     df_aligned['s3_bottom_gyro_y_min'] = s3_bottom_gyro_y_min
 
+    # Tag polar_mount_mode and bat_id from session_config.json if available
+    config_path = os.path.join(session_dir, "session_config.json")
+    polar_mount_mode = "WRIST" if (polar_acc_files or polar_gyro_files) else "NONE"
+    initial_bat_id = 1 if polar_mount_mode == "BAT_HANDLE" else 0
+    bat_switches = []
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+                polar_mount_mode = cfg.get("polar_mount_mode", polar_mount_mode)
+                initial_bat_id = int(cfg.get("initial_bat_id", 1 if polar_mount_mode == "BAT_HANDLE" else 0))
+                bat_switches = cfg.get("bat_switches", [])
+        except Exception as e:
+            print(f"⚠️ Could not read session_config.json: {e}")
+
+    bat_id_list = []
+    for idx, row in df_aligned.iterrows():
+        shot_wall_ms = row.get("impact_time_ms")
+        if not shot_wall_ms or pd.isna(shot_wall_ms):
+            shot_wall_ms = float(row.get("timestamp_seconds", 0.0)) * 1000.0
+        curr_bat = initial_bat_id
+        if bat_switches and shot_wall_ms:
+            for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_ms", 0)):
+                if sw.get("timestamp_ms", 0) <= shot_wall_ms:
+                    curr_bat = int(sw.get("bat_id", curr_bat))
+        bat_id_list.append(curr_bat)
+
+    df_aligned['polar_mount_mode'] = polar_mount_mode
+    df_aligned['bat_id'] = bat_id_list
+
     df_aligned.to_csv(aligned_csv_path, index=False)
 
     valid_count = df_aligned['bottom_hand_acc_peak'].notna().sum()

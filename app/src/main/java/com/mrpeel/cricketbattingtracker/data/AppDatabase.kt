@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [InningsEvent::class, HeartRateEvent::class], version = 9, exportSchema = false)
+@Database(entities = [InningsEvent::class, HeartRateEvent::class], version = 10, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun inningsEventDao(): InningsEventDao
 
@@ -62,6 +62,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Migration 9→10: Add polar_mount_mode and bat_id columns to innings_events. */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN polar_mount_mode TEXT")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN bat_id INTEGER")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -69,7 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "cricket_tracker_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
