@@ -587,6 +587,10 @@ def build_session(session_name, verbose=True):
 
     # ---- parse session config & bat metadata ----
     config_path = os.path.join(session_dir, "session_config.json")
+    if not os.path.exists(config_path):
+        polar_cfg = os.path.join(session_dir, "PolarSense", "session_config.json")
+        if os.path.exists(polar_cfg):
+            config_path = polar_cfg
     polar_mount_mode = 0  # 0: NONE, 1: WRIST, 2: BAT_HANDLE
     polar_mount_mode_str = "NONE"
     initial_bat_id = 0
@@ -810,8 +814,16 @@ def build_session(session_name, verbose=True):
     return out_path
 
 def main():
-    for s in SESSIONS:
-        build_session(s)
+    import argparse
+    parser = argparse.ArgumentParser(description="Build unified 423Hz parquet dataset")
+    parser.add_argument("--session", help="Build specific session only")
+    args = parser.parse_args()
+
+    if args.session:
+        build_session(args.session)
+    else:
+        for s in SESSIONS:
+            build_session(s)
     print("\nDONE")
 
 if __name__ == "__main__":

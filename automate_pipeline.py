@@ -545,6 +545,13 @@ def pull_polar_from_phone(phone_id, session_dir):
 
     print(f"✅ Pulled {len(pulled_files)} Polar Sense files from {latest_session}.")
 
+    # If session_config.json was pulled into PolarSense, also ensure a copy in session_dir
+    polar_cfg = os.path.join(local_polar_dir, "session_config.json")
+    root_cfg = os.path.join(session_dir, "session_config.json")
+    if os.path.exists(polar_cfg) and not os.path.exists(root_cfg):
+        import shutil
+        shutil.copy2(polar_cfg, root_cfg)
+
     # Clean Polar session directory on phone after successful pull
     print("🧹 Cleaning Polar Sense session on phone...")
     subprocess.run(
@@ -2510,11 +2517,17 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     df_aligned['s3_bottom_pronation_deg'] = s3_bottom_pronation_deg
     df_aligned['s3_bottom_gyro_y_min'] = s3_bottom_gyro_y_min
 
-    # Tag polar_mount_mode and bat_id from session_config.json if available
+    # Tag polar_mount_mode and bat physical specifications from session_config.json if available
     config_path = os.path.join(session_dir, "session_config.json")
+    if not os.path.exists(config_path):
+        polar_cfg = os.path.join(session_dir, "PolarSense", "session_config.json")
+        if os.path.exists(polar_cfg):
+            config_path = polar_cfg
+
     polar_mount_mode = "WRIST" if (polar_acc_files or polar_gyro_files) else "NONE"
     initial_bat_id = 1 if polar_mount_mode == "BAT_HANDLE" else 0
     bat_switches = []
+    bat_profiles = {}
     if os.path.exists(config_path):
         try:
             with open(config_path, "r") as f:
@@ -2522,10 +2535,33 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
                 polar_mount_mode = cfg.get("polar_mount_mode", polar_mount_mode)
                 initial_bat_id = int(cfg.get("initial_bat_id", 1 if polar_mount_mode == "BAT_HANDLE" else 0))
                 bat_switches = cfg.get("bat_switches", [])
+                for p in cfg.get("bat_profiles", []):
+                    bat_profiles[int(p["bat_id"])] = p
         except Exception as e:
             print(f"⚠️ Could not read session_config.json: {e}")
 
+    def get_bat_specs(bid):
+        if bid in bat_profiles:
+            p = bat_profiles[bid]
+            return (
+                p.get("name", f"Bat {bid}"),
+                float(p.get("weight_grams", 1425.0)),
+                float(p.get("sensor_offset_from_knob_cm", 31.0)),
+                float(p.get("sensor_offset_from_toe_cm", 57.0))
+            )
+        if bid == 1:
+            return ("Game bat", 1425.0, 31.0, 57.0)
+        elif bid == 2:
+            return ("Gray Nicholls Giant", 1625.0, 31.0, 57.0)
+        elif bid == 3:
+            return ("Eye in bat", 1200.0, 31.0, 55.0)
+        return (None, None, None, None)
+
     bat_id_list = []
+    bat_name_list = []
+    bat_weight_list = []
+    bat_knob_list = []
+    bat_toe_list = []
     for idx, row in df_aligned.iterrows():
         shot_wall_ms = row.get("impact_time_ms")
         if not shot_wall_ms or pd.isna(shot_wall_ms):
@@ -2535,10 +2571,19 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_ms", 0)):
                 if sw.get("timestamp_ms", 0) <= shot_wall_ms:
                     curr_bat = int(sw.get("bat_id", curr_bat))
+        b_name, b_weight, b_knob, b_toe = get_bat_specs(curr_bat)
         bat_id_list.append(curr_bat)
+        bat_name_list.append(b_name)
+        bat_weight_list.append(b_weight)
+        bat_knob_list.append(b_knob)
+        bat_toe_list.append(b_toe)
 
     df_aligned['polar_mount_mode'] = polar_mount_mode
     df_aligned['bat_id'] = bat_id_list
+    df_aligned['bat_name'] = bat_name_list
+    df_aligned['bat_weight_grams'] = bat_weight_list
+    df_aligned['bat_sensor_offset_knob_cm'] = bat_knob_list
+    df_aligned['bat_sensor_offset_toe_cm'] = bat_toe_list
 
     df_aligned.to_csv(aligned_csv_path, index=False)
 

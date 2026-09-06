@@ -1003,3 +1003,11 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Room Migration 10 -> 11 tested; 49/49 Gradle unit tests passed cleanly.
         - Captured emulator screenshots: `screen_edit_bat_dialog.png` (clean edit dialog without handle shape), `record_screen_second_sensor.png` (Second Sensor with wrist selected), and `record_screen_bat_handle_selected.png` (dynamic bat emoji and bat handle selected).
 
+183. **Session Config Resolution & Physical Bat Dimension Ingestion Pipeline (September 6, 2026)**:
+    *   **The Problem**: `PolarSenseService.kt` writes `session_config.json` into the Polar session directory on the phone (`files/polar_sessions/polar_session_...`). When `automate_pipeline.py` pulled this directory via ADB into `PolarSense/`, `session_config.json` landed at `session_dir/PolarSense/session_config.json` rather than `session_dir/session_config.json`. Consequently, the downstream alignment (`automate_pipeline.py`) and Parquet compilation pipelines (`build_unified_dataset.py`, `reprocess_sessions.py`) fell back to `bat_id = 0`, ignoring the user's selected bat (Bat 3: "Eye in bat"), and omitted the 4 physical specification columns.
+    *   **The Solution**:
+        1. Updated `automate_pipeline.py` `pull_polar_from_phone()` to copy `session_config.json` to the session root if pulled into `PolarSense/`.
+        2. Updated `automate_pipeline.py`, `build_unified_dataset.py`, and `reprocess_sessions.py` to check both `session_dir` and `PolarSense/` for `session_config.json`.
+        3. Added resolution and population of `bat_name`, `bat_weight_grams`, `bat_sensor_offset_knob_cm`, and `bat_sensor_offset_toe_cm` from `bat_profiles` directly into `ground_truth_aligned.csv` and unified Parquet datasets.
+    *   **Verification**: Processed live session `session_2026-09-06_11-41-57` (100 Hz Watch, 424 Hz Polar, 7 physical shots), confirming 100% propagation of Bat 3 ("Eye in bat", 1200g, 31cm knob, 55cm toe) across both CSV and 44,877-row Parquet files.
+

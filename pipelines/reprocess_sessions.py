@@ -994,6 +994,10 @@ def main():
 
         # Check session_config.json
         cfg_file = os.path.join(sdir, "session_config.json")
+        if not os.path.exists(cfg_file):
+            polar_cfg = os.path.join(sdir, "PolarSense", "session_config.json")
+            if os.path.exists(polar_cfg):
+                cfg_file = polar_cfg
         has_polar_dir = os.path.isdir(os.path.join(sdir, "PolarSense"))
         polar_mount_mode = "WRIST" if has_polar_dir else "NONE"
         initial_bat_id = 1 if polar_mount_mode == "BAT_HANDLE" else 0

@@ -102,10 +102,10 @@ This file defines the system objectives, feature backlog catalog, active technic
 
 ---
 
-## 🔖 Current Session State (session_2026-08-30_11-05-11)
-*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session_2026-08-30_11-05-11`
-*   **Audio File**: `narration_20260830_103917.m4a`
-*   **Status**: Ground truth aligned (64 physical batting shots + 44 Facing up stances: 29 Flick shot, 10 Forward defense, 10 Glance, 7 Pull shot, 6 On drive, 2 Straight drive; 100% gyro peak match on active shots). Dual-sensor Polar Sense streams synchronized and appended to Parquet database.
+## 🔖 Current Session State (session_2026-09-06_11-41-57)
+*   **Session Directory**: `/Users/neilkloot/Code/Batting Sensor Stats/live_watch_sessions/session_2026-09-06_11-41-57`
+*   **Audio File**: `narration_20260906_113948.m4a`
+*   **Status**: Ground truth aligned (7 physical batting shots + 4 Facing up stances: 3 Forward defense, 1 Back foot defense, 1 Pull shot, 1 Off drive, 1 Guide; 6/7 active shots matched to gyro peak with 0.525s MAE, 1 fallback). Watch IMU (100 Hz, 10,860 samples) and Polar Sense (424 Hz, 46,391 samples) synchronized. `session_config.json` correctly captured `initial_bat_id = 3` ("Eye in bat", 1200g, 31cm knob, 55cm toe), `polar_mount_mode = "WRIST"`. Evaluated and compiled into `poc_unified_dataset/session_2026-09-06_11-41-57_unified.parquet` (44,877 rows, 67 columns).
 
 
 
