@@ -1028,4 +1028,30 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Fixed `session_2026-09-06_11-41-57` on disk: `b_acc_mag` correctly captures up to $166.65\text{ m/s}^2$ dynamics, and `p_acc_mag` is clamped to $0.0$.
         - All 49 Gradle unit tests pass cleanly (`BUILD SUCCESSFUL in 7s`).
 
+185. **Phone Batch Processing WakeLock & Wear OS Session Sync Handover Architecture (September 6, 2026)**:
+    *   **The Problem**: Following two live practice sessions (`session_2026-09-06_12-14-46` and `session_2026-09-06_12-35-47`), neither session displayed correctly in the phone companion app:
+        1. **Session 1 (19 mins, 65 shots)** was entirely missing from the phone app.
+        2. **Session 2 (5.3 mins, 27 shots)** displayed only "1 shot" (the initial session start event).
+    *   **Root Causes Uncovered**:
+        1. **Watch Sync Sleep & Premature WakeLock Release**: In `TrackerService.kt`, `wakeLock?.release()` was called inside `onDestroy()` *before* spawning the background thread to zip and sync the session over GMS `ChannelClient`. On Wear OS, display sleep timeout is ~5 seconds. For a 19-minute session with 17.1 MB of raw logs across 11 files, zipping and Bluetooth transfer requires 15–30 seconds. Without a wake lock, Wear OS put the CPU to sleep immediately upon arm drop, freezing or terminating the background sync thread mid-transfer.
+        2. **Phone Process Freezing Mid-Detection**: `DataSyncListenerService.kt` lacked `android.permission.WAKE_LOCK` in its manifest and did not acquire a `WakeLock` during `unzipAndProcessIncomingSession`. When the user finished batting and locked their phone, Android OS App Standby detected no active foreground service or wake lock, logging:
+           `ActivityManager: Stopping service due to app idle: ... DataSyncListenerService`
+           `ActivityManager: freezing com.mrpeel.cricketbattingtracker`
+           The OS froze the companion app in the middle of 28-channel ONNX batch inference, leaving only the initial `"Session Started"` entry in Room SQLite.
+    *   **The Architectural Fix**:
+        1. **Companion Phone App (`:app`)**:
+           - Declared `<uses-permission android:name="android.permission.WAKE_LOCK" />` in `AndroidManifest.xml`.
+           - In `DataSyncListenerService.kt`, acquired `PowerManager.PARTIAL_WAKE_LOCK` (`"CricketTracker::PhoneBatchProcessingWakeLock"`) with a 10-minute safety timeout across `unzipAndProcessIncomingSession`, releasing it in a `finally` block.
+        2. **Wear OS Smartwatch App (`:wear`)**:
+           - In `TrackerService.kt`, introduced a dedicated `syncWakeLock` (`PowerManager.PARTIAL_WAKE_LOCK`, `"CricketTracker::SessionSyncWakeLock"`). In `onDestroy()`, released the sensor recording wake lock, but acquired `syncWakeLock.acquire(10 * 60 * 1000L)` before starting the zipping/sync thread, releasing it in the thread's `finally` block.
+           - Added a 3-attempt retry loop with 2-second backoff in `syncRawDataToPhone` to handle transient Bluetooth connection establishment. Retains the zip file on disk if transmission fails.
+           - Implemented `checkAndSyncPendingSessions()` on `TrackerService.onCreate()` to automatically scan for leftover `*_raw.zip` files or unzipped completed session directories and sync them to the phone.
+    *   **Data Recovery & Verification**:
+        - Recovered 100% of raw watch, Polar, and narration files for both sessions via ADB.
+        - Session 1: 65 physical shots (Bat 3: "Eye in bat", 1200g, knob 31cm, toe 55cm, `b_acc_mag` max $271.5\text{ m/s}^2$, $R^2 = 0.9997$ 3-anchor alignment).
+        - Session 2: 27 physical shots (Bat 2: "Gray Nicholls Giant", 1625g, knob 31cm, toe 57cm, `b_acc_mag` max $184.8\text{ m/s}^2$).
+        - Compiled 423 Hz unified Parquets (`poc_unified_dataset/`) with `polar_mount_mode = 2`, `b_acc_*` active, and `p_acc_*` clamped to $0.0$.
+        - Reprocessed phone SQLite database and verified bit-for-bit on-device (`1788660886000` with 67 events, `1788662147000` with 29 events).
+        - All 49 unit tests passed cleanly (`BUILD SUCCESSFUL in 30s`). Release APKs built, signed, and 16 KB page-aligned.
+
 

@@ -64,7 +64,11 @@ fi
 # 2. Build Release APKs (better performance for physics testing)
 echo ""
 echo "📦 Building Release APKs (this may take a minute)..."
-export JAVA_HOME="$HOME/.jdk/jdk-17"
+if [ -d "$HOME/.gradle/jdks/jetbrains_s_r_o_-21-aarch64-os_x.2/jbrsdk_jcef-21.0.10-osx-aarch64-b1163.110/Contents/Home" ]; then
+    export JAVA_HOME="$HOME/.gradle/jdks/jetbrains_s_r_o_-21-aarch64-os_x.2/jbrsdk_jcef-21.0.10-osx-aarch64-b1163.110/Contents/Home"
+elif [ -d "$HOME/.jdk/jdk-17" ]; then
+    export JAVA_HOME="$HOME/.jdk/jdk-17"
+fi
 export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew assembleRelease -x lint -x test --no-daemon
 

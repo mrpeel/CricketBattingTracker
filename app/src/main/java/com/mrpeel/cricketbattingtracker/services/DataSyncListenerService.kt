@@ -9,6 +9,7 @@ import android.location.Location
 import android.location.LocationManager
 import android.location.LocationListener
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.wearable.DataEvent
@@ -603,10 +604,18 @@ class DataSyncListenerService : WearableListenerService() {
     }
 
     private suspend fun unzipAndProcessIncomingSession(zipFile: java.io.File) {
-        val database = AppDatabase.getDatabase(applicationContext)
-        val dao = database.inningsEventDao()
-        
-        val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
+        val powerManager = applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val wakeLock = powerManager?.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "CricketTracker::PhoneBatchProcessingWakeLock"
+        )
+        wakeLock?.acquire(10 * 60 * 1000L) // 10-minute maximum safety timeout
+        Log.d(TAG, "Acquired PhoneBatchProcessingWakeLock for incoming session processing")
+        try {
+            val database = AppDatabase.getDatabase(applicationContext)
+            val dao = database.inningsEventDao()
+            
+            val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(java.util.Date())
         
         // 1. Copy the incoming zip to permanent compressed zip file
         val permanentZipFile = java.io.File(getExternalFilesDir("watch_sessions"), "session_$timestamp.zip")
@@ -790,6 +799,14 @@ class DataSyncListenerService : WearableListenerService() {
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         applicationContext.startActivity(launchIntent)
+        } finally {
+            wakeLock?.let {
+                if (it.isHeld) {
+                    it.release()
+                    Log.d(TAG, "Released PhoneBatchProcessingWakeLock after session processing")
+                }
+            }
+        }
     }
 
     private fun unzip(zipFile: java.io.File, targetDirectory: java.io.File) {

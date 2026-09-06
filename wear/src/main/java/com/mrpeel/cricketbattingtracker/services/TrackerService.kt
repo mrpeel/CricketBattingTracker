@@ -40,8 +40,9 @@ class TrackerService : Service(), SensorEventListener {
     private var stepDetectorSensor: Sensor? = null
     private var heartRateSensor: Sensor? = null
     private var magnetometerSensor: Sensor? = null
-    
+    private lateinit var powerManager: PowerManager
     private var wakeLock: PowerManager.WakeLock? = null
+    private var syncWakeLock: PowerManager.WakeLock? = null
     private lateinit var dataSyncManager: DataSyncManager
     private lateinit var healthServicesManager: HealthServicesManager
     
@@ -131,8 +132,11 @@ class TrackerService : Service(), SensorEventListener {
         if (magnetometerSensor == null) Log.w(TAG, "Magnetometer NOT available — POWER SHOT override will rely on gyro magnitude only")
         
         // Setup wake lock to keep recording while screen is off
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::BattingWakeLock")
+
+        // Check for any pending or unsynced sessions from previous runs
+        checkAndSyncPendingSessions()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -338,6 +342,12 @@ class TrackerService : Service(), SensorEventListener {
             if (sDir != null && sDir.exists()) {
                 val parentDir = sDir.parentFile ?: getExternalFilesDir(null)!!
                 val zipFile = File(parentDir, "${sDir.name}_raw.zip")
+                
+                // Acquire sync wake lock to prevent Wear OS from sleeping during zipping and transmission
+                syncWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::SessionSyncWakeLock")
+                syncWakeLock?.acquire(10 * 60 * 1000L) // 10 minutes maximum
+                Log.d(TAG, "Acquired SessionSyncWakeLock for session packaging and sync")
+
                 Thread {
                     try {
                         Log.d(TAG, "Zipping session folder: ${sDir.absolutePath}")
@@ -346,6 +356,13 @@ class TrackerService : Service(), SensorEventListener {
                         syncRawDataToPhone(zipFile)
                     } catch (e: Exception) {
                         Log.e(TAG, "Zipping and syncing failed: ${e.message}", e)
+                    } finally {
+                        syncWakeLock?.let {
+                            if (it.isHeld) {
+                                it.release()
+                                Log.d(TAG, "Released SessionSyncWakeLock after session transfer attempt")
+                            }
+                        }
                     }
                 }.start()
             }
@@ -371,28 +388,95 @@ class TrackerService : Service(), SensorEventListener {
         val nodeClient = com.google.android.gms.wearable.Wearable.getNodeClient(this)
         val channelClient = com.google.android.gms.wearable.Wearable.getChannelClient(this)
         
-        try {
-            val nodes = com.google.android.gms.tasks.Tasks.await(nodeClient.connectedNodes)
-            val phoneNode = nodes.firstOrNull()
-            if (phoneNode == null) {
-                Log.e(TAG, "No phone node connected to sync raw data!")
-                return
+        var sentSuccessfully = false
+        val maxAttempts = 3
+        for (attempt in 1..maxAttempts) {
+            try {
+                val nodes = com.google.android.gms.tasks.Tasks.await(nodeClient.connectedNodes)
+                val phoneNode = nodes.firstOrNull()
+                if (phoneNode == null) {
+                    Log.w(TAG, "Attempt $attempt/$maxAttempts: No phone node connected to sync raw data")
+                    if (attempt < maxAttempts) Thread.sleep(2000)
+                    continue
+                }
+                
+                Log.d(TAG, "Attempt $attempt/$maxAttempts: Opening Channel to phone (${phoneNode.displayName}) under path /raw_session_data")
+                val channel = com.google.android.gms.tasks.Tasks.await(channelClient.openChannel(phoneNode.id, "/raw_session_data"))
+                
+                Log.d(TAG, "Sending zip file ${zipFile.name} (${zipFile.length()} bytes)...")
+                com.google.android.gms.tasks.Tasks.await(channelClient.sendFile(channel, android.net.Uri.fromFile(zipFile)))
+                Log.d(TAG, "✅ Zipped raw data sent successfully to phone!")
+                sentSuccessfully = true
+                break
+            } catch (e: Exception) {
+                Log.e(TAG, "Attempt $attempt/$maxAttempts failed: ${e.message}", e)
+                if (attempt < maxAttempts) Thread.sleep(2000)
             }
-            
-            Log.d(TAG, "Opening Channel to phone (${phoneNode.displayName}) under path /raw_session_data")
-            val channel = com.google.android.gms.tasks.Tasks.await(channelClient.openChannel(phoneNode.id, "/raw_session_data"))
-            
-            Log.d(TAG, "Sending zip file ${zipFile.name} (${zipFile.length()} bytes)...")
-            com.google.android.gms.tasks.Tasks.await(channelClient.sendFile(channel, android.net.Uri.fromFile(zipFile)))
-            Log.d(TAG, "✅ Zipped raw data sent successfully to phone!")
-            
+        }
+        
+        if (sentSuccessfully) {
             // Clean up the temporary zip file after successful send
             if (zipFile.exists()) {
                 zipFile.delete()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error syncing raw session zip to phone: ${e.message}", e)
+        } else {
+            Log.w(TAG, "⚠️ Failed to sync zip file ${zipFile.name} after $maxAttempts attempts. Retaining zip on disk for next retry.")
         }
+    }
+
+    private fun checkAndSyncPendingSessions() {
+        val sessionsParent = File(getExternalFilesDir(null), "sessions")
+        if (!sessionsParent.exists() || !sessionsParent.isDirectory) return
+
+        Thread {
+            try {
+                // 1. Look for already zipped sessions that failed to transfer previously
+                val pendingZips = sessionsParent.listFiles { file ->
+                    file.isFile && file.name.endsWith("_raw.zip") && file.length() > 1000
+                } ?: emptyArray()
+
+                for (zipFile in pendingZips) {
+                    Log.d(TAG, "Found pending session zip to transfer: ${zipFile.name} (${zipFile.length()} bytes)")
+                    val pendingWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::PendingSyncWakeLock")
+                    pendingWakeLock.acquire(5 * 60 * 1000L)
+                    try {
+                        syncRawDataToPhone(zipFile)
+                    } finally {
+                        if (pendingWakeLock.isHeld) pendingWakeLock.release()
+                    }
+                }
+
+                // 2. Also check for completed session folders that were never zipped
+                val sessionDirs = sessionsParent.listFiles { file ->
+                    file.isDirectory && file.name.startsWith("session-") && file != currentSessionDir
+                } ?: emptyArray()
+
+                for (sDir in sessionDirs) {
+                    val zipFile = File(sessionsParent, "${sDir.name}_raw.zip")
+                    if (!zipFile.exists()) {
+                        val ageMs = System.currentTimeMillis() - sDir.lastModified()
+                        val hasSensors = File(sDir, "WatchAccelerometer.bin.gz").exists() || 
+                                         File(sDir, "WatchAccelerometer.bin").exists() ||
+                                         File(sDir, "WatchGyroscope.bin.gz").exists()
+                        if (hasSensors && ageMs > 60_000L) {
+                            Log.d(TAG, "Found unzipped completed session folder: ${sDir.name}. Packaging and syncing...")
+                            val pendingWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CricketTracker::PendingSyncWakeLock")
+                            pendingWakeLock.acquire(5 * 60 * 1000L)
+                            try {
+                                zipDirectory(sDir, zipFile)
+                                syncRawDataToPhone(zipFile)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed packaging/syncing pending session: ${sDir.name}", e)
+                            } finally {
+                                if (pendingWakeLock.isHeld) pendingWakeLock.release()
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking pending session zips", e)
+            }
+        }.start()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
