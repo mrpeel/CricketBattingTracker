@@ -41,9 +41,8 @@ data class BatProfile(
     val batId: Int, // 1, 2, 3
     val name: String,
     val weightGrams: Float,
-    val handleType: String, // "Oval", "Round"
-    val sensorOffsetFromKnobCm: Float = 15.0f,
-    val sensorOffsetFromToeCm: Float = 70.0f
+    val sensorOffsetFromKnobCm: Float = 31.0f,
+    val sensorOffsetFromToeCm: Float = 57.0f
 )
 
 /** Timestamped bat switch event during a live practice session */
@@ -64,9 +63,9 @@ object BatSessionManager {
 
     // Default bat profiles
     private val DEFAULT_PROFILES = listOf(
-        BatProfile(1, "Primary Match Bat", 1220.0f, "Oval", 15.0f, 70.0f),
-        BatProfile(2, "Heavy Training Bat", 1350.0f, "Round", 15.0f, 70.0f),
-        BatProfile(3, "Indoor/Light Bat", 1100.0f, "Round", 15.0f, 70.0f)
+        BatProfile(1, "Game bat", 1425.0f, sensorOffsetFromKnobCm = 31.0f, sensorOffsetFromToeCm = 57.0f),
+        BatProfile(2, "Gray Nicholls Giant", 1625.0f, sensorOffsetFromKnobCm = 31.0f, sensorOffsetFromToeCm = 57.0f),
+        BatProfile(3, "Eye in bat", 1200.0f, sensorOffsetFromKnobCm = 31.0f, sensorOffsetFromToeCm = 55.0f)
     )
 
     private val _polarMountMode = MutableStateFlow(PolarMountMode.WRIST)
@@ -106,9 +105,8 @@ object BatSessionManager {
                             batId = obj.getInt("bat_id"),
                             name = obj.getString("name"),
                             weightGrams = obj.getDouble("weight_grams").toFloat(),
-                            handleType = obj.optString("handle_type", "Round"),
-                            sensorOffsetFromKnobCm = obj.optDouble("sensor_offset_from_knob_cm", 15.0).toFloat(),
-                            sensorOffsetFromToeCm = obj.optDouble("sensor_offset_from_toe_cm", 70.0).toFloat()
+                            sensorOffsetFromKnobCm = obj.optDouble("sensor_offset_from_knob_cm", 31.0).toFloat(),
+                            sensorOffsetFromToeCm = obj.optDouble("sensor_offset_from_toe_cm", 57.0).toFloat()
                         )
                     )
                 }
@@ -151,7 +149,6 @@ object BatSessionManager {
                 obj.put("bat_id", p.batId)
                 obj.put("name", p.name)
                 obj.put("weight_grams", p.weightGrams.toDouble())
-                obj.put("handle_type", p.handleType)
                 obj.put("sensor_offset_from_knob_cm", p.sensorOffsetFromKnobCm.toDouble())
                 obj.put("sensor_offset_from_toe_cm", p.sensorOffsetFromToeCm.toDouble())
                 arr.put(obj)
@@ -235,7 +232,6 @@ object BatSessionManager {
             pObj.put("bat_id", p.batId)
             pObj.put("name", p.name)
             pObj.put("weight_grams", p.weightGrams.toDouble())
-            pObj.put("handle_type", p.handleType)
             pObj.put("sensor_offset_from_knob_cm", p.sensorOffsetFromKnobCm.toDouble())
             pObj.put("sensor_offset_from_toe_cm", p.sensorOffsetFromToeCm.toDouble())
             profilesArr.put(pObj)

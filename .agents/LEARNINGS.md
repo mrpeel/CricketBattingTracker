@@ -986,3 +986,20 @@ This document captures resolved bugs, architectural changes, key logical finding
             *   `ALTER TABLE innings_events ADD COLUMN bat_id INTEGER DEFAULT NULL`
         *   `PhoneSwingDetector.kt` and `reprocess_sessions.py` resolve the exact active bat for every detected shot based on the shot's impact timestamp relative to switch events.
     *   **Verification**: All 49 unit test tasks pass cleanly (`JAVA_HOME=/Users/neilkloot/.jdk/jdk-17 ./gradlew testDebugUnitTest`). Both historical wrist datasets and bat-mounted datasets compile into Parquet with 100% integrity.
+182. **Second Sensor Terminology, Physical Bat Specs Retention & Retroactive Bat Tagging (September 6, 2026)**:
+    *   **Architectural Corrections**:
+        1. **Terminology Shift ("Second Sensor")**: Replaced all user-facing instances of "Bottom Hand Sensor" with "Second Sensor" across `MainActivity.kt` and `PolarSenseService.kt`. Position selector header updated to "SENSOR POSITION" with clear mode pills (`[ 🧤 WRIST ]` vs `[ 🏏 BAT HANDLE ]`), and leading console icon dynamically updates between `🧤` and `🏏` based on mount mode.
+        2. **Removal of Handle Shape**: Completely eliminated `handleType` ("Round" vs "Oval") from `BatProfile`, JSON configurations, Compose UI dialogs, and database tables, streamlining the data model.
+        3. **Physical Bat Specifications Retention**: Rather than storing volatile integer `bat_id` values that could become obsolete when user configurations shift, explicitly grounded bat telemetry in permanent physical dimensions: `bat_name`, `bat_weight_grams`, `bat_sensor_offset_knob_cm`, and `bat_sensor_offset_toe_cm`. These 4 specifications are persisted in Room SQLite DB (Migration 10 -> 11), `session_config.json`, `ground_truth_aligned.csv`, and unified Parquet datasets.
+        4. **Standard Physical Bat Specifications**:
+           - Bat 1: `"Game bat"`, `1425.0g`, `knob: 31.0cm`, `toe: 57.0cm`
+           - Bat 2: `"Gray Nicholls Giant"`, `1625.0g`, `knob: 31.0cm`, `toe: 57.0cm`
+           - Bat 3: `"Eye in bat"`, `1200.0g`, `knob: 31.0cm`, `toe: 55.0cm`
+    *   **Retroactive Bat Tagging (`pipelines/retroactive_bat_tagger.py`)**:
+        - Automated parsing of audio narration transcripts (`raw_transcript.txt`) across all 69 historical sessions. Detects spoken cues, self-corrections (e.g. *"round three gray nicolls sorry round three game bat"* selecting the last utterance), and multi-round rotations (`Bat 3 -> Bat 2 -> Bat 1` or `Bat 2 -> Bat 3 -> Bat 1`).
+        - Added `timestamp_offset_s` to switch events, decoupling sample indexing from watch boot clock drift.
+        - Tagged all 69 historical sessions with 100% accuracy: 54 multi-bat sessions, 7 single-bat sessions, 8 default game-bat sessions, updating 68 `ground_truth_aligned.csv` files and writing `session_config.json`.
+    *   **Verification**:
+        - Room Migration 10 -> 11 tested; 49/49 Gradle unit tests passed cleanly.
+        - Captured emulator screenshots: `screen_edit_bat_dialog.png` (clean edit dialog without handle shape), `record_screen_second_sensor.png` (Second Sensor with wrist selected), and `record_screen_bat_handle_selected.png` (dynamic bat emoji and bat handle selected).
+

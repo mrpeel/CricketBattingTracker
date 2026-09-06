@@ -621,30 +621,49 @@ def build_session(session_name, verbose=True):
 
     # Bat ID array across the timeline (handling mid-session bat switches)
     bat_id_arr = np.full(n_rows, initial_bat_id, dtype=np.int32)
-    if bat_switches and sys_start:
-        for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_ms", 0)):
-            sw_ms = sw.get("timestamp_ms", 0) - sys_start
+    if bat_switches:
+        for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_offset_s", 0) if "timestamp_offset_s" in x else x.get("timestamp_ms", 0)):
+            if "timestamp_offset_s" in sw:
+                sw_ms = float(sw["timestamp_offset_s"]) * 1000.0
+            elif sys_start:
+                sw_ms = float(sw.get("timestamp_ms", 0) - sys_start)
+            else:
+                sw_ms = 0.0
             sw_idx = int(sw_ms / grid_dt_ms)
             if 0 <= sw_idx < n_rows:
                 bat_id_arr[sw_idx:] = int(sw.get("bat_id", initial_bat_id))
 
+    def get_bat_name(bid):
+        if bid in bat_profiles:
+            return str(bat_profiles[bid].get("name", f"Bat {bid}"))
+        return "Unknown Bat" if bid > 0 else "None"
+
     def get_bat_weight(bid):
         if bid in bat_profiles:
-            return float(bat_profiles[bid].get("weight_grams", 1220.0))
-        return 1220.0 if bid > 0 else 0.0
+            return float(bat_profiles[bid].get("weight_grams", 1425.0))
+        return 1425.0 if bid > 0 else 0.0
 
     def get_bat_offset_knob(bid):
         if bid in bat_profiles:
-            return float(bat_profiles[bid].get("sensor_offset_from_knob_cm", 15.0))
-        return 15.0 if bid > 0 else 0.0
+            return float(bat_profiles[bid].get("sensor_offset_from_knob_cm", 31.0))
+        return 31.0 if bid > 0 else 0.0
+
+    def get_bat_offset_toe(bid):
+        if bid in bat_profiles:
+            return float(bat_profiles[bid].get("sensor_offset_from_toe_cm", 57.0))
+        return 57.0 if bid > 0 else 0.0
 
     unique_bats = np.unique(bat_id_arr)
+    bat_name_arr = np.full(n_rows, "None", dtype=object)
     bat_weight_arr = np.zeros(n_rows, dtype=np.float32)
     bat_offset_knob_arr = np.zeros(n_rows, dtype=np.float32)
+    bat_offset_toe_arr = np.zeros(n_rows, dtype=np.float32)
     for ub in unique_bats:
         mask = (bat_id_arr == ub)
+        bat_name_arr[mask] = get_bat_name(ub)
         bat_weight_arr[mask] = get_bat_weight(ub)
         bat_offset_knob_arr[mask] = get_bat_offset_knob(ub)
+        bat_offset_toe_arr[mask] = get_bat_offset_toe(ub)
 
     # Raw polar readings (preserved regardless of mounting position)
     raw_polar_acc_x = p_acc_grid[:, 0]
@@ -688,8 +707,10 @@ def build_session(session_name, verbose=True):
     df['has_polar'] = int(has_polar)
     df['polar_mount_mode'] = polar_mount_mode
     df['bat_id'] = bat_id_arr
+    df['bat_name'] = bat_name_arr
     df['bat_weight_grams'] = bat_weight_arr
     df['bat_sensor_offset_knob_cm'] = bat_offset_knob_arr
+    df['bat_sensor_offset_toe_cm'] = bat_offset_toe_arr
 
     df['w_acc_x'] = w_acc_grid[:,0]; df['w_acc_y'] = w_acc_grid[:,1]; df['w_acc_z'] = w_acc_grid[:,2]
     df['w_gyro_x'] = w_gyro_grid[:,0]; df['w_gyro_y'] = w_gyro_grid[:,1]; df['w_gyro_z'] = w_gyro_grid[:,2]

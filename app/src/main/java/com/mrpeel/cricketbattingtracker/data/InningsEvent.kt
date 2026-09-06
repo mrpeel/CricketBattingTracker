@@ -61,6 +61,10 @@ data class InningsEvent(
     val videoFilePath: String? = null,
     val polar_mount_mode: String? = null,
     val bat_id: Int? = null,
+    val bat_name: String? = null,
+    val bat_weight_grams: Float? = null,
+    val bat_sensor_offset_knob_cm: Float? = null,
+    val bat_sensor_offset_toe_cm: Float? = null,
 )
 
 @Entity(tableName = "heart_rate_events")

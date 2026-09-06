@@ -2567,7 +2567,6 @@ fun BatProfileEditDialog(
 ) {
     var name by remember { mutableStateOf(profile.name) }
     var weightText by remember { mutableStateOf(profile.weightGrams.toInt().toString()) }
-    var handleType by remember { mutableStateOf(profile.handleType) }
     var knobOffsetText by remember { mutableStateOf(profile.sensorOffsetFromKnobCm.toString()) }
     var toeOffsetText by remember { mutableStateOf(profile.sensorOffsetFromToeCm.toString()) }
 
@@ -2609,58 +2608,18 @@ fun BatProfileEditDialog(
                     singleLine = true
                 )
 
-                Row(
+                OutlinedTextField(
+                    value = weightText,
+                    onValueChange = { weightText = it.filter { c -> c.isDigit() } },
+                    label = { Text("Weight (g)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
+                    ),
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = weightText,
-                        onValueChange = { weightText = it.filter { c -> c.isDigit() } },
-                        label = { Text("Weight (g)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            focusedLabelColor = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "HANDLE",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Gray,
-                            letterSpacing = 0.5.sp
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("ROUND", "OVAL").forEach { type ->
-                                val selected = handleType.equals(type, ignoreCase = true)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (selected) MaterialTheme.colorScheme.primary
-                                            else Color.White.copy(alpha = 0.05f)
-                                        )
-                                        .clickable { handleType = type }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        type,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (selected) Color(0xFF000C1B) else Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                    singleLine = true
+                )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2712,7 +2671,6 @@ fun BatProfileEditDialog(
                             val updated = profile.copy(
                                 name = name.ifBlank { "Bat ${profile.batId}" },
                                 weightGrams = weightText.toFloatOrNull() ?: profile.weightGrams,
-                                handleType = handleType,
                                 sensorOffsetFromKnobCm = knobOffsetText.toFloatOrNull() ?: profile.sensorOffsetFromKnobCm,
                                 sensorOffsetFromToeCm = toeOffsetText.toFloatOrNull() ?: profile.sensorOffsetFromToeCm
                             )
@@ -2892,10 +2850,11 @@ fun UnifiedConsoleCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Text("🧤", fontSize = 18.sp, modifier = Modifier.padding(end = 12.dp))
+                            val secondSensorEmoji = if (mountMode == com.mrpeel.cricketbattingtracker.services.PolarMountMode.BAT_HANDLE) "🏏" else "🧤"
+                            Text(secondSensorEmoji, fontSize = 18.sp, modifier = Modifier.padding(end = 12.dp))
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Bottom Hand Sensor", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("Second Sensor", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     val (sensorIconId, sensorIconTint, sensorIconDesc) = when {
                                          pairedDevice == null -> {
@@ -2917,7 +2876,7 @@ fun UnifiedConsoleCard(
                                     )
                                 }
                                 Text(
-                                    text = pairedDevice?.let { "Polar Sense ID: $it" } ?: "Pair your sensor first",
+                                    text = pairedDevice?.let { "Polar Sense ID: $it" } ?: "Pair second sensor (Polar Sense)",
                                     fontSize = 10.sp,
                                     color = Color.Gray
                                 )
@@ -2944,7 +2903,7 @@ fun UnifiedConsoleCard(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                "POLAR MOUNT POSITION",
+                                "SENSOR POSITION",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.secondary,
@@ -3077,7 +3036,7 @@ fun UnifiedConsoleCard(
                             val currentProfile = batProfiles.firstOrNull { it.batId == activeBatId } ?: batProfiles.firstOrNull()
                             if (currentProfile != null) {
                                 Text(
-                                    "${currentProfile.weightGrams.toInt()}g • ${currentProfile.handleType}",
+                                    "${currentProfile.weightGrams.toInt()}g",
                                     fontSize = 9.sp,
                                     color = Color.Gray
                                 )
@@ -3121,13 +3080,11 @@ fun UnifiedConsoleCard(
                                                 fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                                                 color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White
                                             )
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .clickable { editingProfile = profile },
-                                                contentAlignment = Alignment.Center
+                                            IconButton(
+                                                onClick = { editingProfile = profile },
+                                                modifier = Modifier.size(24.dp)
                                             ) {
-                                                Text("⚙️", fontSize = 10.sp)
+                                                Text("⚙️", fontSize = 11.sp)
                                             }
                                         }
                                         Text(
@@ -3491,7 +3448,7 @@ fun PolarPairingScreen(
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text("POLAR SENSE PAIRING", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
-                Text("Configure bottom hand arm sensor", fontSize = 10.sp, color = Color.Gray)
+                Text("Configure secondary sensor (Polar Verity Sense)", fontSize = 10.sp, color = Color.Gray)
             }
         }
 

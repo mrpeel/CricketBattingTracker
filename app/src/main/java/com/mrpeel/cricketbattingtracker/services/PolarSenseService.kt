@@ -218,7 +218,7 @@ class PolarSenseService : Service() {
     private fun startForegroundWithNotification() {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Polar Sense Streaming")
-            .setContentText("Bottom hand sensor — 52Hz ACC + GYRO (Binary)")
+            .setContentText("Second sensor — 52Hz/423Hz IMU")
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setOngoing(true)
             .build()

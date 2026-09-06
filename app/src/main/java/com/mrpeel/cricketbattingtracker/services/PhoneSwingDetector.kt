@@ -78,13 +78,18 @@ object PhoneSwingDetector {
         // Clear any pre-existing timeline entries for this innings to prevent duplicate insertions
         dao.deleteTimelineForInningsSync(inningsId)
 
+        val defaultProfile = sessionConfig.batProfiles[sessionConfig.defaultBatId]
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
             timestamp = watchStartWallMs,
             description = "Session Started",
             location = "Net Practice",
             polar_mount_mode = sessionConfig.polarMountMode,
-            bat_id = sessionConfig.defaultBatId
+            bat_id = sessionConfig.defaultBatId,
+            bat_name = defaultProfile?.name,
+            bat_weight_grams = defaultProfile?.weightGrams,
+            bat_sensor_offset_knob_cm = defaultProfile?.sensorOffsetFromKnobCm,
+            bat_sensor_offset_toe_cm = defaultProfile?.sensorOffsetFromToeCm
         ))
 
         // A. Load Polar data if available
@@ -503,7 +508,11 @@ object PhoneSwingDetector {
                 swing_feature_s3_plane_ratio = features.s3_planeRatio,
                 swing_feature_s3_gyro_y_min = features.s3_gyro_y_min,
                 polar_mount_mode = sessionConfig.polarMountMode,
-                bat_id = batIdForShot
+                bat_id = batIdForShot,
+                bat_name = sessionConfig.batProfiles[batIdForShot]?.name,
+                bat_weight_grams = sessionConfig.batProfiles[batIdForShot]?.weightGrams,
+                bat_sensor_offset_knob_cm = sessionConfig.batProfiles[batIdForShot]?.sensorOffsetFromKnobCm,
+                bat_sensor_offset_toe_cm = sessionConfig.batProfiles[batIdForShot]?.sensorOffsetFromToeCm
             ))
         }
 
@@ -522,13 +531,18 @@ object PhoneSwingDetector {
         // Write "Session Ended" marker
         val watchEndMs = watchAcc.last().timeNanos / 1_000_000L
         val sessionEndWallMs = watchStartWallMs + (watchEndMs - (watchStartSensorNs / 1_000_000L))
+        val endProfile = sessionConfig.batProfiles[sessionConfig.defaultBatId]
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
             timestamp = sessionEndWallMs,
             description = "Session Ended",
             location = "Net Practice",
             polar_mount_mode = sessionConfig.polarMountMode,
-            bat_id = sessionConfig.defaultBatId
+            bat_id = sessionConfig.defaultBatId,
+            bat_name = endProfile?.name,
+            bat_weight_grams = endProfile?.weightGrams,
+            bat_sensor_offset_knob_cm = endProfile?.sensorOffsetFromKnobCm,
+            bat_sensor_offset_toe_cm = endProfile?.sensorOffsetFromToeCm
         ))
 
         // Set processed flag
@@ -1654,12 +1668,15 @@ object PhoneSwingDetector {
     private data class SessionConfigInfo(
         val polarMountMode: String,
         val batSwitches: List<Pair<Long, Int>>,
-        val defaultBatId: Int
+        val defaultBatId: Int,
+        val batProfiles: Map<Int, BatProfile>
     )
 
     private fun parseSessionConfig(watchDir: File, polarDir: File?): SessionConfigInfo {
         val configFile = File(watchDir, "session_config.json").takeIf { it.exists() }
             ?: polarDir?.let { File(it, "session_config.json").takeIf { f -> f.exists() } }
+
+        val fallbackProfiles = BatSessionManager.batProfiles.value.associateBy { it.batId }
 
         if (configFile != null) {
             try {
@@ -1674,13 +1691,29 @@ object PhoneSwingDetector {
                         switches.add(Pair(sObj.getLong("timestamp_ms"), sObj.getInt("bat_id")))
                     }
                 }
-                return SessionConfigInfo(mountMode, switches, defaultBat)
+                val profilesMap = mutableMapOf<Int, BatProfile>()
+                val profilesArr = json.optJSONArray("bat_profiles")
+                if (profilesArr != null) {
+                    for (i in 0 until profilesArr.length()) {
+                        val pObj = profilesArr.getJSONObject(i)
+                        val pId = pObj.getInt("bat_id")
+                        profilesMap[pId] = BatProfile(
+                            batId = pId,
+                            name = pObj.getString("name"),
+                            weightGrams = pObj.getDouble("weight_grams").toFloat(),
+                            sensorOffsetFromKnobCm = pObj.optDouble("sensor_offset_from_knob_cm", 31.0).toFloat(),
+                            sensorOffsetFromToeCm = pObj.optDouble("sensor_offset_from_toe_cm", 57.0).toFloat()
+                        )
+                    }
+                }
+                val finalProfiles = if (profilesMap.isNotEmpty()) profilesMap else fallbackProfiles
+                return SessionConfigInfo(mountMode, switches, defaultBat, finalProfiles)
             } catch (e: Exception) {
                 Log.e(TAG, "Error reading session_config.json", e)
             }
         }
         val activeMount = BatSessionManager.polarMountMode.value.value
         val activeBat = BatSessionManager.activeBatId.value
-        return SessionConfigInfo(activeMount, emptyList(), activeBat)
+        return SessionConfigInfo(activeMount, emptyList(), activeBat, fallbackProfiles)
     }
 }

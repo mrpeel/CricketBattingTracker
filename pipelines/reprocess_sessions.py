@@ -956,7 +956,11 @@ def main():
             swing_feature_s3_gyro_y_min REAL,
             videoFilePath TEXT,
             polar_mount_mode TEXT,
-            bat_id INTEGER
+            bat_id INTEGER,
+            bat_name TEXT,
+            bat_weight_grams REAL,
+            bat_sensor_offset_knob_cm REAL,
+            bat_sensor_offset_toe_cm REAL
         )
     """)
     c.execute("""
@@ -994,6 +998,7 @@ def main():
         polar_mount_mode = "WRIST" if has_polar_dir else "NONE"
         initial_bat_id = 1 if polar_mount_mode == "BAT_HANDLE" else 0
         bat_switches = []
+        bat_profiles = {}
         if os.path.exists(cfg_file):
             try:
                 with open(cfg_file, "r") as cf:
@@ -1001,17 +1006,40 @@ def main():
                     polar_mount_mode = cdata.get("polar_mount_mode", polar_mount_mode)
                     initial_bat_id = int(cdata.get("initial_bat_id", 1 if polar_mount_mode == "BAT_HANDLE" else 0))
                     bat_switches = cdata.get("bat_switches", [])
+                    for p in cdata.get("bat_profiles", []):
+                        bat_profiles[int(p["bat_id"])] = p
             except Exception as e:
                 pass
+
+        def get_bat_specs(bid):
+            if bid in bat_profiles:
+                p = bat_profiles[bid]
+                return (
+                    p.get("name", f"Bat {bid}"),
+                    float(p.get("weight_grams", 1425.0)),
+                    float(p.get("sensor_offset_from_knob_cm", 31.0)),
+                    float(p.get("sensor_offset_from_toe_cm", 57.0))
+                )
+            if bid == 1:
+                return ("Game bat", 1425.0, 31.0, 57.0)
+            elif bid == 2:
+                return ("Gray Nicholls Giant", 1625.0, 31.0, 57.0)
+            elif bid == 3:
+                return ("Eye in bat", 1200.0, 31.0, 55.0)
+            return (None, None, None, None)
         
         # Re-run peak detection and classifications
         shots = process_single_session_raw(sdir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual)
         
+        init_name, init_weight, init_knob, init_toe = get_bat_specs(initial_bat_id)
         # Write Session Started marker
         c.execute("""
-            INSERT INTO innings_events (inningsId, timestamp, description, location, polar_mount_mode, bat_id)
-            VALUES (?, ?, 'Session Started', '26 Aldinga Street, Blackburn South', ?, ?)
-        """, (session_start_ms, session_start_ms, polar_mount_mode, initial_bat_id))
+            INSERT INTO innings_events (
+                inningsId, timestamp, description, location, polar_mount_mode, bat_id,
+                bat_name, bat_weight_grams, bat_sensor_offset_knob_cm, bat_sensor_offset_toe_cm
+            )
+            VALUES (?, ?, 'Session Started', '26 Aldinga Street, Blackburn South', ?, ?, ?, ?, ?, ?)
+        """, (session_start_ms, session_start_ms, polar_mount_mode, initial_bat_id, init_name, init_weight, init_knob, init_toe))
 
         # Insert each shot
         for i, shot in enumerate(shots, 1):
@@ -1035,6 +1063,8 @@ def main():
                     if sw.get("timestamp_ms", 0) <= shot_time_ms:
                         curr_bat_id = int(sw.get("bat_id", curr_bat_id))
 
+            curr_name, curr_weight, curr_knob, curr_toe = get_bat_specs(curr_bat_id)
+
             c.execute("""
                 INSERT INTO innings_events (
                     inningsId, timestamp, description, batSpeed, impactForce, impactTimeMs, shotType, efficiency,
@@ -1043,11 +1073,13 @@ def main():
                     swing_feature_s1_gyro_y_std, swing_feature_s1_gyro_z_std, swing_feature_s1_delta_x, swing_feature_s1_delta_z,
                     swing_feature_s2_gyro_mag, swing_feature_s2_grav_y_mean, swing_feature_s2_delta_x, swing_feature_s2_delta_z,
                     swing_feature_s3_roll_deg, swing_feature_s3_yaw_deg, swing_feature_s3_delta_x, swing_feature_s3_delta_z,
-                    swing_feature_s3_plane_ratio, swing_feature_s3_gyro_y_min, polar_mount_mode, bat_id
+                    swing_feature_s3_plane_ratio, swing_feature_s3_gyro_y_min, polar_mount_mode, bat_id,
+                    bat_name, bat_weight_grams, bat_sensor_offset_knob_cm, bat_sensor_offset_toe_cm
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, '26 Aldinga Street, Blackburn South',
                     ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
@@ -1062,15 +1094,21 @@ def main():
                 f.get('s1_gyro_y_std'), f.get('s1_gyro_z_std'), f.get('s1_deltaX'), f.get('s1_deltaZ'),
                 f.get('s2_gyroMag'), f.get('s2_grav_y_mean'), f.get('s2_deltaX'), f.get('s2_deltaZ'),
                 f.get('s3_rollImpactDeg'), f.get('s3_yawImpactDeg'), f.get('s3_deltaX'), f.get('s3_deltaZ'),
-                f.get('s3_planeRatio'), f.get('s3_gyro_y_min'), polar_mount_mode, curr_bat_id
+                f.get('s3_planeRatio'), f.get('s3_gyro_y_min'), polar_mount_mode, curr_bat_id,
+                curr_name, curr_weight, curr_knob, curr_toe
             ))
             
         # Write Session Ended marker
         session_end_ms = session_start_ms + (int(shots[-1]["timestamp_offset_s"] * 1000) if shots else 10000)
+        end_bat_id = curr_bat_id if shots else initial_bat_id
+        end_name, end_weight, end_knob, end_toe = get_bat_specs(end_bat_id)
         c.execute("""
-            INSERT INTO innings_events (inningsId, timestamp, description, location, polar_mount_mode, bat_id)
-            VALUES (?, ?, 'Session Ended', '26 Aldinga Street, Blackburn South', ?, ?)
-        """, (session_start_ms, session_end_ms, polar_mount_mode, curr_bat_id if shots else initial_bat_id))
+            INSERT INTO innings_events (
+                inningsId, timestamp, description, location, polar_mount_mode, bat_id,
+                bat_name, bat_weight_grams, bat_sensor_offset_knob_cm, bat_sensor_offset_toe_cm
+            )
+            VALUES (?, ?, 'Session Ended', '26 Aldinga Street, Blackburn South', ?, ?, ?, ?, ?, ?)
+        """, (session_start_ms, session_end_ms, polar_mount_mode, end_bat_id, end_name, end_weight, end_knob, end_toe))
         conn.commit()
         
         # Calculate statistics and density heuristics
