@@ -1054,4 +1054,15 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Reprocessed phone SQLite database and verified bit-for-bit on-device (`1788660886000` with 67 events, `1788662147000` with 29 events).
         - All 49 unit tests passed cleanly (`BUILD SUCCESSFUL in 30s`). Release APKs built, signed, and 16 KB page-aligned.
 
+186. **Room Database Identity Hash Schema Verification Fix in `reprocess_sessions.py` (September 6, 2026)**:
+    *   **The Problem**: After updating the phone database via `reprocess_sessions.py`, launching the app briefly displayed "0 shots" in history before crashing instantly.
+    *   **Root Cause**: In logcat:
+        `java.lang.IllegalStateException: Room cannot verify the data integrity. Looks like you've changed schema but forgot to update the version number. Expected identity hash: 0663d4b5cc3a66d7b6e980a4f2ee357c, found: 4197930eacda110a86a6fdb1e037f5fe`
+        When bat specs columns were added in Room Migration 10 -> 11, Room's compiler generated a new expected identity hash (`0663d4b5cc3a66d7b6e980a4f2ee357c`). However, `reprocess_sessions.py` line 975 still hardcoded the legacy v10 hash (`4197930eacda110a86a6fdb1e037f5fe`). When Room opened the SQLite file, it compared `room_master_table` against its expected hash, threw `IllegalStateException`, and crashed the application.
+    *   **The Solution**:
+        1. Updated `pipelines/reprocess_sessions.py` line 975 to insert the valid Room v11 hash `0663d4b5cc3a66d7b6e980a4f2ee357c`.
+        2. Executed SQLite update on the database and pushed it back to the phone.
+        3. Installed the updated release APK to the physical device.
+    *   **Verification**: Verified via ADB logcat that `com.mrpeel.cricketbattingtracker` started cleanly with zero crashes, opened Room database tables without error, and persisted all session history.
+
 
