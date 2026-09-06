@@ -87,8 +87,14 @@ object BatSessionManager {
         if (initialized) return
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        val mountStr = prefs.getString(KEY_MOUNT_MODE, PolarMountMode.WRIST.value)
-        _polarMountMode.value = PolarMountMode.fromString(mountStr)
+        val mountStr = prefs.getString(KEY_MOUNT_MODE, null)
+        if (mountStr != null) {
+            _polarMountMode.value = PolarMountMode.fromString(mountStr)
+        } else {
+            // Explicitly persist default WRIST to preferences so disk is never missing the key
+            prefs.edit().putString(KEY_MOUNT_MODE, PolarMountMode.WRIST.value).commit()
+            _polarMountMode.value = PolarMountMode.WRIST
+        }
 
         val activeId = prefs.getInt(KEY_ACTIVE_BAT_ID, 1)
         _activeBatId.value = activeId.coerceIn(1, 3)
@@ -114,28 +120,25 @@ object BatSessionManager {
                     _batProfiles.value = list
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error parsing saved bat profiles JSON: ${e.message}", e)
+                Log.e(TAG, "Error parsing bat profiles from prefs: ${e.message}", e)
             }
         }
         initialized = true
+        Log.d(TAG, "BatSessionManager initialized: mountMode=${_polarMountMode.value}, activeBat=${_activeBatId.value}")
     }
 
-    /** Set and persist Polar Mount Mode (WRIST vs BAT_HANDLE) */
+    /** Update mounting location (Wrist vs Bat Handle) */
     fun setMountMode(context: Context, mode: PolarMountMode) {
         _polarMountMode.value = mode
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_MOUNT_MODE, mode.value).apply()
-        Log.d(TAG, "Updated Polar Mount Mode: $mode")
+        prefs.edit().putString(KEY_MOUNT_MODE, mode.value).commit()
+        Log.d(TAG, "Updated Polar Mount Mode: $mode (persisted to prefs)")
     }
 
     /** Update a specific bat profile (1, 2, or 3) and persist */
-    fun updateBatProfile(context: Context, profile: BatProfile) {
-        val currentList = _batProfiles.value.toMutableList()
-        val idx = currentList.indexOfFirst { it.batId == profile.batId }
-        if (idx >= 0) {
-            currentList[idx] = profile
-        } else {
-            currentList.add(profile)
+    fun updateBatProfile(context: Context, updated: BatProfile) {
+        val currentList = _batProfiles.value.map {
+            if (it.batId == updated.batId) updated else it
         }
         _batProfiles.value = currentList
         saveProfilesToPrefs(context, currentList)
@@ -154,7 +157,7 @@ object BatSessionManager {
                 arr.put(obj)
             }
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putString(KEY_BAT_PROFILES, arr.toString()).apply()
+            prefs.edit().putString(KEY_BAT_PROFILES, arr.toString()).commit()
         } catch (e: Exception) {
             Log.e(TAG, "Error saving bat profiles to prefs: ${e.message}", e)
         }
@@ -170,7 +173,7 @@ object BatSessionManager {
 
         context?.let {
             val prefs = it.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putInt(KEY_ACTIVE_BAT_ID, validId).apply()
+            prefs.edit().putInt(KEY_ACTIVE_BAT_ID, validId).commit()
         }
 
         if (isSessionActive) {
@@ -219,9 +222,17 @@ object BatSessionManager {
     }
 
     /** Generate standard JSON configuration string for this session */
-    fun createSessionConfigJson(startTimeMs: Long, endTimeMs: Long): String {
+    fun createSessionConfigJson(startTimeMs: Long, endTimeMs: Long, context: Context? = null): String {
         val root = JSONObject()
-        root.put("polar_mount_mode", _polarMountMode.value.value)
+        // Ensure we respect persisted preference if context is available
+        val effectiveMountMode = if (context != null) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val saved = prefs.getString(KEY_MOUNT_MODE, null)
+            if (saved != null) PolarMountMode.fromString(saved) else _polarMountMode.value
+        } else {
+            _polarMountMode.value
+        }
+        root.put("polar_mount_mode", effectiveMountMode.value)
         root.put("initial_bat_id", batSwitches.firstOrNull()?.batId ?: _activeBatId.value)
         root.put("start_time_ms", startTimeMs)
         root.put("end_time_ms", endTimeMs)
@@ -253,17 +264,25 @@ object BatSessionManager {
     }
 
     /** Write session_config.json to target session directory */
-    fun writeSessionConfigFile(targetDir: File, startTimeMs: Long, endTimeMs: Long): File? {
+    fun writeSessionConfigFile(context: Context? = null, targetDir: File, startTimeMs: Long, endTimeMs: Long): File? {
         return try {
+            if (context != null && !initialized) {
+                initialize(context)
+            }
             if (!targetDir.exists()) targetDir.mkdirs()
             val file = File(targetDir, "session_config.json")
-            file.writeText(createSessionConfigJson(startTimeMs, endTimeMs))
+            file.writeText(createSessionConfigJson(startTimeMs, endTimeMs, context))
             Log.d(TAG, "Saved session_config.json to: ${file.absolutePath}")
             file
         } catch (e: Exception) {
             Log.e(TAG, "Failed to write session_config.json: ${e.message}", e)
             null
         }
+    }
+
+    /** Backward-compatible overload for non-context callers */
+    fun writeSessionConfigFile(targetDir: File, startTimeMs: Long, endTimeMs: Long): File? {
+        return writeSessionConfigFile(null, targetDir, startTimeMs, endTimeMs)
     }
 
     private fun sendBatSwitchToWatch(context: Context, batId: Int, timestampMs: Long) {

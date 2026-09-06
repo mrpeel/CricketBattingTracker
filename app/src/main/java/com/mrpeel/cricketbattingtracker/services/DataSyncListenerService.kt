@@ -30,6 +30,7 @@ class DataSyncListenerService : WearableListenerService() {
 
     override fun onCreate() {
         super.onCreate()
+        BatSessionManager.initialize(this)
         Log.d(TAG, "DataSyncListenerService onCreate: checking for unprocessed incoming sessions...")
         val sessionsDir = java.io.File(getExternalFilesDir(null), "watch_sessions_incoming")
         val tempZipFile = java.io.File(sessionsDir, "temp_session_raw.zip")
@@ -688,7 +689,7 @@ class DataSyncListenerService : WearableListenerService() {
         // Ensure session_config.json exists in filesDir
         val sessionConfigFile = java.io.File(filesDir, "session_config.json")
         if (!sessionConfigFile.exists()) {
-            BatSessionManager.writeSessionConfigFile(filesDir, resolvedStartMs, System.currentTimeMillis())
+            BatSessionManager.writeSessionConfigFile(this, filesDir, resolvedStartMs, System.currentTimeMillis())
         }
 
         // Find matching Polar session directory or zip file on the phone
@@ -729,6 +730,20 @@ class DataSyncListenerService : WearableListenerService() {
                 }
             } else {
                 file
+            }
+        }
+
+        // If the matched Polar session has an authoritative session_config.json written during live recording,
+        // sync it to filesDir so watch directory contains the exact live configuration.
+        finalPolarDir?.let { pDir ->
+            val polarConfig = java.io.File(pDir, "session_config.json")
+            if (polarConfig.exists()) {
+                try {
+                    polarConfig.copyTo(java.io.File(filesDir, "session_config.json"), overwrite = true)
+                    Log.d(TAG, "Synced live session_config.json from Polar dir to watch filesDir")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed syncing session_config.json from Polar dir: ${e.message}")
+                }
             }
         }
 

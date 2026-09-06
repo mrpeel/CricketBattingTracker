@@ -40,6 +40,7 @@ class PolarSenseService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        BatSessionManager.initialize(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -78,7 +79,7 @@ class PolarSenseService : Service() {
         dir.mkdirs()
         sessionDir = dir
         sessionStartTimeMs = System.currentTimeMillis()
-        BatSessionManager.writeSessionConfigFile(dir, sessionStartTimeMs, 0L)
+        BatSessionManager.writeSessionConfigFile(this, dir, sessionStartTimeMs, 0L)
 
         val accFile = File(dir, "PolarAccelerometer.bin")
         accStream = BufferedOutputStream(FileOutputStream(accFile))
@@ -171,7 +172,7 @@ class PolarSenseService : Service() {
         if (compress) {
             sessionDir?.let { dir ->
                 if (dir.exists()) {
-                    BatSessionManager.writeSessionConfigFile(dir, sessionStartTimeMs, System.currentTimeMillis())
+                    BatSessionManager.writeSessionConfigFile(this, dir, sessionStartTimeMs, System.currentTimeMillis())
                     val zipFile = File(dir.parentFile, "${dir.name}.zip")
                     try {
                         zipDirectory(dir, zipFile)

@@ -2917,30 +2917,30 @@ fun UnifiedConsoleCard(
                                 val isBat = mountMode == com.mrpeel.cricketbattingtracker.services.PolarMountMode.BAT_HANDLE
 
                                 // Wrist pill
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isWrist) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
-                                        .border(
-                                            1.dp,
-                                            if (isWrist) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f),
-                                            RoundedCornerShape(8.dp)
+                                Surface(
+                                    onClick = {
+                                        com.mrpeel.cricketbattingtracker.services.BatSessionManager.setMountMode(
+                                            context,
+                                            com.mrpeel.cricketbattingtracker.services.PolarMountMode.WRIST
                                         )
-                                        .clickable {
-                                            com.mrpeel.cricketbattingtracker.services.BatSessionManager.setMountMode(
-                                                context,
-                                                com.mrpeel.cricketbattingtracker.services.PolarMountMode.WRIST
-                                            )
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isWrist) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isWrist) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f)
+                                    )
                                 ) {
                                     Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
                                         Text("🧤", fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "WRIST",
                                             fontSize = 11.sp,
@@ -2951,30 +2951,30 @@ fun UnifiedConsoleCard(
                                 }
 
                                 // Bat Handle pill
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isBat) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
-                                        .border(
-                                            1.dp,
-                                            if (isBat) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f),
-                                            RoundedCornerShape(8.dp)
+                                Surface(
+                                    onClick = {
+                                        com.mrpeel.cricketbattingtracker.services.BatSessionManager.setMountMode(
+                                            context,
+                                            com.mrpeel.cricketbattingtracker.services.PolarMountMode.BAT_HANDLE
                                         )
-                                        .clickable {
-                                            com.mrpeel.cricketbattingtracker.services.BatSessionManager.setMountMode(
-                                                context,
-                                                com.mrpeel.cricketbattingtracker.services.PolarMountMode.BAT_HANDLE
-                                            )
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isBat) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isBat) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f)
+                                    )
                                 ) {
                                     Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
                                         Text("🏏", fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "BAT HANDLE",
                                             fontSize = 11.sp,

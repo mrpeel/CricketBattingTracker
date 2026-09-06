@@ -1011,3 +1011,21 @@ This document captures resolved bugs, architectural changes, key logical finding
         3. Added resolution and population of `bat_name`, `bat_weight_grams`, `bat_sensor_offset_knob_cm`, and `bat_sensor_offset_toe_cm` from `bat_profiles` directly into `ground_truth_aligned.csv` and unified Parquet datasets.
     *   **Verification**: Processed live session `session_2026-09-06_11-41-57` (100 Hz Watch, 424 Hz Polar, 7 physical shots), confirming 100% propagation of Bat 3 ("Eye in bat", 1200g, 31cm knob, 55cm toe) across both CSV and 44,877-row Parquet files.
 
+184. **Sensor Position Persistence, Surface Touch Targets & Multi-Service Lifecycle Alignment (September 6, 2026)**:
+    *   **The Problem**: During live session `session_2026-09-06_11-41-57`, the user mounted the Polar Verity Sense on the bat handle and selected "BAT HANDLE" in the UI. However, `session_config.json` recorded `"polar_mount_mode": "WRIST"`, causing bat accelerations (up to $166.65\text{ m/s}^2$) to route to wrist channels and clamping bat channels to $0.0$.
+    *   **Root Causes Uncovered**:
+        1. **Service Process Lifecycle Decoupling**: Background services (`PolarSenseService` and `DataSyncListenerService`) run independently of `MainActivity`. Neither service previously invoked `BatSessionManager.initialize(context)`. If a service started without `MainActivity` running or after process recreation, `BatSessionManager` defaulted to in-memory `PolarMountMode.WRIST`.
+        2. **Asynchronous Preference Writes**: `setMountMode` previously relied on `apply()`, which writes asynchronously. Furthermore, on first initialization, if `KEY_MOUNT_MODE` was absent, `BatSessionManager` did not persist the default value to `SharedPreferences`, leaving `pitch_analytix_prefs.xml` completely devoid of the key on disk.
+        3. **Compose Modifier Hit-Testing & Small Touch Target**: The UI selector pills used `Box` with `.clip()`, `.border()`, and `.clickable {}` chaining without an explicit minimum touch height (~30dp height), which could miss touch events under subtle layout shifts or gloved hands, lacking Material ripple confirmation.
+        4. **Watch vs Polar Config Sync**: When `DataSyncListenerService` received a watch session ZIP, it generated a new `session_config.json` in `filesDir` before checking if the matching Polar session folder already contained the authoritative live configuration written by `PolarSenseService`.
+    *   **The Architectural Fix**:
+        1. **Multi-Service Lifecycle Initialization**: Added `BatSessionManager.initialize(this)` in `onCreate()` for both `PolarSenseService` and `DataSyncListenerService`.
+        2. **Durable Synchronous Persistence**: Switched `apply()` to `.commit()` across `BatSessionManager` (`setMountMode`, `selectBat`, `saveProfilesToPrefs`), and ensured `initialize()` explicitly commits default `WRIST` to disk if absent.
+        3. **Context-Aware Direct SharedPreferences Read**: `createSessionConfigJson` accepts `context` and reads directly from `SharedPreferences` as an authoritative fallback over in-memory state.
+        4. **Material 3 `Surface` Hit Targets**: Replaced `Box(.clickable)` with Material 3 `Surface(onClick = ...)` with `Modifier.weight(1f)`, proper `padding(vertical = 10.dp)`, `BorderStroke`, and guaranteed tactile ripple feedback.
+        5. **Polar Config Sync in DataSyncListener**: If the matched Polar session directory contains `session_config.json`, `DataSyncListenerService` automatically copies it to `filesDir`.
+    *   **Verification**:
+        - Fixed `session_2026-09-06_11-41-57` on disk: `b_acc_mag` correctly captures up to $166.65\text{ m/s}^2$ dynamics, and `p_acc_mag` is clamped to $0.0$.
+        - All 49 Gradle unit tests pass cleanly (`BUILD SUCCESSFUL in 7s`).
+
+
