@@ -1065,4 +1065,21 @@ This document captures resolved bugs, architectural changes, key logical finding
         3. Installed the updated release APK to the physical device.
     *   **Verification**: Verified via ADB logcat that `com.mrpeel.cricketbattingtracker` started cleanly with zero crashes, opened Room database tables without error, and persisted all session history.
 
+187. **Bat-Mount Polar Channel Clamping in On-Device Batch Processing (`PhoneSwingDetector.kt`) (September 7, 2026)**:
+    *   **The Problem**: After a full 20.6-minute physical batting session (`session_2026-09-07_12-29-10`) with 53 physical shots played across 3 bat sets, the phone companion app only displayed 14 shots in history with massive 6- to 7-minute gaps between detections.
+    *   **Root Cause**:
+        1. In `PhoneSwingDetector.kt` lines 175–194, when constructing the 28-channel inference matrix (`sensorMatrix`), the code unconditionally copied raw Polar sensor samples into `sensorMatrix[19..21]` (`p_acc_x, y, z`) and `sensorMatrix[22..24]` (`p_gyro_x, y, z`) without checking `sessionConfig.polarMountMode`.
+        2. In `"BAT_HANDLE"` mode, the sensor is mounted on the bat handle rather than the trailing wrist. The accelerometer experiences pitch taps, ground rests, and high centrifugal forces.
+        3. Stage 1 Stance Detection (`facing_up_detector.onnx`) uses 12 channels (watch acc, gyro, gravity, and `p_acc_x, y, z`). It was trained on wrist orientation, and in `build_unified_dataset.py` lines 684–691, `p_*` channels are explicitly clamped to `0.0f` for bat sessions so models are unaffected.
+        4. When raw bat accelerations entered `p_acc`, the stance detector's probability collapsed below the 0.70 threshold. Stance unlocks fell from 120 down to 17, and candidate detections dropped from 70 down to 16, resulting in only 14 shots inserted into SQLite.
+    *   **The Solution**:
+        1. Evaluated `val isBatMount = sessionConfig.polarMountMode.equals("BAT_HANDLE", ignoreCase = true)` in `PhoneSwingDetector.kt`.
+        2. When `isBatMount` is true, clamped `sensorMatrix[19..24]` (`p_acc_*` and `p_gyro_*`) to `0.0f` while setting `sensorMatrix[25]` (`has_polar`) to `1.0f`, establishing strict train-serve parity with `build_unified_dataset.py`.
+        3. Transcribed narration with Deepgram Nova-3 (60 attacking shots, 44 facing up locks), compiled 423 Hz unified Parquet (515,904 rows, $R^2 = 0.9997$), and updated the Room database via `reprocess_sessions.py` (populating 53 physical shots for innings `1788748150000`).
+    *   **Verification**:
+        - Empirical simulation proved stance exits surged from 17 back to 120 (candidates from 16 to 70).
+        - All 49 unit tests passed cleanly (`BUILD SUCCESSFUL in 41s`).
+        - Release APK built successfully (`:app:assembleRelease`).
+
+
 

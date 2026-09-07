@@ -131,6 +131,7 @@ object PhoneSwingDetector {
 
         var accIdx = 0; var gyroIdx = 0; var gravIdx = 0; var rotIdx = 0
         var pAccIdx = 0; var pGyroIdx = 0
+        val isBatMount = sessionConfig.polarMountMode.equals("BAT_HANDLE", ignoreCase = true)
 
         for (i in 0 until numFrames) {
             val tNs = watchStartSensorNs + (i * 1_000_000_000.0 / 423.0).toLong()
@@ -174,18 +175,32 @@ object PhoneSwingDetector {
 
             // Polar channels
             if (alignment != null && polarAcc.isNotEmpty() && polarGyro.isNotEmpty()) {
-                val pMs = alignment.watchToPolarMs(tWallMs)
-                while (pAccIdx < polarAcc.size - 1 && polarAcc[pAccIdx + 1].phoneMs <= pMs) pAccIdx++
-                sensorMatrix[19][i] = polarAcc[pAccIdx].x
-                sensorMatrix[20][i] = polarAcc[pAccIdx].y
-                sensorMatrix[21][i] = polarAcc[pAccIdx].z
+                if (isBatMount) {
+                    // In BAT_HANDLE mode, Polar sensor is mounted on the bat handle.
+                    // p_* (wrist) channels are clamped to 0.0f so wrist-trained models
+                    // (Stage 1 stance detector and Stage 2 TCN window classifier) are not confused by bat motion/orientation,
+                    // while has_polar is set to 1.0f (matching build_unified_dataset.py lines 684-691).
+                    sensorMatrix[19][i] = 0f
+                    sensorMatrix[20][i] = 0f
+                    sensorMatrix[21][i] = 0f
+                    sensorMatrix[22][i] = 0f
+                    sensorMatrix[23][i] = 0f
+                    sensorMatrix[24][i] = 0f
+                    sensorMatrix[25][i] = 1.0f
+                } else {
+                    val pMs = alignment.watchToPolarMs(tWallMs)
+                    while (pAccIdx < polarAcc.size - 1 && polarAcc[pAccIdx + 1].phoneMs <= pMs) pAccIdx++
+                    sensorMatrix[19][i] = polarAcc[pAccIdx].x
+                    sensorMatrix[20][i] = polarAcc[pAccIdx].y
+                    sensorMatrix[21][i] = polarAcc[pAccIdx].z
 
-                while (pGyroIdx < polarGyro.size - 1 && polarGyro[pGyroIdx + 1].phoneMs <= pMs) pGyroIdx++
-                sensorMatrix[22][i] = polarGyro[pGyroIdx].x
-                sensorMatrix[23][i] = polarGyro[pGyroIdx].y
-                sensorMatrix[24][i] = polarGyro[pGyroIdx].z
+                    while (pGyroIdx < polarGyro.size - 1 && polarGyro[pGyroIdx + 1].phoneMs <= pMs) pGyroIdx++
+                    sensorMatrix[22][i] = polarGyro[pGyroIdx].x
+                    sensorMatrix[23][i] = polarGyro[pGyroIdx].y
+                    sensorMatrix[24][i] = polarGyro[pGyroIdx].z
 
-                sensorMatrix[25][i] = 1.0f
+                    sensorMatrix[25][i] = 1.0f
+                }
             } else {
                 sensorMatrix[19][i] = 0f; sensorMatrix[20][i] = 0f; sensorMatrix[21][i] = 0f
                 sensorMatrix[22][i] = 0f; sensorMatrix[23][i] = 0f; sensorMatrix[24][i] = 0f
