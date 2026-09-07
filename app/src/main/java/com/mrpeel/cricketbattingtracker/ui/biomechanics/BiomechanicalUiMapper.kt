@@ -20,24 +20,42 @@ object BiomechanicalUiMapper {
         shotClass: String?,
         timeLeadMs: Float?,
         gyroRatio: Float?,
-        accRatio: Float?
+        accRatio: Float?,
+        polarMountMode: String? = null
     ): BiomechanicalUiState {
         val shotUpper = shotClass?.uppercase(Locale.ROOT) ?: ""
+        val isBatHandle = polarMountMode?.equals("BAT_HANDLE", ignoreCase = true) == true
         
         // Handle watch-only mode or missing Polar telemetry gracefully
         if (timeLeadMs == null || gyroRatio == null || accRatio == null ||
             (timeLeadMs == 0f && gyroRatio == 0f && accRatio == 0f)
         ) {
             return BiomechanicalUiState(
-                sequencingTitle = "Top-Hand Path",
-                sequencingDescription = "Single-wrist lead tracking top-hand rotational downswing.",
+                sequencingTitle = if (isBatHandle) "Lead Wrist Path" else "Top-Hand Path",
+                sequencingDescription = if (isBatHandle) {
+                    "Single-sensor tracking downswing path from your lead wrist."
+                } else {
+                    "Single-wrist lead tracking top-hand downswing path."
+                },
                 sequencingSliderVal = 0.70f,
-                powerPatternTitle = "Lead Wrist Tracking",
-                powerPatternDescription = "Top-hand IMU tracking angular velocity and swing slot plane.",
+                powerPatternTitle = if (isBatHandle) "Lead Wrist Speed" else "Lead Wrist Tracking",
+                powerPatternDescription = if (isBatHandle) {
+                    "Lead wrist sensor tracking swing speed and impact timing."
+                } else {
+                    "Top-hand sensor tracking swing speed and impact path."
+                },
                 powerSliderVal = 0.70f,
-                coachingInsight = "Connect Polar Verity Sense on trailing forearm for dual-wrist biomechanical diagnostics.",
+                coachingInsight = if (isBatHandle) {
+                    "Attach second sensor to bat handle to enable bat swing timing and speed analysis."
+                } else {
+                    "Connect second sensor on trailing wrist for dual-hand coordination diagnostics."
+                },
                 displaysWarning = false
             )
+        }
+
+        if (isBatHandle) {
+            return mapBatHandleDynamics(shotUpper, timeLeadMs, gyroRatio, accRatio)
         }
 
         return when {
@@ -503,6 +521,588 @@ object BiomechanicalUiMapper {
             powerPatternDescription = "Standard multi-wrist force generation.",
             powerSliderVal = 0.60f,
             coachingInsight = "Maintain clean head position and balanced grip pressure throughout the stroke.",
+            displaysWarning = false
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BAT-MOUNTED SENSOR DYNAMICS (BAT_HANDLE)
+    // Clear, understandable, actionable cricket coaching language with zero jargon
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun mapBatHandleDynamics(
+        shotUpper: String,
+        timeLeadMs: Float,
+        gyroRatio: Float,
+        accRatio: Float
+    ): BiomechanicalUiState {
+        return when {
+            "PULL" in shotUpper || "HOOK" in shotUpper -> mapBatPullHook(timeLeadMs, gyroRatio, accRatio)
+            "POWER" in shotUpper -> mapBatPowerDrive(timeLeadMs, gyroRatio, accRatio)
+            "DRIVE" in shotUpper || "DEFENCE" in shotUpper || "BLOCK" in shotUpper -> mapBatDriveDefence(timeLeadMs, gyroRatio, accRatio)
+            "GLANCE" in shotUpper || "FLICK" in shotUpper -> mapBatGlanceFlick(timeLeadMs, gyroRatio, accRatio)
+            "CUT" in shotUpper || "PUNCH" in shotUpper -> mapBatCutPunch(timeLeadMs, gyroRatio, accRatio)
+            "DEFLECTION" in shotUpper || "GUIDE" in shotUpper -> mapBatDeflectionGuide(timeLeadMs, gyroRatio, accRatio)
+            "SLOG" in shotUpper -> mapBatSlog(timeLeadMs, gyroRatio, accRatio)
+            "SWEEP" in shotUpper -> mapBatSweep(timeLeadMs, gyroRatio, accRatio)
+            else -> mapBatGenericFallback(timeLeadMs, gyroRatio, accRatio)
+        }
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatPullHook(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in -25.0f..5.0f -> {
+                actionText = "Action: Keep that aggressive hip turn and let the bat follow through over your shoulder."
+                Triple(
+                    "Fast Blade Whip",
+                    "The bat whipped through the hitting zone with great timing, meeting the ball cleanly out in front.",
+                    0.90f
+                )
+            }
+            timeLeadMs > 5.0f -> {
+                warning = true
+                actionText = "Action: Commit your bat into the swing as you turn — let the bat head whip around your body."
+                Triple(
+                    "Bat Dragging Behind",
+                    "Your body turned but the bat lagged behind your hands, causing you to slice or hit under the ball.",
+                    0.20f
+                )
+            }
+            else -> {
+                actionText = "Action: Wait for the ball to reach chest height before pulling through."
+                Triple(
+                    "Early Swing",
+                    "You swung the bat through too early before the ball arrived, hitting across the line.",
+                    0.40f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio >= 1.30f -> Triple(
+                "Full Power Arc",
+                "Fast, uninterrupted bat acceleration through the hitting zone.",
+                0.90f
+            )
+            gyroRatio < 1.00f -> {
+                if (!warning) {
+                    actionText = "Action: Swing freely through the line without tightening your shoulders."
+                }
+                Triple(
+                    "Checked Swing",
+                    "You checked your swing, losing bat speed and power into contact.",
+                    0.30f
+                )
+            }
+            else -> Triple(
+                "Controlled Swing",
+                "Good steady bat speed through the horizontal arc.",
+                0.65f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatDriveDefence(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in -15.0f..10.0f -> {
+                actionText = "Action: Great shape. Keep that relaxed tempo and let the bat flow down the ground."
+                Triple(
+                    "Clean Pendulum Flow",
+                    "The bat swung smoothly through the line of your hands, meeting the ball right under your eyes.",
+                    0.85f
+                )
+            }
+            timeLeadMs > 10.0f -> {
+                warning = true
+                actionText = "Action: Lead with your front elbow and let the bat follow down the line — don't push your hands out ahead."
+                Triple(
+                    "Bat Lagging Behind Hands",
+                    "Your hands pushed out ahead of the bat, leaving the blade trailing behind and opening the face.",
+                    0.25f
+                )
+            }
+            else -> {
+                actionText = "Action: Keep your top hand firm and wait for the ball to get under your eyes before swinging through."
+                Triple(
+                    "Early Wrist Flick",
+                    "You flicked the bat out too early, closing the blade before reaching the ball.",
+                    0.35f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio >= 1.15f -> Triple(
+                "Crisp Bat Flow",
+                "Smooth bat acceleration through the line of the ball.",
+                0.85f
+            )
+            gyroRatio < 0.95f -> {
+                if (!warning) {
+                    actionText = "Action: Relax your grip and shoulders so the bat swings freely like a pendulum."
+                }
+                Triple(
+                    "Pushed with Stiff Arms",
+                    "The shot was pushed with rigid arms rather than swung with smooth bat flow.",
+                    0.30f
+                )
+            }
+            else -> Triple(
+                "Controlled Downswing",
+                "Balanced bat speed through the vertical line.",
+                0.65f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatPowerDrive(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in -15.0f..5.0f -> {
+                actionText = "Action: Great power. Finish high into your follow-through to maximize distance."
+                Triple(
+                    "Power Loft Timing",
+                    "Bat accelerated smoothly through the ball, creating natural lift and clean power.",
+                    0.90f
+                )
+            }
+            timeLeadMs > 5.0f -> {
+                warning = true
+                actionText = "Action: Swing up and through the line of the ball into a high follow-through."
+                Triple(
+                    "Stalled Lift",
+                    "Hands reached forward without bat head speed, keeping the shot grounded or mistimed.",
+                    0.25f
+                )
+            }
+            else -> {
+                actionText = "Action: Hold your shape slightly longer before accelerating up through contact."
+                Triple(
+                    "Early Power Release",
+                    "Bat released early before reaching the hitting slot, losing peak velocity.",
+                    0.45f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio >= 1.30f -> Triple(
+                "Explosive Blade Speed",
+                "High bat acceleration lifting the ball cleanly with great carry.",
+                0.90f
+            )
+            gyroRatio < 1.05f -> {
+                if (!warning) {
+                    actionText = "Action: Commit to hitting through the line with full arm extension."
+                }
+                Triple(
+                    "Under-Powered",
+                    "Swing lacked bat acceleration through the ball.",
+                    0.30f
+                )
+            }
+            else -> Triple(
+                "Solid Drive Speed",
+                "Good positive acceleration through impact.",
+                0.65f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatCutPunch(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in -10.0f..10.0f -> {
+                actionText = "Action: Excellent contact point. Keep hitting down on the ball through point."
+                Triple(
+                    "Crisp Square Slap",
+                    "Bat and hands met the ball together with sharp timing, cutting down on the ball.",
+                    0.85f
+                )
+            }
+            timeLeadMs > 10.0f -> {
+                warning = true
+                actionText = "Action: Wait for the ball to get closer, then snap the bat down and through."
+                Triple(
+                    "Bat Trailing Hands",
+                    "Hands pushed toward point before the bat got there, leaving the blade face open.",
+                    0.20f
+                )
+            }
+            else -> {
+                actionText = "Action: Let the ball come to you before playing the cut."
+                Triple(
+                    "Early Reach",
+                    "Reached out too early for the ball outside off stump.",
+                    0.45f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio >= 1.10f -> Triple(
+                "Sharp Blade Snap",
+                "Fast bat acceleration through the point boundary.",
+                0.85f
+            )
+            gyroRatio < 0.90f -> {
+                if (!warning) {
+                    actionText = "Action: Get on your back foot and hit firmly down through the ball."
+                }
+                Triple(
+                    "Guarded Push",
+                    "Pushed gently rather than hitting firmly through the ball.",
+                    0.30f
+                )
+            }
+            else -> Triple(
+                "Controlled Cut",
+                "Steady bat speed through the square drive line.",
+                0.60f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatGlanceFlick(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in -15.0f..0.0f -> {
+                actionText = "Action: Clean deflection. Keep working the ball off your front pad into the gaps."
+                Triple(
+                    "Crisp Wrist Roll",
+                    "Bat timed the ball off the pads cleanly, rolling the wrists over impact.",
+                    0.90f
+                )
+            }
+            timeLeadMs > 5.0f -> {
+                warning = true
+                actionText = "Action: Get your bat down earlier and meet the ball in front of your front pad."
+                Triple(
+                    "Late Blade",
+                    "Bat arrived late to the ball, risking an inside edge onto the stumps.",
+                    0.20f
+                )
+            }
+            else -> {
+                actionText = "Action: Wait for the ball to reach your pad before rolling your wrists."
+                Triple(
+                    "Early Flick",
+                    "Closed the bat face too early before ball contact.",
+                    0.40f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio >= 1.10f -> Triple(
+                "Sharp Deflection",
+                "Quick bat acceleration working the ball into the leg-side gap.",
+                0.85f
+            )
+            gyroRatio < 0.90f -> {
+                if (!warning) {
+                    actionText = "Action: Work the ball off your legs with a positive roll of the bat."
+                }
+                Triple(
+                    "Passive Touch",
+                    "Bat was stationary or pushed gently without active wrist snap.",
+                    0.35f
+                )
+            }
+            else -> Triple(
+                "Controlled Glance",
+                "Good touch working the ball off the pads.",
+                0.65f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatDeflectionGuide(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in 10.0f..35.0f -> {
+                actionText = "Action: Perfect soft touch to run the ball down to third man."
+                Triple(
+                    "Soft-Hand Guide",
+                    "Bat relaxed naturally behind the hands to run the ball off the open face.",
+                    0.85f
+                )
+            }
+            timeLeadMs < 5.0f -> {
+                warning = true
+                actionText = "Action: Soften your hands and let the pace of the ball deflect off the blade."
+                Triple(
+                    "Pushed Hard at Ball",
+                    "Pushed the bat firmly into the ball instead of letting the ball glance off the face.",
+                    0.25f
+                )
+            }
+            else -> {
+                actionText = "Action: Keep your hands relaxed right through contact."
+                Triple(
+                    "Late Glide",
+                    "Steered the ball behind square with decent timing.",
+                    0.55f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio <= 0.85f -> Triple(
+                "Controlled Soft Hands",
+                "Great soft touch, absorbing the ball's speed to drop it into the gap.",
+                0.85f
+            )
+            gyroRatio > 1.15f -> {
+                if (!warning) {
+                    actionText = "Action: Relax your grip and play with softer hands down to third man."
+                }
+                Triple(
+                    "Swung Too Hard",
+                    "Swung into the ball instead of guiding it, risking an edge to the slips.",
+                    0.25f
+                )
+            }
+            else -> Triple(
+                "Firm Deflection",
+                "Controlled touch behind square.",
+                0.60f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatSlog(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in -20.0f..5.0f -> {
+                actionText = "Action: Great aggressive swing. Keep your head still and swing through the line."
+                Triple(
+                    "Full Arc Commitment",
+                    "The bat swung through with maximum speed and clean timing right into contact.",
+                    0.90f
+                )
+            }
+            timeLeadMs > 5.0f -> {
+                warning = true
+                actionText = "Action: Commit to your swing path with a full, free-flowing swing."
+                Triple(
+                    "Hesitant Swing",
+                    "Hands drifted forward and bat lagged, losing loft and power.",
+                    0.25f
+                )
+            }
+            else -> {
+                actionText = "Action: Keep your eyes on the ball and swing through its full arc."
+                Triple(
+                    "Rushed Swing",
+                    "Swung across the line too early before the ball arrived.",
+                    0.45f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio >= 1.40f -> Triple(
+                "High Bat Speed",
+                "Fast bat acceleration through the hitting zone.",
+                0.95f
+            )
+            gyroRatio < 1.15f -> {
+                if (!warning) {
+                    actionText = "Action: Keep your arms extended and swing freely through the line."
+                }
+                Triple(
+                    "Restricted Swing",
+                    "Restricted swing arc, losing power.",
+                    0.30f
+                )
+            }
+            else -> Triple(
+                "Solid Power",
+                "Good bat speed through the arc.",
+                0.70f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatSweep(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        var warning = false
+        var actionText: String
+
+        val (seqTitle, seqDesc, seqVal) = when {
+            timeLeadMs in -15.0f..5.0f -> {
+                actionText = "Action: Keep your head over your front knee and follow through along the turf."
+                Triple(
+                    "Clean Low Sweep",
+                    "The bat swung low and level across the front knee right on time.",
+                    0.85f
+                )
+            }
+            timeLeadMs > 5.0f -> {
+                warning = true
+                actionText = "Action: Bring the bat through with your head and shoulders as one unit."
+                Triple(
+                    "Bat Trailed Body",
+                    "Torso turned but the bat was left behind, hitting across the top of the ball.",
+                    0.25f
+                )
+            }
+            else -> {
+                actionText = "Action: Wait for the ball to pitch before committing your blade to the sweep."
+                Triple(
+                    "Early Sweep",
+                    "Swept early before the ball pitched.",
+                    0.45f
+                )
+            }
+        }
+
+        val (powerTitle, powerDesc, powerVal) = when {
+            gyroRatio >= 1.10f -> Triple(
+                "Full Sweep Flow",
+                "Solid bat flow along the horizontal plane.",
+                0.85f
+            )
+            gyroRatio < 0.90f -> {
+                if (!warning) {
+                    actionText = "Action: Get down low on your front knee and swing the blade in a wide, level arc."
+                }
+                Triple(
+                    "Arm Poke",
+                    "Poked with the arms rather than sweeping cleanly.",
+                    0.30f
+                )
+            }
+            else -> Triple(
+                "Controlled Sweep",
+                "Good horizontal blade path across the stumps.",
+                0.65f
+            )
+        }
+
+        return BiomechanicalUiState(
+            sequencingTitle = seqTitle,
+            sequencingDescription = seqDesc,
+            sequencingSliderVal = seqVal,
+            powerPatternTitle = powerTitle,
+            powerPatternDescription = powerDesc,
+            powerSliderVal = powerVal,
+            coachingInsight = actionText,
+            displaysWarning = warning
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun mapBatGenericFallback(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {
+        return BiomechanicalUiState(
+            sequencingTitle = "Standard Bat Flow",
+            sequencingDescription = "Bat swing execution within general timing parameters.",
+            sequencingSliderVal = 0.60f,
+            powerPatternTitle = "Balanced Bat Speed",
+            powerPatternDescription = "Standard swing acceleration through impact.",
+            powerSliderVal = 0.60f,
+            coachingInsight = "Action: Maintain clean head position and watch the ball onto the face of the bat.",
             displaysWarning = false
         )
     }

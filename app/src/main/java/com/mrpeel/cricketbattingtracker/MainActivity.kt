@@ -2255,7 +2255,7 @@ fun TimelineItem(
                     Spacer(modifier = Modifier.height(8.dp))
                     val isBatHandle = event.polar_mount_mode == "BAT_HANDLE"
                     Text(
-                        if (isBatHandle) "🏏 BAT FRAME DYNAMICS" else "🧤 HAND COORDINATION",
+                        if (isBatHandle) "🏏 BAT & SWING ANALYSIS" else "🧤 HAND COORDINATION",
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
@@ -2267,7 +2267,8 @@ fun TimelineItem(
                         shotClass = normalizeShotType(event.shotType),
                         timeLeadMs = event.bottom_hand_time_lead_ms?.toFloat(),
                         gyroRatio = event.bottom_hand_gyro_ratio,
-                        accRatio = event.bottom_hand_acc_ratio
+                        accRatio = event.bottom_hand_acc_ratio,
+                        polarMountMode = event.polar_mount_mode
                     )
 
                     val statusColor = if (bioState.displaysWarning) Color(0xFFFFBF00) else Color(0xFF58FF63)
@@ -2281,9 +2282,9 @@ fun TimelineItem(
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // ── Swing Sequencing Section ──
+                        // ── Swing Sequencing / Bat Timing Section ──
                         Text(
-                            "SWING SEQUENCING",
+                            if (isBatHandle) "BAT TIMING & RELEASE" else "SWING SEQUENCING",
                             fontSize = 7.sp,
                             color = Color.Gray,
                             fontWeight = FontWeight.Bold,
@@ -2317,9 +2318,9 @@ fun TimelineItem(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // ── Power Pattern Section ──
+                        // ── Power Pattern / Bat Speed Section ──
                         Text(
-                            "POWER PATTERN",
+                            if (isBatHandle) "BAT SPEED & FLOW" else "POWER PATTERN",
                             fontSize = 7.sp,
                             color = Color.Gray,
                             fontWeight = FontWeight.Bold,
@@ -2353,9 +2354,9 @@ fun TimelineItem(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // ── Coaching Insight Section ──
+                        // ── Coaching Action / Insight Section ──
                         Text(
-                            "COACHING INSIGHT",
+                            if (isBatHandle) "COACHING ACTION" else "COACHING INSIGHT",
                             fontSize = 7.sp,
                             color = Color.Gray,
                             fontWeight = FontWeight.Bold,

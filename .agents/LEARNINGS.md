@@ -1081,5 +1081,36 @@ This document captures resolved bugs, architectural changes, key logical finding
         - All 49 unit tests passed cleanly (`BUILD SUCCESSFUL in 41s`).
         - Release APK built successfully (`:app:assembleRelease`).
 
+188. **Bat Mount Mechanical Stability & Millisecond Impact Telemetry Analysis (September 7, 2026)**:
+    *   **The Problem**: Prior to session `session_2026-09-07_12-29-10`, bat mounts were modified to increase mechanical stability after the sensor detached and flew off yesterday (`session_2026-09-06_12-14-46`). To the human eye the mount looked much more secure, but empirical verification was required at millisecond timescales to measure micro-movements, high-frequency chattering, and rotational slip.
+    *   **Empirical Discoveries & Root Causes**:
+        1. **Yesterday's Detachment Failure Mode**: Slicing the raw 424 Hz accelerometer telemetry during yesterday's impact ($t = 216.08\text{s}$) revealed violent **internal cradle chattering**. Longitudinal acceleration ($a_y$) reversed signs five times within 15 ms ($-97.6 \rightarrow +54.1 \rightarrow +156.7 \rightarrow -72.0 \rightarrow +57.8\text{ m/s}^2$), generating resonant high-frequency power of $3,126,280$ and delivering repeated $27\text{G}$ hammer blows directly to the mount retention clips until it failed.
+        2. **Today's Elimination of Chatter**: In today's modified mount, pre-loading eliminated internal tolerance. Accelerometer $a_y$ remained clamped to the bat's downswing deceleration without a single sign reversal (holding steady at $-145$ to $-156\text{ m/s}^2$). Peak high-frequency resonant power dropped by $66.3\%$ down to $1,053,784$.
+        3. **Rotational Drift Around Handle**:
+           - **Bat 3 (Eye in Bat)**: Yesterday drifted $59.76^\circ$ ($125.6^\circ$ max excursion) before detachment. Today drifted only $16.01^\circ$ over 23 hard shots (8.5 mins), with consecutive shot-to-shot jitter falling from $19.03^\circ$ to $8.06^\circ$ (natural stance variation).
+           - **Bat 2 (Giant, 1625g)**: Drift across 16 consecutive hard pulls and slogs was $< 5.0^\circ$.
+           - **Bat 1 (Game Bat, 1425g)**: Drift across active batting was only $12.79^\circ$ ($3.47^\circ$ median jitter). An initial apparent $84^\circ$ shift was confirmed to be a rest break artifact where the bat was laid flat on the ground ($\hat{g}_y = -8.87\text{ m/s}^2$).
+        4. **Structural Damping**: The willow/cane fundamental flexural mode was measured at $20.1\text{ Hz} - 24.5\text{ Hz}$, with vibrations decaying cleanly below $20\%$ of peak shock within $55\text{ ms} - 110\text{ ms}$.
+    *   **Result**: 100% sensor retention, zero data loss across 515,904 samples, zero mechanical chattering, and full validation of mount stability documented in `bat_mount_stability_analysis.md`.
 
+189. **Plain-English Bat-Mount Biomechanical Coaching UI & Elimination of Biomechanical Jargon (September 7, 2026)**:
+    *   **The Problem**: In the Android companion app's individual shot timeline, the expandable biomechanics card displayed confusing academic jargon (e.g., *"Choked lever transfer"*, *"Dominant bottom wrist snap"*, *"Kinetic chain"*) even when the second sensor was mounted on the bat handle (`BAT_HANDLE`).
+    *   **Biomechanical Analysis & Inversion Bug**:
+        1. **Physical Meaning Inversion**: In two-handed wrist mode (`WRIST`), `gyroRatio > 0.85` indicates excessive bottom-hand dominance and over-hitting on vertical drives. However, when the Polar sensor is mounted on the bat handle (`BAT_HANDLE`), the bat *must* have higher angular velocity than the leading wrist due to the extended rotational lever arm ($\omega_{\text{bat}} / \omega_{\text{wrist}} \approx 1.10 - 2.00$). Labeling high bat speed as "choking the handle" or "hard bottom hand" was physically inverted and nonsensical.
+        2. **Academic Jargon Barrier**: Phrases like "choked lever transfer" or "proximal-to-distal sequencing" provided no actionable coaching cues for a batsman in the nets.
+    *   **The Solution**:
+        1. Refactored `BiomechanicalUiMapper.kt` and `BiomechanicalViewBinder.kt` to accept `polarMountMode: String? = null`.
+        2. In `MainActivity.kt` (`TimelineItem`), passed `event.polar_mount_mode` into `BiomechanicalUiMapper.mapToUiState(...)` and made section titles dynamic:
+           - Wrist Mode: `"🧤 HAND COORDINATION"`, `"SWING SEQUENCING"`, `"POWER PATTERN"`, `"COACHING INSIGHT"`.
+           - Bat-Mount Mode: `"🏏 BAT & SWING ANALYSIS"`, `"BAT TIMING & RELEASE"`, `"BAT SPEED & FLOW"`, `"COACHING ACTION"`.
+        3. Implemented dedicated `mapBatHandleDynamics(...)` covering all 8 canonical shot classes (`PULL/HOOK`, `DRIVE/DEFENCE`, `POWER DRIVE`, `CUT/PUNCH`, `GLANCE/FLICK`, `DEFLECTION/GUIDE`, `SLOG`, `SWEEP`).
+        4. Enforced strict plain-English coaching rules:
+           - Every bat-mode coaching insight begins with `"Action: "` followed by a concrete, physical instruction for the next ball (e.g. *"Lead with your front elbow and let the bat flow down the ground — don't push with stiff arms"*).
+           - Banned 11 academic jargon terms across all bat-mount strings (`"choked"`, `"lever transfer"`, `"kinetic chain"`, `"rotational downswing"`, `"pronation"`, `"supination"`, `"isometric"`, `"bottom hand"`, `"trailing arm"`, `"bottom wrist"`, `"multi-wrist"`).
+    *   **Verification**:
+        - Added 9 shot-specific tests in `BiomechanicalUiMapperTest.kt`.
+        - Added `testJargonFreeAuditAcrossAllBatHandleStates` evaluating 540 distinct input combinations against the 11 forbidden terms, verifying zero jargon leaks.
+        - Executed `./gradlew :app:testDebugUnitTest`: 26 tasks executed, 58 tests passed (`BUILD SUCCESSFUL`).
+        - Executed `./gradlew testDebugUnitTest`: 49 tasks executed, 0 failures (`BUILD SUCCESSFUL`).
+        - Built and 16 KB page-aligned release APK: `app/build/outputs/apk/release/app-release.apk`.
 
