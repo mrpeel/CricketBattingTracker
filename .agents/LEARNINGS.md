@@ -1114,3 +1114,16 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Executed `./gradlew testDebugUnitTest`: 49 tasks executed, 0 failures (`BUILD SUCCESSFUL`).
         - Built and 16 KB page-aligned release APK: `app/build/outputs/apk/release/app-release.apk`.
 
+190. **Dynamic Bat Name & Weight Badge on Shot Timeline UI (September 8, 2026)**:
+    *   **The Problem**: In the Android companion app's shot timeline, each shot displayed a badge with the static string `"BAT ${event.bat_id}"` (e.g. `"BAT 1"`, `"BAT 2"`, `"BAT 3"`). Because bat profile definitions are variable and user-customizable, an integer slot ID is meaningless to a batsman reviewing session data.
+    *   **The Solution**:
+        1. Implemented `formatBatLabel(batName, batWeightGrams, batId, fallbackProfiles)` in `MainActivity.kt` and an extension `InningsEvent.getBatLabel()`.
+        2. Formats the badge string as `"{Batname} ({Bat Weight})"` (e.g. `"Gray Nicholls Giant (1625g)"`, `"Eye in bat (1200g)"`, `"Game bat (1425g)"`).
+        3. Implemented robust fallback logic: if `bat_name` or `bat_weight_grams` are null/blank on historical shot records, it automatically looks up the corresponding profile by `bat_id` from `BatSessionManager.batProfiles`, ensuring older sessions display full names instead of falling back to raw IDs.
+        4. Added defensive layout constraints in `TimelineItem`: the left header row uses `Modifier.weight(1f, fill = false)`, and the bat badge Box uses `weight(1f, fill = false)` with `Text(maxLines = 1, overflow = TextOverflow.Ellipsis)`. This guarantees the bat label gracefully truncates on narrow devices without pushing `timeText` off-screen or causing unwanted multiline wraps.
+    *   **Verification**:
+        - Created `BatLabelTest.kt` with 11 test cases asserting explicit name/weight formatting, profile fallbacks, whitespace/blank handling, zero/negative weight omissions, unknown bat IDs, null states, and `InningsEvent` extension integration.
+        - Executed `./gradlew :app:testDebugUnitTest`: 26 tasks executed, 69 tests passed (`BUILD SUCCESSFUL in 15s`).
+        - Executed `./gradlew testDebugUnitTest`: 49 tasks executed, 0 failures (`BUILD SUCCESSFUL in 2s`).
+        - Built and 16 KB page-aligned release APK: `app/build/outputs/apk/release/app-release.apk` (`BUILD SUCCESSFUL in 8s`).
+

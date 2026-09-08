@@ -30,6 +30,8 @@ import com.mrpeel.cricketbattingtracker.data.AppDatabase
 import com.mrpeel.cricketbattingtracker.data.InningsEvent
 import com.mrpeel.cricketbattingtracker.data.HeartRateEvent
 import com.mrpeel.cricketbattingtracker.services.HealthConnectManager
+import com.mrpeel.cricketbattingtracker.services.BatProfile
+import com.mrpeel.cricketbattingtracker.services.BatSessionManager
 import com.mrpeel.cricketbattingtracker.ui.biomechanics.BiomechanicalUiMapper
 import com.mrpeel.cricketbattingtracker.ui.insights.InsightsDashboardScreen
 import java.text.SimpleDateFormat
@@ -1121,6 +1123,38 @@ fun getShotColor(shotType: String?, isHit: Boolean = true): Color {
     }
 }
 
+/**
+ * Formats a bat badge string as "{Batname} ({Bat Weight})" (e.g., "Gray Nicholls Giant (1625g)").
+ * Supports graceful fallback to BatSessionManager profiles for historical records where bat_name
+ * or bat_weight_grams were not explicitly saved on the individual shot event.
+ */
+fun formatBatLabel(
+    batName: String?,
+    batWeightGrams: Float?,
+    batId: Int?,
+    fallbackProfiles: List<BatProfile>? = null
+): String? {
+    val profiles = fallbackProfiles ?: BatSessionManager.batProfiles.value
+    val resolvedName = batName?.takeIf { it.isNotBlank() }
+        ?: batId?.let { id -> profiles.firstOrNull { it.batId == id }?.name }
+    val resolvedWeight = batWeightGrams?.takeIf { it > 0f }
+        ?: batId?.let { id -> profiles.firstOrNull { it.batId == id }?.weightGrams }
+
+    return when {
+        !resolvedName.isNullOrBlank() && resolvedWeight != null && resolvedWeight > 0f ->
+            "$resolvedName (${resolvedWeight.toInt()}g)"
+        !resolvedName.isNullOrBlank() ->
+            resolvedName
+        batId != null && batId > 0 ->
+            "Bat $batId"
+        else -> null
+    }
+}
+
+fun InningsEvent.getBatLabel(
+    fallbackProfiles: List<BatProfile>? = null
+): String? = formatBatLabel(bat_name, bat_weight_grams, bat_id, fallbackProfiles)
+
 @Composable
 fun ShotTypeSummary(events: List<InningsEvent>) {
     val shotEvents = remember(events) { events.filter { it.batSpeed != null && it.shotType != null } }
@@ -2141,7 +2175,10 @@ fun TimelineItem(
                         val rawType = event.shotType ?: event.description
                         append(normalizeShotType(rawType))
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
                             text = headerText,
                             fontWeight = FontWeight.Black,
@@ -2158,18 +2195,22 @@ fun TimelineItem(
                                 modifier = Modifier.clickable { expanded = !expanded }
                             )
                         }
-                        if (event.bat_id != null && event.bat_id > 0) {
+                        val batLabel = event.getBatLabel()
+                        if (batLabel != null) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Box(
                                 modifier = Modifier
+                                    .weight(1f, fill = false)
                                     .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             ) {
                                 Text(
-                                    "BAT ${event.bat_id}",
+                                    text = batLabel,
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.secondary
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -2182,6 +2223,7 @@ fun TimelineItem(
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = timeText,
                         fontSize = 10.sp,
