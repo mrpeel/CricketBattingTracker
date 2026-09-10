@@ -45,7 +45,8 @@
     "leg shot",
     "slit shot",
     "flick",
-    "leg flick"
+    "leg flick",
+    "foot shot"
   ],
   "Glance": [
     "glance",
@@ -62,7 +63,6 @@
     "push your",
     "who shot",
     "oh shot",
-    "foot shot",
     "blue shot",
     "on shot",
     "new shot",

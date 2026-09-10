@@ -235,7 +235,11 @@ def train_and_select_checkpoint(train_data, holdout_data, train_sessions):
         has_impact = ("impact_time_seconds" in df_gt.columns and df_gt["impact_time_seconds"].notna().sum() > 0)
         for _, row in df_gt.iterrows():
             st = row.get("shot_type")
-            norm = normalise_shot_type(st)
+            narr_text = str(row.get("narrated_text", "")).lower()
+            if "foot shot" in narr_text or (st and "foot shot" in str(st).lower()):
+                norm = "GLANCE/FLICK"
+            else:
+                norm = normalise_shot_type(st)
             if norm is None or norm not in CLASS_TO_IDX: continue
             is_fb = (row.get("is_fallback") is True) or (float(row.get("impact_gyro_mag", 0.0)) <= 1.05)
             if has_impact and pd.notna(row.get("impact_time_seconds")) and not is_fb:

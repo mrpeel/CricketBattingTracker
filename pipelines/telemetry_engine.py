@@ -87,9 +87,9 @@ def normalise_shot_type(st):
     s = (st or '').lower()
     if 'power drive' in s or 'lofted drive' in s:
         return 'POWER DRIVE'
-    if 'pull' in s or 'hook' in s or 'full shot' in s or 'foot shot' in s or 'push up' in s or 'which shot' in s or 'slog' in s:
+    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'which shot' in s or 'slog' in s:
         return 'PULL/HOOK/SLOG'
-    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s:
+    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s or 'foot shot' in s:
         return 'GLANCE/FLICK'
     if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
         return 'DEFLECTION/GUIDE'
@@ -561,6 +561,16 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
     num_samples = len(t_grid)
     w_acc_mag = np.linalg.norm(channels_12[:, 0:3], axis=1)
     w_gyr_mag = np.linalg.norm(channels_12[:, 3:6], axis=1)
+
+    # Load session configuration to determine mount mode
+    cfg_path = os.path.join(sessions_dir, sid, "session_config.json")
+    polar_mount_mode = "WRIST"
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path) as f_cfg:
+                polar_mount_mode = json.load(f_cfg).get("polar_mount_mode", "WRIST")
+        except Exception:
+            pass
     
     # 1. Stage 1 Stance Inference over continuous windows
     window_len = 423
@@ -663,8 +673,12 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
         df_gt = pd.read_csv(gt_path)
         has_impact_col = ("impact_time_seconds" in df_gt.columns and df_gt["impact_time_seconds"].notna().sum() > 0)
         for _, row in df_gt.iterrows():
+            narr_text = str(row.get("narrated_text", "")).lower()
             stype = str(row.get("shot_type", "")).lower()
-            c_name = normalise_shot_type(stype)
+            if "foot shot" in narr_text or "foot shot" in stype:
+                c_name = "GLANCE/FLICK"
+            else:
+                c_name = normalise_shot_type(stype)
             if not c_name:
                 continue
             is_fb = (row.get("is_fallback") is True) or (float(row.get("impact_gyro_mag", 0.0)) <= 1.05)
@@ -741,8 +755,8 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
             if not (is_path1 or is_path2):
                 pred_cls = "NO_SHOT"
 
-        # Biomechanical Physical Consistency Gate (Spatial Attitude)
-        if 'p_rot_qx' in df_parquet.columns and f_peak < len(df_parquet):
+        # Biomechanical Physical Consistency Gate (Spatial Attitude) - ONLY FOR BAT_HANDLE MOUNT
+        if polar_mount_mode == "BAT_HANDLE" and 'p_rot_qx' in df_parquet.columns and f_peak < len(df_parquet):
             qx = float(df_parquet['p_rot_qx'].iloc[f_peak])
             qy = float(df_parquet['p_rot_qy'].iloc[f_peak])
             qz = float(df_parquet['p_rot_qz'].iloc[f_peak])
@@ -755,8 +769,8 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
                 if pitch_deg >= 65.0 and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
                     post_ratio = float(df_parquet['post_impact_acc_ratio'].iloc[f_peak]) if 'post_impact_acc_ratio' in df_parquet.columns else 1.0
                     pred_cls = "POWER DRIVE" if post_ratio >= 1.35 else "DRIVE/DEFENCE"
-                # Rule 2: Horizontal Bat Gate (pitch <= 40 deg cannot be straight vertical drive)
-                elif pitch_deg <= 40.0 and pred_cls == "DRIVE/DEFENCE":
+                # Rule 2: Horizontal Bat Gate (0.1 < pitch <= 40 deg cannot be straight vertical drive)
+                elif 0.1 < pitch_deg <= 40.0 and pred_cls == "DRIVE/DEFENCE":
                     pred_cls = "PULL/HOOK/SLOG"
 
         # Dynamic Class-Aware NMS

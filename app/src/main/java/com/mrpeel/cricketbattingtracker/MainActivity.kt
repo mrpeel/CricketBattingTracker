@@ -1095,8 +1095,8 @@ fun normalizeShotType(shotType: String?): String {
     val s = (shotType ?: "").trim().lowercase(java.util.Locale.US)
     return when {
         "power drive" in s || "lofted drive" in s || s == "power" || s == "power shot" -> "POWER DRIVE"
-        "pull" in s || "hook" in s || "full shot" in s || "foot shot" in s || "push up" in s || "which shot" in s -> "PULL/HOOK"
-        "flick" in s || "glance" in s || "click" in s || "quick" in s || "leg glance" in s -> "GLANCE/FLICK"
+        "pull" in s || "hook" in s || "full shot" in s || "push up" in s || "which shot" in s -> "PULL/HOOK"
+        "flick" in s || "glance" in s || "click" in s || "quick" in s || "leg glance" in s || "foot shot" in s -> "GLANCE/FLICK"
         "guide" in s || "deflection" in s || "steer" in s || "glide" in s || "square upper cut" in s || "late cut" in s -> "DEFLECTION/GUIDE"
         "cover drive" in s || "straight drive" in s || "on drive" in s || "off drive" in s || "drive" in s || "defense" in s || "defence" in s || "block" in s || "forward defense" in s || "back defense" in s || "back foot" in s -> "DRIVE/DEFENCE"
         "cut" in s || "punch" in s -> "CUT/PUNCH"

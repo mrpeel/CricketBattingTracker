@@ -1188,4 +1188,20 @@ This document captures resolved bugs, architectural changes, key logical finding
           - Shots #101–105 in `session_2026-09-07_12-29-10` retain `is_kinematically_valid = true` without false `FAULTED_ANOMALY` flags.
           - Shot #94 ($t=1112.30\text{s}$) in `session_2026-09-10_12-55-41` correctly caught as real hardware detachment ($2,000^\circ/\text{s}$ clipping for 375 ms) and protected via watch-only fallback.
 
-
+194. **Mount-Aware Biomechanical Consistency Gate & 'Foot Shot' Lexicon Alignment (September 11, 2026)**:
+    *   **The Problem**:
+        1. **Holdout Classification Degradation**: After Feature B-097 batch-reprocessed all 38 dual-sensor sessions (backfilling continuous `p_rot_q*` quaternions into Parquet files), the TCN holdout classification accuracy dropped sharply from 71.1% down to **66.11% (119/180)**, with `DRIVE/DEFENCE` accuracy collapsing from 77.8% down to **40.7% (11/27)**.
+        2. **Ground Truth Speech Label Noise**: In `session_2026-07-21_12-43-37`, 7 shots where the model predicted `GLANCE/FLICK` were marked as misclassifications against ground truth `PULL/HOOK/SLOG`.
+    *   **Root Cause**:
+        1. **Unconditional Gate on Forearm/Wrist Pitch**: In Feature B-096, Gate 2.5 was added to `telemetry_engine.py`: `elif pitch_deg <= 40.0 and pred_cls == "DRIVE/DEFENCE": pred_cls = "PULL/HOOK/SLOG"`. Because quaternions were previously absent from Parquet files, this gate was dormant. Backfilling quaternions activated it across all dual-sensor sessions. However, all 4 holdout validation sessions are **wrist-mounted**, where forearm pitch during forward defences and drives is naturally $15^\circ - 35^\circ$ (median $30.1^\circ$). Furthermore, unseeded intervals settle at $0.0^\circ$. Consequently, Rule 2 unilaterally flattened every valid drive into a pull!
+        2. **Australian Accent Mistranscription**: Deepgram speech-to-text transcribed the batsman saying *"flick shot"* as *"foot shot"*. In `ground_truth_lexicon.json` and `telemetry_engine.py`, `"foot shot"` had been erroneously categorized under `"Pull shot"`, creating ground-truth label noise that penalized correct TCN predictions.
+    *   **The Solution**:
+        1. **Mount-Aware Gate Execution**: Made Gate 2.5 strictly mount-aware in Python (`telemetry_engine.py`) and Kotlin (`TcnModelRunner.kt` with `polarMountMode` passed from `PhoneSwingDetector.kt`). Gate 2.5 only executes when `polar_mount_mode == "BAT_HANDLE"` and $0.1^\circ < \text{pitch} \le 40.0^\circ$.
+        2. **Lexicon Realignment**: Reassigned `"foot shot"` from `"Pull shot"` to `"Flick shot"` (`GLANCE/FLICK`) across `ground_truth_lexicon.json`, `build_unified_dataset.py`, `telemetry_engine.py`, and `MainActivity.kt`.
+    *   **Verification**:
+        - Holdout classification accuracy surged from 66.11% to 🏆 **74.44%** (134/180 correct).
+        - `DRIVE/DEFENCE` classification accuracy restored from 40.7% to 🏆 **77.78%** (+37.1% recovery).
+        - `PULL/HOOK/SLOG` accuracy improved to **58.54%** and `GLANCE/FLICK` to **70.00%**.
+        - Passed Production Quality Gate (74.69% Holdout Precision, 80.18% Holdout F1, 80.70% Global Precision, 79.89% Global Recall).
+        - All 70+ Android unit tests passed in Gradle (`BUILD SUCCESSFUL in 27s`).
+        - All 8 Python unit tests passed in `test_ahrs_and_guard.py`.

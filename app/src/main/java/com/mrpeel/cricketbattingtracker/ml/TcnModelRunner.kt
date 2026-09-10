@@ -178,7 +178,11 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
     /**
      * Executes the complete Multi-Tier Telemetry Pipeline on continuous 423 Hz sensor data (28 x N).
      */
-    fun runInference(sensorMatrix: Array<FloatArray>, timestampsMs: LongArray): List<DetectionResult> {
+    fun runInference(
+        sensorMatrix: Array<FloatArray>,
+        timestampsMs: LongArray,
+        polarMountMode: String = "WRIST"
+    ): List<DetectionResult> {
         val s2Session = stage2Session ?: return emptyList()
         val numFeatures = sensorMatrix.size
         val numFrames = if (numFeatures > 0) sensorMatrix[0].size else 0
@@ -519,21 +523,23 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 }
             }
 
-            // Gate 2.5: Biomechanical Physical Consistency Gate (Spatial Attitude)
-            val qx = sensorMatrix[15][anchorF]; val qy = sensorMatrix[16][anchorF]
-            val qz = sensorMatrix[17][anchorF]; val qw = sensorMatrix[18][anchorF]
-            val qMag = qx*qx + qy*qy + qz*qz + qw*qw
-            if (qMag > 0.5f) {
-                val vz = 2.0f * (qy * qz - qx * qw)
-                val pitchDeg = Math.toDegrees(asin(abs(vz).coerceIn(0f, 1f).toDouble())).toFloat()
+            // Gate 2.5: Biomechanical Physical Consistency Gate (Spatial Attitude) - ONLY FOR BAT_HANDLE
+            if (polarMountMode == "BAT_HANDLE") {
+                val qx = sensorMatrix[15][anchorF]; val qy = sensorMatrix[16][anchorF]
+                val qz = sensorMatrix[17][anchorF]; val qw = sensorMatrix[18][anchorF]
+                val qMag = qx*qx + qy*qy + qz*qz + qw*qw
+                if (qMag > 0.5f) {
+                    val vz = 2.0f * (qy * qz - qx * qw)
+                    val pitchDeg = Math.toDegrees(asin(abs(vz).coerceIn(0f, 1f).toDouble())).toFloat()
 
-                // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
-                if (pitchDeg >= 65.0f && (predShotType == "PULL/HOOK/SLOG" || predShotType == "CUT/PUNCH")) {
-                    predShotType = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
-                }
-                // Rule 2: Horizontal Bat Gate (pitch <= 40 deg cannot be straight vertical drive)
-                else if (pitchDeg <= 40.0f && predShotType == "DRIVE/DEFENCE") {
-                    predShotType = "PULL/HOOK/SLOG"
+                    // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
+                    if (pitchDeg >= 65.0f && (predShotType == "PULL/HOOK/SLOG" || predShotType == "CUT/PUNCH")) {
+                        predShotType = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
+                    }
+                    // Rule 2: Horizontal Bat Gate (0.1 < pitch <= 40 deg cannot be straight vertical drive)
+                    else if (pitchDeg > 0.1f && pitchDeg <= 40.0f && predShotType == "DRIVE/DEFENCE") {
+                        predShotType = "PULL/HOOK/SLOG"
+                    }
                 }
             }
 

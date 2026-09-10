@@ -71,9 +71,9 @@ def normalise_shot_type(st):
     s = (st or '').lower()
     if 'power drive' in s or 'lofted drive' in s:
         return 'POWER DRIVE'
-    if 'pull' in s or 'hook' in s or 'full shot' in s or 'foot shot' in s or 'push up' in s or 'which shot' in s:
+    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'which shot' in s:
         return 'PULL/HOOK'
-    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s:
+    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s or 'foot shot' in s:
         return 'GLANCE/FLICK'
     if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
         return 'DEFLECTION/GUIDE'

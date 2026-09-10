@@ -6,8 +6,8 @@
 **Training Sessions Count**: 70 physical sessions  
 **Total Dataset Duration**: 1271.9 minutes (21.2 hours)  
 **Holdout Macro-F1 Checkpointing**: Best Epoch 25 (Reloaded Checkpoint) (Best Macro-F1: 0.6356, Candidate Acc: 63.59%, Val Loss: 1.1914, Stopped at Epoch 35)  
-**Execution Log File**: `/Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-09-10_18-00-40.log`  
-**Date**: 2026-09-10 18:02
+**Execution Log File**: `/Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-09-11_06-12-17.log`  
+**Date**: 2026-09-11 06:13
 
 ---
 
@@ -15,9 +15,9 @@
 
 | Dataset Partition | Physical Ground-Truth Shots | Total Detections | **Physical Shot Recall** | **Precision** | **F1 Score** |
 |---|:---:|:---:|:---:|:---:|:---:|
-| 🌟 **Holdout Set (4 Sessions)** | **206** | **241** | **87.38%** (180/206) | **74.69%** (180/241) | **80.54%** |
-| **Training Set Micro Average (70 Sessions)** | **3887** | **3815** | **79.55%** (3092/3887) | **81.05%** (3092/3815) | **80.29%** |
-| 🏆 **Full Dataset Micro Average (All 74 Sessions)** | **4093** | **4056** | 🏆 **79.94%** (3272/4093) | 🏆 **80.67%** (3272/4056) | 🏆 **80.30%** |
+| 🌟 **Holdout Set (4 Sessions)** | **208** | **241** | **86.54%** (180/208) | **74.69%** (180/241) | **80.18%** |
+| **Training Set Micro Average (70 Sessions)** | **3889** | **3815** | **79.53%** (3093/3889) | **81.07%** (3093/3815) | **80.30%** |
+| 🏆 **Full Dataset Micro Average (All 74 Sessions)** | **4097** | **4056** | 🏆 **79.89%** (3273/4097) | 🏆 **80.70%** (3273/4056) | 🏆 **80.29%** |
 
 ---
 
@@ -26,38 +26,38 @@
 ### 🌟 Holdout Set Per-Shot Accuracy (4 Sessions)
 | Shot Class | Physical GT Shots | Shots Detected | **Detection Recall (%)** | **Correctly Classified Shots** | **Classification Accuracy (%)** | **Total Coverage Rate (%)** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PULL/HOOK/SLOG** | 57 | 49 | 86.0% | 24 | **49.0%** | **42.1%** |
+| **PULL/HOOK/SLOG** | 48 | 41 | 85.4% | 24 | **58.5%** | **50.0%** |
 | **DRIVE/DEFENCE** | 30 | 27 | 90.0% | 21 | **77.8%** | **70.0%** |
-| **GLANCE/FLICK** | 27 | 22 | 81.5% | 15 | **68.2%** | **55.6%** |
+| **GLANCE/FLICK** | 38 | 30 | 78.9% | 21 | **70.0%** | **55.3%** |
 | **CUT/PUNCH** | 13 | 11 | 84.6% | 5 | **45.5%** | **38.5%** |
 | **DEFLECTION/GUIDE** | 28 | 21 | 75.0% | 19 | **90.5%** | **67.9%** |
 | **POWER DRIVE** | 20 | 20 | 100.0% | 14 | **70.0%** | **70.0%** |
 | **SWEEP** | 31 | 30 | 96.8% | 30 | **100.0%** | **96.8%** |
-| **OVERALL TOTAL** | **206** | **180** | **87.4%** | **128** | 🏆 **71.1%** | 🏆 **62.1%** |
+| **OVERALL TOTAL** | **208** | **180** | **86.5%** | **134** | 🏆 **74.4%** | 🏆 **64.4%** |
 
 ### 🏋️ Training Set Per-Shot Accuracy Breakdown (70 Sessions)
 | Shot Class | Physical GT Shots | Shots Detected | **Detection Recall (%)** | **Correctly Classified Shots** | **Classification Accuracy (%)** | **Total Coverage Rate (%)** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PULL/HOOK/SLOG** | 1075 | 841 | 78.2% | 748 | **88.9%** | **69.6%** |
-| **DRIVE/DEFENCE** | 1033 | 823 | 79.7% | 762 | **92.6%** | **73.8%** |
-| **GLANCE/FLICK** | 644 | 507 | 78.7% | 441 | **87.0%** | **68.5%** |
-| **CUT/PUNCH** | 418 | 364 | 87.1% | 331 | **90.9%** | **79.2%** |
+| **PULL/HOOK/SLOG** | 1017 | 795 | 78.2% | 743 | **93.5%** | **73.1%** |
+| **DRIVE/DEFENCE** | 1033 | 823 | 79.7% | 733 | **89.1%** | **71.0%** |
+| **GLANCE/FLICK** | 704 | 554 | 78.7% | 478 | **86.3%** | **67.9%** |
+| **CUT/PUNCH** | 418 | 364 | 87.1% | 330 | **90.7%** | **78.9%** |
 | **DEFLECTION/GUIDE** | 249 | 186 | 74.7% | 167 | **89.8%** | **67.1%** |
 | **POWER DRIVE** | 256 | 190 | 74.2% | 186 | **97.9%** | **72.7%** |
 | **SWEEP** | 212 | 181 | 85.4% | 172 | **95.0%** | **81.1%** |
-| **OVERALL TOTAL** | **3887** | **3092** | **79.5%** | **2807** | 🏆 **90.8%** | 🏆 **72.2%** |
+| **OVERALL TOTAL** | **3889** | **3093** | **79.5%** | **2809** | 🏆 **90.8%** | 🏆 **72.2%** |
 
 ### 🏆 Full Dataset Per-Shot Accuracy Breakdown (All 74 Sessions)
 | Shot Class | Physical GT Shots | Shots Detected | **Detection Recall (%)** | **Correctly Classified Shots** | **Classification Accuracy (%)** | **Total Coverage Rate (%)** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PULL/HOOK/SLOG** | 1132 | 890 | 78.6% | 772 | **86.7%** | **68.2%** |
-| **DRIVE/DEFENCE** | 1063 | 850 | 80.0% | 783 | **92.1%** | **73.7%** |
-| **GLANCE/FLICK** | 671 | 529 | 78.8% | 456 | **86.2%** | **68.0%** |
-| **CUT/PUNCH** | 431 | 375 | 87.0% | 336 | **89.6%** | **78.0%** |
+| **PULL/HOOK/SLOG** | 1065 | 836 | 78.5% | 767 | **91.7%** | **72.0%** |
+| **DRIVE/DEFENCE** | 1063 | 850 | 80.0% | 754 | **88.7%** | **70.9%** |
+| **GLANCE/FLICK** | 742 | 584 | 78.7% | 499 | **85.4%** | **67.3%** |
+| **CUT/PUNCH** | 431 | 375 | 87.0% | 335 | **89.3%** | **77.7%** |
 | **DEFLECTION/GUIDE** | 277 | 207 | 74.7% | 186 | **89.9%** | **67.1%** |
 | **POWER DRIVE** | 276 | 210 | 76.1% | 200 | **95.2%** | **72.5%** |
 | **SWEEP** | 243 | 211 | 86.8% | 202 | **95.7%** | **83.1%** |
-| **OVERALL TOTAL** | **4093** | **3272** | **79.9%** | **2935** | 🏆 **89.7%** | 🏆 **71.7%** |
+| **OVERALL TOTAL** | **4097** | **3273** | **79.9%** | **2943** | 🏆 **89.9%** | 🏆 **71.8%** |
 
 ---
 
@@ -98,17 +98,17 @@
 | `session_2026-07-10_12-30-15` | Training | 18.7 | 51 | 63 | 100.0% | 81.0% | 89.5%
 | `session_2026-07-11_12-51-39` | Training | 17.1 | 55 | 16 | 10.9% | 37.5% | 16.9%
 | `session_2026-07-12_11-23-59` | Training | 13.1 | 56 | 4 | 3.6% | 50.0% | 6.7%
-| `session_2026-07-13_12-17-57` | Training | 21.5 | 60 | 74 | 90.0% | 73.0% | 80.6%
+| `session_2026-07-13_12-17-57` | Training | 21.5 | 61 | 74 | 90.2% | 74.3% | 81.5%
 | `session_2026-07-17_12-30-41` | Training | 19.4 | 57 | 7 | 10.5% | 85.7% | 18.7%
 | `session_2026-07-18_13-44-09` | Training | 21.3 | 66 | 60 | 43.9% | 48.3% | 46.0%
 | `session_2026-07-20_12-42-16` | 🌟 HOLDOUT | 15.3 | 37 | 51 | 94.6% | 68.6% | 79.5%
-| `session_2026-07-21_12-43-37` | 🌟 HOLDOUT | 18.3 | 56 | 63 | 73.2% | 65.1% | 68.9%
+| `session_2026-07-21_12-43-37` | 🌟 HOLDOUT | 18.3 | 58 | 63 | 70.7% | 65.1% | 67.8%
 | `session_2026-07-23_12-37-13` | Training | 12.5 | 57 | 60 | 96.5% | 91.7% | 94.0%
 | `session_2026-07-24_12-52-29` | 🌟 HOLDOUT | 17.9 | 52 | 58 | 84.6% | 75.9% | 80.0%
 | `session_2026-07-25_15-16-32` | 🌟 HOLDOUT | 20.6 | 61 | 69 | 98.4% | 87.0% | 92.3%
 | `session_2026-07-26_11-44-54` | Training | 15.1 | 55 | 62 | 98.2% | 87.1% | 92.3%
 | `session_2026-07-27_12-47-20` | Training | 18.1 | 53 | 58 | 94.3% | 86.2% | 90.1%
-| `session_2026-07-28_12-43-23` | Training | 16.0 | 43 | 62 | 90.7% | 62.9% | 74.3%
+| `session_2026-07-28_12-43-23` | Training | 16.0 | 44 | 62 | 88.6% | 62.9% | 73.6%
 | `session_2026-07-31_12-44-46` | Training | 17.2 | 55 | 64 | 89.1% | 76.6% | 82.4%
 | `session_2026-08-01_10-18-20` | Training | 8.9 | 27 | 29 | 85.2% | 79.3% | 82.1%
 | `session_2026-08-02_12-10-13` | Training | 11.3 | 49 | 52 | 93.9% | 88.5% | 91.1%
@@ -148,10 +148,10 @@
 
 | Error Category | Count | Primary Impacted Shots |
 |---|:---:|---|
-| **VERTICAL_BAT_CONFUSION** | **30** | PULL/HOOK/SLOG (24), CUT/PUNCH (6) |
-| **NOT_DETECTED (MISSING_CANDIDATE)** | **23** | PULL/HOOK/SLOG (8), DEFLECTION/GUIDE (6), GLANCE/FLICK (5) |
+| **NOT_DETECTED (MISSING_CANDIDATE)** | **25** | GLANCE/FLICK (8), PULL/HOOK/SLOG (7), DEFLECTION/GUIDE (6) |
+| **VERTICAL_BAT_CONFUSION** | **22** | PULL/HOOK/SLOG (16), CUT/PUNCH (6) |
+| **SUBCLASS_CONFUSION** | **9** | GLANCE/FLICK (5), DRIVE/DEFENCE (2), DEFLECTION/GUIDE (2) |
 | **SWEEP_CONFUSION** | **7** | GLANCE/FLICK (3), DRIVE/DEFENCE (1), CUT/PUNCH (1) |
-| **SUBCLASS_CONFUSION** | **7** | GLANCE/FLICK (3), DRIVE/DEFENCE (2), DEFLECTION/GUIDE (2) |
 | **CROSS_BAT_CONFUSION (Macro Gate)** | **5** | POWER DRIVE (5) |
 | **CROSS_BAT_CONFUSION** | **4** | DRIVE/DEFENCE (3), GLANCE/FLICK (1) |
 
@@ -169,22 +169,18 @@
 | `session_2026-07-21_12-43-37` | 16.24 | **DEFLECTION/GUIDE** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 75.36 | +59.12 | *alright just getting myself organized* |
 | `session_2026-07-21_12-43-37` | 19.70 | **DRIVE/DEFENCE** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 75.36 | +55.66 | *cover me if my watchy* |
 | `session_2026-07-21_12-43-37` | 173.32 | **DRIVE/DEFENCE** | GLANCE/FLICK | `SUBCLASS_CONFUSION` | 0.66 | 173.32 | +0.00 | *oh back defense okay* |
-| `session_2026-07-21_12-43-37` | 199.60 | **PULL/HOOK/SLOG** | GLANCE/FLICK | `VERTICAL_BAT_CONFUSION` | 0.74 | 199.60 | +0.00 | *foot shot good facing up* |
-| `session_2026-07-21_12-43-37` | 207.58 | **PULL/HOOK/SLOG** | GLANCE/FLICK | `VERTICAL_BAT_CONFUSION` | 0.77 | 207.58 | +0.00 | *foot shot good* |
-| `session_2026-07-21_12-43-37` | 517.26 | **PULL/HOOK/SLOG** | GLANCE/FLICK | `VERTICAL_BAT_CONFUSION` | 0.72 | 517.26 | +0.00 | *foot shot okay* |
-| `session_2026-07-21_12-43-37` | 524.97 | **PULL/HOOK/SLOG** | GLANCE/FLICK | `VERTICAL_BAT_CONFUSION` | 0.73 | 524.98 | +0.00 | *foot shot good* |
-| `session_2026-07-21_12-43-37` | 572.76 | **PULL/HOOK/SLOG** | GLANCE/FLICK | `VERTICAL_BAT_CONFUSION` | 0.67 | 572.76 | +0.00 | *foot shot good* |
-| `session_2026-07-21_12-43-37` | 581.22 | **PULL/HOOK/SLOG** | DRIVE/DEFENCE | `VERTICAL_BAT_CONFUSION` | 0.72 | 579.83 | -1.39 | *foot shot good facing up* |
+| `session_2026-07-21_12-43-37` | 581.22 | **GLANCE/FLICK** | DRIVE/DEFENCE | `SUBCLASS_CONFUSION` | 0.72 | 579.83 | -1.39 | *foot shot good facing up* |
 | `session_2026-07-21_12-43-37` | 617.47 | **PULL/HOOK/SLOG** | GLANCE/FLICK | `VERTICAL_BAT_CONFUSION` | 0.74 | 616.70 | -0.77 | *hook shot good facing up* |
 | `session_2026-07-21_12-43-37` | 641.81 | **GLANCE/FLICK** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 634.70 | -7.11 | *flick shot okay facing up* |
 | `session_2026-07-21_12-43-37` | 662.05 | **GLANCE/FLICK** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 659.19 | -2.86 | *oh for shot edge* |
 | `session_2026-07-21_12-43-37` | 921.52 | **DRIVE/DEFENCE** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 917.37 | -4.15 | *on drive okay* |
 | `session_2026-07-21_12-43-37` | 933.45 | **DRIVE/DEFENCE** | GLANCE/FLICK | `SUBCLASS_CONFUSION` | 0.39 | 933.45 | +0.00 | *on drive good* |
+| `session_2026-07-21_12-43-37` | 936.93 | **GLANCE/FLICK** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 938.74 | +1.81 | *facing up foot shot good* |
+| `session_2026-07-21_12-43-37` | 941.99 | **GLANCE/FLICK** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 938.74 | -3.25 | *facing up foot shot okay* |
 | `session_2026-07-21_12-43-37` | 955.27 | **GLANCE/FLICK** | DRIVE/DEFENCE | `SUBCLASS_CONFUSION` | 0.81 | 955.27 | +0.00 | *flip shot good* |
 | `session_2026-07-21_12-43-37` | 967.40 | **GLANCE/FLICK** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 965.01 | -2.40 | *switch up for* |
-| `session_2026-07-21_12-43-37` | 978.28 | **PULL/HOOK/SLOG** | GLANCE/FLICK | `VERTICAL_BAT_CONFUSION` | 0.65 | 978.28 | +0.00 | *foot shot good* |
-| `session_2026-07-21_12-43-37` | 983.21 | **PULL/HOOK/SLOG** | DRIVE/DEFENCE | `VERTICAL_BAT_CONFUSION` | 0.80 | 983.22 | +0.00 | *foot shot good* |
-| `session_2026-07-21_12-43-37` | 996.05 | **PULL/HOOK/SLOG** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 992.68 | -3.37 | *foot shot good* |
+| `session_2026-07-21_12-43-37` | 983.21 | **GLANCE/FLICK** | DRIVE/DEFENCE | `SUBCLASS_CONFUSION` | 0.80 | 983.22 | +0.00 | *foot shot good* |
+| `session_2026-07-21_12-43-37` | 996.05 | **GLANCE/FLICK** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 992.68 | -3.37 | *foot shot good* |
 | `session_2026-07-21_12-43-37` | 1006.22 | **GLANCE/FLICK** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 1003.90 | -2.33 | *oh switch up edge facing* |
 | `session_2026-07-21_12-43-37` | 1012.35 | **PULL/HOOK/SLOG** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 1010.81 | -1.54 | *up push up good* |
 | `session_2026-07-21_12-43-37` | 1021.57 | **PULL/HOOK/SLOG** | ⚠️ NONE | `NOT_DETECTED (MISSING_CANDIDATE)` | 0.00 | 1018.71 | -2.86 | *pull shot okay facing up* |

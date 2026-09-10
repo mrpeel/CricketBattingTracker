@@ -237,7 +237,7 @@ object PhoneSwingDetector {
         // 3. Run Stage 1 & Stage 2 TCN Inference
         val tcnRunner = com.mrpeel.cricketbattingtracker.ml.TcnModelRunner(context)
         val detectedShots = try {
-            tcnRunner.runInference(sensorMatrix, timestampsMs)
+            tcnRunner.runInference(sensorMatrix, timestampsMs, sessionConfig.polarMountMode)
         } catch (e: Exception) {
             Log.e(TAG, "TCN inference failed, falling back", e)
             emptyList()
