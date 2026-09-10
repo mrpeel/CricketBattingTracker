@@ -1,0 +1,21 @@
+====================================================================================================
+  PITCH ANALYTIX PRO — PERSISTENT RUN LOG
+  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/polar_relational_experiment_2026-09-04_17-19-30.log
+  Start Time       : 2026-09-04 17:19:30
+  Command Line     : pipelines/run_polar_relational_experiment.py --help
+  Python Version   : 3.14.5 (/opt/homebrew/opt/python@3.14/bin/python3.14)
+====================================================================================================
+
+usage: run_polar_relational_experiment.py [-h] [--seed SEED]
+
+31-Channel Dual-Hand Relational TCN Experiment
+
+options:
+  -h, --help   show this help message and exit
+  --seed SEED  Random seed for reproducibility (default: 42)
+
+====================================================================================================
+  RUN COMPLETED: 2026-09-04 17:19:30
+  Total Duration: 0:00:00.000766
+  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/polar_relational_experiment_2026-09-04_17-19-30.log
+====================================================================================================

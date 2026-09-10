@@ -1,0 +1,21 @@
+====================================================================================================
+  PITCH ANALYTIX PRO — PERSISTENT RUN LOG
+  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/polar_option_b_experiment_2026-09-04_21-30-20.log
+  Start Time       : 2026-09-04 21:30:20
+  Command Line     : pipelines/run_polar_temporal_option_b.py --help
+  Python Version   : 3.14.5 (/opt/homebrew/opt/python@3.14/bin/python3.14)
+====================================================================================================
+
+usage: run_polar_temporal_option_b.py [-h] [--seed SEED]
+
+34-Channel Dual-Hand Polar Option B Experiment
+
+options:
+  -h, --help   show this help message and exit
+  --seed SEED  Random seed for reproducibility (default: 42)
+
+====================================================================================================
+  RUN COMPLETED: 2026-09-04 21:30:20
+  Total Duration: 0:00:00.001117
+  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/polar_option_b_experiment_2026-09-04_21-30-20.log
+====================================================================================================
