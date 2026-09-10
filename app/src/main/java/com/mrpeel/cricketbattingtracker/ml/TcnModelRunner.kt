@@ -519,6 +519,24 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 }
             }
 
+            // Gate 2.5: Biomechanical Physical Consistency Gate (Spatial Attitude)
+            val qx = sensorMatrix[15][anchorF]; val qy = sensorMatrix[16][anchorF]
+            val qz = sensorMatrix[17][anchorF]; val qw = sensorMatrix[18][anchorF]
+            val qMag = qx*qx + qy*qy + qz*qz + qw*qw
+            if (qMag > 0.5f) {
+                val vz = 2.0f * (qy * qz - qx * qw)
+                val pitchDeg = Math.toDegrees(asin(abs(vz).coerceIn(0f, 1f).toDouble())).toFloat()
+
+                // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
+                if (pitchDeg >= 65.0f && (predShotType == "PULL/HOOK/SLOG" || predShotType == "CUT/PUNCH")) {
+                    predShotType = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
+                }
+                // Rule 2: Horizontal Bat Gate (pitch <= 40 deg cannot be straight vertical drive)
+                else if (pitchDeg <= 40.0f && predShotType == "DRIVE/DEFENCE") {
+                    predShotType = "PULL/HOOK/SLOG"
+                }
+            }
+
             // Gate 3: Dynamic Class-Aware NMS (2.4s for SWEEP, 1.8s for standard classes)
             val isSweep = (predShotType == "SWEEP")
             val reqRefractoryFrames = if (lastWasSweep || isSweep) 1015 else 761 // 2.4s vs 1.8s at 423 Hz

@@ -65,6 +65,15 @@ data class InningsEvent(
     val bat_weight_grams: Float? = null,
     val bat_sensor_offset_knob_cm: Float? = null,
     val bat_sensor_offset_toe_cm: Float? = null,
+
+    // 3D Bat & Wrist AHRS Orientation & Kinematic Guard
+    val blade_pitch_deg: Float? = null,
+    val face_angle_deg: Float? = null,
+    val swing_yaw_deg: Float? = null,
+    val relative_wrist_angle_deg: Float? = null,
+    val azimuth_deviation_deg: Float? = null,
+    val polar_mount_type: String? = null,
+    val is_kinematically_valid: Boolean? = null,
 )
 
 @Entity(tableName = "heart_rate_events")

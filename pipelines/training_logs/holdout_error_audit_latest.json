@@ -174,7 +174,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.71,
+    "prob": 0.72,
     "cand_t": 579.83,
     "delta_s": -1.39,
     "narr_text": "foot shot good facing up"
@@ -414,7 +414,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.45,
+    "prob": 0.46,
     "cand_t": 83.21,
     "delta_s": 0.0,
     "narr_text": "cut shot okay"
@@ -426,7 +426,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.44,
+    "prob": 0.46,
     "cand_t": 91.14,
     "delta_s": -0.82,
     "narr_text": "guide or facing up"
@@ -438,7 +438,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.44,
+    "prob": 0.46,
     "cand_t": 91.14,
     "delta_s": 0.0,
     "narr_text": "cut shot okay facing up"
@@ -450,7 +450,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.66,
+    "prob": 0.68,
     "cand_t": 103.43,
     "delta_s": 0.0,
     "narr_text": "guide okay"
@@ -462,7 +462,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.58,
+    "prob": 0.59,
     "cand_t": 111.02,
     "delta_s": 0.1,
     "narr_text": "cut shot okay"
@@ -474,7 +474,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.63,
+    "prob": 0.64,
     "cand_t": 152.92,
     "delta_s": 0.0,
     "narr_text": "cut shot okay"
@@ -606,7 +606,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.81,
+    "prob": 0.82,
     "cand_t": 584.08,
     "delta_s": 0.0,
     "narr_text": "touch shot good facing up"
@@ -820,8 +820,8 @@
     "impact_t": 1052.24,
     "gt_cls": "GLANCE/FLICK",
     "status": "MISCLASSIFIED",
-    "pred_cls": "POWER DRIVE",
-    "error_cat": "SUBCLASS_CONFUSION",
+    "pred_cls": "PULL/HOOK/SLOG",
+    "error_cat": "CROSS_BAT_CONFUSION",
     "prob": 0.46,
     "cand_t": 1052.24,
     "delta_s": 0.0,
@@ -846,7 +846,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "POWER DRIVE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.63,
+    "prob": 0.62,
     "cand_t": 1078.21,
     "delta_s": 0.0,
     "narr_text": "pull shot okay"
@@ -882,7 +882,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.66,
+    "prob": 0.65,
     "cand_t": 1109.6,
     "delta_s": 0.0,
     "narr_text": "slog good"

@@ -2195,6 +2195,21 @@ fun TimelineItem(
                                 modifier = Modifier.clickable { expanded = !expanded }
                             )
                         }
+                        if (event.is_kinematically_valid == false) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFFFB300).copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "⚠️ SENSOR DETACHED",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFFB300)
+                                )
+                            }
+                        }
                         val batLabel = event.getBatLabel()
                         if (batLabel != null) {
                             Spacer(modifier = Modifier.width(6.dp))
@@ -2411,6 +2426,55 @@ fun TimelineItem(
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                             lineHeight = 11.sp
                         )
+
+                        // ── 3D Bat & Wrist AHRS Orientation ──
+                        if (event.blade_pitch_deg != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "3D BAT ORIENTATION",
+                                fontSize = 7.sp,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Blade Pitch", fontSize = 7.sp, color = Color.Gray)
+                                    Text(String.format(java.util.Locale.US, "%.1f°", event.blade_pitch_deg), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                                if (event.face_angle_deg != null) {
+                                    Column {
+                                        Text("Face Angle", fontSize = 7.sp, color = Color.Gray)
+                                        Text(String.format(java.util.Locale.US, "%+.1f°", event.face_angle_deg), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                                if (event.swing_yaw_deg != null) {
+                                    Column {
+                                        Text("Swing Yaw", fontSize = 7.sp, color = Color.Gray)
+                                        Text(String.format(java.util.Locale.US, "%.1f°", event.swing_yaw_deg), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                                if (event.relative_wrist_angle_deg != null) {
+                                    Column {
+                                        Text(if (isBatHandle) "Wrist-Bat" else "Inter-Wrist", fontSize = 7.sp, color = Color.Gray)
+                                        Text(String.format(java.util.Locale.US, "%.1f°", event.relative_wrist_angle_deg), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+
+                        if (event.is_kinematically_valid == false) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "⚠️ Second sensor detachment or free-fall tumble detected. Shot evaluated using top-hand watch kinematics.",
+                                fontSize = 8.sp,
+                                color = Color(0xFFFFB300),
+                                lineHeight = 10.sp
+                            )
+                        }
                     }
                 }
             }

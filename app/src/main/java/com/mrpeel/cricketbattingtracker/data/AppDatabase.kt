@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [InningsEvent::class, HeartRateEvent::class], version = 11, exportSchema = false)
+@Database(entities = [InningsEvent::class, HeartRateEvent::class], version = 12, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun inningsEventDao(): InningsEventDao
 
@@ -80,6 +80,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Migration 11→12: Add 3D AHRS orientation and kinematic guard columns to innings_events. */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN blade_pitch_deg REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN face_angle_deg REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN swing_yaw_deg REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN relative_wrist_angle_deg REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN azimuth_deviation_deg REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN polar_mount_type TEXT")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN is_kinematically_valid INTEGER")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -87,7 +100,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "cricket_tracker_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

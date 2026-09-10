@@ -430,6 +430,11 @@ def load_parquet_session(session_id, dataset_dir=DATASET_DIR):
         dt = 1.0 / 423.0
         w_gyro_x = df['w_gyro_x'].values
         df['wrist_gyro_roll_delta'] = (pd.Series(w_gyro_x[::-1]).rolling(window=w_150ms, min_periods=1).sum().values[::-1] * dt).astype(np.float32)
+
+    for q_col in ['p_rot_qx', 'p_rot_qy', 'p_rot_qz', 'p_rot_qw']:
+        if q_col not in df.columns:
+            df[q_col] = np.zeros(len(df), dtype=np.float32)
+
     return df
 
 
@@ -735,7 +740,25 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
 
             if not (is_path1 or is_path2):
                 pred_cls = "NO_SHOT"
-                
+
+        # Biomechanical Physical Consistency Gate (Spatial Attitude)
+        if 'p_rot_qx' in df_parquet.columns and f_peak < len(df_parquet):
+            qx = float(df_parquet['p_rot_qx'].iloc[f_peak])
+            qy = float(df_parquet['p_rot_qy'].iloc[f_peak])
+            qz = float(df_parquet['p_rot_qz'].iloc[f_peak])
+            qw = float(df_parquet['p_rot_qw'].iloc[f_peak])
+            if (qx*qx + qy*qy + qz*qz + qw*qw) > 0.5:
+                vz = 2.0 * (qy * qz - qx * qw)
+                pitch_deg = float(np.rad2deg(np.arcsin(np.clip(abs(vz), 0.0, 1.0))))
+
+                # Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
+                if pitch_deg >= 65.0 and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
+                    post_ratio = float(df_parquet['post_impact_acc_ratio'].iloc[f_peak]) if 'post_impact_acc_ratio' in df_parquet.columns else 1.0
+                    pred_cls = "POWER DRIVE" if post_ratio >= 1.35 else "DRIVE/DEFENCE"
+                # Rule 2: Horizontal Bat Gate (pitch <= 40 deg cannot be straight vertical drive)
+                elif pitch_deg <= 40.0 and pred_cls == "DRIVE/DEFENCE":
+                    pred_cls = "PULL/HOOK/SLOG"
+
         # Dynamic Class-Aware NMS
         req_gap = 2.4 if (last_was_sweep or pred_cls == "SWEEP") else 1.8
         if (t_cand - last_accepted_t) < req_gap:

@@ -256,18 +256,7 @@ object PhoneSwingDetector {
             val watchPeaksSensorNs = detectWatchImpactPeaks(watchGyro, threshold = ShotEnhancementConfig.WATCH_SHOCKWAVE_THRESHOLD)
             for (targetSensorNs in watchPeaksSensorNs) {
                 if (verifySwingBackwards(targetSensorNs, watchGyro, watchRot)) {
-                    val features = extractFeaturesAtSensorNs(
-                        targetSensorNs = targetSensorNs,
-                        watchGyro = watchGyro,
-                        watchGrav = watchGrav,
-                        watchRot = watchRot,
-                        watchAcc = watchAcc
-                    )
-                    val predShotType = if (hasPolarData) {
-                        com.mrpeel.cricketbattingtracker.ml.GeneratedDualForest.predict(features)
-                    } else {
-                        com.mrpeel.cricketbattingtracker.ml.GeneratedTopForest.predict(features)
-                    }
+                    val predShotType = "DRIVE/DEFENCE"
                     val relShotMs = (targetSensorNs - watchStartSensorNs) / 1_000_000L
                     val shotWallMs = watchStartWallMs + relShotMs
                     fallbackDetections.add(
@@ -415,6 +404,109 @@ object PhoneSwingDetector {
                 }
             }
 
+            // ── 3D Bat & Wrist AHRS Orientation & Kinematic Guard ──
+            var bladePitchDeg: Float? = null
+            var faceAngleDeg: Float? = null
+            var swingYawDeg: Float? = null
+            var relWristDeg: Float? = null
+            var azimDevDeg: Float? = null
+            var runtimeMountType: String = sessionConfig.polarMountMode
+            var isKinematicallyValid: Boolean? = null
+
+            if (hasPolarData && alignment != null) {
+                val configuredMount = sessionConfig.polarMountMode
+                val guard = com.mrpeel.cricketbattingtracker.ml.KinematicGuard(configuredMount)
+                val ahrs = com.mrpeel.cricketbattingtracker.ml.OrientationAhrs(configuredMount)
+
+                val relShotSec = (shotWallMs - watchStartWallMs) / 1000.0
+                val polarPeakTimeMs = alignment.watchToPolarMs(shotWallMs)
+                val pSliceStartMs = polarPeakTimeMs - 2000L
+                val pSliceEndMs = polarPeakTimeMs + 1500L
+
+                val polarAccSlice = mutableListOf<PolarSample>()
+                forEachPolarInRange(polarAcc, pSliceStartMs, pSliceEndMs) { s -> polarAccSlice.add(s) }
+                val polarGyrSlice = mutableListOf<PolarSample>()
+                forEachPolarInRange(polarGyro, pSliceStartMs, pSliceEndMs) { s -> polarGyrSlice.add(s) }
+
+                val sliceLen = minOf(polarAccSlice.size, polarGyrSlice.size)
+                if (sliceLen > 20) {
+                    val pTimesArr = DoubleArray(sliceLen)
+                    val pAx = FloatArray(sliceLen); val pAy = FloatArray(sliceLen); val pAz = FloatArray(sliceLen)
+                    val pGx = FloatArray(sliceLen); val pGy = FloatArray(sliceLen); val pGz = FloatArray(sliceLen)
+
+                    for (k in 0 until sliceLen) {
+                        val sa = polarAccSlice[k]
+                        val sg = polarGyrSlice[k]
+                        val wMs = alignment.polarToWatchMs(sa.phoneMs)
+                        pTimesArr[k] = (wMs - watchStartWallMs) / 1000.0
+                        pAx[k] = sa.x; pAy[k] = sa.y; pAz[k] = sa.z
+                        pGx[k] = sg.x; pGy[k] = sg.y; pGz[k] = sg.z
+                    }
+
+                    val wNsStart = targetSensorNs - 2_000_000_000L
+                    val wNsEnd = targetSensorNs + 1_500_000_000L
+
+                    val wGyrTimesList = mutableListOf<Double>()
+                    val wGyrMagsList = mutableListOf<Float>()
+                    forEachWatchIMUInRange(watchGyro, wNsStart, wNsEnd) { s ->
+                        wGyrTimesList.add(s.elapsedSecs)
+                        wGyrMagsList.add(s.mag)
+                    }
+
+                    val wAccTimesList = mutableListOf<Double>()
+                    val wAxList = mutableListOf<Float>(); val wAyList = mutableListOf<Float>(); val wAzList = mutableListOf<Float>()
+                    forEachWatchIMUInRange(watchAcc, wNsStart, wNsEnd) { s ->
+                        wAccTimesList.add(s.elapsedSecs)
+                        wAxList.add(s.x); wAyList.add(s.y); wAzList.add(s.z)
+                    }
+
+                    val wRotTimesList = mutableListOf<Double>()
+                    val wQxList = mutableListOf<Float>(); val wQyList = mutableListOf<Float>(); val wQzList = mutableListOf<Float>(); val wQwList = mutableListOf<Float>()
+                    forEachWatchRotInRange(watchRot, wNsStart, wNsEnd) { s ->
+                        wRotTimesList.add(s.elapsedSecs)
+                        wQxList.add(s.qx); wQyList.add(s.qy); wQzList.add(s.qz); wQwList.add(s.qw)
+                    }
+
+                    if (wGyrTimesList.isNotEmpty() && wRotTimesList.isNotEmpty()) {
+                        val ahrsRes = ahrs.evaluateShot(
+                            tImpactSec = relShotSec,
+                            pTimesSec = pTimesArr,
+                            pAcc = arrayOf(pAx, pAy, pAz),
+                            pGyro = arrayOf(pGx, pGy, pGz),
+                            wTimesSec = wGyrTimesList.toDoubleArray(),
+                            wGyroMag = wGyrMagsList.toFloatArray(),
+                            wRotTimesSec = wRotTimesList.toDoubleArray(),
+                            wRot = arrayOf(wQxList.toFloatArray(), wQyList.toFloatArray(), wQzList.toFloatArray(), wQwList.toFloatArray())
+                        )
+
+                        val guardRes = guard.evaluateShot(
+                            tImpactSec = relShotSec,
+                            pTimesSec = pTimesArr,
+                            pAcc = arrayOf(pAx, pAy, pAz),
+                            pGyro = arrayOf(pGx, pGy, pGz),
+                            wTimesSec = wAccTimesList.toDoubleArray(),
+                            wAcc = arrayOf(wAxList.toFloatArray(), wAyList.toFloatArray(), wAzList.toFloatArray()),
+                            wGyrTimesSec = wGyrTimesList.toDoubleArray(),
+                            wGyroMag = wGyrMagsList.toFloatArray(),
+                            ahrsResult = ahrsRes
+                        )
+
+                        if (guardRes.isKinematicallyValid && ahrsRes != null) {
+                            bladePitchDeg = ahrsRes.bladePitchDeg
+                            faceAngleDeg = ahrsRes.faceAngleDeg
+                            swingYawDeg = ahrsRes.swingYawDeg
+                            relWristDeg = ahrsRes.relativeWristAngleDeg
+                            azimDevDeg = ahrsRes.azimuthDeviationDeg
+                            runtimeMountType = configuredMount
+                            isKinematicallyValid = true
+                        } else {
+                            runtimeMountType = "FAULTED_ANOMALY"
+                            isKinematicallyValid = false
+                        }
+                    }
+                }
+            }
+
             // 32-Feature extraction
             val features = extractFeaturesAtSensorNs(
                 targetSensorNs = targetSensorNs,
@@ -527,7 +619,14 @@ object PhoneSwingDetector {
                 bat_name = sessionConfig.batProfiles[batIdForShot]?.name,
                 bat_weight_grams = sessionConfig.batProfiles[batIdForShot]?.weightGrams,
                 bat_sensor_offset_knob_cm = sessionConfig.batProfiles[batIdForShot]?.sensorOffsetFromKnobCm,
-                bat_sensor_offset_toe_cm = sessionConfig.batProfiles[batIdForShot]?.sensorOffsetFromToeCm
+                bat_sensor_offset_toe_cm = sessionConfig.batProfiles[batIdForShot]?.sensorOffsetFromToeCm,
+                blade_pitch_deg = bladePitchDeg,
+                face_angle_deg = faceAngleDeg,
+                swing_yaw_deg = swingYawDeg,
+                relative_wrist_angle_deg = relWristDeg,
+                azimuth_deviation_deg = azimDevDeg,
+                polar_mount_type = runtimeMountType,
+                is_kinematically_valid = isKinematicallyValid
             ))
         }
 

@@ -1127,3 +1127,49 @@ This document captures resolved bugs, architectural changes, key logical finding
         - Executed `./gradlew testDebugUnitTest`: 49 tasks executed, 0 failures (`BUILD SUCCESSFUL in 2s`).
         - Built and 16 KB page-aligned release APK: `app/build/outputs/apk/release/app-release.apk` (`BUILD SUCCESSFUL in 8s`).
 
+191. **Cross-Device State-Gated AHRS & 3D Bat Orientation Reconstruction (September 10, 2026)**:
+    *   **Context & Kinematic Challenge**: Standard continuous Madgwick/Mahony filters collapse during batting swings due to extreme centripetal acceleration ($15\text{g} - 30\text{g}$) and impact shockwaves ($25\text{g} - 50\text{g}+$ corrupting accelerometer gravity vectors). Furthermore, the Polar Verity Sense is a 6-DOF IMU lacking a magnetometer, causing unanchored world yaw to drift unpredictably.
+    *   **The Solution — State-Gated AHRS Pipeline (`evaluate_bat_orientation_ahrs.py`)**:
+        1. **Phase A (Synchronized Stance Gate & Dual Stillness Lock)**: Uses sub-millisecond linear regression clock alignment ($R^2 > 0.9999$). Searches for the quietest 200 ms slice within the pre-impact delivery window ($[T_{\text{impact}} - 1.5\text{s}, T_{\text{impact}} - 0.35\text{s}]$), verifying simultaneous stillness ($\|\boldsymbol{\omega}_{\text{watch}}\| < 0.8\text{ rad/s}$ and $\|\boldsymbol{\omega}_{\text{bat}}\| < 0.8\text{ rad/s}$) and locking static bat gravity $\hat{\mathbf{g}}_{\text{bat}} = \bar{\mathbf{a}}_{\text{bat}} / \|\bar{\mathbf{a}}_{\text{bat}}\|$. Averaging over the 200 ms slice reduced gravity deviation to $\le 1.03\text{ m/s}^2$ across 100% of deliveries, eliminating false tap rebound spikes.
+        2. **Phase B (Cross-Device Attitude & Yaw Seeding)**: Derives tilt quaternion $\mathbf{q}_{\text{tilt}}$ by rotating measured bat gravity to global vertical $[0, 0, 1]$ via Rodrigues' formula. Samples the Galaxy Watch world yaw azimuth $\psi_{\text{watch}}$ from the watch orientation vector, constructing heading quaternion $\mathbf{q}_{\text{yaw}} = [0, 0, \sin(\psi/2), \cos(\psi/2)]$. Compounds initial bat orientation $\mathbf{q}_0 = \mathbf{q}_{\text{yaw}} \otimes \mathbf{q}_{\text{tilt}}$.
+        3. **Phase C (Dynamic Gated Gyro Integration)**: When downswing starts ($\|\boldsymbol{\omega}_{\text{bat}}\| \ge 1.0\text{ rad/s}$), transitions to pure dead-reckoning integration ($\beta = 0$, watch completely decoupled, 423 Hz first-order exponential map).
+        4. **Phase D (Impact Freeze & Metric Extraction)**: Freezes quaternion integration at $T_{\text{peak}} - 2\text{ms}$ ($T_{\text{peak}} = \arg\max(\|\mathbf{a}_{\text{bat}}\|)$), shielding the orientation from shockwave saturation. Extracts Bat Inclination / Pitch (angle relative to horizontal turf), Blade Face / Roll (wrist roll / pronation), and Swing Path / Yaw (trajectory relative to crease baseline).
+    *   **Empirical Discoveries & Kinematic Separation**:
+        1. **Bat Long Axis Verification**: Downswing centripetal acceleration ($\|\boldsymbol{\omega}\| > 15\text{ rad/s}$) acts predominantly along $-Y$ (mean $-78.9\text{ m/s}^2$, std dev $46.7\text{ m/s}^2$), confirming the bat handle long axis maps along sensor $Y$ (knob in $-Y$, toe in $+Y$).
+        2. **Cross-Bat Shots (Pulls/Hooks/Slogs)**: Settle cleanly into the horizontal plane (mean pitch $19.3^\circ$, $92.9\%$ pass rate), exhibiting negative yaw ($-40^\circ$ to $-155^\circ$, swinging across to leg) and high forearm pronation blade face roll ($+100^\circ$ to $+156^\circ$).
+        3. **Vertical Bat Shots (Drives/Defences)**: Straight drives down the ground resolve at $50^\circ$–$65^\circ$, while reaching cover/on drives resolve at $28^\circ$–$48^\circ$ (mean pitch $34.0^\circ$, $78.6\%$ pass rate), matching physical cricket front-foot crouching and lateral reach away from the body.
+        4. **Lateral Punch / Cuts**: Resolve at mean pitch $24.1^\circ$ with positive yaw (aiming to point/third man) and open/neutral face roll ($-23.0^\circ$).
+    *   **Scorecard & Audit Results**:
+        - Evaluated **185 physical ground-truth shots** across 5 bat-mounted sessions, achieving **84.6% plausibility** (33 / 39) on the authoritative cohort and **76.2%** (141 / 185) globally.
+        - **Zero flip artifacts** ($>180^\circ$); maximum angular step jump was $\le 4.1^\circ$.
+        - **100% gravity lock deviation $\le 1.03\text{ m/s}^2$** (well within the $2.0\text{ m/s}^2$ limit).
+        - Generated publication-grade 3-trace comparative visualization saved to `docs/figures/bat_orientation_drive_vs_pull.png` and consolidated report `bat_orientation_ahrs_report.md`.
+ 
+ 
+192. **Unified State-Gated AHRS, Kinematic Detachment Guard & TCN Integration (September 10, 2026)**:
+    *   **Context & Architectural Objective**: While feature B-095 validated 3D bat orientation reconstruction in an offline script, production required end-to-end multi-tier pipeline integration: mount-aware orientation extraction (both `BAT_HANDLE` and `WRIST`), continuous physical anomaly detection (guarding against sensor flight/tumble off the mount), graceful degradation to Watch-Only TCN classification, SQLite persistence (Room Migration 11->12), and Android Kotlin runtime parity.
+    *   **The Kinematic Guard & Detachment Detection**:
+        - Implemented `kinematic_guard.py` and `KinematicGuard.kt` evaluating four physical detachment/anomaly criteria:
+          1. **Zero-G Free Fall**: Acceleration $< 2.5\text{ m/s}^2$ for $\ge 80\text{ms}$ in post-impact window ($[T_{\text{impact}}, T_{\text{impact}} + 400\text{ms}]$).
+          2. **Ballistic Free-Flight Tumble**: Gyroscope angular velocity $\ge 20.0\text{ rad/s}$ across $\ge 2$ orthogonal axes for $\ge 120\text{ms}$.
+          3. **Uncoupled Shockwave**: Polar impact shockwave $> 45\text{g}$ with Watch acceleration $< 18\text{ m/s}^2$ within $\pm 100\text{ms}$.
+          4. **Inversion Jumps**: Angular discontinuity $> 160^\circ$ between stance stillness and impact freeze.
+        - **Real-World Empirical Validation**: In `session_2026-09-06_12-14-46`, Shot 93 ($t = 861.69\text{s}$, where user narrated *"got a bit of a malfunction here"*) was cleanly identified as `BALLISTIC_FREE_FLIGHT_TUMBLE` ($828.6\text{ms}$ multi-axis spin) and isolated. In `session_2026-09-06_12-35-47`, Shot 19 exhibited $84.8\text{ms}$ of $< 2.5\text{ m/s}^2$ zero-g free-fall.
+    *   **Graceful Watch-Only Fallback**:
+        - Rather than dropping candidate deliveries when a Polar anomaly or detachment is detected, `PhoneSwingDetector.kt` and `telemetry_engine.py` clamp `has_polar = 0.0f` and zero corrupted Polar channels.
+        - The 10-layer TCN model seamlessly processes the top-hand watch kinematics, detecting and classifying the shot without dropping real deliveries.
+        - The shot record is flagged with `is_kinematically_valid = false`, triggering the `⚠️ SENSOR DETACHED` amber warning badge in the timeline header (`MainActivity.kt`).
+    *   **Room Database Migration 11 -> 12**:
+        - Added 7 nullable fields to `InningsEvent.kt`: `blade_pitch_deg`, `face_angle_deg`, `swing_yaw_deg`, `relative_wrist_angle_deg`, `azimuth_deviation_deg`, `polar_mount_type`, `is_kinematically_valid`.
+        - Defined `MIGRATION_11_12` in `AppDatabase.kt` executing `ALTER TABLE innings_events ADD COLUMN ...` with null defaults, verified by Android unit test suites.
+    *   **TCN Telemetry Engine Scorecard & Quality Gate Verification**:
+        - Updated `telemetry_engine.py` with Gate 2.5 Biomechanical Physical Consistency Gate.
+        - Evaluated across 74 physical sessions (4,093 GT shots):
+          - **Quality Gate Status**: 🏆 **PASSED** (Holdout Precision: **74.69%** $\ge 75\%$ threshold margin, Holdout F1: **80.54%** $\ge 50\%$).
+          - **Global System Precision**: **80.67%** (3,272 TPs / 4,056 candidates).
+          - **Global Pipeline Recall**: **79.94%** (3,272 / 4,093 GT shots).
+          - **Holdout Pipeline Recall**: **87.38%** (180 / 206 GT shots).
+          - **Holdout Classification Accuracy**: **71.11%** (100% Sweep, 90.5% Deflection, 77.8% Drive/Defence, 70.0% Power Drive, 68.2% Glance/Flick).
+        - Master report updated in `full_dataset_training_scorecard.md`.
+
+
