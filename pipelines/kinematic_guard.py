@@ -70,7 +70,10 @@ class KinematicGuard:
                 curr_start = None
                 for idx, is_low in enumerate(low_g_mask):
                     if is_low:
-                        if curr_start is None:
+                        # Reset if contiguous frames were interrupted by BLE packet loss (> 15ms)
+                        if idx > 0 and (post_t[idx] - post_t[idx - 1] > 0.015):
+                            curr_start = post_t[idx]
+                        elif curr_start is None:
                             curr_start = post_t[idx]
                         dur = post_t[idx] - curr_start
                         if dur > max_consec_duration:
@@ -100,7 +103,10 @@ class KinematicGuard:
                 curr_start = None
                 for idx, is_spin in enumerate(multi_axis_spin):
                     if is_spin:
-                        if curr_start is None:
+                        # Reset if contiguous frames were interrupted by BLE packet loss (> 15ms)
+                        if idx > 0 and (post_gt[idx] - post_gt[idx - 1] > 0.015):
+                            curr_start = post_gt[idx]
+                        elif curr_start is None:
                             curr_start = post_gt[idx]
                         dur = post_gt[idx] - curr_start
                         if dur > max_spin_dur:

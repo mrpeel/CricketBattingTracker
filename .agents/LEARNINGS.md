@@ -1172,4 +1172,20 @@ This document captures resolved bugs, architectural changes, key logical finding
           - **Holdout Classification Accuracy**: **71.11%** (100% Sweep, 90.5% Deflection, 77.8% Drive/Defence, 70.0% Power Drive, 68.2% Glance/Flick).
         - Master report updated in `full_dataset_training_scorecard.md`.
 
+193. **Kinematic Guard Packet Loss Resilience & Stillness Timeout Decoupling (September 10, 2026)**:
+    *   **The Problem**:
+        1. **BLE Packet Loss Gap Accumulation**: In `session_2026-09-07_12-29-10`, Shot #21 ($t=136.33\text{s}$) triggered `BALLISTIC_FREE_FLIGHT_TUMBLE (592.2ms)` even though the sensor never detached. During the follow-through, the BLE link dropped packets, causing three 146.3 ms transmission gaps. Because the guard duration check was `post_t[idx] - curr_start`, missing time was accumulated as if the sensor were continuously tumbling at $20\text{ rad/s}$.
+        2. **Stillness Timeout Lumping**: In `PhoneSwingDetector.kt` and `reprocess_session_orientations.py`, `if (guard.isKinematicallyValid && ahrsRes != null)` lumped stance stillness timeouts (`ahrsRes == null` due to continuous rapid-fire play) into `is_kinematically_valid = false` and `polar_mount_type = "FAULTED_ANOMALY"`. This triggered the amber `⚠️ SENSOR DETACHED` UI badge for healthy sensors simply because the batsman didn't pause in stance.
+    *   **The Solution**:
+        1. **Contiguous Sample Interval Guard**: In `kinematic_guard.py` and `KinematicGuard.kt`, added a contiguous frame check: if $\Delta t = t_i - t_{i-1} > 15\text{ms}$ (indicating dropped BLE packets), reset `curr_start = None`. Genuine free-flight tumble or zero-g must be continuous and uninterrupted.
+        2. **Decoupled Physical Validity & Attitude Seeding**: Physically healthy sensors that do not achieve a 200 ms quiet stance lock now retain `is_kinematically_valid = true` and `runtime_mount_type = configuredMount`. Only the 3D orientation angles remain `null`. The amber `⚠️ SENSOR DETACHED` warning badge triggers strictly on physical hardware detachment.
+        3. **Today's Bat Session Ingestion (`session_2026-09-10_12-55-41`)**: Ingested and reprocessed 99 GT shots across 3 bats (Eye in bat [1200g], Gray Nicholls Giant [1625g], Game bat [1425g]). Enriched with continuous `p_rot_q*` Parquet channels.
+    *   **Verification**:
+        - All 8 Python unit tests passed in `pipelines/test_ahrs_and_guard.py`.
+        - All 70+ Android unit tests passed in `./gradlew :app:testDebugUnitTest`.
+        - Re-running `reprocess_session_orientations.py` across all sessions proved:
+          - Shot #21 in `session_2026-09-07_12-29-10` is completely clean (`is_kinematically_valid = true`, `BAT_HANDLE`).
+          - Shots #101–105 in `session_2026-09-07_12-29-10` retain `is_kinematically_valid = true` without false `FAULTED_ANOMALY` flags.
+          - Shot #94 ($t=1112.30\text{s}$) in `session_2026-09-10_12-55-41` correctly caught as real hardware detachment ($2,000^\circ/\text{s}$ clipping for 375 ms) and protected via watch-only fallback.
+
 

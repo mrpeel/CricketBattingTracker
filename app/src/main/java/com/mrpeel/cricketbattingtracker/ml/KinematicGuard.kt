@@ -51,7 +51,12 @@ class KinematicGuard(val configuredMountMode: String = "BAT_HANDLE") {
             val t = pTimesSec[i]
             if (t in tImpactSec..(tImpactSec + 1.2)) {
                 if (pAccMags[i] < 2.5f) {
-                    if (zeroGStart < 0.0) zeroGStart = t
+                    // Reset if contiguous frames were interrupted by BLE packet loss (> 15ms)
+                    if (i > 0 && (t - pTimesSec[i - 1]) > 0.015) {
+                        zeroGStart = t
+                    } else if (zeroGStart < 0.0) {
+                        zeroGStart = t
+                    }
                     val dur = t - zeroGStart
                     if (dur > maxConsecZeroGDur) maxConsecZeroGDur = dur
                 } else {
@@ -80,7 +85,12 @@ class KinematicGuard(val configuredMountMode: String = "BAT_HANDLE") {
                 if (gz >= 12f) axesOver12++
 
                 if (axesOver12 >= 2 && gMag >= 20f) {
-                    if (spinStart < 0.0) spinStart = t
+                    // Reset if contiguous frames were interrupted by BLE packet loss (> 15ms)
+                    if (i > 0 && (t - pTimesSec[i - 1]) > 0.015) {
+                        spinStart = t
+                    } else if (spinStart < 0.0) {
+                        spinStart = t
+                    }
                     val dur = t - spinStart
                     if (dur > maxSpinDur) maxSpinDur = dur
                 } else {

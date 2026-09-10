@@ -200,7 +200,7 @@ def reprocess_session(session_id):
             ahrs_result=ahrs_res
         )
 
-        if not guard_res.is_kinematically_valid or ahrs_res is None:
+        if not guard_res.is_kinematically_valid:
             faulted_count += 1
             kin_valid_list.append(False)
             mount_type_list.append("FAULTED_ANOMALY")
@@ -209,8 +209,18 @@ def reprocess_session(session_id):
             swing_yaw_list.append(np.nan)
             rel_wrist_list.append(np.nan)
             azim_dev_list.append(np.nan)
-            reason = guard_res.anomaly_reason if not guard_res.is_kinematically_valid else "STANCE_STILLNESS_NOT_FOUND"
-            print(f"  🚨 Shot #{idx+1} (t={t_impact:.2f}s): {reason} -> FAULTED_ANOMALY (Fallback Watch-Only: {guard_res.is_fallback_watch_only})")
+            print(f"  🚨 Shot #{idx+1} (t={t_impact:.2f}s): {guard_res.anomaly_reason} -> FAULTED_ANOMALY (Fallback Watch-Only: {guard_res.is_fallback_watch_only})")
+        elif ahrs_res is None:
+            # Sensor is physically sound and attached; only 3D orientation attitude was unseeded
+            valid_count += 1
+            kin_valid_list.append(True)
+            mount_type_list.append(mount_mode)
+            blade_pitch_list.append(np.nan)
+            face_angle_list.append(np.nan)
+            swing_yaw_list.append(np.nan)
+            rel_wrist_list.append(np.nan)
+            azim_dev_list.append(np.nan)
+            print(f"  ℹ️ Shot #{idx+1} (t={t_impact:.2f}s): STANCE_STILLNESS_NOT_FOUND (Sensor valid, orientation unseeded)")
         else:
             valid_count += 1
             kin_valid_list.append(True)

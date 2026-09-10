@@ -112,6 +112,70 @@ class TestKinematicGuard(unittest.TestCase):
         self.assertEqual(res.runtime_mount_type, "FAULTED_ANOMALY")
         self.assertIn("ZERO_G_FREE_FALL", res.anomaly_reason)
 
+    def test_packet_gap_does_not_trigger_tumble(self):
+        t_impact = 10.0
+        p_t_acc = np.linspace(9.0, 11.0, 846)
+        p_acc = np.zeros((846, 3), dtype=np.float32)
+        p_acc[:, 2] = 9.81
+        
+        # Sporadic spin samples separated by 100ms BLE packet drops
+        # Gaps of 100ms between 4 spin samples (total span 300ms, but zero continuous spin)
+        t_base = np.linspace(9.0, 10.0, 423)
+        t_sporadic = np.array([10.05, 10.15, 10.25, 10.35]) # 100ms gaps
+        t_after = np.linspace(10.4, 11.0, 250)
+        p_t_gyr = np.concatenate([t_base, t_sporadic, t_after])
+        
+        p_gyro = np.zeros((len(p_t_gyr), 3), dtype=np.float32)
+        # Set high spin only on the sporadic samples
+        for idx in range(len(t_base), len(t_base) + len(t_sporadic)):
+            p_gyro[idx] = [25.0, 25.0, 5.0] # >= 12 rad/s on 2 axes, mag >= 20
+            
+        w_t_gyr = np.linspace(9.0, 11.0, 100)
+        w_gyro_mags = np.zeros(100, dtype=np.float32)
+
+        res = self.guard.evaluate_shot(
+            t_impact=t_impact,
+            p_t_acc=p_t_acc,
+            p_acc=p_acc,
+            p_t_gyr=p_t_gyr,
+            p_gyro=p_gyro,
+            w_t_gyr=w_t_gyr,
+            w_gyro_mags=w_gyro_mags
+        )
+        # Because samples were interrupted by >15ms gaps, continuous tumble duration is 0ms
+        self.assertTrue(res.is_kinematically_valid)
+        self.assertEqual(res.anomaly_reason, "CLEAN")
+
+    def test_true_ballistic_tumble(self):
+        t_impact = 10.0
+        p_t_acc = np.linspace(9.0, 11.0, 846)
+        p_acc = np.zeros((846, 3), dtype=np.float32)
+        p_acc[:, 2] = 9.81
+        
+        # 150 consecutive uninterrupted samples at 423 Hz (~354ms) spinning violently
+        p_t_gyr = np.linspace(9.0, 11.0, 846)
+        p_gyro = np.zeros((846, 3), dtype=np.float32)
+        tumble_mask = (p_t_gyr >= 10.05) & (p_t_gyr <= 10.25) # 200ms contiguous
+        p_gyro[tumble_mask] = [25.0, 25.0, 10.0]
+        
+        w_t_gyr = np.linspace(9.0, 11.0, 100)
+        w_gyro_mags = np.zeros(100, dtype=np.float32)
+        w_gyro_mags[50] = 8.0 # Watch recorded a swing peak of 8.0 rad/s at impact
+
+        res = self.guard.evaluate_shot(
+            t_impact=t_impact,
+            p_t_acc=p_t_acc,
+            p_acc=p_acc,
+            p_t_gyr=p_t_gyr,
+            p_gyro=p_gyro,
+            w_t_gyr=w_t_gyr,
+            w_gyro_mags=w_gyro_mags
+        )
+        self.assertFalse(res.is_kinematically_valid)
+        self.assertTrue(res.is_fallback_watch_only)
+        self.assertEqual(res.runtime_mount_type, "FAULTED_ANOMALY")
+        self.assertIn("BALLISTIC_FREE_FLIGHT_TUMBLE", res.anomaly_reason)
+
 
 if __name__ == "__main__":
     unittest.main()

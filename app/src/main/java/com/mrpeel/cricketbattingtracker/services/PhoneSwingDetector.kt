@@ -491,17 +491,15 @@ object PhoneSwingDetector {
                             ahrsResult = ahrsRes
                         )
 
+                        isKinematicallyValid = guardRes.isKinematicallyValid
+                        runtimeMountType = guardRes.runtimeMountType
+
                         if (guardRes.isKinematicallyValid && ahrsRes != null) {
                             bladePitchDeg = ahrsRes.bladePitchDeg
                             faceAngleDeg = ahrsRes.faceAngleDeg
                             swingYawDeg = ahrsRes.swingYawDeg
                             relWristDeg = ahrsRes.relativeWristAngleDeg
                             azimDevDeg = ahrsRes.azimuthDeviationDeg
-                            runtimeMountType = configuredMount
-                            isKinematicallyValid = true
-                        } else {
-                            runtimeMountType = "FAULTED_ANOMALY"
-                            isKinematicallyValid = false
                         }
                     }
                 }
