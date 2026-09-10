@@ -23,7 +23,12 @@ import kotlin.math.*
  *      - Calibrated Dual-Path Sweep Gate: Evaluates kneeling crouch tilt vs standing paddle roll.
  *      - Dynamic Class-Aware NMS: 2.4s refractory window for SWEEP, 1.8s for other classes.
  */
-class TcnModelRunner(private val context: Context) : AutoCloseable {
+class TcnModelRunner(
+    private val context: Context? = null,
+    s1ModelBytes: ByteArray? = null,
+    s2ModelBytes: ByteArray? = null,
+    statsJsonContent: String? = null
+) : AutoCloseable {
 
     private val ortEnv: OrtEnvironment = OrtEnvironment.getEnvironment()
     private var stage1Session: OrtSession? = null
@@ -67,32 +72,39 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
 
     init {
         try {
-            val statsBytes = context.assets.open("models/tcn_norm_stats.json").readBytes()
-            val statsJson = org.json.JSONObject(String(statsBytes))
-            val medJson = statsJson.getJSONArray("median")
-            val madJson = statsJson.getJSONArray("mad")
-            if (medJson.length() > 0 && madJson.length() > 0) {
-                median = FloatArray(medJson.length()) { i -> medJson.getDouble(i).toFloat() }
-                mad = FloatArray(madJson.length()) { i -> madJson.getDouble(i).toFloat() }
-            }
-            val clsJson = statsJson.optJSONArray("classes")
-            if (clsJson != null && clsJson.length() > 0) {
-                classes = Array(clsJson.length()) { i -> clsJson.getString(i) }
+            val statsBytes = statsJsonContent?.toByteArray(Charsets.UTF_8)
+                ?: context?.assets?.open("models/tcn_norm_stats.json")?.readBytes()
+            if (statsBytes != null) {
+                val statsJson = org.json.JSONObject(String(statsBytes))
+                val medJson = statsJson.getJSONArray("median")
+                val madJson = statsJson.getJSONArray("mad")
+                if (medJson.length() > 0 && madJson.length() > 0) {
+                    median = FloatArray(medJson.length()) { i -> medJson.getDouble(i).toFloat() }
+                    mad = FloatArray(madJson.length()) { i -> madJson.getDouble(i).toFloat() }
+                }
+                val clsJson = statsJson.optJSONArray("classes")
+                if (clsJson != null && clsJson.length() > 0) {
+                    classes = Array(clsJson.length()) { i -> clsJson.getString(i) }
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
         try {
-            val s1Bytes = context.assets.open("models/facing_up_detector.onnx").readBytes()
-            stage1Session = ortEnv.createSession(s1Bytes, OrtSession.SessionOptions())
+            val s1Bytes = s1ModelBytes ?: context?.assets?.open("models/facing_up_detector.onnx")?.readBytes()
+            if (s1Bytes != null) {
+                stage1Session = ortEnv.createSession(s1Bytes, OrtSession.SessionOptions())
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
         try {
-            val s2Bytes = context.assets.open("models/tcn_ultimate_baseline.onnx").readBytes()
-            stage2Session = ortEnv.createSession(s2Bytes, OrtSession.SessionOptions())
+            val s2Bytes = s2ModelBytes ?: context?.assets?.open("models/tcn_ultimate_baseline.onnx")?.readBytes()
+            if (s2Bytes != null) {
+                stage2Session = ortEnv.createSession(s2Bytes, OrtSession.SessionOptions())
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -193,10 +205,12 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
         val wGyroMag = FloatArray(numFrames)
         for (i in 0 until numFrames) {
             val ax = sensorMatrix[0][i]; val ay = sensorMatrix[1][i]; val az = sensorMatrix[2][i]
-            wAccMag[i] = sqrt(ax * ax + ay * ay + az * az)
+            val aMag = sqrt(ax * ax + ay * ay + az * az)
+            wAccMag[i] = if (aMag.isNaN() || aMag.isInfinite()) 0f else aMag
 
             val gx = sensorMatrix[3][i]; val gy = sensorMatrix[4][i]; val gz = sensorMatrix[5][i]
-            wGyroMag[i] = sqrt(gx * gx + gy * gy + gz * gz)
+            val gMag = sqrt(gx * gx + gy * gy + gz * gz)
+            wGyroMag[i] = if (gMag.isNaN() || gMag.isInfinite()) 0f else gMag
         }
 
         // =========================================================================
@@ -234,7 +248,8 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                     for (cIdx in stage1ChannelIndices) {
                         val channelData = sensorMatrix[cIdx]
                         for (k in startIdx until endIdx) {
-                            s1InputBuffer.put(channelData[k])
+                            val v = channelData[k]
+                            s1InputBuffer.put(if (v.isNaN() || v.isInfinite()) 0f else v)
                         }
                     }
                 }
@@ -412,7 +427,8 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 for (k in 0 until windowLen) {
                     val frameIdx = startF + k
                     val rawVal = if (frameIdx < endF) channelData[frameIdx] else 0f
-                    val normVal = (rawVal - medVal) / madVal
+                    val safeRaw = if (rawVal.isNaN() || rawVal.isInfinite()) 0f else rawVal
+                    val normVal = ((safeRaw - medVal) / madVal).let { if (it.isNaN() || it.isInfinite()) 0f else it }
                     inputBuffer.put(normVal)
                 }
             }
@@ -438,20 +454,26 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 var topShotIdx = 3 // default to DRIVE/DEFENCE
 
                 for (t in wStart..wEnd) {
-                    val frameLogits = FloatArray(numClasses) { c -> logits[c][t] }
+                    val frameLogits = FloatArray(numClasses) { c ->
+                        val l = logits[c][t]
+                        if (l.isNaN() || l.isInfinite()) 0f else l
+                    }
                     val maxLogit = frameLogits.maxOrNull() ?: 0f
                     var sumExp = 0f
                     val probs = FloatArray(numClasses) { c ->
-                        val e = exp((frameLogits[c] - maxLogit).toDouble()).toFloat()
+                        val diff = (frameLogits[c] - maxLogit).toDouble().coerceIn(-80.0, 80.0)
+                        val e = exp(diff).toFloat()
                         sumExp += e
                         e
                     }
-                    for (c in 0 until numClasses) probs[c] /= sumExp
+                    if (sumExp > 1e-6f && !sumExp.isNaN()) {
+                        for (c in 0 until numClasses) probs[c] /= sumExp
 
-                    for (c in 2 until numClasses) {
-                        if (probs[c] > maxShotProb) {
-                            maxShotProb = probs[c]
-                            topShotIdx = c
+                        for (c in 2 until numClasses) {
+                            if (probs[c] > maxShotProb) {
+                                maxShotProb = probs[c]
+                                topShotIdx = c
+                            }
                         }
                     }
                 }
@@ -502,15 +524,17 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
 
                     val denom = sqrt((gx * gx + gy * gy + 1e-6).toDouble()).toFloat()
                     val pitchDeg = Math.toDegrees(atan2(gz.toDouble(), denom.toDouble())).toFloat()
-                    if (pitchDeg < minPitch) minPitch = pitchDeg
-                    if (pitchDeg > maxPitch) maxPitch = pitchDeg
+                    if (!pitchDeg.isNaN()) {
+                        if (pitchDeg < minPitch) minPitch = pitchDeg
+                        if (pitchDeg > maxPitch) maxPitch = pitchDeg
+                    }
 
                     val roll = abs(sensorMatrix[3][k])
-                    if (roll > maxRollVel) maxRollVel = roll
+                    if (!roll.isNaN() && roll > maxRollVel) maxRollVel = roll
                 }
 
-                val deltaGz = maxGz - minGz
-                val deltaPitch = maxPitch - minPitch
+                val deltaGz = if (maxGz.isNaN() || minGz.isNaN() || minGz > maxGz) 0f else maxGz - minGz
+                val deltaPitch = if (maxPitch.isNaN() || minPitch.isNaN() || minPitch > maxPitch) 0f else maxPitch - minPitch
 
                 // Path 1: Kneeling / Slog Sweep (Crouch Tilt >= 10 deg OR delta_gz >= 1.2 m/s2, Softmax floor >= 0.30)
                 val isPath1 = (deltaPitch >= 10.0f || deltaGz >= 1.2f) && (topProb >= 0.30f)
@@ -528,17 +552,21 @@ class TcnModelRunner(private val context: Context) : AutoCloseable {
                 val qx = sensorMatrix[15][anchorF]; val qy = sensorMatrix[16][anchorF]
                 val qz = sensorMatrix[17][anchorF]; val qw = sensorMatrix[18][anchorF]
                 val qMag = qx*qx + qy*qy + qz*qz + qw*qw
-                if (qMag > 0.5f) {
+                if (!qMag.isNaN() && qMag in 0.5f..1.5f) {
                     val vz = 2.0f * (qy * qz - qx * qw)
-                    val pitchDeg = Math.toDegrees(asin(abs(vz).coerceIn(0f, 1f).toDouble())).toFloat()
-
-                    // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
-                    if (pitchDeg >= 65.0f && (predShotType == "PULL/HOOK/SLOG" || predShotType == "CUT/PUNCH")) {
-                        predShotType = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
-                    }
-                    // Rule 2: Horizontal Bat Gate (0.1 < pitch <= 40 deg cannot be straight vertical drive)
-                    else if (pitchDeg > 0.1f && pitchDeg <= 40.0f && predShotType == "DRIVE/DEFENCE") {
-                        predShotType = "PULL/HOOK/SLOG"
+                    if (!vz.isNaN()) {
+                        val clampedVz = abs(vz).coerceIn(0f, 1f)
+                        val pitchDeg = Math.toDegrees(asin(clampedVz.toDouble())).toFloat()
+                        if (!pitchDeg.isNaN()) {
+                            // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
+                            if (pitchDeg >= 65.0f && (predShotType == "PULL/HOOK/SLOG" || predShotType == "CUT/PUNCH")) {
+                                predShotType = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
+                            }
+                            // Rule 2: Horizontal Bat Gate (0.1 < pitch <= 40 deg cannot be straight vertical drive)
+                            else if (pitchDeg > 0.1f && pitchDeg <= 40.0f && predShotType == "DRIVE/DEFENCE") {
+                                predShotType = "PULL/HOOK/SLOG"
+                            }
+                        }
                     }
                 }
             }

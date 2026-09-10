@@ -59,7 +59,7 @@ object PhoneSwingDetector {
         val watchRot = loadWatchRot(watchDir)
 
 
-        if (watchAcc.isEmpty() || watchRot.isEmpty()) {
+        if (watchAcc.isEmpty() || watchRot.isEmpty() || watchGyro.isEmpty()) {
             Log.e(TAG, "Watch raw files are missing or empty — skipping processing")
             return@withContext false
         }
@@ -190,16 +190,30 @@ object PhoneSwingDetector {
                 } else {
                     val pMs = alignment.watchToPolarMs(tWallMs)
                     while (pAccIdx < polarAcc.size - 1 && polarAcc[pAccIdx + 1].phoneMs <= pMs) pAccIdx++
-                    sensorMatrix[19][i] = polarAcc[pAccIdx].x
-                    sensorMatrix[20][i] = polarAcc[pAccIdx].y
-                    sensorMatrix[21][i] = polarAcc[pAccIdx].z
-
                     while (pGyroIdx < polarGyro.size - 1 && polarGyro[pGyroIdx + 1].phoneMs <= pMs) pGyroIdx++
-                    sensorMatrix[22][i] = polarGyro[pGyroIdx].x
-                    sensorMatrix[23][i] = polarGyro[pGyroIdx].y
-                    sensorMatrix[24][i] = polarGyro[pGyroIdx].z
 
-                    sensorMatrix[25][i] = 1.0f
+                    val pAccSample = polarAcc[pAccIdx]
+                    val isStale = kotlin.math.abs(pMs - pAccSample.phoneMs) > 1000L
+                    if (isStale) {
+                        sensorMatrix[19][i] = 0f
+                        sensorMatrix[20][i] = 0f
+                        sensorMatrix[21][i] = 0f
+                        sensorMatrix[22][i] = 0f
+                        sensorMatrix[23][i] = 0f
+                        sensorMatrix[24][i] = 0f
+                        sensorMatrix[25][i] = 0.0f
+                    } else {
+                        sensorMatrix[19][i] = pAccSample.x
+                        sensorMatrix[20][i] = pAccSample.y
+                        sensorMatrix[21][i] = pAccSample.z
+
+                        val pGyroSample = polarGyro[pGyroIdx]
+                        sensorMatrix[22][i] = pGyroSample.x
+                        sensorMatrix[23][i] = pGyroSample.y
+                        sensorMatrix[24][i] = pGyroSample.z
+
+                        sensorMatrix[25][i] = 1.0f
+                    }
                 }
             } else {
                 sensorMatrix[19][i] = 0f; sensorMatrix[20][i] = 0f; sensorMatrix[21][i] = 0f
@@ -1172,7 +1186,7 @@ object PhoneSwingDetector {
         return emptyList()
     }
 
-    private fun parseWatchIMUBin(file: File): List<WatchIMUSample> {
+    internal fun parseWatchIMUBin(file: File): List<WatchIMUSample> {
         val list = mutableListOf<WatchIMUSample>()
         if (!file.exists()) return list
         try {
@@ -1236,7 +1250,7 @@ object PhoneSwingDetector {
         return emptyList()
     }
 
-    private fun parseWatchRotBin(file: File): List<WatchRotSample> {
+    internal fun parseWatchRotBin(file: File): List<WatchRotSample> {
         val list = mutableListOf<WatchRotSample>()
         if (!file.exists()) return list
         try {
@@ -1382,7 +1396,7 @@ object PhoneSwingDetector {
         return list.sortedBy { it.timeNanos }
     }
 
-    private fun parsePolarCsv(file: File, isGyro: Boolean): List<PolarSample> {
+    internal fun parsePolarCsv(file: File, isGyro: Boolean): List<PolarSample> {
         val list = mutableListOf<PolarSample>()
         if (!file.exists()) return list
 

@@ -30,7 +30,7 @@ class KinematicGuard(val configuredMountMode: String = "BAT_HANDLE") {
         ahrsResult: OrientationAhrs.OrientationResult? = null
     ): GuardResult {
         val numPolar = pTimesSec.size
-        if (numPolar == 0) {
+        if (numPolar == 0 || pAcc.size < 3 || pGyro.size < 3 || pAcc[0].size < numPolar || pGyro[0].size < numPolar) {
             return GuardResult(
                 isKinematicallyValid = false,
                 isFallbackWatchOnly = false,
@@ -111,7 +111,7 @@ class KinematicGuard(val configuredMountMode: String = "BAT_HANDLE") {
                 if (pAccMags[i] > polarPeakInWin) polarPeakInWin = pAccMags[i]
             }
         }
-        if (polarPeakInWin >= 441.3f && wTimesSec != null && wAcc != null) {
+        if (polarPeakInWin >= 441.3f && wTimesSec != null && wAcc != null && wAcc.size >= 3 && wAcc[0].size >= wTimesSec.size) {
             var watchPeakInWin = 0f
             for (j in 0 until wTimesSec.size) {
                 val t = wTimesSec[j]

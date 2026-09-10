@@ -145,7 +145,10 @@ class OrientationAhrs(val mountLocation: String = "BAT_HANDLE") {
         wRot: Array<FloatArray> // [4][M] (qx, qy, qz, qw)
     ): OrientationResult? {
         val numPolar = pTimesSec.size
-        if (numPolar < 100 || pAcc[0].size != numPolar || pGyro[0].size != numPolar) return null
+        if (numPolar < 100 || pAcc.size < 3 || pGyro.size < 3 || pAcc[0].size != numPolar || pGyro[0].size != numPolar ||
+            wRotTimesSec.isEmpty() || wRot.size < 4 || wRot[0].isEmpty() || wRot[0].size != wRotTimesSec.size) {
+            return null
+        }
 
         val pAccMags = FloatArray(numPolar) { i ->
             val ax = pAcc[0][i]; val ay = pAcc[1][i]; val az = pAcc[2][i]
@@ -228,6 +231,7 @@ class OrientationAhrs(val mountLocation: String = "BAT_HANDLE") {
         if (bestTc < 0.0) return null
         val tStill = bestTc + 0.10
         val aBarMag = sqrt(bestABar[0]*bestABar[0] + bestABar[1]*bestABar[1] + bestABar[2]*bestABar[2])
+        if (aBarMag < 1e-4f || aBarMag.isNaN() || aBarMag.isInfinite()) return null
         val gravityDev = abs(aBarMag - GRAVITY_STANDARD)
 
         // 3. Attitude & Yaw Seeding (q0)
@@ -319,7 +323,8 @@ class OrientationAhrs(val mountLocation: String = "BAT_HANDLE") {
 
         val eulerWFreeze = quatToEulerZYX(qWatchFreeze)
         val eulerFreeze = quatToEulerZYX(qFreeze)
-        val azimDevDeg = ((eulerFreeze[0] - eulerWFreeze[0] + 180f) % 360f) - 180f
+        val rawDiff = eulerFreeze[0] - eulerWFreeze[0]
+        val azimDevDeg = ((((rawDiff + 180f) % 360f + 360f) % 360f) - 180f)
 
         return OrientationResult(
             bladePitchDeg = pitchDeg,

@@ -81,7 +81,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /** Migration 11→12: Add 3D AHRS orientation and kinematic guard columns to innings_events. */
-        private val MIGRATION_11_12 = object : Migration(11, 12) {
+        internal val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE innings_events ADD COLUMN blade_pitch_deg REAL")
                 db.execSQL("ALTER TABLE innings_events ADD COLUMN face_angle_deg REAL")

@@ -90,46 +90,53 @@ class PolarSenseService : Service() {
         val magFile = File(dir, "PolarMagnetometer.bin")
         magStream = BufferedOutputStream(FileOutputStream(magFile))
 
-        // Wire up callbacks from PolarSenseManager
-        val buffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
-
+        // Wire up callbacks from PolarSenseManager with dedicated buffers to prevent concurrent thread corruption
+        val accBuffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
         PolarSenseManager.onAccSample = { phoneMs, sensorNs, x, y, z ->
             try {
-                buffer.clear()
-                buffer.putLong(phoneMs)
-                buffer.putLong(sensorNs)
-                buffer.putFloat(x.toFloat())
-                buffer.putFloat(y.toFloat())
-                buffer.putFloat(z.toFloat())
-                accStream?.write(buffer.array())
+                synchronized(accBuffer) {
+                    accBuffer.clear()
+                    accBuffer.putLong(phoneMs)
+                    accBuffer.putLong(sensorNs)
+                    accBuffer.putFloat(x.toFloat())
+                    accBuffer.putFloat(y.toFloat())
+                    accBuffer.putFloat(z.toFloat())
+                    accStream?.write(accBuffer.array())
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "ACC write error: ${e.message}")
             }
         }
 
+        val gyroBuffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
         PolarSenseManager.onGyroSample = { phoneMs, sensorNs, x, y, z ->
             try {
-                buffer.clear()
-                buffer.putLong(phoneMs)
-                buffer.putLong(sensorNs)
-                buffer.putFloat(x)
-                buffer.putFloat(y)
-                buffer.putFloat(z)
-                gyroStream?.write(buffer.array())
+                synchronized(gyroBuffer) {
+                    gyroBuffer.clear()
+                    gyroBuffer.putLong(phoneMs)
+                    gyroBuffer.putLong(sensorNs)
+                    gyroBuffer.putFloat(x)
+                    gyroBuffer.putFloat(y)
+                    gyroBuffer.putFloat(z)
+                    gyroStream?.write(gyroBuffer.array())
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "GYRO write error: ${e.message}")
             }
         }
 
+        val magBuffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
         PolarSenseManager.onMagSample = { phoneMs, sensorNs, x, y, z ->
             try {
-                buffer.clear()
-                buffer.putLong(phoneMs)
-                buffer.putLong(sensorNs)
-                buffer.putFloat(x)
-                buffer.putFloat(y)
-                buffer.putFloat(z)
-                magStream?.write(buffer.array())
+                synchronized(magBuffer) {
+                    magBuffer.clear()
+                    magBuffer.putLong(phoneMs)
+                    magBuffer.putLong(sensorNs)
+                    magBuffer.putFloat(x)
+                    magBuffer.putFloat(y)
+                    magBuffer.putFloat(z)
+                    magStream?.write(magBuffer.array())
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "MAG write error: ${e.message}")
             }

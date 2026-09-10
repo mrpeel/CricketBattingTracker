@@ -631,11 +631,13 @@ class DataSyncListenerService : WearableListenerService() {
         watchSessionsDir.mkdirs()
         
         Log.d(TAG, "Unzipping watch logs for processing to: ${watchSessionsDir.absolutePath}")
-        unzip(zipFile, watchSessionsDir)
-        
-        // Clean up temporary ZIP file
-        if (zipFile.exists()) {
-            zipFile.delete()
+        try {
+            unzip(zipFile, watchSessionsDir)
+        } finally {
+            // Always clean up temporary ZIP file to prevent retry crash loops on corrupt files
+            if (zipFile.exists()) {
+                zipFile.delete()
+            }
         }
 
         // Resolve files directory (handle nested folders in zip)
@@ -810,10 +812,15 @@ class DataSyncListenerService : WearableListenerService() {
     }
 
     private fun unzip(zipFile: java.io.File, targetDirectory: java.io.File) {
+        val canonicalDest = targetDirectory.canonicalPath
         java.util.zip.ZipInputStream(java.io.BufferedInputStream(java.io.FileInputStream(zipFile))).use { zis ->
             var ze: java.util.zip.ZipEntry? = zis.nextEntry
             while (ze != null) {
                 val file = java.io.File(targetDirectory, ze.name)
+                val canonicalFile = file.canonicalPath
+                if (!canonicalFile.startsWith(canonicalDest + java.io.File.separator) && canonicalFile != canonicalDest) {
+                    throw java.io.IOException("Zip entry outside target directory: " + ze.name)
+                }
                 val dir = if (ze.isDirectory) file else file.parentFile
                 if (dir != null && !dir.exists() && !dir.mkdirs()) {
                     throw java.io.IOException("Failed to create directory " + dir.absolutePath)
