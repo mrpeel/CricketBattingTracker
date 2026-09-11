@@ -987,6 +987,7 @@ def main():
     """)
     c.execute("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY, identity_hash TEXT)")
     c.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES(42, '36946e68af413e8cc2fca0555e69b534')")
+    c.execute("PRAGMA user_version = 12")
     conn.commit()
 
     session_dirs = sorted(glob.glob(os.path.join(SESSIONS_DIR, "session-*")) + 
