@@ -1221,3 +1221,25 @@ This document captures resolved bugs, architectural changes, key logical finding
         - 94 unit tests executed and passed across `:app` in Gradle (`BUILD SUCCESSFUL in 4s`).
         - 8 Python unit tests passed in `test_ahrs_and_guard.py`.
         - Release APK assembled and 16 KB page-aligned (`app/build/outputs/apk/release/app-release.apk`).
+
+196. **Startup Crash Resolution: Self-Healing Room Schema Guard & Reprocessing DDL Parity (September 11, 2026)**:
+    *   **The Problem**:
+        - Immediately upon deploying the release APK to the physical phone (`59011FDCR000R5`), the app crashed fatally on launch:
+          `java.lang.IllegalArgumentException: column 'blade_pitch_deg' does not exist` at `InningsEventDao_Impl$17.call(...)`.
+    *   **Root Cause**:
+        1. **Poisoned Database Creation**: In `pipelines/reprocess_sessions.py`, commit `b2461f98` had updated the `room_master_table` identity hash to Room v12 (`36946e68af413e8cc2fca0555e69b534`). However, the `CREATE TABLE innings_events` DDL statement in `reprocess_sessions.py` was NOT updated with the 7 new v12 columns (`blade_pitch_deg`, `face_angle_deg`, `swing_yaw_deg`, `relative_wrist_angle_deg`, `azimuth_deviation_deg`, `polar_mount_type`, `is_kinematically_valid`), creating a 50-column table.
+        2. **Room Identity Hash Bypass**: When Room opened this database, because `room_master_table` matched the v12 identity hash, Room believed the database was already migrated to v12 and skipped both `MIGRATION_11_12` and schema validation!
+        3. **Fatal Query Failure**: When `InningsViewModel` queried `SELECT * FROM innings_events` on app launch, Room's generated DAO called `CursorUtil.getColumnIndexOrThrow(cursor, "blade_pitch_deg")`, throwing an uncaught `IllegalArgumentException` on the main thread.
+        4. **Test Coverage Gap**: Previous adversarial tests only verified a mock proxy of `MIGRATION_11_12` and string-checked the identity hash in `reprocess_sessions.py`, without testing on-disk schema integrity or self-healing.
+    *   **The Solution**:
+        1. **Self-Healing Room Schema Guard (`AppDatabase.kt`)**: Added an `onOpen` callback to `Room.databaseBuilder(...)`. When the database opens, it inspects `PRAGMA table_info(innings_events)`. If ANY required column is missing, it dynamically executes `ALTER TABLE innings_events ADD COLUMN <name> <type>` immediately before DAOs execute queries. Safe logging helpers prevent JVM test exceptions.
+        2. **Complete DDL & INSERT Parity (`reprocess_sessions.py`)**: Updated `CREATE TABLE IF NOT EXISTS innings_events` and `INSERT INTO innings_events` to include all 57 columns, populating orientation and guard values from ground truth with `?` placeholders for parameter hygiene.
+        3. **Comprehensive Schema Adversarial Tests (`AppDatabaseMigrationTest.kt`)**: Added tests asserting that `ensureSchemaIntegrity` automatically repairs legacy/poisoned 50-column databases, is a no-op on intact schemas, and verifies exact 1:1 column and placeholder parity with `reprocess_sessions.py`.
+    *   **Verification**:
+        - All 102 unit tests in `:app` passed in Gradle (`BUILD SUCCESSFUL in 18s`).
+        - All 8 Python unit tests in `pipelines/test_ahrs_and_guard.py` passed.
+        - Deployed release APK to physical device `59011FDCR000R5`.
+        - Verified live in ADB logcat: `AppDatabase: Auto-repaired missing column blade_pitch_deg (REAL) in innings_events` (plus all other 6 columns).
+        - Checked on-device database via WAL inspection: all 57 columns confirmed present.
+        - Force-stopped and restarted the app: seamless launch, 0 errors, 0 crashes.
+

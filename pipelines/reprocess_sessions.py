@@ -761,6 +761,13 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     "blade_class": b_class,
                     "launch_angle": l_angle,
                     "launch_class": l_class,
+                    "blade_pitch_deg": float(row['blade_pitch_deg']) if pd.notna(row.get('blade_pitch_deg')) else None,
+                    "face_angle_deg": float(row['face_angle_deg']) if pd.notna(row.get('face_angle_deg')) else None,
+                    "swing_yaw_deg": float(row['swing_yaw_deg']) if pd.notna(row.get('swing_yaw_deg')) else None,
+                    "relative_wrist_angle_deg": float(row['relative_wrist_angle_deg']) if pd.notna(row.get('relative_wrist_angle_deg')) else None,
+                    "azimuth_deviation_deg": float(row['azimuth_deviation_deg']) if pd.notna(row.get('azimuth_deviation_deg')) else None,
+                    "polar_mount_type": str(row['polar_mount_type']) if pd.notna(row.get('polar_mount_type')) else None,
+                    "is_kinematically_valid": int(bool(row['is_kinematically_valid'])) if pd.notna(row.get('is_kinematically_valid')) else None,
                     "features": feats
                 })
             return sorted(shots, key=lambda x: x["timestamp_offset_s"])
@@ -960,7 +967,14 @@ def main():
             bat_name TEXT,
             bat_weight_grams REAL,
             bat_sensor_offset_knob_cm REAL,
-            bat_sensor_offset_toe_cm REAL
+            bat_sensor_offset_toe_cm REAL,
+            blade_pitch_deg REAL,
+            face_angle_deg REAL,
+            swing_yaw_deg REAL,
+            relative_wrist_angle_deg REAL,
+            azimuth_deviation_deg REAL,
+            polar_mount_type TEXT,
+            is_kinematically_valid INTEGER
         )
     """)
     c.execute("""
@@ -1078,20 +1092,22 @@ def main():
                     swing_feature_s2_gyro_mag, swing_feature_s2_grav_y_mean, swing_feature_s2_delta_x, swing_feature_s2_delta_z,
                     swing_feature_s3_roll_deg, swing_feature_s3_yaw_deg, swing_feature_s3_delta_x, swing_feature_s3_delta_z,
                     swing_feature_s3_plane_ratio, swing_feature_s3_gyro_y_min, polar_mount_mode, bat_id,
-                    bat_name, bat_weight_grams, bat_sensor_offset_knob_cm, bat_sensor_offset_toe_cm
+                    bat_name, bat_weight_grams, bat_sensor_offset_knob_cm, bat_sensor_offset_toe_cm,
+                    blade_pitch_deg, face_angle_deg, swing_yaw_deg, relative_wrist_angle_deg, azimuth_deviation_deg, polar_mount_type, is_kinematically_valid
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, '26 Aldinga Street, Blackburn South',
+                    ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
-                    ?, ?, ?, ?
+                    ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?
                 )
             """, (
                 session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], impact_time_ms, shot["shot_type"], efficiency,
-                shot.get("blade_angle"), shot.get("blade_class"), shot.get("launch_angle"), shot.get("launch_class"),
+                shot.get("blade_angle"), shot.get("blade_class"), shot.get("launch_angle"), shot.get("launch_class"), '26 Aldinga Street, Blackburn South',
                 f.get('bottom_hand_gyro_peak'), f.get('bottom_hand_acc_peak'), f.get('bottom_hand_gyro_ratio'), f.get('bottom_hand_acc_ratio'),
                 int(f['bottom_hand_time_lead_ms']) if (f.get('bottom_hand_time_lead_ms') is not None and pd.notna(f['bottom_hand_time_lead_ms'])) else None,
                 f.get('bottom_hand_sync_score'),
@@ -1099,7 +1115,10 @@ def main():
                 f.get('s2_gyroMag'), f.get('s2_grav_y_mean'), f.get('s2_deltaX'), f.get('s2_deltaZ'),
                 f.get('s3_rollImpactDeg'), f.get('s3_yawImpactDeg'), f.get('s3_deltaX'), f.get('s3_deltaZ'),
                 f.get('s3_planeRatio'), f.get('s3_gyro_y_min'), polar_mount_mode, curr_bat_id,
-                curr_name, curr_weight, curr_knob, curr_toe
+                curr_name, curr_weight, curr_knob, curr_toe,
+                shot.get("blade_pitch_deg"), shot.get("face_angle_deg"), shot.get("swing_yaw_deg"),
+                shot.get("relative_wrist_angle_deg"), shot.get("azimuth_deviation_deg"),
+                shot.get("polar_mount_type"), shot.get("is_kinematically_valid")
             ))
             
         # Write Session Ended marker

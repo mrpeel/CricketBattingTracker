@@ -59,6 +59,11 @@ android {
             useLegacyPackaging = false
         }
     }
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
