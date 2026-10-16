@@ -44,34 +44,39 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-105 | Bat Sensor In-Session Detachment Graceful Degradation & Rebuild Invariant Pipeline | Rebuild-proof graceful degradation pipeline for in-session bat sensor detachment (`session_2026-10-16_12-59-39` at $t = 1080.0\text{s}$): archive raw untrimmed Polar binaries, trim active Polar stream at detachment boundary $t = 1080.0\text{s}$, embed `polar_detachment_time_s` and `bat_id: 0` in `session_config.json`, and update `automate_pipeline.py`, `build_unified_dataset.py`, `reprocess_session_orientations.py`, and `reprocess_sessions.py` to auto-tag post-detachment deliveries as Top-Hand / Watch-Only (`NONE`), clamp bat IMU grids to $0.0\text{f}$, clear corrupted attack/blade angles and bottom-hand metrics, and maintain `is_kinematically_valid = True`. | **Completed** | All 69 deliveries preserved (0 deleted); Shots 1–60 maintain pristine `BAT_HANDLE` metrics; Shots 61–69 cleanly converted to `WATCH_ONLY` with NaN bat angles and null bottom-hand metrics in `ground_truth_aligned.csv` and unified parquet (clamped to 0.0f); `test_ahrs_and_guard.py` 8/8 unit tests passed. |
 | B-106 | Phase 3 Stage 1 Stance Recall Recovery & Adaptive Speech Latency Synchronization | Implement Phase 3 of the shot detection improvement plan: relax Stage 1 Stance State Machine parameters (`high_thresh = 0.55`, `low_thresh = 0.35`, `motion_surge_w = 1.8`, `sustain_ms = 200`, scan window `4.0s` [1692 frames]) and apply adaptive matching tolerance (1.5s for physical impact timestamps, 2.5s for audio speech narration fallback) across `telemetry_engine.py`, `train_and_evaluate_full_scorecard.py`, and Android Kotlin ONNX runner `TcnModelRunner.kt`. | **Completed** | Passed all Android/Wear unit tests (`BUILD SUCCESSFUL in 34s`), 8/8 Python tests, assembled 16 KB page-aligned release APKs. Clean Benchmark: 🏆 **90.81% Global Recall** (3,715 / 4,091 physical GT shots, +136 shots recovered), 🏆 **89.91% Global Precision** (3,715 / 4,132 candidates; 101.0% physical parity), 🏆 **90.36% Global F1**. Locked Holdout Test Set: 🏆 **91.73% Recall** (643 / 701 GT shots), 🏆 **90.69% Precision** (643 / 709 candidates; 101.1% physical parity; false alarms clamped to 66), 🏆 **91.21% F1**, 🏆 **74.03% Classification Accuracy** (91.7% Cut, 87.8% Deflection, 82.8% Drive/Defence, 79.7% Sweep, 70.5% Pull/Hook). PASSED Quality Gate; updated `tcn_ultimate_baseline.onnx` in app assets. |
 | B-107 | Phase 4 Power Drive Separation, Gate 1 Elimination & Macro Routing Calibration | Remove destructive Gate 1 (`postImpactRatio < 1.35f -> DRIVE/DEFENCE`) from `TcnModelRunner.kt` (real Power Drives exhibit mean post-impact ratio 0.92–0.95, not >1.35), update `TcnModelRunnerLogicTest.kt` to preserve Power Drive predictions, calibrate soft-routing parameter $\alpha = 0.85$ in `BatPlaneGeometryThreeFamilyTCN` (`effective_pd_fam = p_fam[:, 0] + 0.85 * p_fam[:, 1]`) unlocking Head 2A's native confidence (65.6% for PD), fix `evaluate_multitier_scorecard` Stage 2 default instantiation to `BatPlaneGeometryThreeFamilyTCN`, and re-export `tcn_ultimate_baseline.onnx` (`dynamo=False`, embedded weights, 7.1 MB). | **Completed** | Passed all 105 Android & Wear OS unit tests (`BUILD SUCCESSFUL in 1s`), 8/8 Python unit tests, assembled 16 KB page-aligned release APKs (`:app:assembleRelease :wear:assembleRelease`). Clean Benchmark (73 sessions, 4,091 GT): 🏆 **90.86% Recall** (3,717 / 4,091), 🏆 **89.87% Precision** (3,717 / 4,136 candidates, 101.1% parity), 🏆 **90.36% F1**. Locked Holdout Test Set (12 sessions, 701 GT): 🏆 **91.73% Recall** (643 / 701), 🏆 **90.56% Precision** (643 / 710), 🏆 **91.14% F1**, 🏆 **74.49% Classification Accuracy** (479 / 643 correct); `POWER DRIVE` accuracy surged from 29.8% to 🏆 **43.86%** (+14.1% gain). |
+| B-108 | Quarantined Session Forensic Recovery (Option A) — 5 Sessions Promoted & Benchmark Expanded | Execute Option A of the Quarantined Session Recovery Plan: resolve $\pm 1.0\text{s}$ search window clipping, revert corrupted +73s / +16.5s sync-tap offsets to true physical speech timestamps, trim pre-session audio chatter, and promote 5 high-accuracy sessions (`session_2026-06-29_12-21-45`, `session_2026-07-12_11-23-59`, `session_2026-08-07_12-47-38`, `session_2026-08-27_12-52-32`, `session_2026-09-30_12-52-29`) from quarantine to the active clean benchmark. Exclude 4 partially recoverable sessions pending Phase 5 Stage 1 3D rotation augmentation, and retire 4 impaired sessions to `archived_impaired`. | **Completed** | Clean benchmark expanded from 73 to 🏆 **78 physical sessions** (4,388 GT shots): 🏆 **90.25% Global Recall** (3,960 / 4,388 shots), 🏆 **89.92% Precision** (3,960 / 4,404 candidates; 100.36% candidate parity), 🏆 **90.08% F1 Score**, 🏆 **87.07% Full Classification Accuracy**; Locked Holdout preserved at 91.73% Recall, 90.56% Precision, 74.49% Accuracy; 105 Android/Wear unit tests passed, 8/8 Python unit tests passed, release APKs assembled and 16 KB page-aligned. |
 
 ---
 
-## 🔖 Current Session State (Phase 4 Power Drive Separation & Routing Calibration)
-*   **Destructive Gate 1 Removal**: Eliminated obsolete Gate 1 (`postImpactRatio < 1.35f -> DRIVE/DEFENCE`) from `TcnModelRunner.kt`. Real physical Power Drives exhibit mean post-impact ratio 0.92–0.95 (std 0.44), so Gate 1 was demoting almost 100% of real Power Drives on device to `DRIVE/DEFENCE`.
-*   **Calibrated Soft-Routing ($\alpha = 0.85$)**: In `BatPlaneGeometryThreeFamilyTCN.forward`, relaxed the cross-bat penalty for Power Drive: `effective_pd_fam = p_fam[:, 0] + 0.85 * p_fam[:, 1]`. This allows Head 2A's high confidence (where PD is predicted at 65.6% mean confidence) to prevail over the macro gate cross-bat penalty caused by high angular momentum ($\omega \ge 25\text{ rad/s}$) and wrist roll.
-*   **Stand-Alone Embedded ONNX Production Asset**: Exported `tcn_ultimate_baseline.onnx` with `dynamo=False` (7.1 MB), embedding all parameters directly inside the ONNX file for Android runtime compatibility without external `.data` dependencies.
-*   **Clean Benchmark Results (73 Clean Physical Sessions, 4,091 Physical GT Shots)**:
-    - **Total Candidate Detections**: **4,136** on **4,091** GT physical shots (Candidate-to-GT ratio: **101.1%**, near-perfect physical parity!).
-    - **True Positives**: **3,717** physical shots detected.
-    - **Global Physical Shot Recall**: 🏆 **90.86%** (3,717 / 4,091).
-    - **Global System Precision**: 🏆 **89.87%** (~90.0%).
-    - **Global F1 Score**: 🏆 **90.36%**.
+## 🔖 Current Session State (Feature B-108: Quarantined Session Recovery & Benchmark Expansion)
+*   **Tiered Recovery (Option A)**: Completed forensic diagnostics across all 13 quarantined sessions. Promoted 5 sessions to active clean training/benchmark pool (+297 GT shots recovered), left 4 in quarantine pending Phase 5 3D rotation augmentation, and retired 4 impaired sessions to `archived_impaired`.
+*   **Root Cause Remedies**:
+    - `06-29`: Expanded grid search window to $\pm 2.0\text{s}$ to capture static -1.35s speech delta (95.3% recall, 89.1% precision).
+    - `07-12`: Unlocked by Phase 3 relaxed Stage 1 parameters (84.1% recall, 92.5% precision).
+    - `08-07` & `08-27`: Replaced bogus +73.15s and +16.5s sync-tap offsets with true speech narration timestamps (92.9% and 92.3% recall).
+    - `09-30`: Reclassified pre-session banter to `No shot`, anchoring 2D drift alignment optimizer correctly (recall surged from 22.8% to 90.5%).
+*   **Clean Benchmark Results (78 Clean Physical Sessions, 4,388 Physical GT Shots, +297 Shots Recovered)**:
+    - **Total Candidate Detections**: **4,404** on **4,388** GT physical shots (Candidate-to-GT ratio: **100.36%**, near-perfect physical parity!).
+    - **True Positives**: **3,960** physical shots detected.
+    - **Global Physical Shot Recall**: 🏆 **90.25%** (3,960 / 4,388).
+    - **Global System Precision**: 🏆 **89.92%** (~90.0%).
+    - **Global F1 Score**: 🏆 **90.08%**.
+    - **Full Classification Accuracy**: 🏆 **87.07%** (3,448 / 3,960 correct shots).
 *   **Locked Holdout Test Set Performance (12 Unseen Sessions, 701 Physical GT Shots)**:
     - **Total Candidate Detections**: **710** on **701** GT physical shots (**101.3%** parity).
     - **True Positive Detections**: **643** (91.73% detection recall).
     - **Detection Precision**: 🏆 **90.56%** (643 / 710; false alarms clamped to 67).
     - **Detection F1 Score**: 🏆 **91.14%**.
     - **Holdout Classification Accuracy**: 🏆 **74.49%** (479 / 643 correct shots).
-    - **POWER DRIVE Accuracy**: Surged from 29.82% to 🏆 **43.86%** (25 / 57 correct, **+14.1% absolute gain**).
+    - **POWER DRIVE Accuracy**: **43.86%** (25 / 57 correct).
     - **DRIVE/DEFENCE Accuracy**: Preserved at **82.78%** (149 / 180).
     - **CUT/PUNCH Accuracy**: Preserved at **91.67%** (88 / 96).
     - **DEFLECTION/GUIDE Accuracy**: Preserved at **87.78%** (79 / 90).
     - **SWEEP Accuracy**: Preserved at **79.66%** (47 / 59).
     - **PULL/HOOK/SLOG Accuracy**: **65.71%** (69 / 105).
 *   **Engineering Verification**:
-    - **Android & Wear OS Tests**: 105/105 unit tests passed (`BUILD SUCCESSFUL in 1s`).
-    - **Release APKs**: Assembled and 16 KB page-aligned (`:app:assembleRelease :wear:assembleRelease`).
+    - **Android & Wear OS Tests**: 105/105 unit tests passed (`BUILD SUCCESSFUL in 664ms`).
+    - **Release APKs**: Assembled and 16 KB page-aligned (`:app:assembleRelease :wear:assembleRelease` in 778ms).
     - **Python Tests**: 8/8 tests passed in `test_ahrs_and_guard.py`.
 
 

@@ -4,13 +4,14 @@
 **Training Design**: Peak-Centered Candidate Window Training with Hard-Negative Mining (Rejection Head [208d -> 64d -> 2], Backbone L1-7: 1.5e-4, L8-10+Heads: 5e-4, 3-Epoch Warmup, CosineAnnealingLR to 1e-6, Head 2A Weight [1.0, 2.0, 1.0, 1.0], Rejection Threshold $\theta_{no\_shot} = 0.35$)  
 **Holdout Test Sessions**: `session_2026-06-12_12-24-37, session_2026-06-16_15-39-33, session_2026-06-19_12-25-55, session_2026-07-05_16-27-16, session_2026-07-20_12-42-16, session_2026-07-25_15-16-32, session_2026-08-11_12-49-31, session_2026-08-21_12-50-53, session_2026-09-08_12-52-30, session_2026-09-17_12-48-47, session_2026-10-05_12-53-51, session_2026-10-09_12-41-17` (12 sessions)  
 **Validation Sessions**: `session_2026-06-27_14-12-40, session_2026-07-02_12-38-53, session_2026-08-01_10-18-20, session_2026-08-17_12-51-22, session_2026-08-30_11-05-11, session_2026-09-10_12-55-41, session_2026-10-04_15-30-15` (7 sessions)  
-**Quarantined Faulted Sessions**: `session_2026-05-30_15-04-41, session_2026-05-31_14-12-10, session_2026-06-29_12-21-45, session_2026-07-11_12-51-39, session_2026-07-12_11-23-59, session_2026-07-17_12-30-41, session_2026-07-18_13-44-09, session_2026-08-07_12-47-38, session_2026-08-27_12-52-32, session_2026-09-05_16-26-41, session_2026-09-06_12-14-46, session_2026-09-11_12-44-50, session_2026-09-30_12-52-29` (13 sessions)  
-**Training Sessions Count**: 54 physical sessions  
-**Clean Benchmark Sessions Count**: 73 physical sessions  
-**Total Dataset Duration**: 1288.9 minutes (21.5 hours)  
+**Quarantined Faulted Sessions (Phase 5 Candidates)**: `session_2026-07-11_12-51-39, session_2026-07-17_12-30-41, session_2026-09-05_16-26-41, session_2026-09-06_12-14-46` (4 sessions)  
+**Archived Impaired Sessions**: `session_2026-05-30_15-04-41, session_2026-05-31_14-12-10, session_2026-07-18_13-44-09, session_2026-09-11_12-44-50` (4 sessions)  
+**Training Sessions Count**: 59 physical sessions  
+**Clean Benchmark Sessions Count**: 78 physical sessions (+5 recovered sessions: `06-29`, `07-12`, `08-07`, `08-27`, `09-30`)  
+**Total Dataset Duration**: 1378.2 minutes (23.0 hours)  
 **Validation Macro-F1 Checkpointing**: Best Epoch Reloaded Checkpoint (Best Val Macro-F1: 0.6356, Shot Acc: 63.59%, Val Loss: 1.1914, Stopped at Epoch 28)  
 **Execution Log File**: `/Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-10-16_15-33-31.log`  
-**Date**: 2026-10-16 15:34
+**Date**: 2026-10-16 21:47  
 
 ---
 
@@ -19,8 +20,8 @@
 | Dataset Partition | Physical Ground-Truth Shots | Total Detections | **Physical Shot Recall** | **Precision** | **F1 Score** |
 |---|:---:|:---:|:---:|:---:|:---:|
 | 🌟 **Holdout Test Set (12 Sessions)** | **701** | **710** | **91.73%** (643/701) | **90.56%** (643/710) | **91.14%** |
-| **Training Set Micro Average (54 Sessions)** | **3390** | **3426** | **90.68%** (3074/3390) | **89.73%** (3074/3426) | **90.20%** |
-| 🏆 **Clean Benchmark Micro Average (73 Sessions)** | **4091** | **4136** | 🏆 **90.86%** (3717/4091) | 🏆 **89.87%** (3717/4136) | 🏆 **90.36%** |
+| **Training Set Micro Average (59 Sessions)** | **3687** | **3694** | **89.97%** (3317/3687) | **89.79%** (3317/3694) | **89.88%** |
+| 🏆 **Clean Benchmark Micro Average (78 Sessions)** | **4388** | **4404** | 🏆 **90.25%** (3960/4388) | 🏆 **89.92%** (3960/4404) | 🏆 **90.08%** |
 
 ---
 

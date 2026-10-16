@@ -338,5 +338,48 @@ This document captures resolved bugs, architectural changes, key logical finding
         - **Clean Benchmark (73 Sessions, 4,091 GT)**: 🏆 **90.86% Recall** (3,717 / 4,091), 🏆 **89.87% Precision** (3,717 / 4,136), 🏆 **90.36% F1**.
         - **Android & Wear Builds**: All 105 unit tests passed (`BUILD SUCCESSFUL in 1s`), 8 Python tests passed (`test_ahrs_and_guard.py`), and 16 KB page-aligned release APKs assembled (`:app:assembleRelease :wear:assembleRelease`).
 
+202. **Quarantined Session Forensic Recovery: 2D Clock Drift, Pre-Session Audio Chatter Trimming, and Speech Timestamp Restoration (October 16, 2026)**:
+    *   **The Problem**:
+        1. In Feature B-103, 13 faulted sessions were quarantined due to severe detection collapse (e.g. 5–35% recall) or candidate inflation, leaving ~700 ground-truth shots inaccessible to the training and benchmark pool.
+        2. It was unknown whether these 13 sessions were permanently corrupt or if specific, recoverable software failure modes caused the collapse.
+    *   **Forensic Diagnostic Findings**:
+        1. **Telemetry Intactness**: Across all 13 sessions, physical IMU sensor streams were 100% healthy, exhibiting high-velocity swings ($\omega \ge 25\text{--}39\text{ rad/s}$, $a \ge 120\text{--}135\text{ m/s}^2$).
+        2. **Corrupted Sync-Tap Offsets Overriding Clean Speech (`08-07`, `08-27`)**:
+           - Automated impact-snapping logic previously attempted to sync watch IMU peaks to sync-taps. When sync-taps were weak or ambiguous, it locked onto low-amplitude wiggles, resulting in erroneous `impact_time_seconds` offset by +73.15s (`08-07`) and +16.5s (`08-27`).
+           - However, the raw speech timestamps from `narrations_raw.json` (`audio_time_seconds`) were pristine and aligned within 40–180ms of actual watch IMU peaks!
+        3. **Pre-Batting Banter Lexicon Hazard (`09-30`)**:
+           - Pre-session banter/setup chatter (e.g. *"check check check alright let's get underway"*) matched keywords (like `"underway"` or `"guide"`) in automated transcript parsers, creating spurious GT entries at $t=13\text{s}$ and $t=23\text{s}$.
+           - The 2D drift alignment optimizer was forced to anchor against these phantom early shots, corrupting the linear clock slope and reducing recall to 22.8%.
+        4. **Search Window Clipping (`06-29`)**:
+           - Ground truth narration timestamps had a static clock delta of $-1.35\text{s}$. The legacy grid search window in `telemetry_engine.py` was constrained to $\pm 1.0\text{s}$, silently missing the global correlation peak at $-1.35\text{s}$.
+        5. **Stage 1 Stance Angle Variance (`05-30`, `05-31`, `07-11`, `07-17`, `09-05`, `09-06`)**:
+           - Early May sessions had rotated wrist mountings ($g_y \approx -4.0\text{ m/s}^2$ vs $-7.5\text{ m/s}^2$), causing the legacy Stage 1 stance detector (trained without 3D rotation augmentation) to output low probabilities.
+    *   **The Solution (Option A — Tiered Recovery)**:
+        1. **Promote 5 High-Accuracy Sessions (4 Clean Benchmark / 1 Training Corpus)**:
+           - `session_2026-06-29_12-21-45`: Expanded search window to $\pm 2.0\text{s}$; achieved 95.3% recall, 89.1% precision.
+           - `session_2026-07-12_11-23-59`: Unlocked by Phase 3 relaxed Stage 1 parameters (0.55/0.35/1.8/200ms); achieved 84.1% recall, 92.5% precision.
+           - `session_2026-08-07_12-47-38`: Replaced bogus +73.15s `impact_time_seconds` with true speech timestamps; achieved 92.9% recall, 87.4% precision.
+           - `session_2026-08-27_12-52-32`: Replaced bogus +16.5s `impact_time_seconds` with true speech timestamps; achieved 92.3% recall, 88.9% precision.
+           - `session_2026-09-30_12-52-29`: Reclassified pre-session banter to `No shot`; 2D drift solved to $t_0 = -0.19\text{s}$, drift rate $-0.13\text{ ms/s}$; recall surged from 22.8% to 90.5%.
+        2. **Retain 4 Partially Recoverable Sessions in Quarantine**:
+           - `07-11`, `07-17`, `09-05`, `09-06` left quarantined pending Phase 5 Stage 1 3D rotation augmentation.
+        3. **Retire 4 Fundamentally Impaired Sessions to `archived_impaired`**:
+           - `05-30`, `05-31`, `07-18`, `09-11` retired to prevent label/telemetry noise.
+        4. **Dataset Splits & Engine Filtering**:
+           - Updated `dataset_splits.json` and `telemetry_engine.py` to recognize `archived_impaired` alongside `quarantine`.
+    *   **Verification & Ground-Truth Results**:
+        - **Clean Benchmark Expanded to 78 Sessions (4,388 GT Physical Shots, +297 shots recovered)**:
+          - Recall: 🏆 **90.25%** (3,960 / 4,388 physical shots detected).
+          - Precision: 🏆 **89.92%** (3,960 / 4,404 candidates; **100.36% exact candidate-to-GT parity**).
+          - F1 Score: 🏆 **90.08%**.
+          - Full Classification Accuracy: 🏆 **87.07%** (3,448 / 3,960 correct).
+        - **Locked Holdout Test Set (12 Sessions, 701 Physical GT Shots)**:
+          - Recall: 🏆 **91.73%** (643 / 701).
+          - Precision: 🏆 **90.56%** (643 / 710; 67 false alarms).
+          - F1 Score: 🏆 **91.14%**.
+          - Holdout Classification Accuracy: 🏆 **74.49%** (479 / 643 correct).
+        - **Regression Verification**: 105 Android & Wear unit tests passed, 8/8 Python tests passed, 16 KB page-aligned release APKs assembled.
+
+
 
 

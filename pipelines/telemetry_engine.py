@@ -56,7 +56,7 @@ if os.path.exists(SPLITS_PATH):
             _sp_data = json.load(f_sp)
         HOLDOUT_TEST_SESSIONS = _sp_data.get("holdout_test", [])
         VALIDATION_SESSIONS = _sp_data.get("validation", [])
-        QUARANTINE_SESSIONS = list(_sp_data.get("quarantine", {}).keys())
+        QUARANTINE_SESSIONS = list(_sp_data.get("quarantine", {}).keys()) + list(_sp_data.get("archived_impaired", {}).keys())
     except Exception:
         HOLDOUT_TEST_SESSIONS = [
             "session_2026-07-20_12-42-16", "session_2026-07-21_12-43-37",
@@ -929,7 +929,8 @@ def evaluate_multitier_scorecard(
             
     if session_ids is None:
         pattern = os.path.join(dataset_dir, "session_2026-*_unified.parquet")
-        session_ids = sorted([os.path.basename(p).replace("_unified.parquet", "") for p in glob.glob(pattern) if '_aug_' not in p])
+        all_sids = sorted([os.path.basename(p).replace("_unified.parquet", "") for p in glob.glob(pattern) if '_aug_' not in p])
+        session_ids = [s for s in all_sids if s not in QUARANTINE_SESSIONS]
         
     if verbose:
         print(f"\n==========================================================", flush=True)
