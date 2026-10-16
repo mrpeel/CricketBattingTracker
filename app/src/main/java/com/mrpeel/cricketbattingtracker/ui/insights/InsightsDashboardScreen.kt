@@ -1235,7 +1235,7 @@ data class TargetRangeQuadruple(val targetMin: Float, val targetMax: Float, val 
 
 fun getTimeLeadRanges(shotClass: String): TargetRangeQuadruple {
     return when (shotClass) {
-        "PULL/HOOK" -> TargetRangeQuadruple(-30f, -10f, -60f, +60f)
+        "PULL/HOOK/SLOG", "PULL/HOOK" -> TargetRangeQuadruple(-30f, -10f, -60f, +60f)
         "DRIVE/DEFENCE" -> TargetRangeQuadruple(+5f, +20f, -30f, +120f)
         "GLANCE/FLICK" -> TargetRangeQuadruple(-15f, -5f, -40f, +40f)
         "CUT/PUNCH" -> TargetRangeQuadruple(-5f, +5f, -30f, +40f)
@@ -1249,7 +1249,7 @@ fun getTimeLeadRanges(shotClass: String): TargetRangeQuadruple {
 
 fun getGyroRatioRanges(shotClass: String): TargetRangeQuadruple {
     return when (shotClass) {
-        "PULL/HOOK" -> TargetRangeQuadruple(0.05f, 0.22f, 0.0f, 0.60f)
+        "PULL/HOOK/SLOG", "PULL/HOOK" -> TargetRangeQuadruple(0.05f, 0.22f, 0.0f, 0.60f)
         "DRIVE/DEFENCE" -> TargetRangeQuadruple(0.45f, 0.70f, 0.0f, 1.20f)
         "GLANCE/FLICK" -> TargetRangeQuadruple(1.00f, 1.60f, 0.40f, 2.00f)
         "CUT/PUNCH" -> TargetRangeQuadruple(0.90f, 1.10f, 0.40f, 1.60f)
@@ -1263,7 +1263,7 @@ fun getGyroRatioRanges(shotClass: String): TargetRangeQuadruple {
 
 fun getAccRatioRanges(shotClass: String): TargetRangeQuadruple {
     return when (shotClass) {
-        "PULL/HOOK" -> TargetRangeQuadruple(1.20f, 2.00f, 0.50f, 2.50f)
+        "PULL/HOOK/SLOG", "PULL/HOOK" -> TargetRangeQuadruple(1.20f, 2.00f, 0.50f, 2.50f)
         "DRIVE/DEFENCE" -> TargetRangeQuadruple(0.30f, 0.60f, 0.0f, 1.20f)
         "GLANCE/FLICK" -> TargetRangeQuadruple(0.80f, 1.30f, 0.40f, 1.80f)
         "CUT/PUNCH" -> TargetRangeQuadruple(0.85f, 1.15f, 0.40f, 1.60f)

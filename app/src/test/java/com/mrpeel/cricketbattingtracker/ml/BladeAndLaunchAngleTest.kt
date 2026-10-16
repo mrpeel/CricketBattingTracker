@@ -95,6 +95,7 @@ class BladeAndLaunchAngleTest {
         assertEquals(0f, getTargetYaw("STRAIGHT DRIVE"), 1e-4f)
         assertEquals(15f, getTargetYaw("ON DRIVE"), 1e-4f)
         assertEquals(40f, getTargetYaw("CUT/PUNCH"), 1e-4f)
+        assertEquals(55f, getTargetYaw("PULL/HOOK/SLOG"), 1e-4f)
         assertEquals(55f, getTargetYaw("PULL/HOOK"), 1e-4f)
         assertEquals(55f, getTargetYaw("SLOG"), 1e-4f)
         assertEquals(65f, getTargetYaw("SWEEP"), 1e-4f)

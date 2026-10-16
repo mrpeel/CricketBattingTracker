@@ -1,0 +1,135 @@
+====================================================================================================
+  PITCH ANALYTIX PRO — PERSISTENT RUN LOG
+  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-10-16_15-33-31.log
+  Start Time       : 2026-10-16 15:33:31
+  Command Line     : pipelines/train_and_evaluate_full_scorecard.py --eval-only
+  Python Version   : 3.14.5 (/opt/homebrew/opt/python@3.14/bin/python3.14)
+====================================================================================================
+
+====================================================================================================
+  PHASE 2 MASTER RETRAINING & MULTI-TIER EVALUATION (LEARNED FALSE-POSITIVE REJECTION)
+  Holdout / Validation Sessions (12): session_2026-06-12_12-24-37, session_2026-06-16_15-39-33, session_2026-06-19_12-25-55, session_2026-07-05_16-27-16, session_2026-07-20_12-42-16, session_2026-07-25_15-16-32, session_2026-08-11_12-49-31, session_2026-08-21_12-50-53, session_2026-09-08_12-52-30, session_2026-09-17_12-48-47, session_2026-10-05_12-53-51, session_2026-10-09_12-41-17
+  Execution Device: mps
+  Random Seed: 42 (deterministic)
+====================================================================================================
+
+📦 Dataset Auto-Sync: Discovered 86 usable sessions in live_watch_sessions/
+✅ Auto-Sync Up-To-Date: All 86 parquet datasets are synchronized.
+
+Loading dataset splits: Train=54, Val=7, Test=12, Quarantined=13 (Total: 86)...
+✅ Saved feature normalization stats -> /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_norm_stats.json
+✅ Copied feature normalization stats -> /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/tcn_norm_stats.json
+
+⚡ Eval-Only Mode: Loading model checkpoint from /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_ultimate_baseline.pt...
+
+3. Evaluating BENCHMARK DATASET across ALL 73 clean physical sessions via Telemetry Engine...
+
+==========================================================
+  AUDITED HIERARCHICAL MULTI-TIER TELEMETRY PIPELINE
+==========================================================
+  Execution Device : mps
+  Total Sessions   : 73 physical sessions
+  Holdout Set (12)  : ['session_2026-06-12_12-24-37', 'session_2026-06-16_15-39-33', 'session_2026-06-19_12-25-55', 'session_2026-07-05_16-27-16', 'session_2026-07-20_12-42-16', 'session_2026-07-25_15-16-32', 'session_2026-08-11_12-49-31', 'session_2026-08-21_12-50-53', 'session_2026-09-08_12-52-30', 'session_2026-09-17_12-48-47', 'session_2026-10-05_12-53-51', 'session_2026-10-09_12-41-17']
+  Processing sessions directly from Parquet...
+
+================================================================================
+         FORENSIC AUDITED MULTI-TIER PIPELINE DIAGNOSTIC SCORECARD
+================================================================================
+
+1️⃣ CANDIDATE DETECTIONS & SYSTEM PRECISION:
+----------------------------------------------------------------------
+  • Total Ground-Truth Physical Shots: 4091
+  • Total System Candidate Detections: 4132
+  • Matched True Positive Detections : 3715
+  • False Alarm Detections (FP)      : 417 (10.1% of detections)
+  • Missed Physical Shots (FN)       : 376 (9.2% of GT)
+  • Global Pipeline Recall           : 🏆 90.81%
+  • Global System Precision          : 🏆 89.91%
+  • Global System F1 Score           : 🏆 90.36%
+
+🎯 SWEEP CANDIDATE PRECISION & DETECTION RATIO:
+----------------------------------------------------------------------
+  • Total Ground-Truth SWEEP Shots   : 270
+  • SWEEP Candidate Detections       : 🏆 322
+  • SWEEP Detections-to-GT Ratio     : 🏆 119.3%
+
+2️⃣ TIER BREAKDOWN (Peak Motion Aligned [T_peak - 1.0s, T_peak + 1.5s]):
+----------------------------------------------------------------------
+| Tier                    | Total Detections | True Positives | Precision (%) |
+----------------------------------------------------------------------
+| TIER_1_HIGH             |             3443 |           3115 |        90.47% |
+| TIER_3_SOFT_TOUCH       |              689 |            600 |        87.08% |
+----------------------------------------------------------------------
+
+3️⃣ GRANULAR UNSEEN HOLDOUT SET SCORECARD (AUTOMATIC ALIGNMENT):
+======================================================================
+  • Designated Holdout Sessions : ['session_2026-06-12_12-24-37', 'session_2026-06-16_15-39-33', 'session_2026-06-19_12-25-55', 'session_2026-07-05_16-27-16', 'session_2026-07-20_12-42-16', 'session_2026-07-25_15-16-32', 'session_2026-08-11_12-49-31', 'session_2026-08-21_12-50-53', 'session_2026-09-08_12-52-30', 'session_2026-09-17_12-48-47', 'session_2026-10-05_12-53-51', 'session_2026-10-09_12-41-17']
+  • Ground-Truth Physical Shots : 701
+  • Total Candidate Detections  : 709
+  • True Positive Detections    : 643
+  • False Positive Detections   : 66
+  • Adjusted Holdout Detection Recall    : 🏆 91.73% (643/701 GT shots detected)
+  • Adjusted Holdout Detection Precision : 🏆 90.69% (643/709 candidates valid)
+  • Adjusted Holdout Detection F1 Score  : 🏆 91.21%
+
+--- CALCULATED TIMESTAMP DRIFT OFFSETS (dt_offset) & PER-SESSION PERFORMANCE ---
+---------------------------------------------------------------------------------------------------
+| Session ID               | Calculated dt Offset | GT Shots | Detections | TPs | Recall (%) | Precision (%) |
+---------------------------------------------------------------------------------------------------
+| session_2026-06-12_12-24-37 |              -0.50s |       70 |         69 |  67 |      95.7% |         97.1% |
+| session_2026-06-16_15-39-33 |              +0.15s |       52 |         53 |  50 |      96.2% |         94.3% |
+| session_2026-06-19_12-25-55 |              -0.15s |       56 |         55 |  53 |      94.6% |         96.4% |
+| session_2026-07-05_16-27-16 |              -0.15s |       57 |         56 |  54 |      94.7% |         96.4% |
+| session_2026-07-20_12-42-16 |              -0.55s |       37 |         48 |  34 |      91.9% |         70.8% |
+| session_2026-07-25_15-16-32 |              -0.15s |       61 |         65 |  60 |      98.4% |         92.3% |
+| session_2026-08-11_12-49-31 |              +0.00s |       62 |         64 |  57 |      91.9% |         89.1% |
+| session_2026-08-21_12-50-53 |              +0.00s |       69 |         63 |  60 |      87.0% |         95.2% |
+| session_2026-09-08_12-52-30 |              +0.00s |       57 |         57 |  47 |      82.5% |         82.5% |
+| session_2026-09-17_12-48-47 |              +0.00s |       62 |         59 |  56 |      90.3% |         94.9% |
+| session_2026-10-05_12-53-51 |              +0.00s |       67 |         63 |  56 |      83.6% |         88.9% |
+| session_2026-10-09_12-41-17 |              +0.00s |       51 |         57 |  49 |      96.1% |         86.0% |
+---------------------------------------------------------------------------------------------------
+
+4️⃣ PEAK-ALIGNED HOLDOUT CLASSIFICATION ACCURACY PER SHOT TYPE:
+===================================================================================================
+| Shot Type        | GT Count | Detected TPs | Class Correct | Classification Acc (%) | Shot Recall (%) |
+===================================================================================================
+| PULL/HOOK/SLOG   |      111 |          105 |            74 |                 70.48% |          66.67% |
+| DRIVE/DEFENCE    |      198 |          180 |           149 |                 82.78% |          75.25% |
+| GLANCE/FLICK     |       59 |           56 |            22 |                 39.29% |          37.29% |
+| CUT/PUNCH        |      102 |           96 |            88 |                 91.67% |          86.27% |
+| DEFLECTION/GUIDE |      112 |           90 |            79 |                 87.78% |          70.54% |
+| POWER DRIVE      |       57 |           57 |            17 |                 29.82% |          29.82% |
+| SWEEP            |       62 |           59 |            47 |                 79.66% |          75.81% |
+===================================================================================================
+  🏆 OVERALL HOLDOUT CLASSIFICATION ACCURACY: 74.03% (476/643 correct across detected shots)
+===================================================================================================
+
+
+===================================================================================================================
+📊 BENCHMARK DATASET TRAINING & HOLDOUT EVALUATION SCORECARD
+  Training Strategy: Phase 2 Learned False-Positive Rejection (Bat-Plane 3-Family Multi-Scale TCN)
+  Validation Summary: Total Epochs = 28, Best Val Macro-F1 = 0.6356 (Shot Acc: 63.59%, Val Loss: 1.1914 at Epoch Reloaded Checkpoint)
+===================================================================================================================
+  Holdout Test Set (12 Sessions): Recall = 91.7%, Precision = 90.7%, F1 = 91.2%, Class Acc = 74.0%
+  Training Set (54 Sessions):               Recall = 90.6%, Precision = 89.7%, F1 = 90.2%, Class Acc = 90.5%
+  Clean Benchmark Total (73 Sessions):     Recall = 90.8%, Precision = 89.9%, F1 = 90.4%
+===================================================================================================================
+
+
+✅ Saved master scorecard report to /Users/neilkloot/Code/CricketBattingTracker/full_dataset_training_scorecard.md
+
+================================================================================
+🔒 PRODUCTION ONNX QUALITY GATE CHECK
+================================================================================
+/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py:736: DeprecationWarning: You are using the legacy TorchScript-based ONNX export. Starting in PyTorch 2.9, the new torch.export-based ONNX exporter has become the default. Learn more about the new export logic: https://docs.pytorch.org/docs/stable/onnx_export.html. For exporting control flow: https://pytorch.org/tutorials/beginner/onnx/export_control_flow_model_to_onnx_tutorial.html
+  torch.onnx.export(
+🏆 PASSED Quality Gate (Holdout Precision=90.7%, Overall Precision=89.9%, Holdout F1=91.2%). Exported ONNX model & updated production Android app assets: /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/tcn_ultimate_baseline.onnx
+✅ ONNX Runtime verification passed! Output shape: (1, 9, 2048)
+================================================================================
+
+====================================================================================================
+  RUN COMPLETED: 2026-10-16 15:34:48
+  Total Duration: 0:01:17.002262
+  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-10-16_15-33-31.log
+====================================================================================================

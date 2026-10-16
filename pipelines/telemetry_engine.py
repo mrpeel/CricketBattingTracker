@@ -49,12 +49,30 @@ STATS_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_norm_stats.json")
 APP_ASSETS_DIR = os.path.join(ROOT_DIR, "app", "src", "main", "assets", "models")
 REPORT_OUT = os.path.join(ROOT_DIR, "full_dataset_training_scorecard.md")
 
-HOLDOUT_SESSIONS = [
-    "session_2026-07-20_12-42-16",
-    "session_2026-07-21_12-43-37",
-    "session_2026-07-24_12-52-29",
-    "session_2026-07-25_15-16-32"
-]
+SPLITS_PATH = os.path.join(ROOT_DIR, "pipelines", "dataset_splits.json")
+if os.path.exists(SPLITS_PATH):
+    try:
+        with open(SPLITS_PATH, "r") as f_sp:
+            _sp_data = json.load(f_sp)
+        HOLDOUT_TEST_SESSIONS = _sp_data.get("holdout_test", [])
+        VALIDATION_SESSIONS = _sp_data.get("validation", [])
+        QUARANTINE_SESSIONS = list(_sp_data.get("quarantine", {}).keys())
+    except Exception:
+        HOLDOUT_TEST_SESSIONS = [
+            "session_2026-07-20_12-42-16", "session_2026-07-21_12-43-37",
+            "session_2026-07-24_12-52-29", "session_2026-07-25_15-16-32"
+        ]
+        VALIDATION_SESSIONS = []
+        QUARANTINE_SESSIONS = []
+else:
+    HOLDOUT_TEST_SESSIONS = [
+        "session_2026-07-20_12-42-16", "session_2026-07-21_12-43-37",
+        "session_2026-07-24_12-52-29", "session_2026-07-25_15-16-32"
+    ]
+    VALIDATION_SESSIONS = []
+    QUARANTINE_SESSIONS = []
+
+HOLDOUT_SESSIONS = HOLDOUT_TEST_SESSIONS
 
 STAGE1_CHANNELS = [
     'w_acc_x', 'w_acc_y', 'w_acc_z',
@@ -152,10 +170,10 @@ class FacingUpTCN(nn.Module):
 
 
 # =============================================================================
-# Stage 1: Stance State Machine Tracker (300ms Continuous Sustain Guard)
+# Stage 1: Stance State Machine Tracker (200ms Continuous Sustain Guard)
 # =============================================================================
 class StanceTracker:
-    def __init__(self, high_thresh=0.70, low_thresh=0.40, motion_surge_w=1.8, sustain_ms=300):
+    def __init__(self, high_thresh=0.55, low_thresh=0.35, motion_surge_w=1.8, sustain_ms=200):
         self.high_thresh = high_thresh
         self.low_thresh = low_thresh
         self.motion_surge_w = motion_surge_w
@@ -229,9 +247,22 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
             
         self.proj_l10 = nn.Linear(channels_list[9], 64)
         
-        # Head 1: Macro Family Gate (144d Dimension-Balanced 2-Layer MLP)
+        # Multi-Scale Feature Dimension:
+        # pool_core(L5)[16] + pool_core(L7)[64] + proj(pool_core(L10))[64] + pool_global(L7)[64] = 208d
+        FEAT_DIM = 208
+        
+        # Head 0: Learned Binary Rejection Head (0: no_shot, 1: is_shot)
+        self.head_reject = nn.Sequential(
+            nn.Linear(FEAT_DIM, 64),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, 2)
+        )
+        
+        # Head 1: Macro Family Gate (0: Vertical-Bat, 1: Cross-Bat, 2: Floor/Sweep)
         self.head_family = nn.Sequential(
-            nn.Linear(144, 64),
+            nn.Linear(FEAT_DIM, 64),
             nn.BatchNorm1d(64),
             nn.GELU(),
             nn.Dropout(0.1),
@@ -240,7 +271,7 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
         
         # Head 2A: Vertical-Bat Sub-Classifier (4 Classes: DRIVE/DEFENCE, POWER DRIVE, GLANCE/FLICK, DEFLECTION/GUIDE)
         self.head_sub0 = nn.Sequential(
-            nn.Linear(144, 64),
+            nn.Linear(FEAT_DIM, 64),
             nn.BatchNorm1d(64),
             nn.GELU(),
             nn.Dropout(0.1),
@@ -249,7 +280,7 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
         
         # Head 2B: Cross-Bat Sub-Classifier (2 Classes: PULL/HOOK/SLOG, CUT/PUNCH)
         self.head_sub1 = nn.Sequential(
-            nn.Linear(144, 64),
+            nn.Linear(FEAT_DIM, 64),
             nn.BatchNorm1d(64),
             nn.GELU(),
             nn.Dropout(0.1),
@@ -266,55 +297,62 @@ class BatPlaneGeometryThreeFamilyTCN(nn.Module):
 
     def forward_heads(self, x):
         layer_outputs = self.extract_features(x)
-        l5  = layer_outputs[4]  # (B, 16, L)
-        l7  = layer_outputs[6]  # (B, 64, L)
-        l10 = layer_outputs[9]  # (B, 512, L)
+        l5  = layer_outputs[4]   # (B, 16, L)
+        l7  = layer_outputs[6]   # (B, 64, L)
+        l10 = layer_outputs[9]   # (B, 512, L)
         
         B, _, L = x.shape
+        # Impact-core slice: ±175 frames around center 1024 (849 to 1199, ~827ms at 423 Hz)
+        c_lo = 849
+        c_hi = 1199
         
-        f_l5 = l5.mean(dim=2)                          # (B, 16)
-        f_l7 = l7.mean(dim=2)                          # (B, 64)
-        f_l10 = l10.mean(dim=2)                        # (B, 512)
-        f_l10_proj = F.gelu(self.proj_l10(f_l10))      # (B, 64)
+        f_l5_core = l5[:, :, c_lo:c_hi].mean(dim=2)
+        f_l7_core = l7[:, :, c_lo:c_hi].mean(dim=2)
+        f_l10_core = l10[:, :, c_lo:c_hi].mean(dim=2)
+        f_l10_proj = F.gelu(self.proj_l10(f_l10_core))
+        f_l7_global = l7.mean(dim=2)
         
-        feat_triplet = torch.cat([f_l5, f_l7, f_l10_proj], dim=1)  # (B, 144)
+        feat = torch.cat([f_l5_core, f_l7_core, f_l10_proj, f_l7_global], dim=1)  # (B, 208)
         
-        out_fam = self.head_family(feat_triplet)                     # (B, 3)
-        logits_family = out_fam.unsqueeze(-1).expand(-1, -1, L)     # (B, 3, L)
+        logits_reject = self.head_reject(feat)   # (B, 2)
+        logits_family = self.head_family(feat)   # (B, 3)
+        logits_sub0   = self.head_sub0(feat)     # (B, 4)
+        logits_sub1   = self.head_sub1(feat)     # (B, 2)
         
-        out_sub0 = self.head_sub0(feat_triplet)                     # (B, 4)
-        logits_sub0 = out_sub0.unsqueeze(-1).expand(-1, -1, L)       # (B, 4, L)
-        
-        out_sub1 = self.head_sub1(feat_triplet)                     # (B, 2)
-        logits_sub1 = out_sub1.unsqueeze(-1).expand(-1, -1, L)       # (B, 2, L)
-        
-        return logits_family, logits_sub0, logits_sub1
+        return logits_reject, logits_family, logits_sub0, logits_sub1
 
     def forward(self, x):
-        logits_family, logits_sub0, logits_sub1 = self.forward_heads(x)
-        p_fam = F.softmax(logits_family, dim=1)  # (B, 3, L)
-        p_sub0 = F.softmax(logits_sub0, dim=1)   # (B, 4, L)
-        p_sub1 = F.softmax(logits_sub1, dim=1)   # (B, 2, L)
+        logits_reject, logits_family, logits_sub0, logits_sub1 = self.forward_heads(x)
+        p_bin  = F.softmax(logits_reject, dim=1)  # (B, 2): [P(no_shot), P(is_shot)]
+        p_fam  = F.softmax(logits_family, dim=1)  # (B, 3): [Fam0, Fam1, Fam2]
+        p_sub0 = F.softmax(logits_sub0, dim=1)   # (B, 4): [Drive, PD, Glance, Defl]
+        p_sub1 = F.softmax(logits_sub1, dim=1)   # (B, 2): [Pull, Cut]
         
-        B, _, L = logits_family.shape
-        probs = torch.zeros((B, 9, L), device=x.device, dtype=x.dtype)
-        probs[:, 0, :] = 0.0  # no_shot
-        probs[:, 1, :] = 0.0  # pre_shot
+        B, _, L = x.shape
+        probs = torch.zeros((B, 9), device=x.device, dtype=x.dtype)
+        
+        p_no_shot = p_bin[:, 0]
+        p_is_shot = p_bin[:, 1]
+        
+        probs[:, 0] = p_no_shot
+        probs[:, 1] = 0.0  # pre_shot
         
         # Family 0 (Vertical-Bat Strokes)
-        probs[:, 3, :] = p_fam[:, 0, :] * p_sub0[:, 0, :]  # DRIVE/DEFENCE (3)
-        probs[:, 7, :] = p_fam[:, 0, :] * p_sub0[:, 1, :]  # POWER DRIVE (7)
-        probs[:, 4, :] = p_fam[:, 0, :] * p_sub0[:, 2, :]  # GLANCE/FLICK (4)
-        probs[:, 6, :] = p_fam[:, 0, :] * p_sub0[:, 3, :]  # DEFLECTION/GUIDE (6)
+        probs[:, 3] = p_is_shot * p_fam[:, 0] * p_sub0[:, 0]  # DRIVE/DEFENCE (3)
+        effective_pd_fam = p_fam[:, 0] + 0.85 * p_fam[:, 1]
+        probs[:, 7] = p_is_shot * effective_pd_fam * p_sub0[:, 1]  # POWER DRIVE (7)
+        probs[:, 4] = p_is_shot * p_fam[:, 0] * p_sub0[:, 2]  # GLANCE/FLICK (4)
+        probs[:, 6] = p_is_shot * p_fam[:, 0] * p_sub0[:, 3]  # DEFLECTION/GUIDE (6)
         
         # Family 1 (Cross-Bat Horizontal Strokes)
-        probs[:, 2, :] = p_fam[:, 1, :] * p_sub1[:, 0, :]  # PULL/HOOK/SLOG (2)
-        probs[:, 5, :] = p_fam[:, 1, :] * p_sub1[:, 1, :]  # CUT/PUNCH (5)
+        probs[:, 2] = p_is_shot * p_fam[:, 1] * p_sub1[:, 0]  # PULL/HOOK/SLOG (2)
+        probs[:, 5] = p_is_shot * p_fam[:, 1] * p_sub1[:, 1]  # CUT/PUNCH (5)
         
         # Family 2 (Floor / Crouch Strokes)
-        probs[:, 8, :] = p_fam[:, 2, :]                    # SWEEP (8)
+        probs[:, 8] = p_is_shot * p_fam[:, 2]                 # SWEEP (8)
         
-        return torch.log(probs + 1e-12)
+        probs_L = probs.unsqueeze(-1).expand(-1, -1, L)
+        return torch.log(probs_L + 1e-12)
 
 
 class AdvancedTCN(nn.Module):
@@ -534,11 +572,18 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
             preds.append(("DRIVE/DEFENCE", 0.50))
             continue
             
-        shot_class_probs = win_probs[2:len(CLASSES), :].max(axis=1)
-        top_class_rel_idx = np.argmax(shot_class_probs)
-        top_class_idx = top_class_rel_idx + 2
-        top_prob = float(shot_class_probs[top_class_rel_idx])
-        pred_cls = CLASSES[top_class_idx]
+        # Learned False-Positive Rejection (Class 0: no_shot)
+        p_no_shot = float(win_probs[0, :].mean())
+        if p_no_shot >= 0.35:
+            pred_cls = "NO_SHOT"
+            top_prob = p_no_shot
+        else:
+            shot_class_probs = win_probs[2:len(CLASSES), :].max(axis=1)
+            top_class_rel_idx = np.argmax(shot_class_probs)
+            top_class_idx = top_class_rel_idx + 2
+            top_prob = float(shot_class_probs[top_class_rel_idx])
+            pred_cls = CLASSES[top_class_idx]
+            
         preds.append((pred_cls, top_prob))
         
     return preds
@@ -600,8 +645,8 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
             b_prob = torch.sigmoid(b_logits).cpu().numpy()
             s1_probs.extend(b_prob)
             
-    # 2. Stage 1 Stance State Machine Tracking (300ms sustain guard)
-    sm = StanceTracker(high_thresh=0.70, low_thresh=0.40, motion_surge_w=1.8, sustain_ms=300)
+    # 2. Stage 1 Stance State Machine Tracking (200ms sustain guard)
+    sm = StanceTracker(high_thresh=0.55, low_thresh=0.35, motion_surge_w=1.8, sustain_ms=200)
     stance_exits = []
     stance_probs = np.zeros(num_samples, dtype=np.float32)
     
@@ -619,14 +664,14 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
         if exited and was_facing_up:
             stance_exits.append(t)
             
-    # 3. Two-Stage Stance-Gated Peak Alignment (Max 1 candidate per stance, 3.5s window)
+    # 3. Two-Stage Stance-Gated Peak Alignment (Max 1 candidate per stance, 4.0s window)
     candidate_windows = []
     
     for t_exit in stance_exits:
         f_exit = int(np.searchsorted(t_grid, t_exit))
         
-        # Stance Validation: Check valid FACING_UP (P >= 0.70) within 3.0s prior to exit
-        f_scan_end = min(num_samples, int(np.searchsorted(t_grid, t_exit + 3.5)))
+        # Stance Validation: Check valid FACING_UP (P >= 0.55) within 3.0s prior to exit
+        f_scan_end = min(num_samples, int(np.searchsorted(t_grid, t_exit + 4.0)))
         if f_scan_end <= f_exit + 10:
             continue
             
@@ -769,16 +814,14 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
                 if pitch_deg >= 65.0 and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
                     post_ratio = float(df_parquet['post_impact_acc_ratio'].iloc[f_peak]) if 'post_impact_acc_ratio' in df_parquet.columns else 1.0
                     pred_cls = "POWER DRIVE" if post_ratio >= 1.35 else "DRIVE/DEFENCE"
-                # Rule 2: Horizontal Bat Gate (0.1 < pitch <= 40 deg cannot be straight vertical drive)
-                elif 0.1 < pitch_deg <= 40.0 and pred_cls == "DRIVE/DEFENCE":
-                    pred_cls = "PULL/HOOK/SLOG"
+                # Rule 2 (forcing DRIVE to PULL when pitch <= 40 deg) removed: reaching drives and flicks naturally have pitch in 20°-40°.
 
         # Dynamic Class-Aware NMS
         req_gap = 2.4 if (last_was_sweep or pred_cls == "SWEEP") else 1.8
         if (t_cand - last_accepted_t) < req_gap:
             continue
             
-        if pred_cls == "NO_SHOT":
+        if pred_cls in ("NO_SHOT", "no_shot"):
             continue
             
         last_accepted_t = t_cand
@@ -796,7 +839,8 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
         
         matched_gt = None
         for g in aligned_gt_events:
-            if abs(t_cand - g["t"]) <= 1.5:
+            max_tol = 1.5 if g.get("is_from_impact", False) else 2.5
+            if abs(t_cand - g["t"]) <= max_tol:
                 matched_gt = g
                 break
                 
@@ -875,7 +919,7 @@ def evaluate_multitier_scorecard(
         stage1_model.eval()
         
     if stage2_model is None:
-        stage2_model = AdvancedTCN(in_ch=len(FEATURES), num_classes=10).to(device)
+        stage2_model = BatPlaneGeometryThreeFamilyTCN(in_ch=len(FEATURES)).to(device)
         stage2_model.load_state_dict(torch.load(STAGE2_MODEL_PATH, map_location=device))
         stage2_model.eval()
         
@@ -996,17 +1040,21 @@ def evaluate_multitier_scorecard(
         print("="*80, flush=True)
         print("\n1️⃣ CANDIDATE DETECTIONS & SYSTEM PRECISION:", flush=True)
         print("----------------------------------------------------------------------", flush=True)
+        total_fp = total_cand - total_tp
+        total_fn = total_gt - total_tp
         print(f"  • Total Ground-Truth Physical Shots: {total_gt}", flush=True)
-        print(f"  • Total System Candidate Detections: {total_cand} (Target: < 2,850)", flush=True)
+        print(f"  • Total System Candidate Detections: {total_cand}", flush=True)
         print(f"  • Matched True Positive Detections : {total_tp}", flush=True)
+        print(f"  • False Alarm Detections (FP)      : {total_fp} ({(total_fp / max(1, total_cand)) * 100.0:.1f}% of detections)", flush=True)
+        print(f"  • Missed Physical Shots (FN)       : {total_fn} ({(total_fn / max(1, total_gt)) * 100.0:.1f}% of GT)", flush=True)
         print(f"  • Global Pipeline Recall           : 🏆 {global_rec:.2f}%", flush=True)
         print(f"  • Global System Precision          : 🏆 {global_prec:.2f}%", flush=True)
         print(f"  • Global System F1 Score           : 🏆 {global_f1:.2f}%", flush=True)
-        print("\n🎯 SWEEP CANDIDATE PRECISION & RECALL CLAMPING:", flush=True)
+        print("\n🎯 SWEEP CANDIDATE PRECISION & DETECTION RATIO:", flush=True)
         print("----------------------------------------------------------------------", flush=True)
         print(f"  • Total Ground-Truth SWEEP Shots   : {sweep_gt_cnt}", flush=True)
-        print(f"  • SWEEP Candidate Detections       : 🏆 {sweep_det_cnt} (Target: 210–240, was 423)", flush=True)
-        print(f"  • SWEEP Detection Recall           : 🏆 {sweep_rec:.1f}% (Target: 90%–105%, was 200.5%)", flush=True)
+        print(f"  • SWEEP Candidate Detections       : 🏆 {sweep_det_cnt}", flush=True)
+        print(f"  • SWEEP Detections-to-GT Ratio     : 🏆 {sweep_rec:.1f}%", flush=True)
 
         print("\n2️⃣ TIER BREAKDOWN (Peak Motion Aligned [T_peak - 1.0s, T_peak + 1.5s]):", flush=True)
         print("----------------------------------------------------------------------", flush=True)

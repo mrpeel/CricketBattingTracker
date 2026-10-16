@@ -1,0 +1,41 @@
+{
+  "_comment": "Authoritative dataset partitions for Stage 2 training and the telemetry-engine scorecard. holdout_test is LOCKED: never used for training, checkpoint selection or early stopping; only for final reporting. validation is used for checkpoint selection / early stopping. quarantine sessions are excluded from training and headline metrics (reported separately) until repaired. Created 2026-10-16 (Phase 0 of shot detection improvement plan).",
+  "holdout_test": [
+    "session_2026-06-12_12-24-37",
+    "session_2026-06-16_15-39-33",
+    "session_2026-06-19_12-25-55",
+    "session_2026-07-05_16-27-16",
+    "session_2026-07-20_12-42-16",
+    "session_2026-07-25_15-16-32",
+    "session_2026-08-11_12-49-31",
+    "session_2026-08-21_12-50-53",
+    "session_2026-09-08_12-52-30",
+    "session_2026-09-17_12-48-47",
+    "session_2026-10-05_12-53-51",
+    "session_2026-10-09_12-41-17"
+  ],
+  "validation": [
+    "session_2026-06-27_14-12-40",
+    "session_2026-07-02_12-38-53",
+    "session_2026-08-01_10-18-20",
+    "session_2026-08-17_12-51-22",
+    "session_2026-08-30_11-05-11",
+    "session_2026-09-10_12-55-41",
+    "session_2026-10-04_15-30-15"
+  ],
+  "quarantine": {
+    "session_2026-05-30_15-04-41": "stage1_collapse: 15 stance exits for 94 GT shots",
+    "session_2026-05-31_14-12-10": "stage1_collapse: 10 stance exits for 41 GT shots",
+    "session_2026-07-11_12-51-39": "stage1_collapse: 17 stance exits for 55 GT shots",
+    "session_2026-07-12_11-23-59": "stage1_collapse: 4 stance exits for 56 GT shots",
+    "session_2026-07-17_12-30-41": "stage1_collapse: 7 stance exits for 57 GT shots",
+    "session_2026-09-05_16-26-41": "stage1_collapse: 6 stance exits for 28 GT shots",
+    "session_2026-06-29_12-21-45": "gt_misaligned: precision 54.5%, detections ~2.6s from GT",
+    "session_2026-07-18_13-44-09": "gt_misaligned: precision 48.3%",
+    "session_2026-08-07_12-47-38": "gt_misaligned: precision 21.7%",
+    "session_2026-08-27_12-52-32": "gt_misaligned: precision 18.2%",
+    "session_2026-09-06_12-14-46": "gt_misaligned: precision 53.5%",
+    "session_2026-09-11_12-44-50": "gt_misaligned: precision 18.9%",
+    "session_2026-09-30_12-52-29": "gt_misaligned: precision 34.2%"
+  }
+}

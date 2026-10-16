@@ -71,8 +71,8 @@ def normalise_shot_type(st):
     s = (st or '').lower()
     if 'power drive' in s or 'lofted drive' in s:
         return 'POWER DRIVE'
-    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'which shot' in s:
-        return 'PULL/HOOK'
+    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'which shot' in s or 'slog' in s:
+        return 'PULL/HOOK/SLOG'
     if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s or 'foot shot' in s:
         return 'GLANCE/FLICK'
     if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
@@ -81,8 +81,6 @@ def normalise_shot_type(st):
         return 'DRIVE/DEFENCE'
     if 'cut' in s or 'punch' in s:
         return 'CUT/PUNCH'
-    if 'slog' in s:
-        return 'SLOG'
     if 'sweep' in s:
         return 'SWEEP'
     if 'leave' in s:
@@ -683,8 +681,13 @@ def build_session(session_name, verbose=True):
     # Mode-specific channel routing
     if polar_mount_mode == 2:  # BAT_HANDLE
         # b_* channels populated from Polar sensor on bat
-        b_acc_grid = p_acc_grid
-        b_gyro_grid = p_gyro_grid
+        b_acc_grid = p_acc_grid.copy()
+        b_gyro_grid = p_gyro_grid.copy()
+        # If bat detachment occurred or bat_id == 0, zero out b_* channels where bat_id_arr == 0
+        if np.any(bat_id_arr == 0):
+            no_bat_mask = (bat_id_arr == 0)
+            b_acc_grid[no_bat_mask] = 0.0
+            b_gyro_grid[no_bat_mask] = 0.0
         # p_* channels (wrist) are zeroed out so wrist-trained models are unaffected
         wrist_p_acc_grid = np.zeros((n_rows, 3), dtype=np.float32)
         wrist_p_gyro_grid = np.zeros((n_rows, 3), dtype=np.float32)
@@ -709,7 +712,7 @@ def build_session(session_name, verbose=True):
     df['t_ms'] = grid_ms
     df['session_id'] = session_name
     df['has_polar'] = int(has_polar)
-    df['polar_mount_mode'] = polar_mount_mode
+    df['polar_mount_mode'] = np.where(bat_id_arr == 0, 0, polar_mount_mode)
     df['bat_id'] = bat_id_arr
     df['bat_name'] = bat_name_arr
     df['bat_weight_grams'] = bat_weight_arr

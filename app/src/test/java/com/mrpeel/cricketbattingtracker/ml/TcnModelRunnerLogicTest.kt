@@ -9,9 +9,9 @@ class TcnModelRunnerLogicTest {
     @Test
     fun testStanceTrackerSustainGuardAndExit() {
         val tracker = TcnModelRunner.StanceTracker(
-            highThresh = 0.70f,
-            lowThresh = 0.40f,
-            motionSurgeW = 1.0f,
+            highThresh = 0.55f,
+            lowThresh = 0.35f,
+            motionSurgeW = 1.8f,
             sustainMs = 200
         )
 
@@ -32,13 +32,13 @@ class TcnModelRunnerLogicTest {
         assertEquals("FACING_UP", state3)
         assertFalse(exited3)
 
-        // Step 4: Motion surge (w >= 1.0 rad/s) triggers STANCE_EXIT
-        val (state4, exited4) = tracker.processStep(prob = 0.70f, wMag = 1.4f, dtMs = 100)
+        // Step 4: Motion surge (w >= 1.8 rad/s) triggers STANCE_EXIT
+        val (state4, exited4) = tracker.processStep(prob = 0.60f, wMag = 2.1f, dtMs = 100)
         assertEquals("STANCE_EXIT", state4)
         assertTrue(exited4)
 
         // Step 5: Post-exit step resets to IDLE
-        val (state5, exited5) = tracker.processStep(prob = 0.30f, wMag = 0.5f, dtMs = 100)
+        val (state5, exited5) = tracker.processStep(prob = 0.20f, wMag = 0.5f, dtMs = 100)
         assertEquals("IDLE", state5)
         assertFalse(exited5)
     }
@@ -51,16 +51,16 @@ class TcnModelRunnerLogicTest {
         tracker.processStep(prob = 0.90f, wMag = 0.2f, dtMs = 100)
         assertEquals("FACING_UP", tracker.state)
 
-        // Stance probability drops below low threshold (< 0.40)
-        val (state, exited) = tracker.processStep(prob = 0.35f, wMag = 0.2f, dtMs = 100)
+        // Stance probability drops below low threshold (< 0.35)
+        val (state, exited) = tracker.processStep(prob = 0.25f, wMag = 0.2f, dtMs = 100)
         assertEquals("STANCE_EXIT", state)
         assertTrue(exited)
     }
 
     @Test
     fun testOneStanceSinglePeakDeduplication() {
-        // Simulates 3.5s window (1480 frames at 423 Hz) with a primary strike and a secondary follow-through peak
-        val numFrames = 1480
+        // Simulates 4.0s window (1692 frames at 423 Hz) with a primary strike and a secondary follow-through peak
+        val numFrames = 1692
         val wGyroMag = FloatArray(numFrames) { 0.5f }
 
         // Primary strike at frame 300 (peak = 12.5 rad/s)
@@ -98,22 +98,18 @@ class TcnModelRunnerLogicTest {
     }
 
     @Test
-    fun testPowerDriveReclassificationGate() {
-        // Post-Impact Acceleration Ratio Gate: < 1.35 -> DRIVE/DEFENCE
-        val weakRatio = 1.15f
-        val strongRatio = 1.65f
-
+    fun testPowerDriveReclassificationGateRemoved() {
+        // Obsolete Gate 1 (< 1.35 -> DRIVE/DEFENCE) was removed because real Power Drives
+        // have mean post-impact ratio 0.92-0.95. Genuine POWER DRIVE predictions are now preserved.
         fun applyPowerDriveGate(predClass: String, ratio: Float): String {
-            return if (predClass == "POWER DRIVE" && ratio < 1.35f) {
-                "DRIVE/DEFENCE"
-            } else {
-                predClass
-            }
+            // No demotion of POWER DRIVE based on post-impact ratio
+            return predClass
         }
 
-        assertEquals("DRIVE/DEFENCE", applyPowerDriveGate("POWER DRIVE", weakRatio))
-        assertEquals("POWER DRIVE", applyPowerDriveGate("POWER DRIVE", strongRatio))
-        assertEquals("PULL/HOOK", applyPowerDriveGate("PULL/HOOK", weakRatio))
+        assertEquals("POWER DRIVE", applyPowerDriveGate("POWER DRIVE", 0.92f))
+        assertEquals("POWER DRIVE", applyPowerDriveGate("POWER DRIVE", 1.65f))
+        assertEquals("DRIVE/DEFENCE", applyPowerDriveGate("DRIVE/DEFENCE", 0.92f))
+        assertEquals("PULL/HOOK/SLOG", applyPowerDriveGate("PULL/HOOK/SLOG", 0.92f))
     }
 
     @Test
@@ -154,4 +150,83 @@ class TcnModelRunnerLogicTest {
         assertEquals(761, getRefractoryFrames("DRIVE/DEFENCE", prevWasSweep = false))
         assertEquals(761, getRefractoryFrames("PULL/HOOK", prevWasSweep = false))
     }
+
+    @Test
+    fun testGate25BatHandleConsistencyGateRule1Maintained() {
+        fun applyGate25(
+            predShotType: String,
+            pitchDeg: Float,
+            postImpactRatio: Float,
+            polarMountMode: String
+        ): String {
+            var result = predShotType
+            if (polarMountMode == "BAT_HANDLE") {
+                if (pitchDeg >= 65.0f && (result == "PULL/HOOK/SLOG" || result == "CUT/PUNCH")) {
+                    result = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
+                }
+            }
+            return result
+        }
+
+        // Steep vertical angles (>= 65°) convert cross-bat errors to drives
+        assertEquals("DRIVE/DEFENCE", applyGate25("PULL/HOOK/SLOG", 70.0f, 1.1f, "BAT_HANDLE"))
+        assertEquals("POWER DRIVE", applyGate25("PULL/HOOK/SLOG", 68.0f, 1.45f, "BAT_HANDLE"))
+        assertEquals("DRIVE/DEFENCE", applyGate25("CUT/PUNCH", 65.0f, 1.0f, "BAT_HANDLE"))
+    }
+
+    @Test
+    fun testGate25BatHandleReachingDriveNotFlippedToPull() {
+        fun applyGate25(
+            predShotType: String,
+            pitchDeg: Float,
+            postImpactRatio: Float,
+            polarMountMode: String
+        ): String {
+            var result = predShotType
+            if (polarMountMode == "BAT_HANDLE") {
+                // Rule 1: Vertical Bat Gate
+                if (pitchDeg >= 65.0f && (result == "PULL/HOOK/SLOG" || result == "CUT/PUNCH")) {
+                    result = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
+                }
+                // Rule 2 was removed! Reaching drives (pitch 20°-40°) must NOT be flipped to PULL/HOOK/SLOG!
+            }
+            return result
+        }
+
+        // Reaching drives with low pitch angles (20°-40°) MUST retain DRIVE/DEFENCE
+        assertEquals("DRIVE/DEFENCE", applyGate25("DRIVE/DEFENCE", 29.1f, 1.1f, "BAT_HANDLE"))
+        assertEquals("DRIVE/DEFENCE", applyGate25("DRIVE/DEFENCE", 35.8f, 1.1f, "BAT_HANDLE"))
+        assertEquals("DRIVE/DEFENCE", applyGate25("DRIVE/DEFENCE", 37.6f, 1.1f, "BAT_HANDLE"))
+        assertEquals("DRIVE/DEFENCE", applyGate25("DRIVE/DEFENCE", 25.0f, 1.1f, "BAT_HANDLE"))
+        assertEquals("GLANCE/FLICK", applyGate25("GLANCE/FLICK", 25.0f, 1.1f, "BAT_HANDLE"))
+    }
+
+    @Test
+    fun testLearnedFalsePositiveRejection() {
+        fun resolveCandidateClass(avgNoShotProb: Float, topShotIdx: Int, classes: Array<String>): String {
+            return if (avgNoShotProb >= 0.35f) {
+                "no_shot"
+            } else {
+                if (topShotIdx < classes.size) classes[topShotIdx] else "DRIVE/DEFENCE"
+            }
+        }
+
+        val classes = arrayOf(
+            "no_shot", "pre_shot", "PULL/HOOK/SLOG", "DRIVE/DEFENCE",
+            "GLANCE/FLICK", "CUT/PUNCH", "DEFLECTION/GUIDE", "POWER DRIVE", "SWEEP"
+        )
+
+        // Case 1: Candidate with high no_shot probability (0.52 >= 0.35) -> REJECT as "no_shot"
+        assertEquals("no_shot", resolveCandidateClass(0.52f, topShotIdx = 3, classes = classes))
+
+        // Case 2: Candidate with moderate no_shot probability right at threshold (0.35 >= 0.35) -> REJECT
+        assertEquals("no_shot", resolveCandidateClass(0.35f, topShotIdx = 3, classes = classes))
+
+        // Case 3: Genuine stroke with low no_shot probability (0.12 < 0.35) -> ACCEPT as topShotIdx (e.g. DRIVE/DEFENCE)
+        assertEquals("DRIVE/DEFENCE", resolveCandidateClass(0.12f, topShotIdx = 3, classes = classes))
+
+        // Case 4: Genuine power drive with very low no_shot probability (0.05 < 0.35) -> ACCEPT as POWER DRIVE
+        assertEquals("POWER DRIVE", resolveCandidateClass(0.05f, topShotIdx = 7, classes = classes))
+    }
 }
+

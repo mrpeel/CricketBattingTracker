@@ -2557,6 +2557,8 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             return ("Eye in bat", 1200.0, 31.0, 55.0)
         return (None, None, None, None)
 
+    polar_detachment_s = cfg.get("polar_detachment_time_s") if os.path.exists(config_path) else None
+    polar_mount_mode_list = []
     bat_id_list = []
     bat_name_list = []
     bat_weight_list = []
@@ -2571,6 +2573,20 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_ms", 0)):
                 if sw.get("timestamp_ms", 0) <= shot_wall_ms:
                     curr_bat = int(sw.get("bat_id", curr_bat))
+        
+        shot_impact_s = float(row.get("impact_time_seconds", row.get("timestamp_seconds", 0.0)))
+        is_detached = (polar_detachment_s is not None and shot_impact_s >= float(polar_detachment_s)) or (curr_bat == 0)
+        mode = "NONE" if is_detached else polar_mount_mode
+        polar_mount_mode_list.append(mode)
+
+        if is_detached:
+            for col in ['bottom_hand_gyro_peak', 'bottom_hand_acc_peak', 'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
+                        'bottom_hand_time_lead_ms', 'bottom_hand_sync_score', 's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+                        's2_bottom_acc_mean', 's2_dynamic_ratio_slope', 's3_bottom_pronation_deg', 's3_bottom_gyro_y_min',
+                        'blade_angle_deg', 'blade_class', 'launch_angle_deg', 'launch_class']:
+                if col in df_aligned.columns:
+                    df_aligned.at[idx, col] = np.nan
+
         b_name, b_weight, b_knob, b_toe = get_bat_specs(curr_bat)
         bat_id_list.append(curr_bat)
         bat_name_list.append(b_name)
@@ -2578,7 +2594,7 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         bat_knob_list.append(b_knob)
         bat_toe_list.append(b_toe)
 
-    df_aligned['polar_mount_mode'] = polar_mount_mode
+    df_aligned['polar_mount_mode'] = polar_mount_mode_list
     df_aligned['bat_id'] = bat_id_list
     df_aligned['bat_name'] = bat_name_list
     df_aligned['bat_weight_grams'] = bat_weight_list

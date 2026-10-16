@@ -14,7 +14,9 @@ import torch
 import torch.nn as nn
 
 ROOT_DIR = "/Users/neilkloot/Code/CricketBattingTracker"
-from telemetry_engine import BatPlaneGeometryThreeFamilyTCN, NUM_FEATURES, WINDOW_LEN
+from telemetry_engine import BatPlaneGeometryThreeFamilyTCN, FEATURES
+NUM_FEATURES = len(FEATURES)
+WINDOW_LEN = 2048
 
 MODEL_PT_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.pt")
 MODEL_ONNX_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.onnx")
@@ -51,7 +53,8 @@ def main():
         dynamic_axes={
             'input_imu_stream': {0: 'batch_size', 2: 'sequence_length'},
             'output_logits': {0: 'batch_size', 2: 'sequence_length'}
-        }
+        },
+        dynamo=False
     )
     
     os.makedirs(APP_ASSETS_DIR, exist_ok=True)

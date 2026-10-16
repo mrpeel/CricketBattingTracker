@@ -4,28 +4,31 @@ This document maps directories, API structures, database schemas, and data flow 
 
 ---
 
-## 🏗️ System Architecture (Current — Dual-Model Routing & Phone-Based Batch Processing)
+## 🏗️ System Architecture (Current — Multi-Tier TCN & 3D Bat Orientation AHRS)
 
 > **IMPORTANT**: The on-watch `SwingDetector` classification path was retired in July 2026.
-> The watch now records raw sensor data only. All shot detection and classification
-> runs as a batch job on the Android phone after the session ends.
+> The watch records raw sensor data only. All shot detection, Stage 1 stance gating,
+> Stage 2 TCN window classification, 3D Bat Orientation AHRS, and kinematic validation
+> run as an offline batch pipeline on the Android phone (`PhoneSwingDetector.kt`).
 
 ```
 WATCH                        PHONE                               MAC / PIPELINE
 ─────────────────────        ──────────────────────────────────  ─────────────────────────────
-TrackerService               DataSyncListenerService             compile_dataset.py
-  7 sensor streams    ZIP      ↓ unzip watch session               combined_features.csv
-  .bin.gz per sensor  ──────→  PhoneSwingDetector.kt             generate_kotlin_forest.py
-                               ↓                                   → GeneratedTopForest.kt
-Polar Verity Sense             1. load binary watch files          → GeneratedDualForest.kt
-  418Hz IMU    BLE   ──────→   2. align Polar (linear regression)  → GeneratedTopQualityForest.kt
-  accel + gyro                 3. detect shots (gyro prominence)   → GeneratedDualQualityForest.kt
-                               4. extract 30 features
-                               5. Route based on Polar presence:
-                                  - Watch-Only: GeneratedTopForest
-                                  - Dual-Sensor: GeneratedDualForest
-                               6. → Room DB → Compose UI
+TrackerService               DataSyncListenerService             pipelines/
+  7 sensor streams    ZIP      ↓ unzip watch session               train_and_evaluate_full_scorecard.py
+  .bin.gz per sensor  ──────→  PhoneSwingDetector.kt               → tcn_ultimate_baseline.onnx
+                               ↓                                   → facing_up_detector.onnx
+Polar Verity Sense             1. load binary watch files          → tcn_norm_stats.json
+  418Hz IMU    BLE   ──────→   2. align Polar & Mount Mode (WRIST / BAT_HANDLE)
+  accel + gyro                 3. Stage 1 Stance (facing_up_detector.onnx) + 4.0s Scan Window
+                               4. 300ms Backswing check (≥8°)
+                               5. 3D Bat Orientation AHRS (OrientationAhrs.kt)
+                               6. Kinematic Detachment Guard (KinematicGuard.kt)
+                               7. Stage 2 TCN 208d Multi-Scale Inference & Binary FP Rejector (TcnModelRunner.kt)
+                               8. Dual-Path Sweep Gate & Biomechanical Consistency (Gate 1 removed)
+                               9. → Room DB v12 (57 columns, auto-healing) → Compose UI
 ```
+
 
 ---
 
@@ -65,33 +68,37 @@ Legacy `.csv.gz` files preserved alongside `.bin.gz`. Python loads via `load_wat
 Triggered by `DataSyncListenerService` after unzipping the watch session ZIP.
 
 ```
-1. LOAD       Binary sensor files → FloatArray streams
-2. LOAD       Polar BLE stream → polarAcc[], polarGyro[] (if present)
-3. ALIGN      Paired gyro peak regression → watchToPolarMs() drift correction
-4. DETECT     Prominence-based peak detection on gyro magnitude → impact timestamps
-5. EXTRACT    Per-shot 30-feature vector:
-                Watch / top-hand:   s1_gyro_y_std, s1_gyro_z_std, s1_deltaX, s1_deltaZ, s1_acc_mag,
-                                    s2_gyroMag, s2_grav_y_mean, s2_deltaX, s2_deltaZ,
-                                    s3_rollImpactDeg, s3_yawImpactDeg, s3_deltaX, s3_deltaZ, s3_planeRatio, s3_gyro_y_min, s3_acc_peak
-                Polar bottom-hand:  bottom_hand_gyro_peak, bottom_hand_acc_peak, bottom_hand_gyro_ratio, bottom_hand_acc_ratio, bottom_hand_time_lead_ms, bottom_hand_sync_score,
-                                    s1_bottom_gyro_mag, s1_bottom_deltaZ, s1_bottom_acc_mag, s2_bottom_acc_mean, s2_dynamic_ratio_slope,
-                                    s3_bottom_pronation_deg, s3_bottom_gyro_y_min, s3_bottom_acc_peak
-6. CLASSIFY   Dynamic model routing based on Polar presence:
-                - Watch Only:  GeneratedTopForest.predict(SwingFeatures) (16 features used)
-                               GeneratedTopQualityForest.predict(SwingFeatures)
-                - Dual-Sensor: GeneratedDualForest.predict(SwingFeatures) (30 features used)
-                               GeneratedDualQualityForest.predict(SwingFeatures)
-              Polar fields default to 0f when absent — watch-only paths evaluate successfully
-7. STORE      InningsEvent → Room DB → Compose UI
+1. LOAD       Binary sensor files → FloatArray streams (WatchAcc, WatchGyro, WatchRot)
+2. LOAD       Polar BLE stream → polarAcc[], polarGyro[] + PolarMountMode (WRIST vs BAT_HANDLE)
+3. ALIGN      Paired gyro peak regression / 1D cross-correlation → watchToPolarMs() drift correction
+4. STAGE 1    Facing Up Stance Detection (facing_up_detector.onnx, dynamic batch 256)
+5. ANCHOR     4.0s single-shot stance peak anchoring (T_peak = argmax(||omega||))
+6. ORIENT     3D Bat Orientation AHRS (OrientationAhrs.kt) → attitude, blade pitch, face roll, swing yaw
+7. GUARD      Kinematic Detachment Guard (KinematicGuard.kt) → catches sensor tumble / separation
+8. STAGE 2    28-channel normalization + TCN inference (tcn_ultimate_baseline.onnx via TcnModelRunner.kt) with 208d multi-scale impact-core pooling & binary false-positive rejection (P(no_shot) >= 0.35)
+9. GATING     Dual-Path Sweep Gate + Mount-Aware Biomechanical Physical Consistency Gate (Rule 1; Gate 1 removed)
+10. STORE     InningsEvent (57 columns) → Room DB v12 (with auto-repairing onOpen guard) → Compose UI
 ```
-
-No heuristic post-classification overrides. The RF classifies directly from the 30 extracted features.
 
 ---
 
-## 🤖 Machine Learning Model
+## 🤖 Machine Learning Model Architecture
 
-### Dual-Model Routing — 30-Feature Random Forest
+### Primary Production Model: BatPlaneGeometryThreeFamilyTCN (tcn_ultimate_baseline.onnx)
+- **Backbone**: 10-layer Dilated Temporal Convolutional Network with non-causal padding and 208-dimensional multi-scale impact-core feature pooling:
+  - Core L5 [16d], Core L7 [64d], Proj Core L10 [64d] (sliced over $\pm 175$ frames / ~827ms around impact peak), combined with Global L7 [64d] context: $16 + 64 + 64 + 64 = 208\text{d}$.
+- **Heads**:
+  - `head_reject` (Binary Rejection MLP: $208\text{d} \rightarrow 64\text{d} \rightarrow 2\text{d}$): Learned false-positive rejection ($P(\text{no\_shot}) \ge 0.35$).
+  - `head_family` (Macro Family Gate: $208\text{d} \rightarrow 64\text{d} \rightarrow 3\text{d}$): Vertical (0), Cross-Bat (1), Floor/Sweep (2).
+  - `head_sub0` (Vertical Sub-Classifier: $208\text{d} \rightarrow 64\text{d} \rightarrow 4\text{d}$): `DRIVE/DEFENCE`, `POWER DRIVE`, `GLANCE/FLICK`, `DEFLECTION/GUIDE`.
+  - `head_sub1` (Cross-Bat Sub-Classifier: $208\text{d} \rightarrow 64\text{d} \rightarrow 2\text{d}$): `PULL/HOOK/SLOG`, `CUT/PUNCH`.
+- **Soft-Routing Calibration**:
+  - Power Drive: $\text{effective\_pd\_fam} = p_{\text{fam}}[0] + 0.85 \cdot p_{\text{fam}}[1]$ (allows high angular momentum and wrist roll without cross-bat collapse).
+- **Normalization**: 28-channel median/MAD normalization stats defined in `app/src/main/assets/models/tcn_norm_stats.json`.
+- **Runtime Engine**: `TcnModelRunner.kt` executing ONNX opset 18 via Microsoft ONNX Runtime Android SDK with deterministic tensor lifecycle closing.
+
+### Legacy / Fallback Classifier: 30-Feature Random Forest (GeneratedForest.kt)
+Historical model (transpiled via `generate_kotlin_forest.py`). Retained for historical baseline testing and lightweight comparisons:
 
 ```kotlin
 data class SwingFeatures(
@@ -155,17 +162,17 @@ Uses the same 30-feature vector (with Polar defaulted to 0f when absent) to pred
 | `generate_kotlin_forest.py` | Trains Dual-Model Random Forests (Top/Dual for both Shot Type and Quality) and transpiles Kotlin classes directly to both modules |
 | `train_quality_classifier.py` | Trains good/poor/miss/edge RF quality classifier |
 | `score_phone_pipeline.py` | **Authoritative scorecard** — reads combined CSVs, reports by session/class/profile |
-| `train_and_evaluate_full_scorecard.py` | **Master TCN Training & Evaluation** — Variant C Discriminative LR (`1e-4` for Layers 1-5, `1e-3` for Layers 6-10+Head), Holdout Val Loss Early Stopping (`patience=5`), updates ONNX asset |
+| `train_and_evaluate_full_scorecard.py` | **Master TCN Training & Evaluation** — Stratified 4-way split (12 holdout, 7 val, 13 quarantine, 53 train), Layer-wise Discriminative LR ($1.5 \times 10^{-4}$ L1-7, $5.0 \times 10^{-4}$ L8-10+Heads), Validation Macro-F1 Early Stopping (`patience=16`), exports self-contained ONNX opset 18 model (`dynamo=False`) |
 | `model_update_pipeline.py` | Orchestrates all steps end-to-end |
 
-### AdvancedTCN Deep Learning Model Architecture (Variant C Baseline)
-- **Backbone**: 10-layer Dilated Temporal Convolutional Network (`AdvancedTCN`) with non-causal padding (`padding='same'`) and hierarchical skip-head feature concatenation (Layers 4, 7, 10).
-- **Training Strategy**: Variant C Discriminative Learning Rate:
-  - TCN Layers 1–5: `lr = 1e-4` (preserves low-level shockwave feature representations without rigid freezing artifacts).
-  - TCN Layers 6–10 & Classifier Head: `lr = 1e-3`.
-  - Loss: Label-Smoothed Cross-Entropy Loss (`label_smoothing=0.1`).
-- **Early Stopping & Checkpoint Selection**: Monitored on `val_loss` across 3 designated 8-class Polar holdout sessions (`2026-07-23_12-37-13`, `2026-07-24_12-52-29`, `2026-08-02_12-10-13`) with `patience = 5` epochs, `min_delta = 0.001`, `MAX_EPOCHS = 25`. Loads best `val_loss` checkpoint weights.
-- **Production Asset**: ONNX opset 18 model at `app/src/main/assets/models/tcn_ultimate_baseline.onnx` (`input_imu_stream` -> `output_logits`). Evaluated via `TcnModelRunner.kt`.
+### BatPlaneGeometryThreeFamilyTCN Model Architecture
+- **Backbone**: 10-layer Dilated Temporal Convolutional Network with non-causal padding and 208-dimensional multi-scale impact-core feature pooling (Core L5, Core L7, Proj Core L10, Global L7).
+- **Training Strategy**: Layer-Wise Discriminative Learning Rate:
+  - TCN Layers 1–7: `lr = 1.5e-4` (preserves low-level and mid-level temporal representations).
+  - TCN Layers 8–10 & Multi-Task Heads: `lr = 5e-4`.
+  - Loss: Binary Rejection Cross-Entropy Loss + Weighted Macro Family & Sub-Classifier CE with label smoothing.
+- **Early Stopping & Checkpoint Selection**: Monitored on `val_macro_f1` across 7 designated validation sessions with `patience = 16` epochs, `min_delta = 0.001`, `TOTAL_EPOCHS = 28`. Reloads highest Validation Macro-F1 checkpoint.
+- **Production Asset**: ONNX opset 18 model at `app/src/main/assets/models/tcn_ultimate_baseline.onnx` (`input_imu_stream` -> `output_logits`, 7.1 MB, embedded weights). Evaluated via `TcnModelRunner.kt`.
 
 ### Authoritative Scorecard: score_phone_pipeline.py & train_and_evaluate_full_scorecard.py
 

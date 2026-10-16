@@ -1095,12 +1095,11 @@ fun normalizeShotType(shotType: String?): String {
     val s = (shotType ?: "").trim().lowercase(java.util.Locale.US)
     return when {
         "power drive" in s || "lofted drive" in s || s == "power" || s == "power shot" -> "POWER DRIVE"
-        "pull" in s || "hook" in s || "full shot" in s || "push up" in s || "which shot" in s -> "PULL/HOOK"
+        "pull" in s || "hook" in s || "full shot" in s || "push up" in s || "which shot" in s || "slog" in s -> "PULL/HOOK/SLOG"
         "flick" in s || "glance" in s || "click" in s || "quick" in s || "leg glance" in s || "foot shot" in s -> "GLANCE/FLICK"
         "guide" in s || "deflection" in s || "steer" in s || "glide" in s || "square upper cut" in s || "late cut" in s -> "DEFLECTION/GUIDE"
         "cover drive" in s || "straight drive" in s || "on drive" in s || "off drive" in s || "drive" in s || "defense" in s || "defence" in s || "block" in s || "forward defense" in s || "back defense" in s || "back foot" in s -> "DRIVE/DEFENCE"
         "cut" in s || "punch" in s -> "CUT/PUNCH"
-        "slog" in s -> "SLOG"
         "sweep" in s -> "SWEEP"
         shotType.isNullOrBlank() -> "UNKNOWN"
         else -> shotType.trim().uppercase(java.util.Locale.US)
@@ -1111,9 +1110,8 @@ fun getShotColor(shotType: String?, isHit: Boolean = true): Color {
     if (!isHit) return Color(0xFFFF5252) // Miss is always red
     val name = normalizeShotType(shotType)
     return when {
-        name == "SLOG" -> Color(0xFFFF2E93) // Magenta
+        name == "PULL/HOOK/SLOG" || name == "PULL/HOOK" || name == "SLOG" -> Color(0xFFFF9F2E) // Orange
         name == "POWER DRIVE" -> Color(0xFF58FF63) // Neon Green
-        name == "PULL/HOOK" -> Color(0xFFFF9F2E) // Orange
         name == "SWEEP" -> Color(0xFFFFFF96) // Yellow
         name == "GLANCE/FLICK" -> Color(0xFFFF85A2) // Pink
         name == "CUT/PUNCH" -> Color(0xFF2EFFF0) // Cyan
@@ -1195,13 +1193,16 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
             }
             val avgFaceAngleText = "${String.format(java.util.Locale.US, "%.0f", avgFace)}°"
 
-            val avgLaunch = group.mapNotNull { it.launchAngle }.average().let { if (it.isNaN()) 0.0 else it }.toFloat()
+            val launchAngles = group.mapNotNull { it.launchAngle }
+            val hasLaunchData = launchAngles.isNotEmpty()
+            val avgLaunch = if (hasLaunchData) launchAngles.average().toFloat() else 0f
             val avgLaunchDesc = when {
-                avgLaunch < -1.5f -> "Lofted"
-                avgLaunch > 1.5f -> "Ground"
+                !hasLaunchData -> "N/A"
+                avgLaunch > 1.5f -> "Lofted"
+                avgLaunch < -1.5f -> "Ground"
                 else -> "Flat"
             }
-            val avgLaunchAngleText = "${String.format(java.util.Locale.US, "%.0f", Math.abs(avgLaunch.toDouble()))}°"
+            val avgLaunchAngleText = if (hasLaunchData) "${String.format(java.util.Locale.US, "%.0f", Math.abs(avgLaunch.toDouble()))}°" else "—"
 
             val indicatorColor = getShotColor(rawTypeName, isHit = true)
 
@@ -1220,7 +1221,10 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f, fill = false),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
@@ -1232,7 +1236,9 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                                 text = rawTypeName.uppercase(),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Text(
@@ -1255,7 +1261,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                             title = "KM/H",
                             largeVal = "${maxSpeed.toInt()}",
                             smallVal = "${avgSpeed.toInt()}",
-                            modifier = Modifier.weight(0.9f)
+                            modifier = Modifier.weight(0.85f)
                         )
 
                         // EFF Column
@@ -1263,7 +1269,7 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                             title = "EFF",
                             largeVal = "${maxEff.toInt()}",
                             smallVal = "${avgEff.toInt()}",
-                            modifier = Modifier.weight(0.8f)
+                            modifier = Modifier.weight(0.75f)
                         )
 
                         // FACE Column
@@ -1271,15 +1277,15 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                             title = "FACE",
                             largeVal = avgFaceDesc,
                             smallVal = avgFaceAngleText,
-                            modifier = Modifier.weight(1.1f)
+                            modifier = Modifier.weight(1.0f)
                         )
 
-                        // LAUNCH Column
+                        // ATTACK ANGLE Column
                         ShotTypeMetricCol(
-                            title = "LAUNCH",
+                            title = "ATTACK ANGLE",
                             largeVal = avgLaunchDesc,
                             smallVal = avgLaunchAngleText,
-                            modifier = Modifier.weight(1.2f)
+                            modifier = Modifier.weight(1.4f)
                         )
                     }
                 }
@@ -1298,10 +1304,12 @@ fun ShotTypeMetricCol(
     Column(modifier = modifier) {
         Text(
             text = title,
-            fontSize = 8.sp,
+            fontSize = 7.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Gray,
-            letterSpacing = 0.5.sp,
+            letterSpacing = 0.3.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             style = LocalTextStyle.current.copy(
                 platformStyle = androidx.compose.ui.text.PlatformTextStyle(
                     includeFontPadding = false
@@ -1317,6 +1325,8 @@ fun ShotTypeMetricCol(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = LocalTextStyle.current.copy(
                     platformStyle = androidx.compose.ui.text.PlatformTextStyle(
                         includeFontPadding = false
@@ -1329,6 +1339,8 @@ fun ShotTypeMetricCol(
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Normal,
                 color = Color.Gray,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = LocalTextStyle.current.copy(
                     platformStyle = androidx.compose.ui.text.PlatformTextStyle(
                         includeFontPadding = false
@@ -2184,7 +2196,9 @@ fun TimelineItem(
                             fontWeight = FontWeight.Black,
                             fontSize = 12.sp,
                             color = Color.White,
-                            letterSpacing = 0.5.sp
+                            letterSpacing = 0.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (event.bottom_hand_gyro_ratio != null && event.bottom_hand_gyro_ratio > 0f) {
                             Spacer(modifier = Modifier.width(6.dp))
@@ -2301,7 +2315,7 @@ fun TimelineItem(
                             } else {
                                 desc
                             }
-                            MetricSmallCompact("LAUNCH", displayValue, modifier = Modifier.weight(2.1f))
+                            MetricSmallCompact("ATTACK ANGLE", displayValue, modifier = Modifier.weight(2.4f))
                         }
                     }
                 }
@@ -2491,6 +2505,7 @@ fun MetricSmallCompact(label: String, value: String, modifier: Modifier = Modifi
             fontWeight = FontWeight.Bold,
             color = Color.Gray,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             style = LocalTextStyle.current.copy(
                 platformStyle = androidx.compose.ui.text.PlatformTextStyle(
                     includeFontPadding = false
@@ -2503,6 +2518,7 @@ fun MetricSmallCompact(label: String, value: String, modifier: Modifier = Modifi
             fontWeight = FontWeight.Bold,
             color = Color(0xFFBCD2FE),
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.offset(y = (-4).dp),
             style = LocalTextStyle.current.copy(
                 platformStyle = androidx.compose.ui.text.PlatformTextStyle(

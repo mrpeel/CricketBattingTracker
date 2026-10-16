@@ -147,29 +147,31 @@ python3 pipelines/train_and_evaluate_full_scorecard.py
 ```
 
 ### 🎯 The Canonical 8 Biomechanical Classes
-All models are strictly aligned to the **8 Canonical Biomechanical Classes** defined in `docs/batting_dual_hand_biomechanics.md` and the app UI:
+All models are strictly aligned to the **Canonical Biomechanical Classes** defined in `docs/batting_dual_hand_biomechanics.md` and the app UI:
 
 | ONNX Class Index | Canonical Biomechanical Class | Description |
 | :---: | :--- | :--- |
-| `0` | `no_shot` | Quiet stance, walking, or resting between deliveries |
+| `0` | `no_shot` | Quiet stance, walking, or resting between deliveries (learned rejection) |
 | `1` | `pre_shot` | Backlift and downswing setup phase |
-| `2` | `PULL/HOOK` | Horizontal cross-bat shot to leg side |
+| `2` | `PULL/HOOK/SLOG` | Horizontal cross-bat shot to leg side (pull, hook, or slog) |
 | `3` | `DRIVE/DEFENCE` | Vertical bat straight/forward drive or defensive block |
-| `4` | `GLANCE/FLICK` | Wrist flick or deflection to fine leg |
+| `4` | `GLANCE/FLICK` | Wrist flick or deflection to fine leg / square leg |
 | `5` | `CUT/PUNCH` | Square/off-side horizontal cut or back-foot punch |
 | `6` | `DEFLECTION/GUIDE` | Soft-hands nudge, late cut, or third-man guide |
 | `7` | `POWER DRIVE` | High-velocity aerial or ground power drive |
-| `8` | `SLOG` | High-intensity un-anchored cross-bat slog |
-| `9` | `SWEEP` | Low-stance sweep or reverse sweep |
+| `8` | `SWEEP` | Low-stance sweep or reverse sweep |
 
-### 🧠 PyTorch Advanced TCN Architecture & Training Optimization
-The model is an **Advanced Temporal Convolutional Network (TCN)**:
-* **Input Layer**: 45 features $\times$ sequence frames ($423\text{ Hz}$).
-* **Residual Backbone**: 10 Dilated Causal Conv1D Residual Blocks with exponentially growing receptive fields ($d = 1, 2, 4, 8, 16, 32, 64, 128, 256, 512$).
-* **Temporal Anchor Jitter Augmentation**: Applies random frame offsets ($\pm 30\text{ms} = \pm 13\text{ frames}$) during training window slicing to make the TCN invariant to minor alignment drift.
-* **Dynamic Inverse-Frequency Focal Loss**: Combines Focal Loss ($\gamma = 2.0$) with automated inverse-frequency class weighting:
-  $$\text{Weight}[c] = \frac{\text{Total Samples}}{\text{Num Classes} \times \text{Count}[c]}$$
-  This automatically self-scales loss multipliers for minority classes (e.g. `POWER DRIVE` at 5.2x boost) and smoothly decays toward 1.0x as dataset volume scales, eliminating manual hardcoded scalars.
+### 🧠 PyTorch BatPlaneGeometryThreeFamilyTCN Architecture & Training Optimization
+The model is **BatPlaneGeometryThreeFamilyTCN**:
+* **Input Layer**: 28 normalized continuous IMU features $\times$ sequence frames ($423\text{ Hz}$).
+* **Residual Backbone**: 10 Dilated Conv1D Residual Blocks ($d = 1, 2, 4, 8, 16, 32, 64, 128, 256, 512$).
+* **Multi-Scale Impact-Core Pooling (208d)**: Slices Core L5 [16d], Core L7 [64d], Proj Core L10 [64d] ($\pm 175$ frames around peak) concatenated with Global L7 [64d].
+* **Hierarchical Multi-Task Heads**:
+  - `head_reject`: Binary MLP ($208\text{d} \rightarrow 64\text{d} \rightarrow 2\text{d}$) performing learned false-positive rejection ($P(\text{no\_shot}) \ge 0.35$).
+  - `head_family`: Macro Family Gate (Vertical, Cross-Bat, Floor/Sweep).
+  - `head_sub0`: Vertical Sub-Classifier (`DRIVE/DEFENCE`, `POWER DRIVE`, `GLANCE/FLICK`, `DEFLECTION/GUIDE`).
+  - `head_sub1`: Cross-Bat Sub-Classifier (`PULL/HOOK/SLOG`, `CUT/PUNCH`).
+* **Soft-Routing Calibration**: $\text{effective\_pd\_fam} = p_{\text{fam}}[0] + 0.85 \cdot p_{\text{fam}}[1]$ to preserve Power Drives.
 
 ### 🔒 Production ONNX Quality Gate & Model Export
 Upon training completion, the script runs an automated **Production Quality Gate Check**:

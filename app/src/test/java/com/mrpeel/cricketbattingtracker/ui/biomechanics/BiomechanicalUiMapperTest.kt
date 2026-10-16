@@ -188,10 +188,10 @@ class BiomechanicalUiMapperTest {
         assertEquals("DEFLECTION/GUIDE", normalize("Deflection"))
         assertEquals("DEFLECTION/GUIDE", normalize("Glide"))
 
-        assertEquals("PULL/HOOK", normalize("Pull shot"))
-        assertEquals("PULL/HOOK", normalize("pull"))
-        assertEquals("PULL/HOOK", normalize("PULL/HOOK"))
-        assertEquals("PULL/HOOK", normalize("Hook"))
+        assertEquals("PULL/HOOK/SLOG", normalize("Pull shot"))
+        assertEquals("PULL/HOOK/SLOG", normalize("pull"))
+        assertEquals("PULL/HOOK/SLOG", normalize("PULL/HOOK"))
+        assertEquals("PULL/HOOK/SLOG", normalize("Hook"))
 
         assertEquals("GLANCE/FLICK", normalize("Flick shot"))
         assertEquals("GLANCE/FLICK", normalize("flick"))
@@ -208,8 +208,9 @@ class BiomechanicalUiMapperTest {
         assertEquals("CUT/PUNCH", normalize("Punch"))
         assertEquals("CUT/PUNCH", normalize("CUT/PUNCH"))
 
-        assertEquals("SLOG", normalize("Slog"))
-        assertEquals("SLOG", normalize("SLOG"))
+        assertEquals("PULL/HOOK/SLOG", normalize("Slog"))
+        assertEquals("PULL/HOOK/SLOG", normalize("SLOG"))
+        assertEquals("PULL/HOOK/SLOG", normalize("PULL/HOOK/SLOG"))
 
         assertEquals("SWEEP", normalize("Sweep"))
         assertEquals("SWEEP", normalize("SWEEP"))
@@ -382,6 +383,7 @@ class BiomechanicalUiMapperTest {
         )
 
         val shots = listOf(
+            "PULL/HOOK/SLOG",
             "PULL/HOOK",
             "DRIVE/DEFENCE",
             "POWER DRIVE",

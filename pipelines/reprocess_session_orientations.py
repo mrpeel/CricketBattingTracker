@@ -103,6 +103,7 @@ def load_session_streams(session_id):
 
     # Configured mount mode
     mount_mode = "BAT_HANDLE"
+    polar_detachment_time_s = None
     cfg_file = os.path.join(sdir, "session_config.json")
     if os.path.exists(cfg_file):
         try:
@@ -110,6 +111,7 @@ def load_session_streams(session_id):
             with open(cfg_file, "r") as f:
                 cfg = json.load(f)
                 mount_mode = cfg.get("polar_mount_mode", "BAT_HANDLE").upper()
+                polar_detachment_time_s = cfg.get("polar_detachment_time_s")
         except Exception:
             pass
     elif df_gt is not None and "polar_mount_mode" in df_gt.columns:
@@ -121,6 +123,7 @@ def load_session_streams(session_id):
         "session_id": session_id,
         "sdir": sdir,
         "mount_mode": mount_mode,
+        "polar_detachment_time_s": polar_detachment_time_s,
         "w_t_acc_s": w_t_acc_s,
         "w_acc_arr": w_acc_arr,
         "w_acc_mags": w_acc_mags,
@@ -151,6 +154,7 @@ def reprocess_session(session_id):
         return False
 
     mount_mode = streams["mount_mode"]
+    polar_detachment_s = streams.get("polar_detachment_time_s")
     guard = KinematicGuard(configured_mount_mode=mount_mode)
     estimator = StateGatedOrientationEstimator(mount_location=mount_mode)
 
@@ -172,6 +176,32 @@ def reprocess_session(session_id):
         if pd.isna(t_impact):
             t_impact = row.get("sensor_narr_time_seconds", 0.0)
         t_impact = float(t_impact)
+
+        row_mount_mode = str(row.get("polar_mount_mode", "")).upper()
+        row_bat_id = row.get("bat_id")
+        is_detached = (polar_detachment_s is not None and t_impact >= float(polar_detachment_s)) or (row_mount_mode == "NONE") or (pd.notna(row_bat_id) and int(row_bat_id) == 0)
+
+        if is_detached:
+            valid_count += 1
+            kin_valid_list.append(True)
+            mount_type_list.append("WATCH_ONLY")
+            blade_pitch_list.append(np.nan)
+            face_angle_list.append(np.nan)
+            swing_yaw_list.append(np.nan)
+            rel_wrist_list.append(np.nan)
+            azim_dev_list.append(np.nan)
+            if "polar_mount_mode" in df_gt.columns:
+                df_gt.at[idx, "polar_mount_mode"] = "NONE"
+            if "bat_id" in df_gt.columns:
+                df_gt.at[idx, "bat_id"] = 0
+            for col in ['blade_angle_deg', 'blade_class', 'launch_angle_deg', 'launch_class',
+                        'bottom_hand_gyro_peak', 'bottom_hand_acc_peak', 'bottom_hand_gyro_ratio', 'bottom_hand_acc_ratio',
+                        'bottom_hand_time_lead_ms', 'bottom_hand_sync_score', 's1_bottom_gyro_mag', 's1_bottom_deltaZ',
+                        's2_bottom_acc_mean', 's2_dynamic_ratio_slope', 's3_bottom_pronation_deg', 's3_bottom_gyro_y_min']:
+                if col in df_gt.columns:
+                    df_gt.at[idx, col] = np.nan
+            print(f"  ℹ️ Shot #{idx+1} (t={t_impact:.2f}s): WATCH_ONLY (Polar detached or top-hand only)")
+            continue
 
         # 1. Run AHRS first to check stillness & metrics
         ahrs_res = estimator.evaluate_shot(

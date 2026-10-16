@@ -78,12 +78,11 @@ object BiomechanicsAggregator {
 
     val CANONICAL_TAXONOMY = listOf(
         "DRIVE/DEFENCE",
-        "PULL/HOOK",
+        "PULL/HOOK/SLOG",
         "CUT/PUNCH",
         "GLANCE/FLICK",
         "DEFLECTION/GUIDE",
         "POWER DRIVE",
-        "SLOG",
         "SWEEP"
     )
 
@@ -388,7 +387,7 @@ object BiomechanicsAggregator {
                     )
                 }
             }
-            "PULL/HOOK" -> {
+            "PULL/HOOK/SLOG", "PULL/HOOK" -> {
                 if (medianLead <= 0f) {
                     String.format(
                         Locale.US,

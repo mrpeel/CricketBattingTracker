@@ -426,6 +426,7 @@ object PhoneSwingDetector {
             var azimDevDeg: Float? = null
             var runtimeMountType: String = sessionConfig.polarMountMode
             var isKinematicallyValid: Boolean? = null
+            var ahrsOutput: com.mrpeel.cricketbattingtracker.ml.OrientationAhrs.OrientationResult? = null
 
             if (hasPolarData && alignment != null) {
                 val configuredMount = sessionConfig.polarMountMode
@@ -509,6 +510,7 @@ object PhoneSwingDetector {
                         runtimeMountType = guardRes.runtimeMountType
 
                         if (guardRes.isKinematicallyValid && ahrsRes != null) {
+                            ahrsOutput = ahrsRes
                             bladePitchDeg = ahrsRes.bladePitchDeg
                             faceAngleDeg = ahrsRes.faceAngleDeg
                             swingYawDeg = ahrsRes.swingYawDeg
@@ -584,7 +586,13 @@ object PhoneSwingDetector {
             val finalEfficiency = if (maxDownswingGyro > 0.1f) kotlin.math.min(100f, (gyroAtImpact / maxDownswingGyro) * 100f) else 90f
             val finalPeakAccel = if (bottomAccPeak != null && bottomAccPeak > 0f) bottomAccPeak else (if (maxAccSpike > 0f) maxAccSpike else 15f)
             val batSpeedKmh = maxDownswingGyro * 4.5f
-            val bladeAndLaunch = calculateBladeAndLaunch(targetSensorNs, watchRot, finalShotType)
+            val bladeAndLaunch = calculateBladeAndLaunch(
+                targetSensorNs = targetSensorNs,
+                watchRot = watchRot,
+                shotType = finalShotType,
+                isBatMount = isBatMount,
+                ahrsResult = ahrsOutput
+            )
 
             val batIdForShot = if (sessionConfig.batSwitches.isNotEmpty()) {
                 sessionConfig.batSwitches.filter { it.first <= shotWallMs }.lastOrNull()?.second ?: sessionConfig.defaultBatId
@@ -1085,17 +1093,39 @@ object PhoneSwingDetector {
     data class BladeAndLaunch(
         val bladeAngle: Float,
         val bladeClass: String,
-        val launchAngle: Float,
-        val launchClass: String
+        val launchAngle: Float?,
+        val launchClass: String?
     )
 
     private fun calculateBladeAndLaunch(
         targetSensorNs: Long,
         watchRot: List<WatchRotSample>,
-        shotType: String
+        shotType: String,
+        isBatMount: Boolean,
+        ahrsResult: com.mrpeel.cricketbattingtracker.ml.OrientationAhrs.OrientationResult?
     ): BladeAndLaunch {
+        // Attack Angle (launch angle) is strictly computed from 3D bat sensor attitude
+        // and only when the bat sensor is present and physically mounted on the bat handle.
+        val (launchAngle, launchClass) = if (isBatMount && ahrsResult != null && ahrsResult.isKinematicallyValid) {
+            val qFreeze = ahrsResult.qFreeze
+            val localX = floatArrayOf(1f, 0f, 0f)
+            val vFaceWorld = FloatArray(3)
+            rotateVector(qFreeze, localX, vFaceWorld)
+            val attackDeg = asin(vFaceWorld[2].coerceIn(-1f, 1f)) * 57.29578f
+            val lClass = when {
+                attackDeg > 45f -> "HIGH_LOFT"
+                attackDeg > 30f -> "POWER_ZONE"
+                attackDeg > 15f -> "LOFTED"
+                attackDeg > -10f -> "FLAT"
+                else -> "INTO_GROUND"
+            }
+            Pair(attackDeg, lClass)
+        } else {
+            Pair(null, null)
+        }
+
         if (watchRot.isEmpty()) {
-            return BladeAndLaunch(0f, "FULL_FACE", 0f, "FLAT")
+            return BladeAndLaunch(0f, "FULL_FACE", launchAngle, launchClass)
         }
 
         val stanceStart = targetSensorNs - 2_500_000_000L
@@ -1107,18 +1137,11 @@ object PhoneSwingDetector {
 
         val impactRot = findClosestRotation(watchRot, targetSensorNs - 50_000_000L)
             ?: findClosestRotation(watchRot, targetSensorNs)
-            ?: return BladeAndLaunch(0f, "FULL_FACE", 0f, "FLAT")
+            ?: return BladeAndLaunch(0f, "FULL_FACE", launchAngle, launchClass)
 
         val qCurr = floatArrayOf(impactRot.qx, impactRot.qy, impactRot.qz, impactRot.qw)
         val qRel = FloatArray(4)
         multiplyQuats(qStanceInv, qCurr, qRel)
-
-        val rollImpact = calcRelativeRoll(qRel)
-
-        val isHorizontalBat = shotType.contains("CUT", ignoreCase = true) ||
-                              shotType.contains("PULL", ignoreCase = true) ||
-                              shotType.contains("SWEEP", ignoreCase = true) ||
-                              shotType.contains("SLOG", ignoreCase = true)
 
         val targetYaw = when {
             shotType.contains("COVER", ignoreCase = true) -> -45f
@@ -1141,22 +1164,6 @@ object PhoneSwingDetector {
             bAngle <= -15f -> "OPEN"
             bAngle >= 15f -> "CLOSED"
             else -> "FULL_FACE"
-        }
-
-        val launchAngle = if (isHorizontalBat) {
-            rollImpact
-        } else {
-            val vFaceWorld = FloatArray(3)
-            rotateVector(qCurr, localX, vFaceWorld)
-            -asin(vFaceWorld[2].coerceIn(-1f, 1f)) * 57.29578f
-        }
-
-        val launchClass = when {
-            launchAngle < -45f -> "HIGH_LOFT"
-            launchAngle < -35f -> "POWER_ZONE"
-            launchAngle < -15f -> "LOFTED"
-            launchAngle < 0f -> "FLAT"
-            else -> "INTO_GROUND"
         }
 
         return BladeAndLaunch(bAngle, bladeClass, launchAngle, launchClass)

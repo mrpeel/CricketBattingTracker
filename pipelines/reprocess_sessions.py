@@ -76,22 +76,28 @@ def run_cmd(args):
 
 def pull_database():
     print("⏳ Pulling database from phone...")
+    tmp_path = LOCAL_DB_PATH + ".tmp"
     try:
-        with open(LOCAL_DB_PATH, "wb") as f:
+        with open(tmp_path, "wb") as f:
             res = subprocess.run(
                 ["adb", "-d", "shell", f"run-as {PACKAGE_NAME} cat databases/cricket_tracker_database"],
                 stdout=f,
                 stderr=subprocess.PIPE
             )
         if res.returncode != 0:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
             print(f"⚠️ ADB pull failed: {res.stderr.decode().strip()}")
             if os.path.exists(LOCAL_DB_PATH):
                 print(f"ℹ️ Falling back to existing local database file: {LOCAL_DB_PATH}")
                 return True
             return False
+        shutil.move(tmp_path, LOCAL_DB_PATH)
         print(f"✅ Successfully pulled database to: {LOCAL_DB_PATH}")
         return True
     except Exception as e:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
         print(f"⚠️ Pull failed: {e}")
         if os.path.exists(LOCAL_DB_PATH):
             print(f"ℹ️ Falling back to existing local database file: {LOCAL_DB_PATH}")
@@ -315,6 +321,7 @@ def train_classifiers():
     print("⏳ Training Dual-Model classifiers on compiled dataset...")
     df = pd.read_csv(FEATURES_CSV)
     df_swings = df[df['normalized_gt'] != 'NON-SWING'].copy()
+    df_swings['normalized_gt'] = df_swings['normalized_gt'].apply(lambda x: normalise_shot_type(str(x)) or str(x))
     
     y_type = df_swings['normalized_gt'].values
     le_type = LabelEncoder()
@@ -493,6 +500,7 @@ CANONICAL_TARGETS = {
     "GLANCE/FLICK": 75.0,
     "FLICK": 75.0,
     "GLANCE": 75.0,
+    "PULL/HOOK/SLOG": 55.0,
     "PULL/HOOK": 55.0,
     "PULL": 55.0,
     "SWEEP": 65.0,
@@ -539,7 +547,7 @@ def calculate_blade_and_launch(sensors, t_shot, shot_type):
     b_angle = float(((b_angle + 180.0) % 360.0 + 360.0) % 360.0 - 180.0)
     b_class = classify_blade(b_angle)
 
-    is_horizontal_bat = norm_type in ["CUT/PUNCH", "PULL/HOOK", "SWEEP", "SLOG"] or "cut" in str(shot_type).lower() or "pull" in str(shot_type).lower() or "sweep" in str(shot_type).lower()
+    is_horizontal_bat = norm_type in ["CUT/PUNCH", "PULL/HOOK", "SWEEP", "SLOG", "PULL/HOOK/SLOG"] or "cut" in str(shot_type).lower() or "pull" in str(shot_type).lower() or "sweep" in str(shot_type).lower() or "slog" in str(shot_type).lower()
     if is_horizontal_bat:
         l_angle = roll_impact
     else:
@@ -609,7 +617,8 @@ def detect_sensor_only_shots(session_dir, rf_top_type, rf_dual_type, le_type, rf
         df_feat = pd.DataFrame([feat_vector], columns=TOP_FEATURE_COLS)
         
         type_enc = rf_top_type.predict(df_feat)[0]
-        pred_shot_type = le_type.inverse_transform([type_enc])[0]
+        raw_pred_type = le_type.inverse_transform([type_enc])[0]
+        pred_shot_type = normalise_shot_type(raw_pred_type) or raw_pred_type
         
         qual_enc = rf_top_qual.predict(df_feat)[0]
         pred_quality = le_qual.inverse_transform([qual_enc])[0]
@@ -650,6 +659,21 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
         files = list(set(files))
         if files:
             has_polar = True
+
+    # Determine polar mount mode
+    cfg_file = os.path.join(session_dir, "session_config.json")
+    if not os.path.exists(cfg_file):
+        polar_cfg = os.path.join(session_dir, "PolarSense", "session_config.json")
+        if os.path.exists(polar_cfg):
+            cfg_file = polar_cfg
+    polar_mount_mode = "WRIST" if has_polar else "NONE"
+    if os.path.exists(cfg_file):
+        try:
+            with open(cfg_file, "r") as cf:
+                cdata = json.load(cf)
+                polar_mount_mode = cdata.get("polar_mount_mode", polar_mount_mode)
+        except Exception:
+            pass
 
     rf_type = rf_dual_type if has_polar else rf_top_type
     rf_qual = rf_dual_qual if has_polar else rf_top_qual
@@ -706,7 +730,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     pred_shot_type = norm_gt if norm_gt else gt_type.upper()
                 else:
                     type_enc = rf_type_shot.predict(df_feat)[0]
-                    pred_shot_type = le_type.inverse_transform([type_enc])[0]
+                    raw_pred_type = le_type.inverse_transform([type_enc])[0]
+                    pred_shot_type = normalise_shot_type(raw_pred_type) or raw_pred_type
                 
                 gt_qual = str(row['quality']).strip() if pd.notna(row.get('quality')) and str(row.get('quality')).strip() != '' else ''
                 if gt_qual:
@@ -723,30 +748,43 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 react_ms = int(row.get('reaction_time_ms', 350)) if pd.notna(row.get('reaction_time_ms')) else 350
 
                 # Extract blade/launch angles from ground_truth_aligned.csv or compute dynamically
+                row_mount_mode = str(row.get('polar_mount_mode', polar_mount_mode)).upper()
+                row_bat_id = row.get('bat_id')
+                is_row_detached = (row_mount_mode == "NONE" and polar_mount_mode == "BAT_HANDLE") or (pd.notna(row_bat_id) and int(row_bat_id) == 0)
+
                 b_angle = row.get('blade_angle_deg')
                 b_class = row.get('blade_class')
                 l_angle = row.get('launch_angle_deg')
                 l_class = row.get('launch_class')
 
-                if pd.isna(b_angle):
-                    b_angle, b_class_calc, _, _ = calculate_blade_and_launch(sensors, t_shot, pred_shot_type)
-                    b_class = b_class_calc
+                if is_row_detached:
+                    b_angle = None
+                    b_class = None
+                    l_angle = None
+                    l_class = None
                 else:
-                    b_angle = float(b_angle)
-                    if pd.isna(b_class) or str(b_class).strip().lower() in ['', 'nan', 'n/a', 'none']:
-                        b_class = classify_blade(b_angle)
+                    if pd.isna(b_angle):
+                        b_angle, b_class_calc, _, _ = calculate_blade_and_launch(sensors, t_shot, pred_shot_type)
+                        b_class = b_class_calc
                     else:
-                        b_class = str(b_class).strip()
+                        b_angle = float(b_angle)
+                        if pd.isna(b_class) or str(b_class).strip().lower() in ['', 'nan', 'n/a', 'none']:
+                            b_class = classify_blade(b_angle)
+                        else:
+                            b_class = str(b_class).strip()
 
-                if pd.isna(l_angle):
-                    _, _, l_angle, l_class_calc = calculate_blade_and_launch(sensors, t_shot, pred_shot_type)
-                    l_class = l_class_calc
-                else:
-                    l_angle = float(l_angle)
-                    if pd.isna(l_class) or str(l_class).strip().lower() in ['', 'nan', 'n/a', 'none']:
-                        l_class = classify_launch(l_angle)
+                    if polar_mount_mode != "BAT_HANDLE":
+                        l_angle = None
+                        l_class = None
+                    elif pd.isna(l_angle):
+                        _, _, l_angle, l_class_calc = calculate_blade_and_launch(sensors, t_shot, pred_shot_type)
+                        l_class = l_class_calc
                     else:
-                        l_class = str(l_class).strip()
+                        l_angle = float(l_angle)
+                        if pd.isna(l_class) or str(l_class).strip().lower() in ['', 'nan', 'n/a', 'none']:
+                            l_class = classify_launch(l_angle)
+                        else:
+                            l_class = str(l_class).strip()
 
                 shots.append({
                     "timestamp_offset_s": t_shot,
@@ -831,7 +869,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
                 
                 type_enc = rf_type.predict(df_feat)[0]
-                shot_type = le_type.inverse_transform([type_enc])[0]
+                raw_shot_type = le_type.inverse_transform([type_enc])[0]
+                shot_type = normalise_shot_type(raw_shot_type) or raw_shot_type
                 
                 qual_enc = rf_qual.predict(df_feat)[0]
                 quality = le_qual.inverse_transform([qual_enc])[0]
@@ -869,7 +908,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                 df_feat = pd.DataFrame([feat_vector], columns=feature_cols)
                 
                 type_enc = rf_type.predict(df_feat)[0]
-                shot_type = le_type.inverse_transform([type_enc])[0]
+                raw_shot_type = le_type.inverse_transform([type_enc])[0]
+                shot_type = normalise_shot_type(raw_shot_type) or raw_shot_type
                 
                 qual_enc = rf_qual.predict(df_feat)[0]
                 quality = le_qual.inverse_transform([qual_enc])[0]
@@ -1062,6 +1102,8 @@ def main():
 
         # Insert each shot
         for i, shot in enumerate(shots, 1):
+            st = normalise_shot_type(shot.get("shot_type", "")) or shot.get("shot_type", "UNKNOWN")
+            shot["shot_type"] = st
             shot_time_ms = session_start_ms + int(shot["timestamp_offset_s"] * 1000)
             
             sweet_spot = {
@@ -1083,6 +1125,21 @@ def main():
                         curr_bat_id = int(sw.get("bat_id", curr_bat_id))
 
             curr_name, curr_weight, curr_knob, curr_toe = get_bat_specs(curr_bat_id)
+
+            curr_polar_mount_mode = "NONE" if curr_bat_id == 0 else polar_mount_mode
+            is_shot_detached = (curr_bat_id == 0)
+
+            blade_angle = None if is_shot_detached else shot.get("blade_angle")
+            blade_class = None if is_shot_detached else shot.get("blade_class")
+            launch_angle = None if is_shot_detached else shot.get("launch_angle")
+            launch_class = None if is_shot_detached else shot.get("launch_class")
+
+            bh_gyro_peak = None if is_shot_detached else f.get('bottom_hand_gyro_peak')
+            bh_acc_peak = None if is_shot_detached else f.get('bottom_hand_acc_peak')
+            bh_gyro_ratio = None if is_shot_detached else f.get('bottom_hand_gyro_ratio')
+            bh_acc_ratio = None if is_shot_detached else f.get('bottom_hand_acc_ratio')
+            bh_time_lead = None if is_shot_detached else (int(f['bottom_hand_time_lead_ms']) if (f.get('bottom_hand_time_lead_ms') is not None and pd.notna(f['bottom_hand_time_lead_ms'])) else None)
+            bh_sync_score = None if is_shot_detached else f.get('bottom_hand_sync_score')
 
             c.execute("""
                 INSERT INTO innings_events (
@@ -1108,31 +1165,36 @@ def main():
                 )
             """, (
                 session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], impact_time_ms, shot["shot_type"], efficiency,
-                shot.get("blade_angle"), shot.get("blade_class"), shot.get("launch_angle"), shot.get("launch_class"), '26 Aldinga Street, Blackburn South',
-                f.get('bottom_hand_gyro_peak'), f.get('bottom_hand_acc_peak'), f.get('bottom_hand_gyro_ratio'), f.get('bottom_hand_acc_ratio'),
-                int(f['bottom_hand_time_lead_ms']) if (f.get('bottom_hand_time_lead_ms') is not None and pd.notna(f['bottom_hand_time_lead_ms'])) else None,
-                f.get('bottom_hand_sync_score'),
+                blade_angle, blade_class, launch_angle, launch_class, '26 Aldinga Street, Blackburn South',
+                bh_gyro_peak, bh_acc_peak, bh_gyro_ratio, bh_acc_ratio,
+                bh_time_lead,
+                bh_sync_score,
                 f.get('s1_gyro_y_std'), f.get('s1_gyro_z_std'), f.get('s1_deltaX'), f.get('s1_deltaZ'),
                 f.get('s2_gyroMag'), f.get('s2_grav_y_mean'), f.get('s2_deltaX'), f.get('s2_deltaZ'),
                 f.get('s3_rollImpactDeg'), f.get('s3_yawImpactDeg'), f.get('s3_deltaX'), f.get('s3_deltaZ'),
-                f.get('s3_planeRatio'), f.get('s3_gyro_y_min'), polar_mount_mode, curr_bat_id,
+                f.get('s3_planeRatio'), f.get('s3_gyro_y_min'), curr_polar_mount_mode, curr_bat_id,
                 curr_name, curr_weight, curr_knob, curr_toe,
-                shot.get("blade_pitch_deg"), shot.get("face_angle_deg"), shot.get("swing_yaw_deg"),
-                shot.get("relative_wrist_angle_deg"), shot.get("azimuth_deviation_deg"),
-                shot.get("polar_mount_type"), shot.get("is_kinematically_valid")
+                None if is_shot_detached else shot.get("blade_pitch_deg"),
+                None if is_shot_detached else shot.get("face_angle_deg"),
+                None if is_shot_detached else shot.get("swing_yaw_deg"),
+                None if is_shot_detached else shot.get("relative_wrist_angle_deg"),
+                None if is_shot_detached else shot.get("azimuth_deviation_deg"),
+                "WATCH_ONLY" if is_shot_detached else shot.get("polar_mount_type"),
+                1 if is_shot_detached else shot.get("is_kinematically_valid")
             ))
             
         # Write Session Ended marker
         session_end_ms = session_start_ms + (int(shots[-1]["timestamp_offset_s"] * 1000) if shots else 10000)
         end_bat_id = curr_bat_id if shots else initial_bat_id
         end_name, end_weight, end_knob, end_toe = get_bat_specs(end_bat_id)
+        end_polar_mount_mode = "NONE" if end_bat_id == 0 else polar_mount_mode
         c.execute("""
             INSERT INTO innings_events (
                 inningsId, timestamp, description, location, polar_mount_mode, bat_id,
                 bat_name, bat_weight_grams, bat_sensor_offset_knob_cm, bat_sensor_offset_toe_cm
             )
             VALUES (?, ?, 'Session Ended', '26 Aldinga Street, Blackburn South', ?, ?, ?, ?, ?, ?)
-        """, (session_start_ms, session_end_ms, polar_mount_mode, end_bat_id, end_name, end_weight, end_knob, end_toe))
+        """, (session_start_ms, session_end_ms, end_polar_mount_mode, end_bat_id, end_name, end_weight, end_knob, end_toe))
         conn.commit()
         
         # Calculate statistics and density heuristics

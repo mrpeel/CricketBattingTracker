@@ -134,9 +134,9 @@ class TcnModelRunner(
      * Stance State Machine Tracker with configurable sustain guard.
      */
     class StanceTracker(
-        val highThresh: Float = 0.70f,
-        val lowThresh: Float = 0.40f,
-        val motionSurgeW: Float = 1.0f,
+        val highThresh: Float = 0.55f,
+        val lowThresh: Float = 0.35f,
+        val motionSurgeW: Float = 1.8f,
         val sustainMs: Int = 200
     ) {
         var state: String = "IDLE"
@@ -331,7 +331,7 @@ class TcnModelRunner(
         // =========================================================================
         // 2. Stage 1 Stance State Machine Tracking (200ms sustain guard)
         // =========================================================================
-        val sm = StanceTracker(highThresh = 0.70f, lowThresh = 0.40f, motionSurgeW = 1.0f, sustainMs = 200)
+        val sm = StanceTracker(highThresh = 0.55f, lowThresh = 0.35f, motionSurgeW = 1.8f, sustainMs = 200)
         val stanceExitFrames = mutableListOf<Int>()
 
         for (i in 0 until s1Probs.size) {
@@ -348,10 +348,10 @@ class TcnModelRunner(
         }
 
         // =========================================================================
-        // 3. 1-Shot per Stance Deduplication & Peak Anchoring within [T_exit, T_exit + 3.5s]
+        // 3. 1-Shot per Stance Deduplication & Peak Anchoring within [T_exit, T_exit + 4.0s]
         // =========================================================================
         val candidateWindows = mutableListOf<CandidateAnchor>()
-        val postStanceLookaheadFrames = (3.5 * 423).toInt() // 1480 frames (~3.5s)
+        val postStanceLookaheadFrames = (4.0 * 423).toInt() // 1692 frames (~4.0s)
 
         for (fExit in stanceExitFrames) {
             val fScanEnd = min(numFrames, fExit + postStanceLookaheadFrames)
@@ -452,6 +452,8 @@ class TcnModelRunner(
 
                 var maxShotProb = 0f
                 var topShotIdx = 3 // default to DRIVE/DEFENCE
+                var sumNoShotProb = 0f
+                var validFrames = 0
 
                 for (t in wStart..wEnd) {
                     val frameLogits = FloatArray(numClasses) { c ->
@@ -469,6 +471,9 @@ class TcnModelRunner(
                     if (sumExp > 1e-6f && !sumExp.isNaN()) {
                         for (c in 0 until numClasses) probs[c] /= sumExp
 
+                        sumNoShotProb += probs[0]
+                        validFrames++
+
                         for (c in 2 until numClasses) {
                             if (probs[c] > maxShotProb) {
                                 maxShotProb = probs[c]
@@ -477,8 +482,13 @@ class TcnModelRunner(
                         }
                     }
                 }
-                val predClass = if (topShotIdx < classes.size) classes[topShotIdx] else "DRIVE/DEFENCE"
-                candidatePredictions.add(Pair(predClass, maxShotProb))
+                val avgNoShotProb = if (validFrames > 0) sumNoShotProb / validFrames else 0f
+                val predClass = if (avgNoShotProb >= 0.35f) {
+                    "no_shot"
+                } else {
+                    if (topShotIdx < classes.size) classes[topShotIdx] else "DRIVE/DEFENCE"
+                }
+                candidatePredictions.add(Pair(predClass, if (predClass == "no_shot") avgNoShotProb else maxShotProb))
             } catch (e: Exception) {
                 candidatePredictions.add(Pair("DRIVE/DEFENCE", 0.50f))
             } finally {
@@ -501,11 +511,6 @@ class TcnModelRunner(
             var predShotType = rawPredClass
 
             val postImpactRatio = sensorMatrix[26][anchorF]
-
-            // Gate 1: Power Drive Post-Impact Acceleration Ratio Gate (< 1.35 -> DRIVE/DEFENCE)
-            if (predShotType == "POWER DRIVE" && postImpactRatio < 1.35f) {
-                predShotType = "DRIVE/DEFENCE"
-            }
 
             // Gate 2: Calibrated Dual-Path Sweep Gate
             if (predShotType == "SWEEP") {
@@ -548,6 +553,11 @@ class TcnModelRunner(
             }
 
             // Gate 2.5: Biomechanical Physical Consistency Gate (Spatial Attitude) - ONLY FOR BAT_HANDLE
+            // Note: sensorMatrix[15..18] is w_rot (Galaxy Watch on lead wrist).
+            // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat pull/hook/cut).
+            // Rule 2 (forcing DRIVE to PULL if pitch <= 40 deg) was removed because reaching drives, cover drives,
+            // on-drives, and flick shots naturally exhibit pitch angles of 20°-40° (and wrist pitch regularly settles
+            // in 15°-35°), causing catastrophic false conversions to PULL/HOOK/SLOG.
             if (polarMountMode == "BAT_HANDLE") {
                 val qx = sensorMatrix[15][anchorF]; val qy = sensorMatrix[16][anchorF]
                 val qz = sensorMatrix[17][anchorF]; val qw = sensorMatrix[18][anchorF]
@@ -561,10 +571,6 @@ class TcnModelRunner(
                             // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
                             if (pitchDeg >= 65.0f && (predShotType == "PULL/HOOK/SLOG" || predShotType == "CUT/PUNCH")) {
                                 predShotType = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
-                            }
-                            // Rule 2: Horizontal Bat Gate (0.1 < pitch <= 40 deg cannot be straight vertical drive)
-                            else if (pitchDeg > 0.1f && pitchDeg <= 40.0f && predShotType == "DRIVE/DEFENCE") {
-                                predShotType = "PULL/HOOK/SLOG"
                             }
                         }
                     }

@@ -127,7 +127,7 @@ object DiagnosticRulesEngine {
 
         for ((shotClass, profile) in aggregation.classProfiles) {
             when (shotClass) {
-                "PULL/HOOK" -> {
+                "PULL/HOOK/SLOG", "PULL/HOOK" -> {
                     checkPullLag(profile)?.let { detectedFaults.add(it) }
                     checkPullPower(profile)?.let { detectedFaults.add(it) }
                 }

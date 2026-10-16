@@ -104,16 +104,16 @@ class BiomechanicsAggregatorTest {
 
         assertEquals(4, resultFour.totalDualSensorShots)
         assertTrue(resultFour.classProfiles.isEmpty())
-        assertEquals(4, resultFour.insufficientDataClasses["PULL/HOOK"])
+        assertEquals(4, resultFour.insufficientDataClasses["PULL/HOOK/SLOG"])
 
         val fiveShots = (1..5).map { createDualShot(shotType = "Pull shot") }
         val resultFive = BiomechanicsAggregator.aggregate(fiveShots)
 
         assertEquals(5, resultFive.totalDualSensorShots)
         assertEquals(1, resultFive.classProfiles.size)
-        assertNotNull(resultFive.classProfiles["PULL/HOOK"])
-        assertEquals(5, resultFive.classProfiles["PULL/HOOK"]!!.sampleCount)
-        assertFalse(resultFive.insufficientDataClasses.containsKey("PULL/HOOK"))
+        assertNotNull(resultFive.classProfiles["PULL/HOOK/SLOG"])
+        assertEquals(5, resultFive.classProfiles["PULL/HOOK/SLOG"]!!.sampleCount)
+        assertFalse(resultFive.insufficientDataClasses.containsKey("PULL/HOOK/SLOG"))
     }
 
     @Test
@@ -133,11 +133,10 @@ class BiomechanicsAggregatorTest {
 
         val result = BiomechanicsAggregator.aggregate(events)
         assertEquals(10, result.totalDualSensorShots)
-        assertEquals(3, result.shotFamilyDistribution["PULL/HOOK"])
+        assertEquals(3, result.shotFamilyDistribution["PULL/HOOK/SLOG"])
         assertEquals(4, result.shotFamilyDistribution["DRIVE/DEFENCE"])
         assertEquals(2, result.shotFamilyDistribution["CUT/PUNCH"])
         assertEquals(1, result.shotFamilyDistribution["SWEEP"])
-        assertEquals(0, result.shotFamilyDistribution["SLOG"])
     }
 
     @Test
@@ -153,7 +152,7 @@ class BiomechanicsAggregatorTest {
         }
         val resultOptimal = BiomechanicsAggregator.aggregate(optimalPulls)
         assertEquals(100, resultOptimal.coordinationHealthScore)
-        assertEquals(0.0f, resultOptimal.classProfiles["PULL/HOOK"]!!.amberFaultRate, 0.01f)
+        assertEquals(0.0f, resultOptimal.classProfiles["PULL/HOOK/SLOG"]!!.amberFaultRate, 0.01f)
 
         // Create 6 optimal pulls + 4 dragged pulls (tripping warning)
         val draggedPulls = (1..4).map {
@@ -167,7 +166,7 @@ class BiomechanicsAggregatorTest {
         val mixedList = (1..6).map { optimalPulls[0] } + draggedPulls
         val resultMixed = BiomechanicsAggregator.aggregate(mixedList)
         assertEquals(60, resultMixed.coordinationHealthScore)
-        assertEquals(40.0f, resultMixed.classProfiles["PULL/HOOK"]!!.amberFaultRate, 0.01f)
+        assertEquals(40.0f, resultMixed.classProfiles["PULL/HOOK/SLOG"]!!.amberFaultRate, 0.01f)
 
         // Empty list defaults to 100
         val resultEmpty = BiomechanicsAggregator.aggregate(emptyList())
