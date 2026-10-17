@@ -228,5 +228,105 @@ class TcnModelRunnerLogicTest {
         // Case 4: Genuine power drive with very low no_shot probability (0.05 < 0.35) -> ACCEPT as POWER DRIVE
         assertEquals("POWER DRIVE", resolveCandidateClass(0.05f, topShotIdx = 7, classes = classes))
     }
+
+    @Test
+    fun testClosedFormSubHeadProbabilityRecovery() {
+        // Verify exact mathematical recovery of p_sub0(Glance) and p_fam(Sweep) from 9-class post-softmax probabilities
+        val a0True = 0.62
+        val a1True = 0.14
+        val a2True = 0.16
+        val pSub0Drive = 0.18
+        val pSub0Power = 0.12
+        val pSub0GlanceTrue = 0.64
+        val pSub0Defl = 0.06
+        val pSub1Pull = 0.70
+        val pSub1Cut = 0.30
+
+        val q3 = a0True * pSub0Drive
+        val q4 = a0True * pSub0GlanceTrue
+        val q6 = a0True * pSub0Defl
+        val q7 = (a0True + 0.85 * a1True) * pSub0Power
+        val q2 = a1True * pSub1Pull
+        val q5 = a1True * pSub1Cut
+        val q8 = a2True
+
+        val kVert = q3 + q4 + q6
+        val a1Cross = q2 + q5
+        val a2Sweep = q8
+        val bCoef = kVert + q7 - 0.85 * a1Cross
+        val a0Vert = 0.5 * (bCoef + sqrt(max(0.0, bCoef * bCoef + 3.4 * a1Cross * kVert)))
+        val pSub0GlanceRec = (q4 / (a0Vert + 1e-12)).toFloat()
+        val pFamSweepRec = (a2Sweep / (a0Vert + a1Cross + a2Sweep + 1e-12)).toFloat()
+
+        assertEquals(pSub0GlanceTrue.toFloat(), pSub0GlanceRec, 1e-6f)
+        assertEquals((a2True / (a0True + a1True + a2True)).toFloat(), pFamSweepRec, 1e-6f)
+    }
+
+    @Test
+    fun testOption2NonBatPostureMitigation() {
+        fun applyNonBatSweepMitigation(
+            predShotType: String,
+            polarMountMode: String,
+            pSub0Glance: Float,
+            impGz: Float,
+            pFamSweep: Float
+        ): String {
+            var res = predShotType
+            if (res == "SWEEP" && polarMountMode != "BAT_HANDLE") {
+                if (pSub0Glance >= 0.55f && impGz < 5.5f && pFamSweep < 0.72f) {
+                    res = "GLANCE/FLICK"
+                }
+            }
+            return res
+        }
+
+        // Upright high-roll Glance/Flick in WRIST or NONE mode -> rescued to GLANCE/FLICK
+        assertEquals("GLANCE/FLICK", applyNonBatSweepMitigation("SWEEP", "WRIST", 0.73f, 3.6f, 0.50f))
+        assertEquals("GLANCE/FLICK", applyNonBatSweepMitigation("SWEEP", "NONE", 0.65f, 5.2f, 0.49f))
+
+        // Kneeling Sweep with high vertical gravity Z (impGz >= 5.5) or strong Sweep family confidence -> stays SWEEP
+        assertEquals("SWEEP", applyNonBatSweepMitigation("SWEEP", "WRIST", 0.70f, 8.2f, 0.55f))
+        assertEquals("SWEEP", applyNonBatSweepMitigation("SWEEP", "NONE", 0.70f, 4.1f, 0.85f))
+        assertEquals("SWEEP", applyNonBatSweepMitigation("SWEEP", "BAT_HANDLE", 0.73f, 3.6f, 0.50f))
+    }
+
+    @Test
+    fun testOption2BatSensorFirstGlanceDisambiguation() {
+        fun applyBatHandleGlanceDisambiguation(
+            predShotType: String,
+            polarMountMode: String,
+            swingYawDeg: Float,
+            batGzMin: Float,
+            pSub0Glance: Float
+        ): String {
+            var res = predShotType
+            if (polarMountMode == "BAT_HANDLE" &&
+                (res == "DRIVE/DEFENCE" || res == "POWER DRIVE")
+            ) {
+                if ((swingYawDeg <= -17.0f && batGzMin <= -11.5f && pSub0Glance >= 0.25f) ||
+                    (swingYawDeg <= -50.0f && pSub0Glance >= 0.50f)
+                ) {
+                    res = "GLANCE/FLICK"
+                }
+            }
+            return res
+        }
+
+        // Case 1: Leg-side yaw (-25.6 deg) + wrist-snap axial roll (-12.5 rad/s) + Glance sub-head (0.57) -> GLANCE/FLICK
+        assertEquals("GLANCE/FLICK", applyBatHandleGlanceDisambiguation("DRIVE/DEFENCE", "BAT_HANDLE", -25.6f, -12.5f, 0.57f))
+        assertEquals("GLANCE/FLICK", applyBatHandleGlanceDisambiguation("POWER DRIVE", "BAT_HANDLE", -34.8f, -18.2f, 0.31f))
+
+        // Case 2: Extreme leg-side yaw (-55.0 deg) + high Glance sub-head (0.55) on DRIVE -> GLANCE/FLICK
+        assertEquals("GLANCE/FLICK", applyBatHandleGlanceDisambiguation("DRIVE/DEFENCE", "BAT_HANDLE", -55.0f, -8.0f, 0.55f))
+
+        // Case 3: Cross-bat PULL/HOOK/SLOG must NEVER be flipped to GLANCE/FLICK even with leg-side yaw and roll
+        assertEquals("PULL/HOOK/SLOG", applyBatHandleGlanceDisambiguation("PULL/HOOK/SLOG", "BAT_HANDLE", -55.0f, -18.0f, 0.55f))
+
+        // Case 4: Genuine On-Drive (yaw -18.0 deg, but low axial roll -6.5 rad/s) -> stays DRIVE/DEFENCE
+        assertEquals("DRIVE/DEFENCE", applyBatHandleGlanceDisambiguation("DRIVE/DEFENCE", "BAT_HANDLE", -18.0f, -6.5f, 0.40f))
+
+        // Case 5: Genuine Power Drive with straight yaw (-5.0 deg) -> stays POWER DRIVE
+        assertEquals("POWER DRIVE", applyBatHandleGlanceDisambiguation("POWER DRIVE", "BAT_HANDLE", -5.0f, -14.0f, 0.35f))
+    }
 }
 

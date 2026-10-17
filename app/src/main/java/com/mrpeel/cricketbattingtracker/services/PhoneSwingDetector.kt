@@ -292,7 +292,7 @@ object PhoneSwingDetector {
             val shotWallMs = det.timestampMs
             val relShotMs = shotWallMs - watchStartWallMs
             val targetSensorNs = watchStartSensorNs + (relShotMs * 1_000_000L)
-            val finalShotType = det.predictedShotType
+            var finalShotType = det.predictedShotType
 
             var bottomGyroPeak: Float? = null
             var bottomAccPeak: Float? = null
@@ -516,6 +516,22 @@ object PhoneSwingDetector {
                             swingYawDeg = ahrsRes.swingYawDeg
                             relWristDeg = ahrsRes.relativeWristAngleDeg
                             azimDevDeg = ahrsRes.azimuthDeviationDeg
+                        }
+
+                        // Bat-Sensor-First 3D AHRS + Handle Axial Roll Glance/Flick Disambiguation (matching telemetry_engine.py Rule 2)
+                        if (configuredMount == "BAT_HANDLE" && ahrsRes != null &&
+                            (finalShotType == "DRIVE/DEFENCE" || finalShotType == "POWER DRIVE")
+                        ) {
+                            var batGzMin = 0f
+                            forEachPolarInRange(polarGyro, polarPeakTimeMs - 250L, polarPeakTimeMs + 250L) { s ->
+                                if (s.z < batGzMin) batGzMin = s.z
+                            }
+                            val yawDeg = ahrsRes.swingYawDeg
+                            if ((yawDeg <= -17.0f && batGzMin <= -11.5f && det.pSub0Glance >= 0.25f) ||
+                                (yawDeg <= -50.0f && det.pSub0Glance >= 0.50f)
+                            ) {
+                                finalShotType = "GLANCE/FLICK"
+                            }
                         }
                     }
                 }

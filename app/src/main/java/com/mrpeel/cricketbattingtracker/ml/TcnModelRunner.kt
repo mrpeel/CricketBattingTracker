@@ -117,7 +117,9 @@ class TcnModelRunner(
         val confidence: Float,
         val peakAcc: Float = 0f,
         val peakGyro: Float = 0f,
-        val postImpactRatio: Float = 0f
+        val postImpactRatio: Float = 0f,
+        val pSub0Glance: Float = 0f,
+        val pFamSweep: Float = 0f
     )
 
     data class CandidateAnchor(
@@ -406,7 +408,13 @@ class TcnModelRunner(
         // =========================================================================
         val windowLen = 2048
         val inputBuffer = FloatBuffer.allocate(numFeatures * windowLen)
-        val candidatePredictions = mutableListOf<Pair<String, Float>>()
+        data class CandidatePrediction(
+            val predClass: String,
+            val topProb: Float,
+            val pSub0Glance: Float = 0f,
+            val pFamSweep: Float = 0f
+        )
+        val candidatePredictions = mutableListOf<CandidatePrediction>()
 
         for (cand in candidateWindows) {
             val anchorF = cand.anchorFrame
@@ -449,11 +457,14 @@ class TcnModelRunner(
 
                 val wStart = max(0, cOffset - 42)
                 val wEnd = min(windowLen - 1, cOffset + 42)
+                val tMid = cOffset.coerceIn(0, windowLen - 1)
 
                 var maxShotProb = 0f
                 var topShotIdx = 3 // default to DRIVE/DEFENCE
                 var sumNoShotProb = 0f
                 var validFrames = 0
+                var pSub0Glance = 0f
+                var pFamSweep = 0f
 
                 for (t in wStart..wEnd) {
                     val frameLogits = FloatArray(numClasses) { c ->
@@ -480,6 +491,16 @@ class TcnModelRunner(
                                 topShotIdx = c
                             }
                         }
+
+                        if (t == tMid && numClasses >= 9) {
+                            val kVert = (probs[3] + probs[4] + probs[6]).toDouble()
+                            val a1Cross = (probs[2] + probs[5]).toDouble()
+                            val a2Sweep = probs[8].toDouble()
+                            val bCoef = kVert + probs[7].toDouble() - 0.85 * a1Cross
+                            val a0Vert = 0.5 * (bCoef + sqrt(max(0.0, bCoef * bCoef + 3.4 * a1Cross * kVert)))
+                            pSub0Glance = (probs[4].toDouble() / (a0Vert + 1e-12)).toFloat()
+                            pFamSweep = (a2Sweep / (a0Vert + a1Cross + a2Sweep + 1e-12)).toFloat()
+                        }
                     }
                 }
                 val avgNoShotProb = if (validFrames > 0) sumNoShotProb / validFrames else 0f
@@ -488,9 +509,16 @@ class TcnModelRunner(
                 } else {
                     if (topShotIdx < classes.size) classes[topShotIdx] else "DRIVE/DEFENCE"
                 }
-                candidatePredictions.add(Pair(predClass, if (predClass == "no_shot") avgNoShotProb else maxShotProb))
+                candidatePredictions.add(
+                    CandidatePrediction(
+                        predClass = predClass,
+                        topProb = if (predClass == "no_shot") avgNoShotProb else maxShotProb,
+                        pSub0Glance = pSub0Glance,
+                        pFamSweep = pFamSweep
+                    )
+                )
             } catch (e: Exception) {
-                candidatePredictions.add(Pair("DRIVE/DEFENCE", 0.50f))
+                candidatePredictions.add(CandidatePrediction("DRIVE/DEFENCE", 0.50f))
             } finally {
                 try { inputTensor?.close() } catch (_: Exception) {}
                 try { results?.close() } catch (_: Exception) {}
@@ -507,8 +535,9 @@ class TcnModelRunner(
         for (i in 0 until candidateWindows.size) {
             val cand = candidateWindows[i]
             val anchorF = cand.anchorFrame
-            val (rawPredClass, topProb) = candidatePredictions[i]
-            var predShotType = rawPredClass
+            val candPred = candidatePredictions[i]
+            var predShotType = candPred.predClass
+            val topProb = candPred.topProb
 
             val postImpactRatio = sensorMatrix[26][anchorF]
 
@@ -549,6 +578,23 @@ class TcnModelRunner(
 
                 if (!isPath1 && !isPath2) {
                     predShotType = "no_shot"
+                } else if (polarMountMode != "BAT_HANDLE") {
+                    // Non-Bat Mitigation (WRIST / NONE): Rescue upright Glance/Flick misclassified as Sweep due to wrist roll
+                    val impS = max(0, anchorF - 20)
+                    val impE = min(numFrames - 1, anchorF + 19)
+                    var sumImpGz = 0f
+                    var cntImpGz = 0
+                    for (k in impS..impE) {
+                        val wAz = sensorMatrix[8][k]
+                        if (!wAz.isNaN()) {
+                            sumImpGz += wAz
+                            cntImpGz++
+                        }
+                    }
+                    val impGz = if (cntImpGz > 0) sumImpGz / cntImpGz else 6.0f
+                    if (candPred.pSub0Glance >= 0.55f && impGz < 5.5f && candPred.pFamSweep < 0.72f) {
+                        predShotType = "GLANCE/FLICK"
+                    }
                 }
             }
 
@@ -600,7 +646,9 @@ class TcnModelRunner(
                     confidence = topProb,
                     peakAcc = cand.peakAcc,
                     peakGyro = cand.peakGyro,
-                    postImpactRatio = postImpactRatio
+                    postImpactRatio = postImpactRatio,
+                    pSub0Glance = candPred.pSub0Glance,
+                    pFamSweep = candPred.pFamSweep
                 )
             )
         }

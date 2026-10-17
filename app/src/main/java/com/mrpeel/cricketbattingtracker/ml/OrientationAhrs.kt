@@ -82,16 +82,16 @@ class OrientationAhrs(val mountLocation: String = "BAT_HANDLE") {
         }
 
         fun quatToEulerZYX(q: FloatArray): FloatArray {
-            // Returns [yaw, pitch, roll] in degrees
+            // Returns [yaw, pitch, roll] in degrees matching scipy R.from_quat(q).as_euler('zyx', degrees=True)
             val x = q[0]; val y = q[1]; val z = q[2]; val w = q[3]
 
             // Roll (x-axis rotation)
-            val sinrCosp = 2f * (w * x + y * z)
+            val sinrCosp = 2f * (w * x - y * z)
             val cosrCosp = 1f - 2f * (x * x + y * y)
             val roll = Math.toDegrees(atan2(sinrCosp.toDouble(), cosrCosp.toDouble())).toFloat()
 
             // Pitch (y-axis rotation)
-            val sinp = 2f * (w * y - z * x)
+            val sinp = 2f * (w * y + z * x)
             val pitch = if (abs(sinp) >= 1f) {
                 Math.toDegrees(java.lang.Math.copySign(PI / 2.0, sinp.toDouble())).toFloat()
             } else {
@@ -99,7 +99,7 @@ class OrientationAhrs(val mountLocation: String = "BAT_HANDLE") {
             }
 
             // Yaw (z-axis rotation)
-            val sinyCosp = 2f * (w * z + x * y)
+            val sinyCosp = 2f * (w * z - x * y)
             val cosyCosp = 1f - 2f * (y * y + z * z)
             val yaw = Math.toDegrees(atan2(sinyCosp.toDouble(), cosyCosp.toDouble())).toFloat()
 

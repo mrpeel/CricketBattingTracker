@@ -25,7 +25,7 @@ Polar Verity Sense             1. load binary watch files          → tcn_norm_
                                5. 3D Bat Orientation AHRS (OrientationAhrs.kt)
                                6. Kinematic Detachment Guard (KinematicGuard.kt)
                                7. Stage 2 TCN 208d Multi-Scale Inference & Binary FP Rejector (TcnModelRunner.kt)
-                               8. Dual-Path Sweep Gate & Biomechanical Consistency (Gate 1 removed)
+                               8. Dual-Path Sweep Gate (+ Non-Bat Glance Mitigation) & BAT_HANDLE 3D AHRS Glance Disambiguation
                                9. → Room DB v12 (57 columns, auto-healing) → Compose UI
 ```
 
@@ -76,7 +76,7 @@ Triggered by `DataSyncListenerService` after unzipping the watch session ZIP.
 6. ORIENT     3D Bat Orientation AHRS (OrientationAhrs.kt) → attitude, blade pitch, face roll, swing yaw
 7. GUARD      Kinematic Detachment Guard (KinematicGuard.kt) → catches sensor tumble / separation
 8. STAGE 2    28-channel normalization + TCN inference (tcn_ultimate_baseline.onnx via TcnModelRunner.kt) with 208d multi-scale impact-core pooling & binary false-positive rejection (P(no_shot) >= 0.35)
-9. GATING     Dual-Path Sweep Gate + Mount-Aware Biomechanical Physical Consistency Gate (Rule 1; Gate 1 removed)
+9. GATING     Dual-Path Sweep Gate (with Non-Bat upright Glance mitigation) + Mount-Aware BAT_HANDLE Consistency Gate (Rule 1 Vertical Bat Guard + Rule 2 3D AHRS Swing Yaw & Axial Roll Glance Disambiguation)
 10. STORE     InningsEvent (57 columns) → Room DB v12 (with auto-repairing onOpen guard) → Compose UI
 ```
 
@@ -92,8 +92,9 @@ Triggered by `DataSyncListenerService` after unzipping the watch session ZIP.
   - `head_family` (Macro Family Gate: $208\text{d} \rightarrow 64\text{d} \rightarrow 3\text{d}$): Vertical (0), Cross-Bat (1), Floor/Sweep (2).
   - `head_sub0` (Vertical Sub-Classifier: $208\text{d} \rightarrow 64\text{d} \rightarrow 4\text{d}$): `DRIVE/DEFENCE`, `POWER DRIVE`, `GLANCE/FLICK`, `DEFLECTION/GUIDE`.
   - `head_sub1` (Cross-Bat Sub-Classifier: $208\text{d} \rightarrow 64\text{d} \rightarrow 2\text{d}$): `PULL/HOOK/SLOG`, `CUT/PUNCH`.
-- **Soft-Routing Calibration**:
+- **Soft-Routing & Closed-Form Sub-Head Recovery**:
   - Power Drive: $\text{effective\_pd\_fam} = p_{\text{fam}}[0] + 0.85 \cdot p_{\text{fam}}[1]$ (allows high angular momentum and wrist roll without cross-bat collapse).
+  - Closed-form quadratic inversion recovers exact $P_{\text{sub0}}(\text{Glance})$ and $P_{\text{fam}}(\text{Sweep})$ from the 9-class post-softmax probabilities at the center frame $t_{\text{mid}}$ for downstream mount-aware Glance/Flick disambiguation.
 - **Normalization**: 28-channel median/MAD normalization stats defined in `app/src/main/assets/models/tcn_norm_stats.json`.
 - **Runtime Engine**: `TcnModelRunner.kt` executing ONNX opset 18 via Microsoft ONNX Runtime Android SDK with deterministic tensor lifecycle closing.
 

@@ -98,6 +98,23 @@ def load_session_streams(session_id):
     duration_ns_g = p_sns_g[-1] - p_sns_g[0]
     p_t_gyr_s = p_start_rel_s + (p_sns_g - p_sns_g[0]) / duration_ns_g * (p_end_rel_s - p_start_rel_s)
 
+    # Calibrate constant BLE packet batching latency offset using sensor-only impact peaks
+    from scipy.signal import find_peaks
+    w_pks, _ = find_peaks(w_gyro_mags, height=8.0, distance=400)
+    dts = []
+    for wp in w_pks:
+        tw = w_gyro_rel_s[wp]
+        m = (p_t_acc_s >= tw - 1.5) & (p_t_acc_s <= tw + 1.5)
+        if np.any(m):
+            sub_t = p_t_acc_s[m]
+            sub_a = p_acc_mags[m]
+            if sub_a.max() > 30.0:
+                dts.append(sub_t[np.argmax(sub_a)] - tw)
+    if len(dts) >= 3:
+        med_dt = float(np.median(dts))
+        p_t_acc_s = p_t_acc_s - med_dt
+        p_t_gyr_s = p_t_gyr_s - med_dt
+
     gt_csv = os.path.join(sdir, "ground_truth_aligned.csv")
     df_gt = pd.read_csv(gt_csv) if os.path.exists(gt_csv) else None
 
@@ -280,23 +297,48 @@ def reprocess_session(session_id):
     parquet_path = os.path.join(DATASET_DIR, f"{session_id}_unified.parquet")
     if os.path.exists(parquet_path):
         df_pq = pd.read_parquet(parquet_path)
-        # Create continuous orientation columns
         n_rows = len(df_pq)
         p_rot_qx = np.zeros(n_rows, dtype=np.float32)
         p_rot_qy = np.zeros(n_rows, dtype=np.float32)
         p_rot_qz = np.zeros(n_rows, dtype=np.float32)
         p_rot_qw = np.zeros(n_rows, dtype=np.float32)
 
-        time_arr = df_pq["time"].values if "time" in df_pq.columns else np.arange(n_rows) / 423.0
+        if "t_ms" in df_pq.columns:
+            time_arr = (df_pq["t_ms"].values / 1000.0).astype(np.float64)
+        elif "time" in df_pq.columns:
+            time_arr = df_pq["time"].values.astype(np.float64)
+        else:
+            time_arr = np.arange(n_rows, dtype=np.float64) / 423.0
 
-        for t_hist, q_hist in shot_quaternions:
+        # Also evaluate sensor-only watch gyro peaks so candidate windows are covered without GT dependency
+        from scipy.signal import find_peaks
+        sensor_quaternions = []
+        w_pks_all, _ = find_peaks(streams["w_gyro_mags"], height=3.5, distance=300)
+        for wp in w_pks_all:
+            tw = float(streams["w_gyro_rel_s"][wp])
+            if polar_detachment_s is not None and tw >= float(polar_detachment_s):
+                continue
+            s_res = estimator.evaluate_shot(
+                p_t_acc=streams["p_t_acc_s"],
+                p_acc=streams["p_acc"],
+                p_t_gyr=streams["p_t_gyr_s"],
+                p_gyro=streams["p_gyro"],
+                w_t_gyr=streams["w_gyro_rel_s"],
+                w_gyro_mags=streams["w_gyro_mags"],
+                w_t_rot=streams["w_rot_rel_s"],
+                w_rot_arr=streams["w_rot_arr"],
+                t_impact_target=tw
+            )
+            if s_res is not None and s_res.get("q_history") is not None and len(s_res["q_history"]) > 0:
+                sensor_quaternions.append((s_res["t_history"], s_res["q_history"]))
+
+        for t_hist, q_hist in (sensor_quaternions + shot_quaternions):
             if len(t_hist) < 2:
                 continue
-            t_min, t_max = t_hist[0], t_hist[-1]
+            t_min, t_max = float(t_hist[0]), float(t_hist[-1])
             mask = (time_arr >= t_min) & (time_arr <= t_max)
             if np.any(mask):
                 sub_times = time_arr[mask]
-                # Interpolate quaternions via Slerp or linear normalized
                 sub_qx = np.interp(sub_times, t_hist, q_hist[:, 0])
                 sub_qy = np.interp(sub_times, t_hist, q_hist[:, 1])
                 sub_qz = np.interp(sub_times, t_hist, q_hist[:, 2])
@@ -307,12 +349,41 @@ def reprocess_session(session_id):
                 p_rot_qz[mask] = (sub_qz / norms).astype(np.float32)
                 p_rot_qw[mask] = (sub_qw / norms).astype(np.float32)
 
+            # Hold impact freeze quaternion q_freeze for +350ms past t_freeze so candidate anchor frames see q_freeze
+            hold_mask = (time_arr > t_max) & (time_arr <= t_max + 0.35)
+            if np.any(hold_mask):
+                qf = q_hist[-1]
+                qfn = float(np.linalg.norm(qf)) + 1e-12
+                p_rot_qx[hold_mask] = np.float32(qf[0] / qfn)
+                p_rot_qy[hold_mask] = np.float32(qf[1] / qfn)
+                p_rot_qz[hold_mask] = np.float32(qf[2] / qfn)
+                p_rot_qw[hold_mask] = np.float32(qf[3] / qfn)
+
         df_pq["p_rot_qx"] = p_rot_qx
         df_pq["p_rot_qy"] = p_rot_qy
         df_pq["p_rot_qz"] = p_rot_qz
         df_pq["p_rot_qw"] = p_rot_qw
+
+        # For BAT_HANDLE sessions, also align b_acc_x..z and b_gyro_x..z using continuous crystal clock
+        if mount_mode == "BAT_HANDLE":
+            p_ta = streams["p_t_acc_s"]
+            p_tg = streams["p_t_gyr_s"]
+            pa = streams["p_acc"]
+            pg = streams["p_gyro"]
+            if len(p_ta) > 1 and len(p_tg) > 1:
+                df_pq["b_acc_x"] = np.interp(time_arr, p_ta, pa[:, 0], left=0.0, right=0.0).astype(np.float32)
+                df_pq["b_acc_y"] = np.interp(time_arr, p_ta, pa[:, 1], left=0.0, right=0.0).astype(np.float32)
+                df_pq["b_acc_z"] = np.interp(time_arr, p_ta, pa[:, 2], left=0.0, right=0.0).astype(np.float32)
+                df_pq["b_gyro_x"] = np.interp(time_arr, p_tg, pg[:, 0], left=0.0, right=0.0).astype(np.float32)
+                df_pq["b_gyro_y"] = np.interp(time_arr, p_tg, pg[:, 1], left=0.0, right=0.0).astype(np.float32)
+                df_pq["b_gyro_z"] = np.interp(time_arr, p_tg, pg[:, 2], left=0.0, right=0.0).astype(np.float32)
+                if polar_detachment_s is not None:
+                    det_mask = time_arr >= float(polar_detachment_s)
+                    for col in ["b_acc_x", "b_acc_y", "b_acc_z", "b_gyro_x", "b_gyro_y", "b_gyro_z"]:
+                        df_pq.loc[det_mask, col] = 0.0
+
         df_pq.to_parquet(parquet_path, index=False)
-        print(f"  ✅ Updated {parquet_path} with continuous p_rot_q* channels")
+        print(f"  ✅ Updated {parquet_path} with continuous p_rot_q* and crystal-clock b_acc/b_gyro channels")
 
     return True
 

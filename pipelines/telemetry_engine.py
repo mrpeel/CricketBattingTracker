@@ -479,13 +479,15 @@ def load_parquet_session(session_id, dataset_dir=DATASET_DIR):
 # =============================================================================
 # Stage 2 Unleaked Batch Inference Engine
 # =============================================================================
-def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device):
+def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device, return_sub_probs=False):
     """
     STRICT UN-LEAKED MODULE 3 CLASSIFICATION PASS (BATCHED):
     Normalizes 28 continuous IMU features, slices 2,048-sample windows for candidate anchors,
     runs GPU PyTorch forward pass, and returns predictions without reading ground-truth labels.
     """
     if df_parquet is None or len(df_parquet) < 2048 or not candidate_anchors:
+        if return_sub_probs:
+            return [("DRIVE/DEFENCE", 0.50, 0.0, 0.0) for _ in candidate_anchors]
         return [("DRIVE/DEFENCE", 0.50) for _ in candidate_anchors]
         
     n_frames = len(df_parquet)
@@ -569,7 +571,10 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
         win_probs = probs[:, w_s:w_e]
         
         if win_probs.shape[1] == 0:
-            preds.append(("DRIVE/DEFENCE", 0.50))
+            if return_sub_probs:
+                preds.append(("DRIVE/DEFENCE", 0.50, 0.0, 0.0))
+            else:
+                preds.append(("DRIVE/DEFENCE", 0.50))
             continue
             
         # Learned False-Positive Rejection (Class 0: no_shot)
@@ -584,7 +589,18 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
             top_prob = float(shot_class_probs[top_class_rel_idx])
             pred_cls = CLASSES[top_class_idx]
             
-        preds.append((pred_cls, top_prob))
+        if return_sub_probs:
+            q_mid = probs[:, min(max(0, c_off), probs.shape[1] - 1)]
+            k_vert = float(q_mid[3] + q_mid[4] + q_mid[6])
+            a1_cross = float(q_mid[2] + q_mid[5])
+            a2_sweep = float(q_mid[8])
+            b_coef = k_vert + float(q_mid[7]) - 0.85 * a1_cross
+            a0_vert = 0.5 * (b_coef + float(np.sqrt(max(0.0, b_coef * b_coef + 3.4 * a1_cross * k_vert))))
+            p_sub0_glance = float(q_mid[4] / (a0_vert + 1e-12))
+            p_fam_sweep = float(a2_sweep / (a0_vert + a1_cross + a2_sweep + 1e-12))
+            preds.append((pred_cls, top_prob, p_sub0_glance, p_fam_sweep))
+        else:
+            preds.append((pred_cls, top_prob))
         
     return preds
 
@@ -764,7 +780,7 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
         
     # 5. Evaluate Candidate Windows (Stage 2 Unleaked Batched GPU Pass)
     candidate_anchors = [c["anchor_f"] for c in candidate_windows]
-    preds = predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device)
+    preds = predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device, return_sub_probs=True)
     
     # 6. Post-Classification Precision Filters
     filtered_candidates = []
@@ -773,7 +789,7 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
     
     for i_cand, c in enumerate(candidate_windows):
         t_cand = c["anchor_t"]
-        pred_cls, top_prob = preds[i_cand]
+        pred_cls, top_prob, p_sub0_glance, p_fam_sweep = preds[i_cand]
         f_peak = c["anchor_f"]
         
         # Calibrated Dual-Path Sweep Gate
@@ -799,22 +815,63 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
 
             if not (is_path1 or is_path2):
                 pred_cls = "NO_SHOT"
+            elif polar_mount_mode != "BAT_HANDLE":
+                # Non-Bat Mitigation (WRIST / NONE): Rescue upright Glance/Flick misclassified as Sweep due to wrist roll
+                imp_s = max(0, f_peak - 20)
+                imp_e = min(num_samples, f_peak + 20)
+                imp_gz = float(np.mean(channels_12[imp_s:imp_e, 8])) if (channels_12.shape[1] > 8 and imp_e > imp_s) else 6.0
+                if p_sub0_glance >= 0.55 and imp_gz < 5.5 and p_fam_sweep < 0.72:
+                    pred_cls = "GLANCE/FLICK"
 
-        # Biomechanical Physical Consistency Gate (Spatial Attitude) - ONLY FOR BAT_HANDLE MOUNT
-        if polar_mount_mode == "BAT_HANDLE" and 'p_rot_qx' in df_parquet.columns and f_peak < len(df_parquet):
-            qx = float(df_parquet['p_rot_qx'].iloc[f_peak])
-            qy = float(df_parquet['p_rot_qy'].iloc[f_peak])
-            qz = float(df_parquet['p_rot_qz'].iloc[f_peak])
-            qw = float(df_parquet['p_rot_qw'].iloc[f_peak])
-            if (qx*qx + qy*qy + qz*qz + qw*qw) > 0.5:
-                vz = 2.0 * (qy * qz - qx * qw)
-                pitch_deg = float(np.rad2deg(np.arcsin(np.clip(abs(vz), 0.0, 1.0))))
+        # Biomechanical Physical Consistency Gate (Spatial Attitude & Bat-Sensor-First Disambiguation) - ONLY FOR BAT_HANDLE MOUNT
+        if polar_mount_mode == "BAT_HANDLE" and f_peak < len(df_parquet):
+            # Rule 1: Vertical Bat Gate (matching TcnModelRunner.kt sensorMatrix[15..18] = w_rot)
+            if 'w_rot_qx' in df_parquet.columns:
+                wqx = float(df_parquet['w_rot_qx'].iloc[f_peak])
+                wqy = float(df_parquet['w_rot_qy'].iloc[f_peak])
+                wqz = float(df_parquet['w_rot_qz'].iloc[f_peak])
+                wqw = float(df_parquet['w_rot_qw'].iloc[f_peak])
+                if (wqx*wqx + wqy*wqy + wqz*wqz + wqw*wqw) > 0.5:
+                    wvz = 2.0 * (wqy * wqz - wqx * wqw)
+                    wpitch_deg = float(np.rad2deg(np.arcsin(np.clip(abs(wvz), 0.0, 1.0))))
+                    if wpitch_deg >= 65.0 and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
+                        post_ratio = float(df_parquet['post_impact_acc_ratio'].iloc[f_peak]) if 'post_impact_acc_ratio' in df_parquet.columns else 1.0
+                        pred_cls = "POWER DRIVE" if post_ratio >= 1.35 else "DRIVE/DEFENCE"
 
-                # Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
-                if pitch_deg >= 65.0 and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
-                    post_ratio = float(df_parquet['post_impact_acc_ratio'].iloc[f_peak]) if 'post_impact_acc_ratio' in df_parquet.columns else 1.0
-                    pred_cls = "POWER DRIVE" if post_ratio >= 1.35 else "DRIVE/DEFENCE"
-                # Rule 2 (forcing DRIVE to PULL when pitch <= 40 deg) removed: reaching drives and flicks naturally have pitch in 20°-40°.
+            # Rule 2: 3D Bat AHRS Swing Yaw + Handle Axial Roll Glance/Flick Disambiguation (matching PhoneSwingDetector.kt ahrs.evaluateShot)
+            if 'p_rot_qx' in df_parquet.columns and pred_cls in ["DRIVE/DEFENCE", "POWER DRIVE"]:
+                qx = float(df_parquet['p_rot_qx'].iloc[f_peak])
+                qy = float(df_parquet['p_rot_qy'].iloc[f_peak])
+                qz = float(df_parquet['p_rot_qz'].iloc[f_peak])
+                qw = float(df_parquet['p_rot_qw'].iloc[f_peak])
+                if (qx*qx + qy*qy + qz*qz + qw*qw) > 0.5:
+                    f_still = f_peak
+                    f_min_scan = max(0, f_peak - 635)
+                    qx_col = df_parquet['p_rot_qx'].values
+                    qy_col = df_parquet['p_rot_qy'].values
+                    qz_col = df_parquet['p_rot_qz'].values
+                    qw_col = df_parquet['p_rot_qw'].values
+                    while f_still > f_min_scan:
+                        prev_idx = f_still - 1
+                        if (qx_col[prev_idx]**2 + qy_col[prev_idx]**2 + qz_col[prev_idx]**2 + qw_col[prev_idx]**2) > 0.5:
+                            f_still = prev_idx
+                        else:
+                            break
+                    qx0, qy0, qz0, qw0 = float(qx_col[f_still]), float(qy_col[f_still]), float(qz_col[f_still]), float(qw_col[f_still])
+                    qrx =  qw0 * qx - qx0 * qw - qy0 * qz + qz0 * qy
+                    qry =  qw0 * qy + qx0 * qz - qy0 * qw - qz0 * qx
+                    qrz =  qw0 * qz - qx0 * qy + qy0 * qx - qz0 * qw
+                    qrw =  qw0 * qw + qx0 * qx + qy0 * qy + qz0 * qz
+                    swing_yaw_deg = float(np.rad2deg(np.arctan2(2.0 * (qrw * qrz - qrx * qry), 1.0 - 2.0 * (qry * qry + qrz * qrz))))
+
+                    bat_gz_min = 0.0
+                    if 'b_gyro_z' in df_parquet.columns:
+                        bgz_slice = df_parquet['b_gyro_z'].iloc[max(0, f_peak - 106) : min(len(df_parquet), f_peak + 106)].values
+                        if len(bgz_slice) > 0:
+                            bat_gz_min = float(np.min(bgz_slice))
+
+                    if (swing_yaw_deg <= -17.0 and bat_gz_min <= -11.5 and p_sub0_glance >= 0.25) or (swing_yaw_deg <= -50.0 and p_sub0_glance >= 0.50):
+                        pred_cls = "GLANCE/FLICK"
 
         # Dynamic Class-Aware NMS
         req_gap = 2.4 if (last_was_sweep or pred_cls == "SWEEP") else 1.8

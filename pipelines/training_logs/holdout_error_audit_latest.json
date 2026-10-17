@@ -229,18 +229,6 @@
   },
   {
     "sid": "session_2026-06-16_15-39-33",
-    "impact_t": 187.76,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "SWEEP",
-    "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.43,
-    "cand_t": 188.17,
-    "delta_s": 0.41,
-    "narr_text": "slip shot four"
-  },
-  {
-    "sid": "session_2026-06-16_15-39-33",
     "impact_t": 199.11,
     "gt_cls": "SWEEP",
     "status": "MISCLASSIFIED",
@@ -286,18 +274,6 @@
     "cand_t": 472.62,
     "delta_s": 0.22,
     "narr_text": "slip shot okay"
-  },
-  {
-    "sid": "session_2026-06-16_15-39-33",
-    "impact_t": 497.58,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "SWEEP",
-    "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.63,
-    "cand_t": 497.65,
-    "delta_s": 0.07,
-    "narr_text": "flick shot core"
   },
   {
     "sid": "session_2026-06-16_15-39-33",
@@ -1009,15 +985,15 @@
   },
   {
     "sid": "session_2026-07-20_12-42-16",
-    "impact_t": 106.04,
-    "gt_cls": "GLANCE/FLICK",
+    "impact_t": 142.16,
+    "gt_cls": "SWEEP",
     "status": "MISCLASSIFIED",
-    "pred_cls": "SWEEP",
+    "pred_cls": "GLANCE/FLICK",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.46,
-    "cand_t": 106.04,
+    "prob": 0.44,
+    "cand_t": 142.16,
     "delta_s": 0.0,
-    "narr_text": "flip shot okay"
+    "narr_text": "sweep shot good"
   },
   {
     "sid": "session_2026-07-20_12-42-16",
@@ -2041,18 +2017,6 @@
   },
   {
     "sid": "session_2026-09-08_12-52-30",
-    "impact_t": 822.57,
-    "gt_cls": "CUT/PUNCH",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.69,
-    "cand_t": 822.57,
-    "delta_s": 0.0,
-    "narr_text": "cut shot okay facing up"
-  },
-  {
-    "sid": "session_2026-09-08_12-52-30",
     "impact_t": 1204.95,
     "gt_cls": "DEFLECTION/GUIDE",
     "status": "NOT_DETECTED",
@@ -2197,42 +2161,6 @@
   },
   {
     "sid": "session_2026-09-17_12-48-47",
-    "impact_t": 595.69,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.45,
-    "cand_t": 595.69,
-    "delta_s": 0.0,
-    "narr_text": "flick shot or facing up off drive okay"
-  },
-  {
-    "sid": "session_2026-09-17_12-48-47",
-    "impact_t": 662.69,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.39,
-    "cand_t": 662.7,
-    "delta_s": 0.0,
-    "narr_text": "quick shot good"
-  },
-  {
-    "sid": "session_2026-09-17_12-48-47",
-    "impact_t": 670.16,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.3,
-    "cand_t": 670.16,
-    "delta_s": 0.0,
-    "narr_text": "flick shot okay facing up straight drive okay"
-  },
-  {
-    "sid": "session_2026-09-17_12-48-47",
     "impact_t": 677.45,
     "gt_cls": "SWEEP",
     "status": "NOT_DETECTED",
@@ -2242,18 +2170,6 @@
     "cand_t": 680.9,
     "delta_s": 3.45,
     "narr_text": "facing up switch shot okay"
-  },
-  {
-    "sid": "session_2026-09-17_12-48-47",
-    "impact_t": 728.28,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.39,
-    "cand_t": 728.29,
-    "delta_s": 0.0,
-    "narr_text": "flick shot okay"
   },
   {
     "sid": "session_2026-09-17_12-48-47",
