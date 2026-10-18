@@ -655,10 +655,24 @@ class DataSyncListenerService : WearableListenerService() {
             }
         }
 
-        // Resolve innings ID by matching watch session timestamp with timeline
+        // Resolve innings ID by matching watch session timestamp with timeline or config
         var sessionStartMs: Long? = null
+        val sessionConfigCandidate = java.io.File(filesDir, "session_config.json").takeIf { it.exists() }
+            ?: java.io.File(java.io.File(filesDir, "PolarSense"), "session_config.json").takeIf { it.exists() }
+        if (sessionConfigCandidate != null) {
+            try {
+                val json = org.json.JSONObject(sessionConfigCandidate.readText())
+                val startMs = json.optLong("start_time_ms", 0L)
+                if (startMs > 1_000_000_000_000L) {
+                    sessionStartMs = startMs
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed parsing session_config.json for start time", e)
+            }
+        }
+
         val timelineFile = java.io.File(filesDir, "latest_timeline.txt")
-        if (timelineFile.exists()) {
+        if (sessionStartMs == null && timelineFile.exists()) {
             try {
                 timelineFile.forEachLine { line ->
                     if (line.startsWith("SYSTEM_START:")) {

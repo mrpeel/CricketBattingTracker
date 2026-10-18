@@ -698,7 +698,10 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
             swings_df = df_gt[~df_gt['shot_type'].astype(str).str.lower().str.contains('facing|no shot|leave|evade', na=False)].copy()
             # Exclude ghost narration entries with no physical peak (gyro <= 1.05 rad/s)
             if 'impact_gyro_mag' in swings_df.columns:
-                swings_df = swings_df[(swings_df['impact_gyro_mag'] > 1.05) | (swings_df['bottom_hand_gyro_peak'].fillna(0.0) > 1.05)]
+                if 'bottom_hand_gyro_peak' in swings_df.columns:
+                    swings_df = swings_df[(swings_df['impact_gyro_mag'] > 1.05) | (swings_df['bottom_hand_gyro_peak'].fillna(0.0) > 1.05)]
+                else:
+                    swings_df = swings_df[swings_df['impact_gyro_mag'] > 1.05]
             
             shots = []
             for _, row in swings_df.iterrows():
@@ -806,6 +809,8 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     "azimuth_deviation_deg": float(row['azimuth_deviation_deg']) if pd.notna(row.get('azimuth_deviation_deg')) else None,
                     "polar_mount_type": str(row['polar_mount_type']) if pd.notna(row.get('polar_mount_type')) else None,
                     "is_kinematically_valid": int(bool(row['is_kinematically_valid'])) if pd.notna(row.get('is_kinematically_valid')) else None,
+                    "bat_id": int(row['bat_id']) if (pd.notna(row.get('bat_id')) and str(row.get('bat_id')).strip() != '') else None,
+                    "bat_name": str(row['bat_name']) if pd.notna(row.get('bat_name')) else None,
                     "features": feats
                 })
             return sorted(shots, key=lambda x: x["timestamp_offset_s"])
@@ -1039,13 +1044,6 @@ def main():
 
     for sdir in session_dirs:
         session_name = os.path.basename(sdir)
-        m = re.match(r"session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", session_name)
-        if m:
-            parts = [int(x) for x in m.groups()]
-            dt = datetime.datetime(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
-            session_start_ms = int(dt.timestamp() * 1000)
-        else:
-            session_start_ms = int(os.path.getmtime(sdir) * 1000)
 
         # Check session_config.json
         cfg_file = os.path.join(sdir, "session_config.json")
@@ -1058,6 +1056,7 @@ def main():
         initial_bat_id = 1 if polar_mount_mode == "BAT_HANDLE" else 0
         bat_switches = []
         bat_profiles = {}
+        cfg_start_ms = None
         if os.path.exists(cfg_file):
             try:
                 with open(cfg_file, "r") as cf:
@@ -1065,10 +1064,44 @@ def main():
                     polar_mount_mode = cdata.get("polar_mount_mode", polar_mount_mode)
                     initial_bat_id = int(cdata.get("initial_bat_id", 1 if polar_mount_mode == "BAT_HANDLE" else 0))
                     bat_switches = cdata.get("bat_switches", [])
+                    cfg_start_ms = cdata.get("start_time_ms")
                     for p in cdata.get("bat_profiles", []):
                         bat_profiles[int(p["bat_id"])] = p
             except Exception as e:
                 pass
+
+        # Check timeline for SYSTEM_START: Ts=
+        sys_start_ms = None
+        timeline_path = os.path.join(sdir, "latest_timeline.txt")
+        if os.path.exists(timeline_path):
+            try:
+                with open(timeline_path, "r") as tf:
+                    for line in tf:
+                        if line.startswith("SYSTEM_START:"):
+                            m_ts = re.search(r"Ts=(\d+)", line)
+                            if m_ts:
+                                sys_start_ms = int(m_ts.group(1))
+                                break
+            except Exception:
+                pass
+
+        # Authoritative resolution of session start time:
+        # 1. session_config.json start_time_ms
+        # 2. latest_timeline.txt SYSTEM_START: Ts=
+        # 3. folder name regex session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})
+        # 4. directory mtime
+        if cfg_start_ms is not None and int(cfg_start_ms) > 1_000_000_000_000:
+            session_start_ms = int(cfg_start_ms)
+        elif sys_start_ms is not None and int(sys_start_ms) > 1_000_000_000_000:
+            session_start_ms = int(sys_start_ms)
+        else:
+            m = re.match(r"session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", session_name)
+            if m:
+                parts = [int(x) for x in m.groups()]
+                dt = datetime.datetime(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
+                session_start_ms = int(dt.timestamp() * 1000)
+            else:
+                session_start_ms = int(os.path.getmtime(sdir) * 1000)
 
         def get_bat_specs(bid):
             if bid in bat_profiles:
@@ -1118,13 +1151,25 @@ def main():
             efficiency = float(shot.get("efficiency", f.get("efficiency", 90.0)))
             impact_time_ms = int(shot.get("impact_time_ms", f.get("reaction_time_ms", 350)))
 
-            curr_bat_id = initial_bat_id
-            if bat_switches:
-                for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_ms", 0)):
-                    if sw.get("timestamp_ms", 0) <= shot_time_ms:
-                        curr_bat_id = int(sw.get("bat_id", curr_bat_id))
+            # Authoritative bat resolution:
+            # 1. Row-level bat_id from ground_truth_aligned.csv (if valid)
+            # 2. Dynamic timeline switch matching against shot_time_ms using session_start_ms
+            if "bat_id" in shot and shot["bat_id"] is not None and pd.notna(shot["bat_id"]):
+                curr_bat_id = int(shot["bat_id"])
+            else:
+                curr_bat_id = initial_bat_id
+                if bat_switches:
+                    for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_offset_s", 0) if "timestamp_offset_s" in x else x.get("timestamp_ms", 0)):
+                        if "timestamp_offset_s" in sw:
+                            sw_time_ms = session_start_ms + int(float(sw["timestamp_offset_s"]) * 1000.0)
+                        else:
+                            sw_time_ms = int(sw.get("timestamp_ms", 0))
+                        if sw_time_ms <= shot_time_ms:
+                            curr_bat_id = int(sw.get("bat_id", curr_bat_id))
 
             curr_name, curr_weight, curr_knob, curr_toe = get_bat_specs(curr_bat_id)
+            if "bat_name" in shot and pd.notna(shot.get("bat_name")) and str(shot["bat_name"]).strip():
+                curr_name = str(shot["bat_name"]).strip()
 
             curr_polar_mount_mode = "NONE" if curr_bat_id == 0 else polar_mount_mode
             is_shot_detached = (curr_bat_id == 0)

@@ -46,32 +46,33 @@ This file defines the system objectives, feature backlog catalog, active technic
 | B-107 | Phase 4 Power Drive Separation, Gate 1 Elimination & Macro Routing Calibration | Remove destructive Gate 1 (`postImpactRatio < 1.35f -> DRIVE/DEFENCE`) from `TcnModelRunner.kt` (real Power Drives exhibit mean post-impact ratio 0.92–0.95, not >1.35), update `TcnModelRunnerLogicTest.kt` to preserve Power Drive predictions, calibrate soft-routing parameter $\alpha = 0.85$ in `BatPlaneGeometryThreeFamilyTCN` (`effective_pd_fam = p_fam[:, 0] + 0.85 * p_fam[:, 1]`) unlocking Head 2A's native confidence (65.6% for PD), fix `evaluate_multitier_scorecard` Stage 2 default instantiation to `BatPlaneGeometryThreeFamilyTCN`, and re-export `tcn_ultimate_baseline.onnx` (`dynamo=False`, embedded weights, 7.1 MB). | **Completed** | Passed all 105 Android & Wear OS unit tests (`BUILD SUCCESSFUL in 1s`), 8/8 Python unit tests, assembled 16 KB page-aligned release APKs (`:app:assembleRelease :wear:assembleRelease`). Clean Benchmark (73 sessions, 4,091 GT): 🏆 **90.86% Recall** (3,717 / 4,091), 🏆 **89.87% Precision** (3,717 / 4,136 candidates, 101.1% parity), 🏆 **90.36% F1**. Locked Holdout Test Set (12 sessions, 701 GT): 🏆 **91.73% Recall** (643 / 701), 🏆 **90.56% Precision** (643 / 710), 🏆 **91.14% F1**, 🏆 **74.49% Classification Accuracy** (479 / 643 correct); `POWER DRIVE` accuracy surged from 29.8% to 🏆 **43.86%** (+14.1% gain). |
 | B-108 | Quarantined Session Forensic Recovery (Option A) — 5 Sessions Promoted & Benchmark Expanded | Execute Option A of the Quarantined Session Recovery Plan: resolve $\pm 1.0\text{s}$ search window clipping, revert corrupted +73s / +16.5s sync-tap offsets to true physical speech timestamps, trim pre-session audio chatter, and promote 5 high-accuracy sessions (`session_2026-06-29_12-21-45`, `session_2026-07-12_11-23-59`, `session_2026-08-07_12-47-38`, `session_2026-08-27_12-52-32`, `session_2026-09-30_12-52-29`) from quarantine to the active clean benchmark. Exclude 4 partially recoverable sessions pending Phase 5 Stage 1 3D rotation augmentation, and retire 4 impaired sessions to `archived_impaired`. | **Completed** | Clean benchmark expanded from 73 to 🏆 **78 physical sessions** (4,388 GT shots): 🏆 **90.25% Global Recall** (3,960 / 4,388 shots), 🏆 **89.92% Precision** (3,960 / 4,404 candidates; 100.36% candidate parity), 🏆 **90.08% F1 Score**, 🏆 **87.07% Full Classification Accuracy**; Locked Holdout preserved at 91.73% Recall, 90.56% Precision, 74.49% Accuracy; 105 Android/Wear unit tests passed, 8/8 Python unit tests passed, release APKs assembled and 16 KB page-aligned. |
 | B-109 | Phase 5 Glance/Flick Refinement (Option 2: Bat-Sensor-First 3D AHRS + Non-Bat Posture Mitigation) | Implement Option 2 mount-aware Glance/Flick refinement across Python (`telemetry_engine.py`, `reprocess_session_orientations.py`) and Kotlin (`TcnModelRunner.kt`, `PhoneSwingDetector.kt`, `OrientationAhrs.kt`): (1) calibrate BLE batching latency (0.25s–0.68s) and backfill continuous `p_rot_qx..w` and crystal-clock-aligned `b_acc_*`/`b_gyro_*` across all 16 `BAT_HANDLE` sessions; (2) recover exact sub-head probabilities $P_{\text{sub0}}(\text{Glance})$ and $P_{\text{fam}}(\text{Sweep})$ in closed form from 9-class post-softmax probabilities without modifying the ONNX graph; (3) rescue upright high-roll flicks from `SWEEP` in `WRIST`/`NONE` modes (`pSub0Glance >= 0.55 && impGz < 5.5 && pFamSweep < 0.72`); and (4) disambiguate vertical-bat `BAT_HANDLE` predictions (`DRIVE/DEFENCE`, `POWER DRIVE`) into `GLANCE/FLICK` using 3D AHRS `swingYawDeg <= -17°` and axial handle roll `batGzMin <= -11.5 rad/s` (aligning `OrientationAhrs.quatToEulerZYX` with `scipy` extrinsic `'zyx'`). | **Completed** | Holdout `GLANCE/FLICK` accuracy surged from **39.29% (22/56)** to 🏆 **51.79% (29/56)** (+12.50% gain; `BAT_HANDLE` Glance **88.0% [22/25]**), `CUT/PUNCH` rose to **92.71%** (89/96), Overall Holdout Classification Accuracy rose from **74.49% (479/643)** to 🏆 **75.58% (486/643)**, and Full 78-Session Accuracy rose to 🏆 **87.17% (3,452/3,960)**; 108/108 Android & Wear unit tests passed, 8/8 Python tests passed, 16 KB page-aligned release APKs assembled. |
+| B-110 | Session Start Time Hierarchy & Mid-Session Bat Switch Reconciliation | Eliminate reprocessing overwriting actual bats with default/game bat caused by directory sync-timestamp desync (~24 min skew between watch zip sync time and true session start) and missing impact timestamp keys in `automate_pipeline.py`. Implement authoritative start-time hierarchy (`session_config.json` -> `latest_timeline.txt` -> regex -> mtime) across Python and Kotlin (`PhoneSwingDetector`, `DataSyncListenerService`, `InningsViewModel`), restore shot-level bat mapping across 65 historical sessions, and rebuild SQLite DB. | **Completed** | 108 Android/Wear unit tests passed, 8/8 Python tests passed, release APKs assembled; verified `session_2026-10-17_11-47-47` correctly partitions into 3 rounds in `scratch/cricket_tracker_database.db`: Shots 1–23 (Giant, 1625g), Shots 24–46 (Eye in bat, 1200g), Shots 47–70 (Game bat, 1425g). |
 
 ---
 
-## 🔖 Current Session State (Feature B-109: Phase 5 Glance/Flick Refinement — Option 2)
-*   **Option 2 Architecture (Bat-Sensor-First 3D AHRS + Non-Bat Posture Mitigation)**:
-    - **Closed-Form Sub-Head Probability Recovery**: Recovers exact $P_{\text{sub0}}(\text{Glance})$ and $P_{\text{fam}}(\text{Sweep})$ from the 9-class post-softmax probabilities `probs[0..8]` via quadratic solution ($9 \times 10^{-8}$ max error) in both `telemetry_engine.py` and `TcnModelRunner.kt`, requiring zero ONNX graph modifications.
-    - **Bat-Sensor-First Disambiguation (`polarMountMode == "BAT_HANDLE"`)**: Calibrated automatic sensor-only BLE batch latency offset ($+0.25\text{s}$ to $+0.68\text{s}$) in `reprocess_session_orientations.py` and reprocessed all 16 `BAT_HANDLE` sessions. For vertical-bat predictions (`DRIVE/DEFENCE` and `POWER DRIVE`), when 3D AHRS `swingYawDeg <= -17.0°`, axial handle roll `batGzMin <= -11.5 rad/s`, and `pSub0Glance >= 0.25` (or extreme leg-side yaw `<= -50.0°` with `pSub0Glance >= 0.50`), reclassifies to `GLANCE/FLICK`.
-    - **Non-Bat Posture Mitigation (`polarMountMode != "BAT_HANDLE"`)**: Inside the Dual-Path Sweep Gate, rescues upright high-roll flicks misclassified as `SWEEP` when `pSub0Glance >= 0.55`, impact vertical gravity `impGz < 5.5 m/s²`, and `pFamSweep < 0.72`.
-    - **100% Python–Kotlin Euler Parity**: Aligned `OrientationAhrs.quatToEulerZYX` in Kotlin with `scipy` `R.from_quat(q).as_euler('zyx', degrees=True)` extrinsic ZYX convention.
-*   **Locked Holdout Test Set Performance (12 Unseen Sessions, 701 Physical GT Shots)**:
-    - **Detection Recall / Precision / F1**: 🏆 **91.73% Recall** (643 / 701), 🏆 **90.56% Precision** (643 / 710; 101.3% parity), 🏆 **91.14% F1**.
-    - **Overall Holdout Classification Accuracy**: Surged from **74.49% (479 / 643)** to 🏆 **75.58% (486 / 643)**.
-    - **GLANCE/FLICK Accuracy**: Surged from **39.29% (22 / 56)** to 🏆 **51.79% (29 / 56)** (**+12.50% gain**; **88.0% [22 / 25]** on `BAT_HANDLE` sessions).
-    - **CUT/PUNCH Accuracy**: Improved to 🏆 **92.71%** (89 / 96).
-    - **DEFLECTION/GUIDE Accuracy**: Preserved at 🏆 **87.78%** (79 / 90).
-    - **DRIVE/DEFENCE Accuracy**: Preserved at 🏆 **82.78%** (149 / 180).
-    - **SWEEP Accuracy**: **77.97%** (46 / 59).
-    - **PULL/HOOK/SLOG Accuracy**: Preserved at **65.71%** (69 / 105).
-    - **POWER DRIVE Accuracy**: Preserved at **43.86%** (25 / 57).
-*   **Clean Benchmark Results (78 Clean Physical Sessions, 4,388 Physical GT Shots)**:
-    - **Global Recall / Precision / F1**: 🏆 **90.25% Recall** (3,960 / 4,388), 🏆 **89.92% Precision** (3,960 / 4,404; **100.36% parity**), 🏆 **90.08% F1**.
-    - **Full Classification Accuracy**: Improved from 87.07% to 🏆 **87.17%** (3,452 / 3,960 correct shots; `GLANCE/FLICK` rose from 500 to **564** correct shots).
+## 🔖 Current Session State (Feature B-110: Session Start Time Hierarchy & Mid-Session Bat Switch Reconciliation)
+*   **Root Cause Resolution**:
+    - **Sync Timestamp vs True Start Time Desync**: The session directory name (`session_2026-10-17_11-47-47`) reflects the sync/transfer time when the watch finishes transmission (~24 minutes after session start). The true start was `11:23:59`. In `reprocess_sessions.py`, computing `shot_wall_ms = session_start_ms + t_shot_ms` using the sync time pushed shot wall times to ~`11:49:00+`, placing them all after the final bat switch to Bat 1 at `11:38:46`, causing all shots to be stamped with Bat 1.
+    - **Missing Impact Keys in `automate_pipeline.py`**: Looked for nonexistent `impact_time_ms` and `timestamp_seconds`, defaulting `shot_wall_ms = 0.0`. Switches never matched (`sw['timestamp_ms'] <= 0.0` was False), leaving only `initial_bat_id` stamped in `ground_truth_aligned.csv`.
+    - **Bat Field Passthrough**: `reprocess_sessions.py` was dropping `bat_id` and `bat_name` when reading `ground_truth_aligned.csv`.
+*   **Authoritative Start-Time Hierarchy**:
+    - Enforced across Python (`automate_pipeline.py`, `reprocess_sessions.py`, `build_unified_dataset.py`, `retroactive_bat_tagger.py`) and Kotlin (`PhoneSwingDetector.kt`, `DataSyncListenerService.kt`):
+      1. `session_config.json` -> `start_time_ms`
+      2. `latest_timeline.txt` -> `SYSTEM_START: Ts=`
+      3. Directory name regex (`session_YYYY-MM-DD_HH-mm-ss`)
+      4. Directory `mtime`
+*   **Database & Session Verification**:
+    - Batch-updated all 65 historical `ground_truth_aligned.csv` files with mid-session bat switch events.
+    - Reprocessed SQLite database end-to-end to `scratch/cricket_tracker_database.db`.
+    - Verified `session_2026-10-17_11-47-47` (`inningsId = 1792196639248`):
+      - Shots 1–23: Bat 2 ("Gray Nicholls Giant", 1625g)
+      - Shots 24–46: Bat 3 ("Eye in bat", 1200g)
+      - Shots 47–70: Bat 1 ("Game bat", 1425g)
 *   **Engineering Verification**:
-    - **Android & Wear OS Tests**: 108/108 unit tests passed (`BUILD SUCCESSFUL`).
+    - **Android & Wear OS Tests**: 108/108 unit tests passed (`BUILD SUCCESSFUL in 10s`).
+    - **Python Tests**: 8/8 unit tests passed in `test_ahrs_and_guard.py`.
     - **Release APKs**: Assembled and 16 KB page-aligned (`:app:assembleRelease :wear:assembleRelease`).
-    - **Python Tests**: 8/8 tests passed in `test_ahrs_and_guard.py`.
+
 
 
 

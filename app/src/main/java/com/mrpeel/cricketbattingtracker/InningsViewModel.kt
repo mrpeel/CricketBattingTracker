@@ -168,7 +168,7 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
                     java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(dirTimeStr)?.time ?: 0L
                 } catch (e: Exception) { 0L }
                 
-                if (kotlin.math.abs(dirTimeMs - startTimeMs) > 10 * 60_000L) {
+                if (kotlin.math.abs(dirTimeMs - startTimeMs) > 60 * 60_000L) {
                     onResult(false, "No matching watch session found for this session's time.")
                     return@launch
                 }
@@ -191,7 +191,7 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
                         val cleanPolar = file.name.substringBefore(".zip")
                         val polarTimeStr = cleanPolar.substringAfter("polar_session_")
                         val polarTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(polarTimeStr)?.time ?: 0L
-                        kotlin.math.abs(polarTimeMs - startTimeMs) < 10 * 60_000L
+                        kotlin.math.abs(polarTimeMs - startTimeMs) < 60 * 60_000L
                     } catch (e: Exception) { false }
                 }
                 

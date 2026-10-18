@@ -624,15 +624,16 @@ def build_session(session_name, verbose=True):
     # Bat ID array across the timeline (handling mid-session bat switches)
     bat_id_arr = np.full(n_rows, initial_bat_id, dtype=np.int32)
     if bat_switches:
+        ref_start_ms = sys_start if sys_start is not None else int(cfg.get("start_time_ms", 0) if os.path.exists(config_path) else 0)
         for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_offset_s", 0) if "timestamp_offset_s" in x else x.get("timestamp_ms", 0)):
             if "timestamp_offset_s" in sw:
                 sw_ms = float(sw["timestamp_offset_s"]) * 1000.0
-            elif sys_start:
-                sw_ms = float(sw.get("timestamp_ms", 0) - sys_start)
+            elif ref_start_ms > 0:
+                sw_ms = float(sw.get("timestamp_ms", 0) - ref_start_ms)
             else:
                 sw_ms = 0.0
-            sw_idx = int(sw_ms / grid_dt_ms)
-            if 0 <= sw_idx < n_rows:
+            sw_idx = max(0, int(sw_ms / grid_dt_ms))
+            if sw_idx < n_rows:
                 bat_id_arr[sw_idx:] = int(sw.get("bat_id", initial_bat_id))
 
     def get_bat_name(bid):

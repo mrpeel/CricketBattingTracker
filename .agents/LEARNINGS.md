@@ -402,3 +402,59 @@ This document captures resolved bugs, architectural changes, key logical finding
         - **Overall Holdout Classification Accuracy**: Rose from **74.49% (479 / 643)** to 🏆 **75.58% (486 / 643)** (+7 net correct shots), with `CUT/PUNCH` rising to **92.71% (89 / 96)** and **0.0% degradation** to `DRIVE/DEFENCE` (82.78%), `DEFLECTION/GUIDE` (87.78%), `PULL/HOOK/SLOG` (65.71%), or `POWER DRIVE` (43.86%).
         - **Full 78-Session Clean Benchmark**: Detection held at 🏆 **90.25% Recall** (3,960 / 4,388), 🏆 **89.92% Precision** (3,960 / 4,404; **100.36% parity**), 🏆 **90.08% F1**, while Full Classification Accuracy rose from 87.07% to 🏆 **87.17% (3,452 / 3,960)** (`GLANCE/FLICK` rising from 500 to **564** correct shots).
         - **Android & Python Test Suites**: 108/108 Android & Wear unit tests passed (`BUILD SUCCESSFUL`), 8/8 Python unit tests passed (`test_ahrs_and_guard.py`), and 16 KB page-aligned release APKs assembled (`:app:assembleRelease :wear:assembleRelease`).
+
+204. **Session Start Time Desync & Mid-Session Bat Switch Reconciliation (`reprocess_sessions.py` / `automate_pipeline.py`) (October 18, 2026)**:
+    *   **The Problem**:
+        - In physical batting session `session_2026-10-17_11-47-47`, the user used all 3 bats across 3 sequential rounds:
+          - Bat 2: Gray Nicholls Giant (1625g) — Round 1
+          - Bat 3: Eye in bat (1200g) — Round 2
+          - Bat 1: Game bat (1425g) — Round 3
+        - However, after reprocessing, the database and mobile UI displayed Bat 1 ("Game bat") for all 70 shots in the session. The user observed that reprocessing had completely lost the actual bats used.
+    *   **Root Cause Analysis**:
+        1. **Sync Directory Name vs. True Start Time Skew (~24 Minutes)**:
+           - On Wear OS, `TrackerService` packages the session directory into a ZIP archive and sends it via `ChannelClient` to the phone companion app only *after* the session has ended.
+           - Consequently, the created directory name `session_2026-10-17_11-47-47` reflected the transfer/sync timestamp (`11:47:47 = 1792198067000ms`), whereas the true batting session started at `11:23:59` (`1792196639248ms`).
+        2. **Shot Wall Time Inversion in `pipelines/reprocess_sessions.py`**:
+           - Line 1045 computed `session_start_ms` solely from the directory name regex (`11:47:47`), ignoring `session_config.json`'s `start_time_ms` and `latest_timeline.txt`'s `SYSTEM_START: Ts=`.
+           - It computed shot wall timestamps as `shot_time_ms = session_start_ms + int(t_shot_ms)` (~11:49:00 to 12:06:00).
+           - The user's final bat switch to Bat 1 ("Game bat") occurred at 11:38:46 (`1792197526000ms`).
+           - Because all computed shot times (11:49:00+) were strictly greater than the final switch timestamp (11:38:46), the check `if sw['timestamp_ms'] <= shot_time_ms: current_bat_id = sw['bat_id']` was satisfied for Bat 1 across all 70 deliveries, retroactively overwriting Bat 2 and Bat 3 with Bat 1.
+           - Furthermore, `process_single_session_raw()` dropped `row.get('bat_id')` and `row.get('bat_name')` when reading `ground_truth_aligned.csv`.
+        3. **Missing Impact Keys in `automate_pipeline.py`**:
+           - In `automate_pipeline.py` lines 2568–2575, the script attempted to read `row.get("impact_time_ms")` and `row.get("timestamp_seconds")`, neither of which existed in `df_aligned` (which uses `timestamp_offset_s` or `timestamp_ms`).
+           - `shot_wall_ms` defaulted to `0.0`.
+           - The condition `sw['timestamp_ms'] <= 0.0` was never true, causing `ground_truth_aligned.csv` to be stamped with only `initial_bat_id` across 65 historical sessions.
+        4. **Negative Index Dropping in `pipelines/build_unified_dataset.py`**:
+           - If a user tapped a bat switch 1–2 seconds prior to watch sensor logging starting, `sw_ms < 0` caused `sw_idx < 0`, discarding the initial switch event.
+        5. **Android Start Time Parsing & Local Retry Tolerances**:
+           - `PhoneSwingDetector.kt` and `DataSyncListenerService.kt` only parsed start time from directory strings or file `mtime`, ignoring `session_config.json`.
+           - In `PhoneSwingDetector.kt`, the Session Ended timeline marker defaulted to `initial_bat_id` instead of the last active bat.
+           - `InningsViewModel.kt` had an over-restrictive `10 * 60_000L` tolerance check that rejected sessions longer than 10 minutes when compared against sync zip times.
+    *   **The Solution**:
+        1. **Strict 4-Tier Authoritative Start Time Hierarchy**:
+           - Implemented across Python (`automate_pipeline.py`, `reprocess_sessions.py`, `build_unified_dataset.py`, `retroactive_bat_tagger.py`) and Kotlin (`PhoneSwingDetector.kt`, `DataSyncListenerService.kt`):
+             1. `session_config.json` -> `start_time_ms` (written by `BatSessionManager` when user taps Start).
+             2. `latest_timeline.txt` -> `SYSTEM_START: Ts=` (written by Wear OS `TrackerService` on foreground start).
+             3. Directory name regex (`session_YYYY-MM-DD_HH-mm-ss`).
+             4. Directory `mtime`.
+        2. **Pipeline Bat Mapping Alignment**:
+           - `automate_pipeline.py`: Resolves authoritative `session_start_ms`; computes `shot_wall_ms = session_start_ms + int(t_impact_s * 1000)` using `timestamp_offset_s` or `timestamp_ms`; accurately matches bat switches in chronological order.
+           - `pipelines/reprocess_sessions.py`: Passes through `bat_id` and `bat_name` from `ground_truth_aligned.csv`; resolves authoritative `session_start_ms` for raw fallback; supports relative offset switch matching.
+           - `pipelines/build_unified_dataset.py`: Adds fallback to `cfg['start_time_ms']` and clamps `sw_idx = max(0, int(sw_ms / grid_dt_ms))`.
+        3. **Android Client Fixes**:
+           - `PhoneSwingDetector.kt`: `parseSessionStartWallMs` prioritizes `session_config.json`; Session Ended marker records `currentBatId`.
+           - `DataSyncListenerService.kt`: Prioritizes `session_config.json` `start_time_ms`.
+           - `InningsViewModel.kt`: Expanded local retry matching tolerance from 10 minutes to 60 minutes.
+        4. **Batch Historical Data Rebuilding**:
+           - Restored bat switch mappings across all 65 historical `ground_truth_aligned.csv` files.
+           - Reprocessed SQLite database end-to-end to `scratch/cricket_tracker_database.db`.
+    *   **Verification & Ground-Truth Results**:
+        - Queried `scratch/cricket_tracker_database.db` for `session_2026-10-17_11-47-47` (`inningsId = 1792196639248`):
+          - **Shots 1–23**: Bat 2 ("Gray Nicholls Giant", 1625g)
+          - **Shots 24–46**: Bat 3 ("Eye in bat", 1200g)
+          - **Shots 47–70**: Bat 1 ("Game bat", 1425g)
+          - Exactly matches actual batting rounds and user narration!
+        - **Android & Wear Unit Tests**: 108/108 passed (`BUILD SUCCESSFUL in 10s`).
+        - **Python Unit Tests**: 8/8 passed in `test_ahrs_and_guard.py`.
+        - **Release Builds**: 16 KB page-aligned release APKs assembled (`:app:assembleRelease :wear:assembleRelease`).
+

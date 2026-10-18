@@ -65,6 +65,29 @@ DEFAULT_BAT_PROFILES = [BAT_SPECS[1], BAT_SPECS[2], BAT_SPECS[3]]
 
 
 def parse_session_start_ms(session_dir):
+    cfg_file = os.path.join(session_dir, "session_config.json")
+    if os.path.exists(cfg_file):
+        try:
+            with open(cfg_file, "r") as cf:
+                cfg = json.load(cf)
+                s_ms = cfg.get("start_time_ms")
+                if s_ms is not None and int(s_ms) > 1_000_000_000_000:
+                    return int(s_ms)
+        except Exception:
+            pass
+
+    timeline_file = os.path.join(session_dir, "latest_timeline.txt")
+    if os.path.exists(timeline_file):
+        try:
+            with open(timeline_file, "r") as tf:
+                for line in tf:
+                    if line.startswith("SYSTEM_START:"):
+                        m_ts = re.search(r"Ts=(\d+)", line)
+                        if m_ts:
+                            return int(m_ts.group(1))
+        except Exception:
+            pass
+
     name = os.path.basename(session_dir)
     m = re.match(r"session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", name)
     if m:

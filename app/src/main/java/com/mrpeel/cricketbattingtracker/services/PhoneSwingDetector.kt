@@ -681,14 +681,15 @@ object PhoneSwingDetector {
         // Write "Session Ended" marker
         val watchEndMs = watchAcc.last().timeNanos / 1_000_000L
         val sessionEndWallMs = watchStartWallMs + (watchEndMs - (watchStartSensorNs / 1_000_000L))
-        val endProfile = sessionConfig.batProfiles[sessionConfig.defaultBatId]
+        val lastBatId = finalShots.lastOrNull { it.bat_id != null }?.bat_id ?: sessionConfig.defaultBatId
+        val endProfile = sessionConfig.batProfiles[lastBatId]
         dao.insertEvent(InningsEvent(
             inningsId = inningsId,
             timestamp = sessionEndWallMs,
             description = "Session Ended",
             location = "Net Practice",
             polar_mount_mode = sessionConfig.polarMountMode,
-            bat_id = sessionConfig.defaultBatId,
+            bat_id = lastBatId,
             bat_name = endProfile?.name,
             bat_weight_grams = endProfile?.weightGrams,
             bat_sensor_offset_knob_cm = endProfile?.sensorOffsetFromKnobCm,
@@ -1778,6 +1779,18 @@ object PhoneSwingDetector {
     }
 
     private fun parseSessionStartWallMs(watchDir: File): Long {
+        val configFile = File(watchDir, "session_config.json").takeIf { it.exists() }
+            ?: File(File(watchDir, "PolarSense"), "session_config.json").takeIf { it.exists() }
+        if (configFile != null) {
+            try {
+                val json = org.json.JSONObject(configFile.readText())
+                val startMs = json.optLong("start_time_ms", 0L)
+                if (startMs > 1_000_000_000_000L) return startMs
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed parsing session_config.json for start_time_ms", e)
+            }
+        }
+
         val timelineFile = File(watchDir, "latest_timeline.txt")
         if (timelineFile.exists()) {
             try {

@@ -2558,6 +2558,34 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
         return (None, None, None, None)
 
     polar_detachment_s = cfg.get("polar_detachment_time_s") if os.path.exists(config_path) else None
+
+    # Resolve authoritative session start wall clock ms for switch timing
+    session_start_ms = None
+    if os.path.exists(config_path):
+        session_start_ms = cfg.get("start_time_ms")
+    if not session_start_ms:
+        timeline_path = os.path.join(session_dir, "latest_timeline.txt")
+        if os.path.exists(timeline_path):
+            try:
+                with open(timeline_path, "r") as tf:
+                    for line in tf:
+                        if line.startswith("SYSTEM_START:"):
+                            m_ts = re.search(r"Ts=(\d+)", line)
+                            if m_ts:
+                                session_start_ms = int(m_ts.group(1))
+                                break
+            except Exception:
+                pass
+    if not session_start_ms:
+        folder_name = os.path.basename(session_dir)
+        m_fn = re.match(r"session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", folder_name)
+        if m_fn:
+            parts = [int(x) for x in m_fn.groups()]
+            dt_fn = datetime.datetime(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
+            session_start_ms = int(dt_fn.timestamp() * 1000)
+        else:
+            session_start_ms = 0
+
     polar_mount_mode_list = []
     bat_id_list = []
     bat_name_list = []
@@ -2565,16 +2593,25 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     bat_knob_list = []
     bat_toe_list = []
     for idx, row in df_aligned.iterrows():
-        shot_wall_ms = row.get("impact_time_ms")
-        if not shot_wall_ms or pd.isna(shot_wall_ms):
-            shot_wall_ms = float(row.get("timestamp_seconds", 0.0)) * 1000.0
+        t_impact_s = row.get("impact_time_seconds")
+        if pd.isna(t_impact_s):
+            t_impact_s = row.get("sensor_narr_time_seconds")
+        if pd.isna(t_impact_s):
+            t_impact_s = row.get("audio_time_seconds", 0.0)
+        t_impact_s = float(t_impact_s) if pd.notna(t_impact_s) else 0.0
+
+        shot_wall_ms = (session_start_ms + int(t_impact_s * 1000.0)) if session_start_ms > 0 else int(t_impact_s * 1000.0)
         curr_bat = initial_bat_id
-        if bat_switches and shot_wall_ms:
-            for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_ms", 0)):
-                if sw.get("timestamp_ms", 0) <= shot_wall_ms:
+        if bat_switches:
+            for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_offset_s", 0) if "timestamp_offset_s" in x else x.get("timestamp_ms", 0)):
+                if "timestamp_offset_s" in sw:
+                    sw_time_ms = (session_start_ms + int(float(sw["timestamp_offset_s"]) * 1000.0)) if session_start_ms > 0 else int(float(sw["timestamp_offset_s"]) * 1000.0)
+                else:
+                    sw_time_ms = int(sw.get("timestamp_ms", 0))
+                if sw_time_ms <= shot_wall_ms:
                     curr_bat = int(sw.get("bat_id", curr_bat))
         
-        shot_impact_s = float(row.get("impact_time_seconds", row.get("timestamp_seconds", 0.0)))
+        shot_impact_s = float(row.get("impact_time_seconds", row.get("timestamp_seconds", t_impact_s)))
         is_detached = (polar_detachment_s is not None and shot_impact_s >= float(polar_detachment_s)) or (curr_bat == 0)
         mode = "NONE" if is_detached else polar_mount_mode
         polar_mount_mode_list.append(mode)
