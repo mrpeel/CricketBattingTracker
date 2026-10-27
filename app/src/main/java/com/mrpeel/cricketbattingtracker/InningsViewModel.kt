@@ -136,7 +136,9 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
             var tempPolarDir: java.io.File? = null
             try {
                 val watchRoot = getApplication<Application>().getExternalFilesDir("watch_sessions")
-                val watchItems = watchRoot?.listFiles()?.filter { it.name.startsWith("session_") } ?: emptyList()
+                val watchItems = watchRoot?.listFiles()?.filter {
+                    it.name.startsWith("session_") || it.name.startsWith("session-") || it.name.startsWith("temp_processing_")
+                } ?: emptyList()
                 
                 val timeline = dao.getTimelineForInningsListSync(inningsId)
                 val startEvent = timeline.firstOrNull { it.description == "Session Started" }
@@ -147,14 +149,8 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
                 
                 val startTimeMs = startEvent.timestamp
                 val targetItem = watchItems.minByOrNull { file ->
-                    try {
-                        val cleanName = file.name.substringBefore(".zip")
-                        val dirTimeStr = cleanName.substringAfter("session_")
-                        val dirTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(dirTimeStr)?.time ?: 0L
-                        kotlin.math.abs(dirTimeMs - startTimeMs)
-                    } catch (e: Exception) {
-                        Long.MAX_VALUE
-                    }
+                    val t = resolveItemStartTime(file)
+                    if (t > 0L) kotlin.math.abs(t - startTimeMs) else Long.MAX_VALUE
                 }
                 
                 if (targetItem == null || !targetItem.exists()) {
@@ -162,41 +158,28 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
                 
-                val cleanName = targetItem.name.substringBefore(".zip")
-                val dirTimeStr = cleanName.substringAfter("session_")
-                val dirTimeMs = try {
-                    java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(dirTimeStr)?.time ?: 0L
-                } catch (e: Exception) { 0L }
-                
-                if (kotlin.math.abs(dirTimeMs - startTimeMs) > 60 * 60_000L) {
+                val dirTimeMs = resolveItemStartTime(targetItem)
+                if (dirTimeMs == 0L || kotlin.math.abs(dirTimeMs - startTimeMs) > 60 * 60_000L) {
                     onResult(false, "No matching watch session found for this session's time.")
                     return@launch
                 }
                 
                 val polarRoot = getApplication<Application>().getExternalFilesDir("polar_sessions")
-                val polarItems = polarRoot?.listFiles()?.filter { it.name.startsWith("polar_session_") } ?: emptyList()
+                val polarItems = polarRoot?.listFiles()?.filter {
+                    it.name.startsWith("polar_session_") || it.name.startsWith("polar_session-") || it.name.startsWith("temp_sync_polar_") || it.name.startsWith("temp_retry_polar_")
+                } ?: emptyList()
                 val targetPolarItem = polarItems.minByOrNull { file ->
-                    try {
-                        val cleanPolar = file.name.substringBefore(".zip")
-                        val polarTimeStr = cleanPolar.substringAfter("polar_session_")
-                        val polarTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(polarTimeStr)?.time ?: 0L
-                        kotlin.math.abs(polarTimeMs - startTimeMs)
-                    } catch (e: Exception) {
-                        Long.MAX_VALUE
-                    }
+                    val t = resolvePolarItemStartTime(file)
+                    if (t > 0L) kotlin.math.abs(t - startTimeMs) else Long.MAX_VALUE
                 }
                 
                 val matchedPolarItem = targetPolarItem?.takeIf { file ->
-                    try {
-                        val cleanPolar = file.name.substringBefore(".zip")
-                        val polarTimeStr = cleanPolar.substringAfter("polar_session_")
-                        val polarTimeMs = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).parse(polarTimeStr)?.time ?: 0L
-                        kotlin.math.abs(polarTimeMs - startTimeMs) < 60 * 60_000L
-                    } catch (e: Exception) { false }
+                    val t = resolvePolarItemStartTime(file)
+                    t > 0L && kotlin.math.abs(t - startTimeMs) < 60 * 60_000L
                 }
                 
                 // Set up temporary directories for zip execution
-                val finalWatchDir = if (targetItem.isFile && targetItem.name.endsWith(".zip")) {
+                var finalWatchDir = if (targetItem.isFile && targetItem.name.endsWith(".zip")) {
                     val tempDir = java.io.File(watchRoot, "temp_retry_watch_${System.currentTimeMillis()}")
                     tempDir.mkdirs()
                     tempWatchDir = tempDir
@@ -204,6 +187,18 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
                     tempDir
                 } else {
                     targetItem
+                }
+
+                // Resolve possible nested directory inside finalWatchDir
+                val subdirs = finalWatchDir.listFiles()?.filter { it.isDirectory }
+                val candidateDir = subdirs?.firstOrNull { 
+                    java.io.File(it, "WatchAccelerometer.bin").exists() || 
+                    java.io.File(it, "WatchAccelerometer.bin.gz").exists() ||
+                    java.io.File(it, "WatchAccelerometer.csv").exists() ||
+                    java.io.File(it, "WatchAccelerometer.csv.gz").exists()
+                }
+                if (candidateDir != null) {
+                    finalWatchDir = candidateDir
                 }
                 
                 val finalPolarDir = matchedPolarItem?.let { file ->
@@ -252,6 +247,77 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
                 } catch (e: Exception) {}
             }
         }
+    }
+
+    private fun resolveItemStartTime(item: java.io.File): Long {
+        if (item.isDirectory) {
+            val cfg = java.io.File(item, "session_config.json")
+            if (cfg.exists()) {
+                try {
+                    val json = org.json.JSONObject(cfg.readText())
+                    val start = json.optLong("start_time_ms", 0L)
+                    if (start > 1_000_000_000_000L) return start
+                } catch (_: Exception) {}
+            }
+            val timeline = java.io.File(item, "latest_timeline.txt")
+            if (timeline.exists()) {
+                try {
+                    var sysStart: Long? = null
+                    timeline.forEachLine { line ->
+                        if (line.startsWith("SYSTEM_START:")) {
+                            val match = Regex("Ts=(\\d+)").find(line)
+                            if (match != null) {
+                                sysStart = match.groupValues[1].toLong()
+                            }
+                        }
+                    }
+                    if (sysStart != null) return sysStart!!
+                } catch (_: Exception) {}
+            }
+        }
+        val cleanName = item.name.substringBefore(".zip")
+        val dateRegex = Regex("(\\d{4})-(\\d{2})-(\\d{2})_(\\d{2})[-_](\\d{2})[-_](\\d{2})")
+        val match = dateRegex.find(cleanName)
+        if (match != null) {
+            try {
+                val (year, month, day, hour, min, sec) = match.destructured
+                val cal = java.util.Calendar.getInstance()
+                cal.set(year.toInt(), month.toInt() - 1, day.toInt(), hour.toInt(), min.toInt(), sec.toInt())
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                return cal.timeInMillis
+            } catch (_: Exception) {}
+        }
+        return 0L
+    }
+
+    private fun resolvePolarItemStartTime(item: java.io.File): Long {
+        if (item.isDirectory) {
+            val cfg = java.io.File(item, "session_config.json")
+            if (cfg.exists()) {
+                try {
+                    val json = org.json.JSONObject(cfg.readText())
+                    val start = json.optLong("start_time_ms", 0L)
+                    if (start > 1_000_000_000_000L) return start
+                } catch (_: Exception) {}
+            }
+            if (item.name.startsWith("temp_sync_polar_") || item.name.startsWith("temp_retry_polar_")) {
+                val ts = item.name.substringAfterLast("_").toLongOrNull()
+                if (ts != null && ts > 1_000_000_000_000L) return ts
+            }
+        }
+        val cleanName = item.name.substringBefore(".zip")
+        val dateRegex = Regex("(\\d{4})-(\\d{2})-(\\d{2})_(\\d{2})[-_](\\d{2})[-_](\\d{2})")
+        val match = dateRegex.find(cleanName)
+        if (match != null) {
+            try {
+                val (year, month, day, hour, min, sec) = match.destructured
+                val cal = java.util.Calendar.getInstance()
+                cal.set(year.toInt(), month.toInt() - 1, day.toInt(), hour.toInt(), min.toInt(), sec.toInt())
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                return cal.timeInMillis
+            } catch (_: Exception) {}
+        }
+        return 0L
     }
 
     private fun unzip(zipFile: java.io.File, targetDirectory: java.io.File) {

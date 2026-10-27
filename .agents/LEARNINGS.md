@@ -458,3 +458,19 @@ This document captures resolved bugs, architectural changes, key logical finding
         - **Python Unit Tests**: 8/8 passed in `test_ahrs_and_guard.py`.
         - **Release Builds**: 16 KB page-aligned release APKs assembled (`:app:assembleRelease :wear:assembleRelease`).
 
+### Learning 205: Phone Pipeline Desync & Recovery Trap for Historical Sessions (B-112)
+*   **The Problem**:
+    *   The phone app was permanently stuck on `"Retrieving and processing raw sensor data from watch..."` when attempting to view yesterday's (`session_2026-10-26_12-57-14`) and today's (`session_2026-10-27_12-44-30`) sessions after app deployment.
+*   **The Root Cause**:
+    1. **Phone Database State**: When the watch synced the session at the nets, `DataSyncListenerService` inserted a single placeholder row (`"Session Started"`).
+    2. **Mac Automation Deletion**: The user ran `./automate_pipeline.py` on their Mac, which pulled `session_*.zip` off the phone and deleted the zip from the phone's storage to free space. However, `automate_pipeline.py` did not run `reprocess_sessions.py` to push the processed ground-truth shots back to the phone database.
+    3. **UI Indefinite Spinner Trap**: `MainActivity.kt` computed `isProcessing = !hasShots && !hasEnded && !isProcessed`. Because the database had only `"Session Started"`, `isProcessing` was permanently `true`. The UI rendered a spinner without executing any background task.
+    4. **Recovery Card Timer Reset**: `MainActivity.kt` guarded the recovery card with `val elapsedMinutes = (System.currentTimeMillis() - syncStartedAtMs) / 60_000L` where `syncStartedAtMs` was `remember(selectedSessionId) { System.currentTimeMillis() }`. Exiting and re-entering the screen reset `elapsedMinutes` to 0, trapping the user.
+    5. **Retry Matching Defect**: When "Retry Sync" was called, `InningsViewModel.kt` filtered `watch_sessions` strictly using `it.name.startsWith("session_")` and parsed date strings from the filename. It could not match uncompressed `temp_processing_*` directories or `temp_sync_polar_<epoch_ms>` directories left on disk.
+*   **The Solution**:
+    1. **Reprocess & Restore Phone Database**: Ran `reprocess_sessions.py` to populate yesterday's (63 shots, 65 events) and today's (71 shots, 73 events) full batting sessions into Room SQLite.
+    2. **Robust Multi-Source Retry Processing**: Updated `InningsViewModel.kt` `retryLocalProcessing` to discover `session_*`, `session-*`, and `temp_processing_*` in `watch_sessions`, resolving timestamps from `session_config.json`, `latest_timeline.txt`, or filename regex, and matched Polar items (`polar_session_*`, `temp_sync_polar_*`).
+    3. **Immediate Recovery for Old Sessions**: Updated `MainActivity.kt` to check `isOldSession = sessionStartTimestamp > 0 && (System.currentTimeMillis() - sessionStartTimestamp > 10 * 60_000L)`. For sessions recorded earlier, the recovery options appear immediately.
+    4. **Pipeline Auto-Sync**: Updated `automate_pipeline.py` to automatically execute `reprocess_sessions.py` to restore the phone database whenever a phone is connected.
+    5. **Verification**: Verified 108/108 Android unit tests pass, release APK assembled with 16 KB page alignment, deployed to physical phone (`59011FDCR000R5`), and confirmed both sessions display full shots, 3D AHRS angles, and session markers.
+

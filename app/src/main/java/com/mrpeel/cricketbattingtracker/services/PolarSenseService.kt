@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
+import com.mrpeel.cricketbattingtracker.coaching.CoachingMode
+import com.mrpeel.cricketbattingtracker.coaching.LiveCoachingTtsManager
+import com.mrpeel.cricketbattingtracker.coaching.LiveKinematicCoach
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -36,6 +39,10 @@ class PolarSenseService : Service() {
     private var magStream: BufferedOutputStream? = null
     private var sessionDir: File? = null
     private var sessionStartTimeMs: Long = 0L
+
+    // Real-time In-Ear Kinematic Coaching
+    private var liveTtsManager: LiveCoachingTtsManager? = null
+    private var liveCoach: LiveKinematicCoach? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -90,9 +97,31 @@ class PolarSenseService : Service() {
         val magFile = File(dir, "PolarMagnetometer.bin")
         magStream = BufferedOutputStream(FileOutputStream(magFile))
 
+        // Initialize Live Coaching if enabled in preferences
+        val prefs = getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+        val coachingEnabled = prefs.getBoolean("live_tts_coaching_enabled", false)
+        val coachingModeStr = prefs.getString("live_tts_coaching_mode", CoachingMode.STAGE_1_CALIBRATION.name)
+        val coachingMode = CoachingMode.fromPreference(coachingModeStr)
+
+        if (coachingEnabled) {
+            val earconPlayer = com.mrpeel.cricketbattingtracker.coaching.EarconAudioPlayer(isEnabled = true)
+            val tts = LiveCoachingTtsManager(this, earconPlayer).apply {
+                this.coachingMode = coachingMode
+                this.isEnabled = true
+            }
+            liveTtsManager = tts
+            liveCoach = LiveKinematicCoach(tts)
+            Log.i(TAG, "Live In-Ear Coaching initialized in mode: ${coachingMode.displayName}")
+        } else {
+            liveTtsManager?.shutdown()
+            liveTtsManager = null
+            liveCoach = null
+        }
+
         // Wire up callbacks from PolarSenseManager with dedicated buffers to prevent concurrent thread corruption
         val accBuffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
         PolarSenseManager.onAccSample = { phoneMs, sensorNs, x, y, z ->
+            liveCoach?.processAccSample(phoneMs, sensorNs, x.toFloat(), y.toFloat(), z.toFloat())
             try {
                 synchronized(accBuffer) {
                     accBuffer.clear()
@@ -110,6 +139,7 @@ class PolarSenseService : Service() {
 
         val gyroBuffer = ByteBuffer.allocate(28).order(ByteOrder.LITTLE_ENDIAN)
         PolarSenseManager.onGyroSample = { phoneMs, sensorNs, x, y, z ->
+            liveCoach?.processGyroSample(phoneMs, sensorNs, x, y, z)
             try {
                 synchronized(gyroBuffer) {
                     gyroBuffer.clear()
@@ -149,6 +179,10 @@ class PolarSenseService : Service() {
         PolarSenseManager.onAccSample = null
         PolarSenseManager.onGyroSample = null
         PolarSenseManager.onMagSample = null
+
+        liveTtsManager?.shutdown()
+        liveTtsManager = null
+        liveCoach = null
 
         try {
             accStream?.flush()

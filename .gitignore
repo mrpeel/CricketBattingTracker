@@ -30,6 +30,7 @@ __pycache__/
 # Large model and cache binaries
 *.pkl
 *.task
+*candidate_windows.pt
 
 # Python Virtual Environments
 venv/

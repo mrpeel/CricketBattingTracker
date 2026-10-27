@@ -93,6 +93,18 @@ fun InsightsDashboardScreen(
                     onStartSession = onStartDualSensorSession
                 )
             }
+
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                SectionHeader(
+                    title = "IN-EAR COACHING PLAYBOOK",
+                    subtitle = "ACOUSTIC EARCONS & 2-SYLLABLE TECHNICAL MOTOR FIXES"
+                )
+            }
+
+            item {
+                BiomechanicalCoachingPlaybookCard()
+            }
         } else {
             // ── Section 1: Shot Class Deep Dive (FIRST) ──
             item {
@@ -156,6 +168,19 @@ fun InsightsDashboardScreen(
                         insufficientClasses = aggregation.insufficientDataClasses
                     )
                 }
+            }
+
+            // ── Section 3: In-Ear Biomechanical Coaching Playbook & Acoustic Guide ──
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                SectionHeader(
+                    title = "IN-EAR COACHING PLAYBOOK",
+                    subtitle = "ACOUSTIC EARCONS & 2-SYLLABLE TECHNICAL MOTOR FIXES"
+                )
+            }
+
+            item {
+                BiomechanicalCoachingPlaybookCard()
             }
         }
     }
@@ -418,18 +443,18 @@ fun ShotClassDeepDiveCard(profile: ShotClassStatisticalProfile) {
                 ) {
                     KpiMetricTile(
                         modifier = Modifier.weight(1f),
-                        title = "80P EFFICIENCY",
+                        title = "80P TIMING",
                         value = "${profile.efficiencyP80.roundToInt()}%",
                         unit = "",
-                        subtitle = "Impact quality",
+                        subtitle = "Swing continuity",
                         valueColor = Color(0xFFBCD2FE)
                     )
                     KpiMetricTile(
                         modifier = Modifier.weight(1f),
-                        title = "AVG EFFICIENCY",
+                        title = "AVG TIMING",
                         value = "${profile.efficiencyMean.roundToInt()}%",
                         unit = "",
-                        subtitle = "Mean contact",
+                        subtitle = "Velocity retention",
                         valueColor = Color(0xFFBCD2FE)
                     )
                 }
@@ -651,7 +676,7 @@ fun CalibratingClassCard(
                 letterSpacing = 1.sp
             )
             Text(
-                "Log ${5 - count} more $shotClass shots to unlock full speed, efficiency, and kinematic distribution analysis.",
+                "Log ${5 - count} more $shotClass shots to unlock full speed, swing timing, and kinematic distribution analysis.",
                 fontSize = 11.sp,
                 color = Color(0xFFBCD2FE).copy(alpha = 0.8f),
                 textAlign = TextAlign.Center,

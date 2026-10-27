@@ -341,8 +341,9 @@ def train_classifiers():
     df_quality = df_swings[df_swings['quality'].notna() & (df_swings['quality'] != '')].copy()
     def clean_quality(q):
         val = str(q).lower().strip()
+        if 'edge' in val or 'snick' in val or 'nick' in val: return 'edge'
         if 'good' in val or 'excellent' in val or 'okay' in val: return 'good'
-        if 'poor' in val or 'edge' in val: return 'poor'
+        if 'poor' in val or 'bad' in val: return 'poor'
         if 'miss' in val or 'non' in val: return 'miss'
         return 'good'
     df_quality['quality_norm'] = df_quality['quality'].apply(clean_quality)

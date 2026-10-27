@@ -846,7 +846,9 @@ def process_and_format_events(shot_events):
         quality = "good"
         if any(q in text_lower for q in ["excellent", "perfect", "nailed", "smoked"]):
             quality = "excellent"
-        elif any(q in text_lower for q in ["poor", "bad", "edge", "edged"]):
+        elif any(q in text_lower for q in ["edge", "edged", "nicked", "snick", "edges"]):
+            quality = "edge"
+        elif any(q in text_lower for q in ["poor", "bad"]):
             quality = "poor"
         elif any(q in text_lower for q in ["miss", "missed", "beaten"]):
             quality = "miss"
@@ -2770,6 +2772,16 @@ def compare_with_timeline(timeline_path, df_aligned, start_time_ms):
     
     # Losslessly compress all raw Watch*.csv files to Watch*.csv.gz and delete original CSVs
     compress_session_csvs(session_dir)
+
+    # Automatically reprocess and push updated session database to connected phone
+    if phone_id:
+        print("\n📱 Automatically syncing phone database with new session ground truth...")
+        reprocess_script = os.path.join(ROOT_DIR, "pipelines", "reprocess_sessions.py")
+        if os.path.exists(reprocess_script):
+            try:
+                subprocess.run([sys.executable, reprocess_script], check=False)
+            except Exception as e:
+                print(f"⚠️ Failed to auto-sync phone database: {e}")
 
 if __name__ == "__main__":
     main()

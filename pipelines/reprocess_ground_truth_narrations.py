@@ -100,7 +100,9 @@ def parse_utterance_positional(text):
     quality = "good"
     if any(q in text_lower for q in ["excellent", "perfect", "nailed", "smoked"]):
         quality = "excellent"
-    elif any(q in text_lower for q in ["poor", "bad", "edge", "edged"]):
+    elif any(q in text_lower for q in ["edge", "edged", "nicked", "snick", "edges"]):
+        quality = "edge"
+    elif any(q in text_lower for q in ["poor", "bad"]):
         quality = "poor"
     elif any(q in text_lower for q in ["miss", "missed", "beaten"]):
         quality = "miss"

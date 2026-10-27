@@ -34,6 +34,7 @@ import com.mrpeel.cricketbattingtracker.services.BatProfile
 import com.mrpeel.cricketbattingtracker.services.BatSessionManager
 import com.mrpeel.cricketbattingtracker.ui.biomechanics.BiomechanicalUiMapper
 import com.mrpeel.cricketbattingtracker.ui.insights.InsightsDashboardScreen
+import com.mrpeel.cricketbattingtracker.coaching.CoachingMode
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.lifecycle.lifecycleScope
@@ -454,6 +455,24 @@ class MainActivity : ComponentActivity() {
                             )
                             Box(modifier = Modifier.weight(1f)) {
                                 if (isProcessing) {
+                                    var autoStatusMsg by remember(selectedSessionId) { mutableStateOf("") }
+                                    var isAutoRecovering by remember(selectedSessionId) { mutableStateOf(false) }
+
+                                    LaunchedEffect(selectedSessionId) {
+                                        selectedSessionId?.let { id ->
+                                            isAutoRecovering = true
+                                            autoStatusMsg = "Checking phone storage for raw session data..."
+                                            viewModel.retryLocalProcessing(id) { success, msg ->
+                                                isAutoRecovering = false
+                                                if (success) {
+                                                    processedByRecovery = true
+                                                } else {
+                                                    autoStatusMsg = msg
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
@@ -466,21 +485,22 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             CircularProgressIndicator(color = Color(0xFF58FF63))
                                             Text(
-                                                text = "Retrieving and processing raw sensor data from watch...",
+                                                text = if (isAutoRecovering) "Processing raw sensor data..." else "Retrieving and processing raw sensor data from watch...",
                                                 color = Color.White.copy(alpha = 0.8f),
                                                 fontSize = 14.sp,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
                                             Text(
-                                                text = "This will take about 1-2 minutes. Please keep your watch close.",
-                                                color = Color.Gray,
+                                                text = if (autoStatusMsg.isNotEmpty()) autoStatusMsg else "This will take about 1-2 minutes. Please keep your watch close.",
+                                                color = if (autoStatusMsg.isNotEmpty()) Color(0xFF58FF63) else Color.Gray,
                                                 fontSize = 11.sp,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
 
                                             val syncStartedAtMs = remember(selectedSessionId) { System.currentTimeMillis() }
                                             val elapsedMinutes = (System.currentTimeMillis() - syncStartedAtMs) / 60_000L
-                                            if (elapsedMinutes >= 5) {
+                                            val isOldSession = sessionStartTimestamp > 0L && (System.currentTimeMillis() - sessionStartTimestamp > 5 * 60_000L)
+                                            if (elapsedMinutes >= 1 || isOldSession) {
                                                 Spacer(modifier = Modifier.height(24.dp))
                                                 Card(
                                                     colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
@@ -499,7 +519,11 @@ class MainActivity : ComponentActivity() {
                                                             fontWeight = FontWeight.Bold
                                                         )
                                                         Text(
-                                                            text = "This session has been pending for over $elapsedMinutes minutes. If the sync failed, you can choose one of these recovery actions:",
+                                                            text = if (isOldSession) {
+                                                                "This session was recorded earlier and raw data processing did not finish automatically. If raw files are on the phone, you can retry processing:"
+                                                            } else {
+                                                                "This session has been pending for over $elapsedMinutes minutes. If the sync failed, you can choose one of these recovery actions:"
+                                                            },
                                                             color = Color.LightGray,
                                                             fontSize = 11.sp,
                                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -508,9 +532,10 @@ class MainActivity : ComponentActivity() {
                                                         var statusMsg by remember { mutableStateOf("") }
                                                         var isRecovering by remember { mutableStateOf(false) }
                                                         
-                                                        if (statusMsg.isNotEmpty()) {
+                                                        val displayMsg = statusMsg.ifEmpty { autoStatusMsg }
+                                                        if (displayMsg.isNotEmpty()) {
                                                             Text(
-                                                                text = statusMsg,
+                                                                text = displayMsg,
                                                                 color = Color(0xFF58FF63),
                                                                 fontSize = 11.sp,
                                                                 fontWeight = FontWeight.Medium,
@@ -985,7 +1010,7 @@ fun DashboardSummary(
                 modifier = Modifier.weight(1f)
             )
             SummaryCard(
-                title = "MAX EFFICIENCY",
+                title = "PEAK TIMING",
                 value = "${maxEfficiency.toInt()}%",
                 subtext = if (maxEffShotNumber != null) "#$maxEffShotNumber $maxEffShotType" else "N/A",
                 onClick = { maxEffEvent?.let { onNavigateToShot(it) } },
@@ -1004,7 +1029,7 @@ fun DashboardSummary(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             SummaryCard(
-                title = "AVG EFFICIENCY",
+                title = "AVG TIMING",
                 value = "${avgEfficiency.toInt()}%",
                 subtext = "Session Average",
                 onClick = null,
@@ -1264,9 +1289,9 @@ fun ShotTypeSummary(events: List<InningsEvent>) {
                             modifier = Modifier.weight(0.85f)
                         )
 
-                        // EFF Column
+                        // TIMING Column
                         ShotTypeMetricCol(
-                            title = "EFF",
+                            title = "TIMING",
                             largeVal = "${maxEff.toInt()}",
                             smallVal = "${avgEff.toInt()}",
                             modifier = Modifier.weight(0.75f)
@@ -1543,7 +1568,7 @@ fun DashboardScreen(
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("${bestSession.avgEfficiency.toInt()}%", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF58FF63))
-                                Text("EFF", fontSize = 8.sp, color = Color.Gray, letterSpacing = 1.sp)
+                                Text("TIMING", fontSize = 8.sp, color = Color.Gray, letterSpacing = 1.sp)
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("${bestSession.totalShots}", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF58FF63))
@@ -1634,6 +1659,11 @@ fun RecordScreen(
 ) {
     val prefs = remember { context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE) }
     var audioEnabled by remember { mutableStateOf(prefs.getBoolean("audio_narration_enabled", true)) }
+    var liveCoachingEnabled by remember { mutableStateOf(prefs.getBoolean("live_tts_coaching_enabled", false)) }
+    var liveCoachingMode by remember {
+        val modeStr = prefs.getString("live_tts_coaching_mode", CoachingMode.STAGE_1_CALIBRATION.name)
+        mutableStateOf(CoachingMode.fromPreference(modeStr))
+    }
     var polarEnabled by remember { mutableStateOf(prefs.getBoolean("bottom_hand_sensor_enabled", false)) }
     var videoEnabled by remember { mutableStateOf(prefs.getBoolean("record_video_enabled", false)) }
 
@@ -1729,6 +1759,16 @@ fun RecordScreen(
             onAudioToggle = {
                 audioEnabled = it
                 prefs.edit().putBoolean("audio_narration_enabled", it).apply()
+            },
+            liveCoachingEnabled = liveCoachingEnabled,
+            onLiveCoachingToggle = {
+                liveCoachingEnabled = it
+                prefs.edit().putBoolean("live_tts_coaching_enabled", it).apply()
+            },
+            liveCoachingMode = liveCoachingMode,
+            onLiveCoachingModeChange = {
+                liveCoachingMode = it
+                prefs.edit().putString("live_tts_coaching_mode", it.name).apply()
             },
             polarEnabled = polarEnabled,
             onPolarToggle = {
@@ -2049,7 +2089,7 @@ fun SessionHistoryCard(session: SessionHistoryItem, onClick: () -> Unit) {
                         Text("${session.maxSpeed.toInt()} km/h", fontSize = 12.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                     }
                     Column {
-                        Text("AVG EFF", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Text("AVG TIMING", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                         Text("${session.avgEfficiency.toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                     }
                     Column {
@@ -2278,7 +2318,7 @@ fun TimelineItem(
                     ) {
                         MetricSmallCompact("SPEED", "${event.batSpeed.toInt()} km/h", modifier = Modifier.weight(0.8f))
                         if (event.efficiency != null) {
-                            MetricSmallCompact("EFF", "${event.efficiency.toInt()}%", modifier = Modifier.weight(0.5f))
+                            MetricSmallCompact("TIMING", "${event.efficiency.toInt()}%", modifier = Modifier.weight(0.6f))
                         }
                         if (event.impactTimeMs != null) {
                             MetricSmallCompact("REACT", "${event.impactTimeMs} ms", modifier = Modifier.weight(0.8f))
@@ -2816,6 +2856,10 @@ fun UnifiedConsoleCard(
     sessionActive: Boolean,
     audioEnabled: Boolean,
     onAudioToggle: (Boolean) -> Unit,
+    liveCoachingEnabled: Boolean,
+    onLiveCoachingToggle: (Boolean) -> Unit,
+    liveCoachingMode: CoachingMode,
+    onLiveCoachingModeChange: (CoachingMode) -> Unit,
     polarEnabled: Boolean,
     onPolarToggle: (Boolean) -> Unit,
     videoEnabled: Boolean,
@@ -2913,8 +2957,11 @@ fun UnifiedConsoleCard(
                     val type = device.type
                     type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
                     type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                    type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
-                }
+                    type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                    type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+                } || android.os.Build.HARDWARE.contains("ranchu") || android.os.Build.HARDWARE.contains("goldfish")
 
                 // If not connected, force audio narration option off
                 val isAudioAvailable = isBluetoothHeadphonesConnected
@@ -2962,6 +3009,107 @@ fun UnifiedConsoleCard(
                                 disabledUncheckedThumbColor = Color.Gray.copy(alpha = 0.3f)
                             )
                         )
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                    // In-Ear Live Coaching toggle
+                    val finalCoachingEnabled = liveCoachingEnabled && isAudioAvailable
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "🎧",
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(end = 12.dp),
+                                color = if (isAudioAvailable) Color.Unspecified else Color.Gray.copy(alpha = 0.5f)
+                            )
+                            Column {
+                                Text(
+                                    "In-Ear Live Coaching",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isAudioAvailable) Color.White else Color.Gray.copy(alpha = 0.5f)
+                                )
+                                Text(
+                                    if (isAudioAvailable) "Real-time diagnostic audio cues on contact" else "Requires Bluetooth Headphones",
+                                    fontSize = 10.sp,
+                                    color = if (isAudioAvailable) Color.Gray else Color.Gray.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = finalCoachingEnabled,
+                            onCheckedChange = { onLiveCoachingToggle(it) },
+                            enabled = isAudioAvailable,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                disabledCheckedThumbColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                disabledUncheckedThumbColor = Color.Gray.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    if (finalCoachingEnabled) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 32.dp, top = 2.dp, bottom = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "COACHING MODE",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary,
+                                letterSpacing = 1.sp
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CoachingMode.values().forEach { mode ->
+                                    val isSelected = liveCoachingMode == mode
+                                    Surface(
+                                        onClick = { onLiveCoachingModeChange(mode) },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f)
+                                        )
+                                    ) {
+                                        val shortLabel = when (mode) {
+                                            CoachingMode.STAGE_1_CALIBRATION -> "STAGE 1"
+                                            CoachingMode.STAGE_2_FLOW_STATE -> "STAGE 2"
+                                            CoachingMode.STAGE_3_SILENT_DIAGNOSTIC -> "STAGE 3"
+                                        }
+                                        Text(
+                                            text = shortLabel,
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = "${liveCoachingMode.displayName}: ${liveCoachingMode.shortDescription}",
+                                fontSize = 9.sp,
+                                color = Color.Gray
+                            )
+                        }
                     }
 
                     HorizontalDivider(color = Color.White.copy(alpha = 0.05f))

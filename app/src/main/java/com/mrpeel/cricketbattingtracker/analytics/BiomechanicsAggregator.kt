@@ -376,7 +376,7 @@ object BiomechanicsAggregator {
                 if (medianGyro <= 0.75f) {
                     String.format(
                         Locale.US,
-                        "Top-hand dominant steering (%.2fx wrist ratio) with high downswing consistency. Produces grounded wagon-wheel placement with %d km/h 80th-percentile bat speed and %d%% efficiency.",
+                        "Top-hand dominant steering (%.2fx wrist ratio) with high downswing consistency. Produces grounded wagon-wheel placement with %d km/h 80th-percentile bat speed and %d%% swing continuity.",
                         medianGyro, batSpeedP80.roundToInt(), efficiencyP80.roundToInt()
                     )
                 } else {
@@ -405,14 +405,14 @@ object BiomechanicsAggregator {
             "CUT/PUNCH" -> {
                 String.format(
                     Locale.US,
-                    "Square blade presentation with balanced force ratio (%.2fx). Delivers %d km/h 80th-percentile speed and %d%% efficiency across lateral back-foot punches.",
+                    "Square blade presentation with balanced force ratio (%.2fx). Delivers %d km/h 80th-percentile speed and %d%% swing continuity across lateral back-foot punches.",
                     medianAcc, batSpeedP80.roundToInt(), efficiencyP80.roundToInt()
                 )
             }
             "GLANCE/FLICK" -> {
                 String.format(
                     Locale.US,
-                    "Snappy wrist roll with %d km/h 80th-percentile bat speed and %d%% efficiency across pad-line deflections.",
+                    "Snappy wrist roll with %d km/h 80th-percentile bat speed and %d%% swing continuity across pad-line deflections.",
                     batSpeedP80.roundToInt(), efficiencyP80.roundToInt()
                 )
             }
@@ -426,7 +426,7 @@ object BiomechanicsAggregator {
             "POWER DRIVE" -> {
                 String.format(
                     Locale.US,
-                    "Aggressive two-hand acceleration delivering %d km/h peak bat speed with %d%% 80th-percentile contact efficiency.",
+                    "Aggressive two-hand acceleration delivering %d km/h peak bat speed with %d%% 80th-percentile swing continuity.",
                     batSpeedP80.roundToInt(), efficiencyP80.roundToInt()
                 )
             }
