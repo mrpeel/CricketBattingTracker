@@ -1,5 +1,8 @@
 # Batting Dual-Hand Biomechanics & TCN Classification Pipeline
 
+> **📌 Looking for Live Audio Cues, Earcons, Biomechanical Flaws & Coaching Notes?**
+> See the authoritative, up-to-date reference: **[docs/biomechanical_coaching_reference.md](file:///Users/neilkloot/Code/CricketBattingTracker/docs/biomechanical_coaching_reference.md)**.
+
 This document details the biomechanical classification categories, dual-sensor high-frequency feature representations, architectural routing for variable data scenarios, and the offline deep learning processing pipeline implemented within the Pitch Analytix Pro companion phone application.
 
 ---

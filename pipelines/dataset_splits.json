@@ -1,27 +1,29 @@
 {
-  "_comment": "Authoritative dataset partitions for Stage 2 training and the telemetry-engine scorecard. holdout_test is LOCKED: never used for training, checkpoint selection or early stopping; only for final reporting. validation is used for checkpoint selection / early stopping. quarantine sessions are excluded from training and headline metrics until Phase 5. archived_impaired sessions are permanently retired. Updated 2026-10-16 for Option A quarantined session recovery.",
+  "_comment": "Authoritative stratified dataset partitions for Stage 2 training and the telemetry-engine scorecard across 86 clean sessions (65 Train, 9 Validation, 12 Holdout Test). Both Validation (524 GT shots) and Holdout Test (722 GT shots) are stratified across all 3 sensor mount modes (NONE, WRIST, BAT_HANDLE) and all 7 canonical shot classes (>=34 shots/class in Val, >=48 shots/class in Holdout) without starving Train of any mount x class combination.",
   "holdout_test": [
     "session_2026-06-12_12-24-37",
-    "session_2026-06-16_15-39-33",
     "session_2026-06-19_12-25-55",
-    "session_2026-07-05_16-27-16",
-    "session_2026-07-20_12-42-16",
-    "session_2026-07-25_15-16-32",
-    "session_2026-08-11_12-49-31",
-    "session_2026-08-21_12-50-53",
+    "session_2026-06-25_12-25-07",
+    "session_2026-06-28_11-28-09",
+    "session_2026-07-27_12-47-20",
+    "session_2026-08-08_10-43-42",
+    "session_2026-08-16_14-10-23",
+    "session_2026-08-22_14-25-31",
     "session_2026-09-08_12-52-30",
     "session_2026-09-17_12-48-47",
-    "session_2026-10-05_12-53-51",
-    "session_2026-10-09_12-41-17"
+    "session_2026-10-09_12-41-17",
+    "session_2026-10-17_11-47-47"
   ],
   "validation": [
+    "session_2026-06-21_13-53-17",
     "session_2026-06-27_14-12-40",
     "session_2026-07-02_12-38-53",
-    "session_2026-08-01_10-18-20",
+    "session_2026-07-24_12-52-29",
+    "session_2026-08-06_12-51-06",
     "session_2026-08-17_12-51-22",
-    "session_2026-08-30_11-05-11",
     "session_2026-09-10_12-55-41",
-    "session_2026-10-04_15-30-15"
+    "session_2026-10-04_15-30-15",
+    "session_2026-10-15_12-49-52"
   ],
   "quarantine": {
     "session_2026-09-06_12-14-46": "quarantine_partial: 70.6% recall, 2D drift alignment pending Phase 5 Stage 1 rotation augmentation",

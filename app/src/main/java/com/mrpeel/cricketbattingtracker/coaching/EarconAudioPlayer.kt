@@ -91,50 +91,38 @@ class EarconAudioPlayer(private val isEnabled: Boolean = true) {
      */
     private fun generatePcmForFault(fault: LiveShotFault): ByteArray {
         return when (fault) {
-            // ── Family A: Upward Loop / Scoop ──
-            LiveShotFault.PULL_SKIED -> {
-                // Fast Rising Whistle (400 Hz -> 1200 Hz sine sweep over 220 ms)
-                generateSineSweep(400.0, 1200.0, 0.220)
+            // ── Family A: Downswing Timing & Continuity ──
+            LiveShotFault.EARLY_PEAK_DECELERATION -> {
+                // Tape-Stop / Power-Down Drop (600 Hz -> 150 Hz rapid pitch & volume drop, 200 ms)
+                generateTapeStopDrop(600.0, 150.0, 0.200)
             }
-            LiveShotFault.DRIVE_SCOOP -> {
-                // Two-Step Rising Blip (350 Hz -> 900 Hz square jump, 180 ms)
-                generateStepJump(350.0, 900.0, 0.180, isSquare = true)
-            }
-            LiveShotFault.PUNCH_SCOOP -> {
-                // Inverted "U" Pitch Bend (700 Hz -> 350 Hz -> 800 Hz, 240 ms)
-                generateInvertedUBend(700.0, 350.0, 800.0, 0.240)
-            }
-
-            // ── Family B: Reaching / Hard Hands ──
-            LiveShotFault.DEFENSE_HARD_HANDS -> {
+            LiveShotFault.STALLED_REACH_PUSH -> {
                 // Dry Woodblock Double-Rap (800 Hz filtered noise burst, 40ms gap, 120ms total)
                 generateDoubleRapWoodblock(800.0, 0.120)
             }
-            LiveShotFault.GLIDE_PUSHED -> {
-                // Springy Forward "Boing/Push" (300 Hz -> 480 Hz resonant filter sweep, 180 ms)
-                generateResonantBoing(300.0, 480.0, 0.180)
-            }
 
-            // ── Family C: Early Roll / Slicing Across ──
-            LiveShotFault.CUT_OVERHIT -> {
-                // Brassy High-to-Low "Crack" (1400 Hz -> 500 Hz sawtooth drop with fast decay, 180 ms)
-                generateSawtoothDrop(1400.0, 500.0, 0.180)
+            // ── Family B: 3D Swing Plane Stability ──
+            LiveShotFault.MID_SWING_PLANE_LOOP -> {
+                // Inverted "U" Pitch Bend (700 Hz -> 350 Hz -> 800 Hz, 240 ms)
+                generateInvertedUBend(700.0, 350.0, 800.0, 0.240)
             }
-            LiveShotFault.FLICK_LEADING_EDGE -> {
-                // Tight Dissonant Minor-Second Buzz (500 Hz + 530 Hz dual tone, 200 ms)
-                generateDualToneBuzz(500.0, 530.0, 0.200)
-            }
-            LiveShotFault.DRIVE_SLICE -> {
+            LiveShotFault.OUT_OF_PLANE_WIPE -> {
                 // Metallic Scrape / High-Q Bandpass Sweep (2200 Hz -> 700 Hz noise sweep, 200 ms)
                 generateMetallicScrape(2200.0, 700.0, 0.200)
             }
 
-            // ── Family D: Momentum / Shape Collapse ──
-            LiveShotFault.PULL_CHOKED -> {
-                // Tape-Stop / Power-Down Drop (600 Hz -> 150 Hz rapid pitch & volume drop, 200 ms)
-                generateTapeStopDrop(600.0, 150.0, 0.200)
+            // ── Family C: Impact Wrist & Face Control ──
+            LiveShotFault.LATE_WRIST_RESCUE -> {
+                // Tight Dissonant Minor-Second Buzz (500 Hz + 530 Hz dual tone, 200 ms)
+                generateDualToneBuzz(500.0, 530.0, 0.200)
             }
-            LiveShotFault.POWER_DRIVE_OVERSWING -> {
+            LiveShotFault.IMPACT_FACE_TWIST -> {
+                // Brassy High-to-Low "Crack" (1400 Hz -> 500 Hz sawtooth drop with fast decay, 180 ms)
+                generateSawtoothDrop(1400.0, 500.0, 0.180)
+            }
+
+            // ── Family D: Tempo & Balance Envelope ──
+            LiveShotFault.OVERSWING_LOSS_OF_SHAPE -> {
                 // Wobbly Detuned Siren (600 Hz with heavy +/- 80 Hz LFO wobble, 250 ms)
                 generateWobblySiren(600.0, 80.0, 8.0, 0.250)
             }

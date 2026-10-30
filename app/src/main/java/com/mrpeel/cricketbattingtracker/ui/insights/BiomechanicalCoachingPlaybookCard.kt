@@ -32,7 +32,7 @@ import com.mrpeel.cricketbattingtracker.coaching.LiveShotFault
 fun BiomechanicalCoachingPlaybookCard(
     modifier: Modifier = Modifier
 ) {
-    var expandedFamily by remember { mutableStateOf<FailureFamily?>(FailureFamily.FAMILY_A_UPWARD_LOOP) }
+    var expandedFamily by remember { mutableStateOf<FailureFamily?>(FailureFamily.FAMILY_A_TIMING_DECELERATION) }
     var showTimelineGuide by remember { mutableStateOf(false) }
 
     // Lazy instantiated earcon audio player for in-app preview

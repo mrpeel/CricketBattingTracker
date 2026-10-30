@@ -4,20 +4,27 @@ import android.util.Log
 import kotlinx.coroutines.*
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
- * Diagnostic failure families grouping common batting motor faults.
+ * Shot-invariant diagnostic failure families grouping fundamental batting motor faults
+ * measurable directly from 3D bat-handle kinematics without requiring shot-type classification.
  */
 enum class FailureFamily(val title: String, val acousticTheme: String) {
-    FAMILY_A_UPWARD_LOOP("A. Upward Loop / Scoop", "Rising Pitch Glissando"),
-    FAMILY_B_REACHING_HARD("B. Reaching / Hard Hands", "Sharp Percussive Transients"),
-    FAMILY_C_EARLY_ROLL_SLICE("C. Early Roll / Slicing Across", "Harsh / Phase-Twisted Tones"),
-    FAMILY_D_MOMENTUM_COLLAPSE("D. Momentum / Shape Collapse", "Power Drop / Detuning")
+    FAMILY_A_TIMING_DECELERATION("A. Downswing Timing & Continuity", "Power Drop & Stalled Transients"),
+    FAMILY_B_PLANE_INSTABILITY("B. 3D Swing Plane Stability", "Pitch Bends & Scraping Sweeps"),
+    FAMILY_C_FACE_INSTABILITY("C. Impact Wrist & Face Control", "Dissonant & Phase-Twisted Tones"),
+    FAMILY_D_TEMPO_OVERCOMMIT("D. Tempo & Balance Envelope", "Detuned LFO Siren")
 }
 
 /**
- * Diagnostic fault identified in real time at contact.
+ * Shot-invariant biomechanical fault identified in real time at ball contact.
+ * All faults evaluate universal swing mechanics (velocity retention into impact, 3D swing plane
+ * consistency, late wrist rescue jerk, and over-swinging loss of shape) that hold across every
+ * cricket shot (Drives, Flicks, Cuts, Pulls, Sweeps, and Deflections).
  */
 enum class LiveShotFault(
     val shotName: String,
@@ -28,119 +35,111 @@ enum class LiveShotFault(
     val acousticIntuition: String,
     val biomechanicalFix: String
 ) {
-    // ── Family A: Upward Loop / Scoop ──
-    PULL_SKIED(
-        shotName = "Pull Shot Skied / Top Edge",
-        failureDescription = "Underneath the ball with open face and backward-leaning spine.",
-        cue = "Stay tall",
-        family = FailureFamily.FAMILY_A_UPWARD_LOOP,
-        acousticDesign = "Fast Rising Whistle (400 Hz -> 1200 Hz sine sweep over 220 ms)",
-        acousticIntuition = "The rapid upward pitch sweep mirrors the +8° upward attack angle and the ball sailing into the air.",
-        biomechanicalFix = "It is easy to drop the back hip and lean back to \"launch\" it. Once the spine tilts backward, your swing plane automatically tilts upward (>+8°). Your sternum needs to move forward toward the pitch of the ball, keeping the hands higher than the bat head."
-    ),
-    DRIVE_SCOOP(
-        shotName = "Drive Bottom-Hand Scoop",
-        failureDescription = "Bottom wrist flicking upward at impact, lifting toe of the bat.",
-        cue = "Head to pitch",
-        family = FailureFamily.FAMILY_A_UPWARD_LOOP,
-        acousticDesign = "Two-Step Rising Blip (350 Hz -> 900 Hz square-wave jump, 180 ms)",
-        acousticIntuition = "The sharp low-to-high jump mimics the sudden +Z bottom-wrist flick lifting the toe of the bat at impact.",
-        biomechanicalFix = "When the upward wrist flick happens (+Z jerk), it is almost always because your head and weight stopped moving forward before the hands arrived, forcing you to reach for the ball. When you reach, the bottom wrist has to flick up to meet the ball."
-    ),
-    PUNCH_SCOOP(
-        shotName = "Back Foot Punch Upward Scoop",
-        failureDescription = "Hands dropping below bounce line and scooping upward.",
-        cue = "High hands",
-        family = FailureFamily.FAMILY_A_UPWARD_LOOP,
-        acousticDesign = "Inverted 'U' Pitch Bend (700 Hz -> 350 Hz -> 800 Hz, 240 ms)",
-        acousticIntuition = "Mirrors the exact hand path fault: hands dropping below bounce height and scooping back up.",
-        biomechanicalFix = "Scooping a back-foot punch happens when your hands drop below the bounce height during the backlift transition, forcing an upward loop to meet the ball. Your hands must get up to chest height before the downswing begins so you can hit down the vertical plane."
-    ),
-
-    // ── Family B: Reaching / Hard Hands ──
-    DEFENSE_HARD_HANDS(
-        shotName = "Defense \"Hard Hands\" / Poking",
-        failureDescription = "Rigid bottom-hand thrusting forward into impact with high bat speed.",
-        cue = "Behind the knee",
-        family = FailureFamily.FAMILY_B_REACHING_HARD,
-        acousticDesign = "Dry Woodblock Double-Rap (800 Hz filtered noise burst, 40 ms gap, 120 ms total)",
-        acousticIntuition = "Sounds rigid, brittle, and \"hard\"—the exact acoustic opposite of a soft, dead-bat absorption.",
-        biomechanicalFix = "Your hands are out in front of your center of mass (nose/front knee), meaning your arms are extended and rigid at contact. True soft hands come from letting the ball hit the bat behind the vertical line of your eyes, with slightly bent elbows that can flex on impact."
-    ),
-    GLIDE_PUSHED(
-        shotName = "Glide / Steer Pushed Hard",
-        failureDescription = "Pushing hands forward away from eyeline on deflection.",
-        cue = "Give with it",
-        family = FailureFamily.FAMILY_B_REACHING_HARD,
-        acousticDesign = "Springy Forward \"Boing/Push\" (300 Hz -> 480 Hz resonant filter sweep, 180 ms)",
-        acousticIntuition = "Sounds like pushing against a spring rather than letting the ball recoil off a dead face.",
-        biomechanicalFix = "You are generating positive linear work with your arms (ax/az push) instead of letting the ball do the work. To fix this, the hands must act as a hydraulic damper—actually giving way slightly toward the slips at the moment of impact."
-    ),
-
-    // ── Family C: Early Roll / Slicing Across ──
-    CUT_OVERHIT(
-        shotName = "Cut Shot Over-Hit / Face Blown Open",
-        failureDescription = "Swinging too hard out in front; face blows open (+18.7°).",
-        cue = "Behind point",
-        family = FailureFamily.FAMILY_C_EARLY_ROLL_SLICE,
-        acousticDesign = "Brassy High-to-Low \"Crack\" (1400 Hz -> 500 Hz sawtooth drop with fast decay, 180 ms)",
-        acousticIntuition = "Sounds aggressive and over-cooked, mimicking the bat face blowing open from an early shoulder spin.",
-        biomechanicalFix = "Your front shoulder is flying open early, pulling the hands out in front of your eyeline. When you contact the ball in front of your front hip, the wrists are forced into radial extension (face open). You need the hands to stay tucked near the back shoulder until the ball passes your front hip, allowing top-of-bounce contact."
-    ),
-    FLICK_LEADING_EDGE(
-        shotName = "Flick / Glance Leading Edge",
-        failureDescription = "Rolling wrists 50-100ms prematurely before ball contacts bat.",
-        cue = "Show the face",
-        family = FailureFamily.FAMILY_C_EARLY_ROLL_SLICE,
-        acousticDesign = "Tight Dissonant Minor-Second Buzz (500 Hz + 530 Hz dual tone, 200 ms)",
-        acousticIntuition = "The beating frequencies sound \"crossed\" and pinched, mirroring bat face closing 50-100 ms early across the line.",
-        biomechanicalFix = "Closing the face 50–100 ms early means your bottom hand is taking over before the bat reaches the ball's line, causing the bat path to cut across the ball's trajectory. You need to present the full maker's name down the line of the ball, rotating the forearms only after contact."
-    ),
-    DRIVE_SLICE(
-        shotName = "Drive Sliced Outside-In (Thick Edge)",
-        failureDescription = "Outside-in bat path casting across delivery line; thick outside edge.",
-        cue = "Lead with toe",
-        family = FailureFamily.FAMILY_C_EARLY_ROLL_SLICE,
-        acousticDesign = "Metallic Scrape / High-Q Bandpass Sweep (2200 Hz -> 700 Hz noise sweep, 200 ms)",
-        acousticIntuition = "Literally sounds like a thick outside edge slicing across the seam of the ball.",
-        biomechanicalFix = "The violent handle torque (ΔGy > 6.0 rad/s) is a compensatory rescue move. Your front foot or front shoulder has likely planted either too closed (blocking your hands, forcing an out-to-in loop) or your head fell to the off-side. Focus on your bat path tracking inside the line of the ball."
-    ),
-
-    // ── Family D: Momentum / Shape Collapse ──
-    PULL_CHOKED(
-        shotName = "Pull Shot Choked / Aborted",
-        failureDescription = "Decelerating hands >35% before contact; looping miscue.",
-        cue = "Clear the hip",
-        family = FailureFamily.FAMILY_D_MOMENTUM_COLLAPSE,
+    // ── Family A: Downswing Timing & Continuity ──
+    EARLY_PEAK_DECELERATION(
+        shotName = "Checked / Decelerating Swing",
+        failureDescription = "Bat peaked early in downswing and lost >32% speed before contact.",
+        cue = "Swing through",
+        family = FailureFamily.FAMILY_A_TIMING_DECELERATION,
         acousticDesign = "Tape-Stop / Power-Down Drop (600 Hz -> 150 Hz rapid pitch & volume drop, 200 ms)",
-        acousticIntuition = "Acoustic deceleration directly mirrors your >35% pre-impact bat deceleration.",
-        biomechanicalFix = "Deceleration (>35%) mid-swing happens when you get \"jammed\"—the ball is closer to your body than your footwork allowed for, or you committed to a horizontal swing on a ball that didn't bounce. You need to clear the front hip early to create a rotational slot for your hands."
+        acousticIntuition = "Acoustic deceleration directly mirrors your bat losing angular velocity before ball contact.",
+        biomechanicalFix = "Regardless of what shot you play, peak bat speed should occur right into ball contact (~95% retention). Slowing down by >32% before impact happens when you commit too early, reach out in front of your eyeline, or get jammed by the bounce. Wait for the ball to enter your hitting zone and accelerate right through contact."
     ),
-    POWER_DRIVE_OVERSWING(
-        shotName = "Power Drive Over-Swing (Loss of Shape)",
-        failureDescription = "Swinging >100 km/h; head and shoulder pulling off line.",
-        cue = "Freeze the head",
-        family = FailureFamily.FAMILY_D_MOMENTUM_COLLAPSE,
+    STALLED_REACH_PUSH(
+        shotName = "Reaching / Stalled Hand Push",
+        failureDescription = "Hands pushed out flatly toward the ball without accelerating through contact.",
+        cue = "Let it come",
+        family = FailureFamily.FAMILY_A_TIMING_DECELERATION,
+        acousticDesign = "Dry Woodblock Double-Rap (800 Hz filtered noise burst, 40 ms gap, 120 ms total)",
+        acousticIntuition = "Sounds rigid, brittle, and pushed—the acoustic opposite of a whip-like swing or soft absorption.",
+        biomechanicalFix = "Your bat speed plateaued and pushed into contact with stiff arms rather than whipping smoothly through the ball or absorbing it behind your eyes. Let the ball travel deeper toward your front knee before releasing your hands."
+    ),
+
+    // ── Family B: 3D Swing Plane Stability ──
+    MID_SWING_PLANE_LOOP(
+        shotName = "Late Line/Length Adjustment (Mid-Swing Loop)",
+        failureDescription = "Picked up line/length late; 3D swing axis shifted >22° in final 45 ms.",
+        cue = "Watch the ball",
+        family = FailureFamily.FAMILY_B_PLANE_INSTABILITY,
+        acousticDesign = "Inverted 'U' Pitch Bend (700 Hz -> 350 Hz -> 800 Hz, 240 ms)",
+        acousticIntuition = "Mirrors the bat dipping off its initial downswing path and looping back to find the ball.",
+        biomechanicalFix = "A >22° shift in your 3D swing axis in the final 45 ms happens when you pick up the line or length late and have to redirect the bat mid-downswing. Watch the ball closely out of the release point to read the line and length early, then commit to that single path through the shot."
+    ),
+    OUT_OF_PLANE_WIPE(
+        shotName = "Early Shoulder Rotation (Wiping Across)",
+        failureDescription = "Front shoulder rotated open early, pulling bat >16.5° off-plane across the ball.",
+        cue = "Head to the ball",
+        family = FailureFamily.FAMILY_B_PLANE_INSTABILITY,
+        acousticDesign = "Metallic Scrape / High-Q Bandpass Sweep (2200 Hz -> 700 Hz noise sweep, 200 ms)",
+        acousticIntuition = "Sounds like the blade casting and scraping obliquely across the seam of the ball.",
+        biomechanicalFix = "Your swing plane drifted by >16.5° in the final 45 ms while the handle twisted across the trajectory. This happens when your front shoulder rotates open too early and pulls your hands across the line. Keep your head moving toward the ball so your lead shoulder stays aligned through contact."
+    ),
+
+    // ── Family C: Impact Wrist & Face Control ──
+    LATE_WRIST_RESCUE(
+        shotName = "Jerky Last-Second Wrist Snap",
+        failureDescription = "Violent wrist jerk (>55% of swing speed) in final 30 ms while off-plane.",
+        cue = "Roll smoothly",
+        family = FailureFamily.FAMILY_C_FACE_INSTABILITY,
+        acousticDesign = "Tight Dissonant Minor-Second Buzz (500 Hz + 530 Hz dual tone, 200 ms)",
+        acousticIntuition = "The beating frequencies sound 'crossed' and pinched, mirroring a sudden jerky wrist snap.",
+        biomechanicalFix = "Active wrist work on a flick or pull is great when rolled progressively through the hitting zone. This fault only triggers when your wrists jerk violently in the final 30 ms while the swing plane is shifting (>12°). Avoid snatching at the ball late—roll your wrists smoothly through the arc."
+    ),
+    IMPACT_FACE_TWIST(
+        shotName = "Loose Grip / Bat Twisting at Impact",
+        failureDescription = "Grip too loose at contact; bat twisted sharply (>5.5 rad/s) with speed loss.",
+        cue = "Tighten grip",
+        family = FailureFamily.FAMILY_C_FACE_INSTABILITY,
+        acousticDesign = "Brassy High-to-Low 'Crack' (1400 Hz -> 500 Hz sawtooth drop with fast decay, 180 ms)",
+        acousticIntuition = "Sounds harsh and over-twisted, mimicking the bat twisting in a loose grip at contact.",
+        biomechanicalFix = "The bat handle experienced a sharp axial twist spike right at impact alongside velocity loss because your grip was too loose at the moment of contact, allowing the ball to turn the bat in your hands. Firm up your grip through ball contact so the face stays square."
+    ),
+
+    // ── Family D: Tempo & Balance Envelope ──
+    OVERSWING_LOSS_OF_SHAPE(
+        shotName = "Over-Swinging (Loss of Shape)",
+        failureDescription = "Swinging at >31 rad/s while losing plane stability (>14.5°) or decelerating.",
+        cue = "Hold your shape",
+        family = FailureFamily.FAMILY_D_TEMPO_OVERCOMMIT,
         acousticDesign = "Wobbly Detuned Siren (600 Hz with heavy ±80 Hz LFO wobble, 250 ms)",
-        acousticIntuition = "Sounds \"out of balance\" and spinning off-axis, matching your >100 km/h head/torso drift.",
-        biomechanicalFix = "At >100 km/h, your torso rotation is outrunning your arms (spinning off the ball). To generate high bat speed without losing shape, the power must come from ground force and late wrist snap against a braced front side, keeping your head anchored over the front knee."
+        acousticIntuition = "Sounds 'out of balance' and spinning off-axis, matching torso/head drift from over-hitting.",
+        biomechanicalFix = "High bat speed is great when the swing stays on-plane and accelerates through contact. This fault only triggers when extreme effort (>31 rad/s) causes your swing plane to wobble (>14.5°) or decelerate before contact because your torso spun ahead of your hands. Swing at 85–90% effort with a still head and let clean timing generate power."
     ),
 
     // ── Clean Hit ──
     CLEAN_STROKE(
         shotName = "Clean Stroke",
-        failureDescription = "Within controlled technical envelope; centered impact.",
+        failureDescription = "Accelerating through contact on a stable 3D swing plane.",
         cue = "Solid",
         family = null,
         acousticDesign = "Crystal Harmonic Dual Chime (880 Hz + 1760 Hz decay, 150 ms)",
-        acousticIntuition = "Clear, pure harmonic tone confirming controlled mechanical envelope and centered impact.",
-        biomechanicalFix = "Maintain this balanced shape and timing."
+        acousticIntuition = "Clear, pure harmonic tone confirming smooth acceleration and plane stability.",
+        biomechanicalFix = "Maintain this balanced swing plane and acceleration through the ball."
     )
 }
 
 /**
- * Lightweight real-time kinematic impact evaluator running on the 416Hz bat sensor stream.
- * Detects ball contact within 20ms and evaluates shot-specific diagnostic rules within ~80ms.
+ * Snapshot of shot-invariant kinematic metrics extracted from the [-200ms, 0ms] pre-impact window.
+ */
+data class ShotInvariantMetrics(
+    val peakGyroRadS: Float,
+    val speedKmh: Float,
+    val velocityRetention: Float,
+    val accelSlope: Float,
+    val planeWobbleDeg: Float,
+    val twistSpikeRatio: Float,
+    val axialJerkRadS: Float
+)
+
+/**
+ * Real-time shot-invariant kinematic impact evaluator running on the 416Hz Polar bat sensor stream.
+ *
+ * Evaluates universal biomechanical invariants over the [-220ms, 0ms] downswing window:
+ *   1. Downswing Velocity Retention (omega_impact / omega_peak) & Pre-Impact Acceleration Slope
+ *   2. 3D Swing Plane Stability (mean angular deviation of unit rotation axis in final 45ms)
+ *   3. Normalized Late Axial Wrist Spike & Sample-to-Sample Axial Jerk
+ *   4. Over-Swing Shape Envelope (extreme angular rate combined with plane wobble or deceleration)
+ *
  * Enforces the Post-Impact Audio Timeline:
  *   T + 0 to 300 ms: Silence (lets you hear the real acoustic crack off the bat)
  *   T + 300 to 520 ms: Earcon plays (~200 ms)
@@ -160,9 +159,11 @@ class LiveKinematicCoach(
 
         // Impact detection thresholds on the bat handle sensor
         const val ACC_IMPACT_THRESHOLD_G = 10.0f      // Sharp acceleration spike (> 10g)
-        const val MIN_SWING_GYRO_RAD_S = 5.5f         // Active swing angular rate threshold
+        const val MIN_SWING_GYRO_RAD_S = 5.5f         // Active swing angular rate threshold in pre-impact window
+        const val DOWNSWING_WINDOW_MS = 220L          // Strictly evaluate downswing within 220ms before impact
         private const val DEG_TO_RAD = (PI / 180.0).toFloat()
-        private const val GYRO_TO_KMH = 4.5f                  // Linear tip speed conversion factor
+        private const val RAD_TO_DEG = (180.0 / PI).toFloat()
+        const val GYRO_TO_KMH = 3.4f                  // Calibrated bat-handle rad/s to sweet-spot km/h factor
 
         // Post-impact delivery schedule
         const val SILENCE_DELAY_MS = 300L             // T+0 to 300ms: Silence for physical acoustic crack
@@ -176,22 +177,20 @@ class LiveKinematicCoach(
     var lastDiagnosedFault: LiveShotFault? = null
         private set
 
-    // Ring buffers for recent sensor telemetry (~100 samples = ~240ms at 416Hz)
-    private val bufferSize = 100
-    private val gyroMags = FloatArray(bufferSize)
+    // Ring buffers for recent gyroscope telemetry (128 samples = ~307ms at 416Hz)
+    private val bufferSize = 128
+    private val gyroX = FloatArray(bufferSize)
     private val gyroY = FloatArray(bufferSize)     // Long-axis handle roll / twist
     private val gyroZ = FloatArray(bufferSize)     // Lateral face angle rate
-    private val accMags = FloatArray(bufferSize)
-    private val sampleTimestamps = LongArray(bufferSize)
+    private val gyroMags = FloatArray(bufferSize)
+    private val gyroTimestamps = LongArray(bufferSize)
     private var bufferIndex = 0
     private var sampleCount = 0
 
-    // Downswing tracking
-    private var maxDownswingGyroRadS = 0.0f
-    private var isSwingActive = false
-
     /**
      * Ingests a raw 3-axis accelerometer sample from the Polar bat handle sensor.
+     * Impact is only triggered if the recent [-220ms, 0ms] gyroscope window contains an active swing
+     * (>= 5.5 rad/s), preventing stationary stance taps from firing false coaching cues.
      */
     fun processAccSample(
         phoneMs: Long,
@@ -201,17 +200,13 @@ class LiveKinematicCoach(
         z: Float
     ) {
         val magG = sqrt(x * x + y * y + z * z) / 1000.0f
-        val idx = bufferIndex % bufferSize
-        accMags[idx] = magG
-        sampleTimestamps[idx] = phoneMs
-
         val now = if (phoneMs > 0L) phoneMs else System.currentTimeMillis()
-        if (magG >= ACC_IMPACT_THRESHOLD_G && isSwingActive && (lastImpactTimeMs == 0L || now - lastImpactTimeMs > IMPACT_COOLDOWN_MS)) {
-            if (maxDownswingGyroRadS >= MIN_SWING_GYRO_RAD_S) {
+
+        if (magG >= ACC_IMPACT_THRESHOLD_G && (lastImpactTimeMs == 0L || now - lastImpactTimeMs > IMPACT_COOLDOWN_MS)) {
+            val metrics = extractPreImpactMetrics(phoneMs)
+            if (metrics != null && metrics.peakGyroRadS >= MIN_SWING_GYRO_RAD_S) {
                 lastImpactTimeMs = now
-                isSwingActive = false
-                evaluateImpact(now, maxDownswingGyroRadS, magG)
-                maxDownswingGyroRadS = 0.0f
+                evaluateImpact(now, magG, metrics)
             }
         }
     }
@@ -226,109 +221,221 @@ class LiveKinematicCoach(
         y: Float,
         z: Float
     ) {
-        val gyroRadS = sqrt(x * x + y * y + z * z) * DEG_TO_RAD
-        val gyroYRadS = y * DEG_TO_RAD
-        val gyroZRadS = z * DEG_TO_RAD
+        val gxRad = x * DEG_TO_RAD
+        val gyRad = y * DEG_TO_RAD
+        val gzRad = z * DEG_TO_RAD
+        val gyroRadS = sqrt(gxRad * gxRad + gyRad * gyRad + gzRad * gzRad)
 
         val idx = bufferIndex % bufferSize
+        gyroX[idx] = gxRad
+        gyroY[idx] = gyRad
+        gyroZ[idx] = gzRad
         gyroMags[idx] = gyroRadS
-        gyroY[idx] = gyroYRadS
-        gyroZ[idx] = gyroZRadS
-        sampleTimestamps[idx] = phoneMs
+        gyroTimestamps[idx] = phoneMs
         bufferIndex++
         sampleCount++
-
-        if (gyroRadS >= MIN_SWING_GYRO_RAD_S) {
-            isSwingActive = true
-            if (gyroRadS > maxDownswingGyroRadS) {
-                maxDownswingGyroRadS = gyroRadS
-            }
-        } else if (gyroRadS < 2.0f && !isSwingActive) {
-            maxDownswingGyroRadS = 0.0f
-        }
-    }
-
-    private fun evaluateImpact(impactTimeMs: Long, peakGyroRadS: Float, peakAccG: Float) {
-        val speedKmh = peakGyroRadS * GYRO_TO_KMH
-
-        val windowSamples = kotlin.math.min(sampleCount, 30)
-        var minY = Float.MAX_VALUE
-        var maxY = -Float.MAX_VALUE
-        var meanZ = 0.0f
-        for (i in 0 until windowSamples) {
-            val ringIdx = (bufferIndex - 1 - i + bufferSize) % bufferSize
-            val y = gyroY[ringIdx]
-            if (y < minY) minY = y
-            if (y > maxY) maxY = y
-            meanZ += gyroZ[ringIdx]
-        }
-        val twistDeltaRadS = if (maxY >= minY) maxY - minY else 0.0f
-        val zRotationRate = if (windowSamples > 0) meanZ / windowSamples else 0.0f
-
-        val fault = diagnoseShot(speedKmh, peakGyroRadS, twistDeltaRadS, zRotationRate)
-        Log.i(TAG, "⚡ Evaluated Shot at ${impactTimeMs}ms: speed=%.1f km/h, acc=%.1f g, twist=%.1f rad/s, zRate=%.1f -> $fault"
-            .format(speedKmh, peakAccG, twistDeltaRadS, zRotationRate))
-
-        dispatchScheduledFeedback(fault, speedKmh)
     }
 
     /**
-     * Applies empirical failure rules across the entire batting repertoire.
+     * Extracts shot-invariant biomechanical metrics strictly from the [-220ms, 0ms] pre-impact window.
      */
-    fun diagnoseShot(
-        speedKmh: Float,
-        @Suppress("UNUSED_PARAMETER") gyroRadS: Float = 0f,
-        twistDeltaRadS: Float,
-        zRotationRate: Float
-    ): LiveShotFault {
-        // 1. Power Drive Over-Swing (> 100 km/h) -> "Freeze the head"
-        if (speedKmh > 100.0f) {
-            return LiveShotFault.POWER_DRIVE_OVERSWING
+    private fun extractPreImpactMetrics(impactPhoneMs: Long): ShotInvariantMetrics? {
+        val available = min(sampleCount, bufferSize)
+        if (available < 6) return null
+
+        // Collect samples in chronological order within the [-220ms, 0ms] downswing window (up to 85 samples)
+        val maxLookback = min(available, 85)
+        val validIndices = IntArray(maxLookback)
+        var count = 0
+
+        for (i in maxLookback - 1 downTo 0) {
+            val ringIdx = (bufferIndex - 1 - i + bufferSize * 2) % bufferSize
+            val ts = gyroTimestamps[ringIdx]
+            if (impactPhoneMs <= 0L || ts <= 0L || (impactPhoneMs - ts) in 0L..DOWNSWING_WINDOW_MS) {
+                validIndices[count++] = ringIdx
+            }
         }
 
-        // 2. Drive Outside-In Slicing (vertical bat drive, massive handle twist jerk) -> "Lead with toe"
-        if (speedKmh in 68.0f..98.0f && twistDeltaRadS > 6.0f && abs(zRotationRate) < 2.0f) {
-            return LiveShotFault.DRIVE_SLICE
+        if (count < 6) return null
+
+        // 1. Peak Downswing Angular Velocity & Impact Velocity Retention
+        var peakGyro = 0.0f
+        for (i in 0 until count) {
+            val g = gyroMags[validIndices[i]]
+            if (g > peakGyro) peakGyro = g
+        }
+        if (peakGyro < MIN_SWING_GYRO_RAD_S) return null
+
+        val impactWindow = min(count, 4)
+        var impactGyroSum = 0.0f
+        for (i in count - impactWindow until count) {
+            impactGyroSum += gyroMags[validIndices[i]]
+        }
+        val impactGyro = impactGyroSum / impactWindow
+        val velocityRetention = (impactGyro / peakGyro).coerceIn(0.0f, 1.0f)
+
+        // 2. Pre-Impact Acceleration Slope over final ~40ms (up to 17 samples)
+        val slopeWin = min(count, 17)
+        val edgeCount = max(1, min(4, slopeWin / 3))
+        var earlySum = 0.0f
+        var lateSum = 0.0f
+        val startSlopeIdx = count - slopeWin
+        for (i in 0 until edgeCount) {
+            earlySum += gyroMags[validIndices[startSlopeIdx + i]]
+            lateSum += gyroMags[validIndices[count - edgeCount + i]]
+        }
+        val accelSlope = ((lateSum / edgeCount) - (earlySum / edgeCount)) / peakGyro
+
+        // 3. 3D Swing Plane Stability (mean angular wobble of unit rotation vector in final ~45ms = 18 samples)
+        val planeWin = min(count, 18)
+        val startPlaneIdx = count - planeWin
+        var meanUx = 0.0f
+        var meanUy = 0.0f
+        var meanUz = 0.0f
+        var validVectors = 0
+
+        for (i in startPlaneIdx until count) {
+            val idx = validIndices[i]
+            val mag = gyroMags[idx]
+            if (mag >= 2.0f) {
+                meanUx += gyroX[idx] / mag
+                meanUy += gyroY[idx] / mag
+                meanUz += gyroZ[idx] / mag
+                validVectors++
+            }
         }
 
-        // 3. Pull Shot Skied / Top Edge (horizontal plane with upward attack angle & high roll) -> "Stay tall"
-        if (speedKmh in 55.0f..95.0f && abs(zRotationRate) > 2.8f && twistDeltaRadS > 4.5f) {
-            return LiveShotFault.PULL_SKIED
+        var planeWobbleDeg = 0.0f
+        if (validVectors >= 3) {
+            val normMean = sqrt(meanUx * meanUx + meanUy * meanUy + meanUz * meanUz)
+            if (normMean > 1e-4f) {
+                meanUx /= normMean
+                meanUy /= normMean
+                meanUz /= normMean
+                var angleSumDeg = 0.0f
+                for (i in startPlaneIdx until count) {
+                    val idx = validIndices[i]
+                    val mag = gyroMags[idx]
+                    if (mag >= 2.0f) {
+                        val dot = ((gyroX[idx] / mag) * meanUx +
+                                   (gyroY[idx] / mag) * meanUy +
+                                   (gyroZ[idx] / mag) * meanUz).coerceIn(-1.0f, 1.0f)
+                        angleSumDeg += acos(dot) * RAD_TO_DEG
+                    }
+                }
+                planeWobbleDeg = angleSumDeg / validVectors
+            }
         }
 
-        // 4. Drive Bottom-Hand Scoop (vertical drive, bottom wrist lifting upward, moderate twist) -> "Head to pitch"
-        if (speedKmh in 60.0f..95.0f && zRotationRate > 3.0f && twistDeltaRadS < 4.5f) {
-            return LiveShotFault.DRIVE_SCOOP
+        // 4. Late Axial Wrist Twist Spike & Sample-to-Sample Axial Jerk in final ~30ms (13 samples)
+        val twistWin = min(count, 13)
+        val startTwistIdx = count - twistWin
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        var maxAxialJerk = 0.0f
+        var prevY = gyroY[validIndices[startTwistIdx]]
+
+        for (i in startTwistIdx until count) {
+            val y = gyroY[validIndices[i]]
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+            if (i > startTwistIdx) {
+                val jerk = abs(y - prevY)
+                if (jerk > maxAxialJerk) maxAxialJerk = jerk
+            }
+            prevY = y
         }
 
-        // 5. Pull Shot Choked / Aborted (checked pull, decelerating) -> "Clear the hip"
-        if (speedKmh in 35.0f..54.0f && abs(zRotationRate) > 2.2f && twistDeltaRadS in 1.5f..4.0f) {
-            return LiveShotFault.PULL_CHOKED
+        val twistDelta = if (maxY >= minY) maxY - minY else 0.0f
+        val twistSpikeRatio = twistDelta / peakGyro
+
+        return ShotInvariantMetrics(
+            peakGyroRadS = peakGyro,
+            speedKmh = peakGyro * GYRO_TO_KMH,
+            velocityRetention = velocityRetention,
+            accelSlope = accelSlope,
+            planeWobbleDeg = planeWobbleDeg,
+            twistSpikeRatio = twistSpikeRatio,
+            axialJerkRadS = maxAxialJerk
+        )
+    }
+
+    private fun evaluateImpact(impactTimeMs: Long, peakAccG: Float, metrics: ShotInvariantMetrics) {
+        val fault = diagnoseShotInvariant(metrics)
+        Log.i(
+            TAG,
+            "⚡ Evaluated Shot at ${impactTimeMs}ms: speed=%.1f km/h (%.1f rad/s), acc=%.1f g, retention=%.2f, slope=%.2f, wobble=%.1f°, twistRatio=%.2f, jerk=%.1f -> $fault"
+                .format(
+                    metrics.speedKmh,
+                    metrics.peakGyroRadS,
+                    peakAccG,
+                    metrics.velocityRetention,
+                    metrics.accelSlope,
+                    metrics.planeWobbleDeg,
+                    metrics.twistSpikeRatio,
+                    metrics.axialJerkRadS
+                )
+        )
+
+        dispatchScheduledFeedback(fault, metrics.speedKmh)
+    }
+
+    /**
+     * Evaluates universal, shot-invariant biomechanical rules.
+     * Never guesses the shot type; diagnoses only objective mechanical breakdowns that apply
+     * identically to Drives, Flicks, Cuts, Pulls, Sweeps, and Deflections.
+     */
+    fun diagnoseShotInvariant(metrics: ShotInvariantMetrics): LiveShotFault {
+        val peakGyro = metrics.peakGyroRadS
+        val retention = metrics.velocityRetention
+        val slope = metrics.accelSlope
+        val wobble = metrics.planeWobbleDeg
+        val twistRatio = metrics.twistSpikeRatio
+        val jerk = metrics.axialJerkRadS
+
+        // 1. Over-Swinging / Loss of Shape:
+        // Extreme angular velocity (> 31 rad/s) that causes the swing plane to wobble (> 14.5°)
+        // or decelerate before contact (retention < 0.80). Fast swings that stay on-plane are Clean!
+        if (peakGyro > 31.0f && (wobble > 14.5f || retention < 0.80f)) {
+            return LiveShotFault.OVERSWING_LOSS_OF_SHAPE
         }
 
-        // 6. Back Foot Punch Upward Scoop (moderate back foot speed 50-65 km/h) -> "High hands"
-        if (speedKmh in 50.0f..65.0f && zRotationRate in 2.2f..3.5f && twistDeltaRadS > 3.5f) {
-            return LiveShotFault.PUNCH_SCOOP
+        // 2. Checked / Decelerating Swing:
+        // Active stroke (>= 13.5 rad/s, excluding intentional soft dead-bat blocks) where bat speed
+        // peaks too early and drops by >32% before impact (retention < 0.68) or strongly decelerates (slope < -0.22).
+        if (peakGyro >= 13.5f && (retention < 0.68f || slope < -0.22f)) {
+            return LiveShotFault.EARLY_PEAK_DECELERATION
         }
 
-        // 7. Cut Shot Over-Hit / Face Open (high speed > 65 km/h with lateral roll) -> "Behind point"
-        if (speedKmh > 65.0f && twistDeltaRadS > 4.0f) {
-            return LiveShotFault.CUT_OVERHIT
+        // 3. Reaching / Stalled Hand Push:
+        // Moderate swing (9.5..16.0 rad/s) where hands push out and stall into impact.
+        if (peakGyro in 9.5f..16.0f && retention in 0.68f..0.78f && slope < -0.12f) {
+            return LiveShotFault.STALLED_REACH_PUSH
         }
 
-        // 8. Defense "Hard Hands" / Poking (downswing block played too fast) -> "Behind the knee"
-        if (speedKmh in 30.0f..48.0f && twistDeltaRadS < 2.5f && abs(zRotationRate) < 1.5f) {
-            return LiveShotFault.DEFENSE_HARD_HANDS
+        // 4. Mid-Swing Plane Loop / Redirect:
+        // 3D rotation axis shifts by > 22° in the final 45ms before impact.
+        if (wobble > 22.0f) {
+            return LiveShotFault.MID_SWING_PLANE_LOOP
         }
 
-        // 9. Glide / Steer Pushed Hard -> "Give with it"
-        if (speedKmh in 36.0f..48.0f && abs(zRotationRate) in 1.5f..3.0f && twistDeltaRadS < 3.5f) {
-            return LiveShotFault.GLIDE_PUSHED
+        // 5. Out-of-Plane Cast / Wipe Across:
+        // Swing plane drifts (> 16.5°) while twisting across the line before impact.
+        if (wobble > 16.5f && twistRatio > 0.38f) {
+            return LiveShotFault.OUT_OF_PLANE_WIPE
         }
 
-        // 10. Flick / Glance Leading Edge (face closed prematurely) -> "Show the face"
-        if (speedKmh in 45.0f..70.0f && zRotationRate < -2.0f && twistDeltaRadS > 3.0f) {
-            return LiveShotFault.FLICK_LEADING_EDGE
+        // 6. Last-Millisecond Wrist Flip / Rescue:
+        // Sudden late wrist roll (> 55% of peak speed in 30ms) combined with plane shift (> 12°).
+        // Smooth wrist roll on a Flick or Pull stays on-plane (wobble ~6°-9°) and is never penalized.
+        if (twistRatio > 0.55f && wobble > 12.0f) {
+            return LiveShotFault.LATE_WRIST_RESCUE
+        }
+
+        // 7. Unstable Face / High-Torque Impact Twist:
+        // Sharp axial handle jerk (> 5.5 rad/s between samples) alongside velocity loss at impact.
+        if (jerk > 5.5f && retention < 0.82f) {
+            return LiveShotFault.IMPACT_FACE_TWIST
         }
 
         // Controlled technical envelope -> Clean stroke

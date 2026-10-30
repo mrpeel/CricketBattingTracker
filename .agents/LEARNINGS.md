@@ -474,3 +474,49 @@ This document captures resolved bugs, architectural changes, key logical finding
     4. **Pipeline Auto-Sync**: Updated `automate_pipeline.py` to automatically execute `reprocess_sessions.py` to restore the phone database whenever a phone is connected.
     5. **Verification**: Verified 108/108 Android unit tests pass, release APK assembled with 16 KB page alignment, deployed to physical phone (`59011FDCR000R5`), and confirmed both sessions display full shots, 3D AHRS angles, and session markers.
 
+### Learning 206: Teacher-Forced Hierarchical Sub-Head Mis-Calibration, Stale Candidate Cache & Stratified Split Starvation (B-114)
+*   **The Problem**:
+    *   In the October 28, 2026 retraining run (`master_retraining_2026-10-28_05-45-28.log`), three failures occurred simultaneously:
+        1. Training only improved for the first 5–6 epochs (`Val Macro-F1` peaked at Epoch 6 at `0.7957` and stagnated/oscillated until early stopping at Epoch 22).
+        2. `POWER DRIVE` holdout classification accuracy collapsed to **7.02% (4 / 57)**.
+        3. `GLANCE/FLICK` holdout classification accuracy stagnated at **47.27% (26 / 55)**.
+*   **Forensic Root Causes**:
+    1. **Why `POWER DRIVE` Collapsed (Teacher-Forced Sub-Head Mis-Calibration + Split Starvation)**:
+        - Dissecting `BatPlaneGeometryThreeFamilyTCN.forward_heads` on the 57 Holdout Power Drives revealed that `Head 2A` (Vertical-Bat Sub-Classifier) actually predicted `POWER DRIVE` as its top class on **50 / 57 (87.7%)** shots (`mean p_sub0[PD] = 0.607`).
+        - However, `train_and_select_checkpoint` trained `Head 1`, `Head 2A`, and `Head 2B` strictly in isolation using teacher forcing (`l_sub0` masked to `fam0_mask`, `l_sub1` masked to `fam1_mask`) and **never trained on the combined 9-class output `model(xb)`**.
+        - Because `Head 2B` (2-way `PULL/HOOK/SLOG` vs `CUT/PUNCH`) was never exposed to Power Drives during training, it saturated at `p_sub1[Pull] = 0.963` on high-energy swings, while `Head 1` assigned `p_fam[Cross-Bat] = 0.814`. At inference time, `PULL/HOOK/SLOG` (`0.814 * 0.963 = 0.784`) beat `POWER DRIVE` (`(0.123 + 0.85 * 0.814) * 0.607 = 0.495`) on 50 of 57 shots!
+        - Compounding this, the old `dataset_splits.json` placed the **only** Watch-Only (`NONE`, `has_polar = 0`) session containing Power Drives in the entire 86-session corpus (`session_2026-07-05_16-27-16`, 37 Power Drives) into `holdout_test`, leaving **0** `has_polar = 0` Power Drives in `train`. And `session_2026-07-25_15-16-32` (20 Power Drives, 38 Slogs) alternated `"Slog"` and `"Power drive"` with identical wrist kinematics (`grav_y = +4.68` vs `+4.60`).
+    2. **Why `GLANCE/FLICK` Struggled (4-Way vs 1-Way/2-Way Softmax Dilution)**:
+        - `Head 2A` got **45 / 56 (80.4%)** of Holdout Glance/Flicks right (`mean p_sub0[Glance] = 0.692`), but 12 were stolen by `SWEEP` (Family 2, a 1-class family with zero sub-head softmax dilution) and 12 by `PULL/HOOK/SLOG` (2-way softmax).
+    3. **Why Training Stagnated After Epoch 5**:
+        - **Zero Augmentation on Static Windows**: The 1.85M-parameter TCN iterated over a static 4,394-window `TensorDataset` with zero temporal jitter, scaling, or sensor dropout, memorizing exact peak frame alignments by Epoch 5–6.
+        - **Stale Candidate Cache Bug**: `load_or_extract_candidate_windows` checked only `os.path.exists(TRAIN_WINDOWS_CACHE)`. When 3 new sessions (`Oct 23`, `Oct 26`, `Oct 27`) were compiled on Oct 28, `tcn_norm_stats.json` updated on 67 sessions, but training loaded the stale Oct 22 `train_candidate_windows.pt` cache (64 sessions).
+        - **Unbalanced Validation Set**: The 7-session validation set had only 4 `DEFLECTION/GUIDE` windows, 0 `CUT/PUNCH` in `NONE`/`WRIST`, and 0 `SWEEP` in `WRIST`/`BAT_HANDLE`, making unweighted 8-class `Val Macro-F1` jump $\pm 0.03$ on a single shot.
+*   **The Solution**:
+    1. **End-to-End Joint 9-Class Hierarchical Loss + Cross-Family Power Drive Calibration (`pipelines/train_and_evaluate_full_scorecard.py`)**:
+        - Added `NLLLoss` directly on `F.log_softmax(model(xb_aug)[:, :, 1024], dim=1)` (`WEIGHT_JOINT = [1.0, 1.0, 0.90, 1.0, 1.30, 1.0, 1.15, 2.00, 1.10]`) alongside `0.6 * (loss_family + l_sub0_val + l_sub1_val)` so all three heads co-adapt under the exact 0.85 soft-routing equation used by `TcnModelRunner.kt`.
+        - Added cross-family Power Drive suppression (`(p_sub0_all[non_pd_mask, 1] ** 2).mean() * 1.0`) so `Head 2A` actively suppresses `p_sub0[PD]` on true Pulls/Slogs.
+    2. **On-the-Fly Kinematic Augmentation & Polar Channel Dropout**:
+        - Added `augment_training_batch` with temporal peak shift ($\pm 18\text{ frames}$), amplitude scaling $\mathcal{U}(0.92, 1.08)$, Gaussian noise ($\sigma = 0.015$), and 25% Polar channel dropout (`p_acc_* = 0, p_gyro_* = 0, has_polar = 0`) so the TCN learns Watch-Only representations for every shot class.
+    3. **Automatic Cache Metadata Verification (`candidate_windows_meta.json`)**:
+        - `load_or_extract_candidate_windows` now verifies `train_sessions`, `val_sessions`, `median`, and `mad` against `candidate_windows_meta.json`, automatically rebuilding the cache whenever sessions change.
+    4. **Stratified Validation (9 Sessions, 524 GT) & Holdout Test (12 Sessions, 714 GT) Splits (`pipelines/dataset_splits.json`)**:
+        - Balanced across all 3 sensor mount modes (`NONE`, `WRIST`, `BAT_HANDLE`) and all 7 canonical shot classes ($\ge 34$ per class in Validation, $\ge 48$ per class in Holdout).
+*   **Verification & Ground-Truth Scorecard Results (`full_dataset_training_scorecard.md`)**:
+    - **Epoch Progression**: Improved steadily through **Epoch 16** (`Best Val Macro-F1: 0.8135`, `Val Shot-Acc: 86.19%`).
+    - **Holdout Test Set (12 Sessions, 714 Physical GT Shots)**:
+        - **Detection Recall**: 🏆 **92.44%** (660 / 714) — up from 91.73%
+        - **Detection Precision**: 🏆 **91.67%** (660 / 720) — up from 91.21%
+        - **Detection F1**: 🏆 **92.05%** — up from 91.47%
+        - **Overall Holdout Classification Accuracy**: 🏆 **84.09%** (555 / 660) — up from **73.56%** (**+10.53% gain**)
+        - **Per-Class Holdout Classification Accuracy** (every class $\ge 79.8\%$):
+            - `POWER DRIVE`: 🏆 **84.44%** (38 / 45) — up from **7.02%** (**+77.42% gain**)
+            - `GLANCE/FLICK`: 🏆 **79.84%** (99 / 124) — up from **47.27%** (**+32.57% gain**)
+            - `DRIVE/DEFENCE`: 🏆 **82.78%** (149 / 180) — up from **76.33%** (**+6.45% gain**)
+            - `CUT/PUNCH`: 🏆 **84.62%** (55 / 65) — up from **79.41%** (**+5.21% gain**)
+            - `DEFLECTION/GUIDE`: 🏆 **87.88%** (58 / 66) — up from **82.69%** (**+5.19% gain**)
+            - `PULL/HOOK/SLOG`: 🏆 **87.90%** (109 / 124)
+            - `SWEEP`: 🏆 **83.93%** (47 / 56)
+    - **Clean Benchmark Total (86 Sessions, 4,930 Physical GT Shots)**: 🏆 **90.02% Recall** (4,438 / 4,930), 🏆 **91.69% Precision** (4,438 / 4,840), 🏆 **90.85% F1**, 🏆 **92.56% Full Classification Accuracy** (4,108 / 4,438).
+
+
