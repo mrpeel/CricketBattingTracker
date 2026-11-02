@@ -5,7 +5,14 @@ import android.util.Log
 import com.mrpeel.cricketbattingtracker.data.AppDatabase
 import com.mrpeel.cricketbattingtracker.data.InningsEvent
 import com.mrpeel.cricketbattingtracker.ml.GeneratedForest
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
@@ -41,10 +48,54 @@ object PhoneSwingDetector {
         }
     }
 
+    // ── Per-innings concurrency guard ──────────────────────────────────────────
+    // Background sync (DataSyncListenerService), the Session Details auto-recovery
+    // and the "Retry Sync" button can all request processing of the same innings.
+    // Without a guard, concurrent runs interleave their DB writes and duplicate
+    // every shot (see 2 Nov 2026 session: 65 real shots stored as 193).
+    private val inFlightLock = Any()
+    private val inningsMutexes = mutableMapOf<Long, Mutex>()
+    private val _processingInnings = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** Set of innings IDs currently being batch-processed. Observe from the UI. */
+    val processingInnings: StateFlow<Set<Long>> = _processingInnings.asStateFlow()
+
+    fun isProcessing(inningsId: Long): Boolean = inningsId in _processingInnings.value
+
+    private fun mutexFor(inningsId: Long): Mutex = synchronized(inFlightLock) {
+        inningsMutexes.getOrPut(inningsId) { Mutex() }
+    }
+
     /**
      * Entry point to process a completed watch + Polar session batch.
+     *
+     * Only one run per innings executes at a time. If a run is already in flight for
+     * [inningsId], this call waits for it to finish and then returns its outcome
+     * (based on the processed flag) instead of processing the same data again.
      */
     suspend fun processSession(
+        inningsId: Long,
+        watchDir: File,
+        polarDir: File?,
+        context: Context
+    ): Boolean {
+        val mutex = mutexFor(inningsId)
+        if (!mutex.tryLock()) {
+            Log.w(TAG, "Innings $inningsId is already being processed — waiting for in-flight run instead of starting a duplicate")
+            mutex.withLock { }
+            return context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
+                .getBoolean("processed_innings_$inningsId", false)
+        }
+        _processingInnings.update { it + inningsId }
+        return try {
+            processSessionLocked(inningsId, watchDir, polarDir, context)
+        } finally {
+            _processingInnings.update { it - inningsId }
+            mutex.unlock()
+        }
+    }
+
+    private suspend fun processSessionLocked(
         inningsId: Long,
         watchDir: File,
         polarDir: File?,
@@ -66,8 +117,6 @@ object PhoneSwingDetector {
 
         val database = AppDatabase.getDatabase(context)
         val dao = database.inningsEventDao()
-        dao.deleteTimelineForInningsSync(inningsId)
-
 
         val watchStartWallMs = parseSessionStartWallMs(watchDir)
         val watchStartSensorNs = watchAcc.first().timeNanos
@@ -75,11 +124,12 @@ object PhoneSwingDetector {
         // Parse session config (mount mode and bat profiles / switches)
         val sessionConfig = parseSessionConfig(watchDir, polarDir)
 
-        // Clear any pre-existing timeline entries for this innings to prevent duplicate insertions
-        dao.deleteTimelineForInningsSync(inningsId)
-
+        // NOTE: Existing timeline rows are NOT deleted here. All output events are
+        // collected in memory and swapped in atomically (delete + insert in a single
+        // Room transaction) at the end. Deleting up-front left the session looking
+        // "unprocessed" for minutes, which triggered duplicate recovery runs in the UI.
         val defaultProfile = sessionConfig.batProfiles[sessionConfig.defaultBatId]
-        dao.insertEvent(InningsEvent(
+        val sessionStartEvent = InningsEvent(
             inningsId = inningsId,
             timestamp = watchStartWallMs,
             description = "Session Started",
@@ -90,7 +140,7 @@ object PhoneSwingDetector {
             bat_weight_grams = defaultProfile?.weightGrams,
             bat_sensor_offset_knob_cm = defaultProfile?.sensorOffsetFromKnobCm,
             bat_sensor_offset_toe_cm = defaultProfile?.sensorOffsetFromToeCm
-        ))
+        )
 
         // A. Load Polar data if available
         var alignment: TimeAlignment? = null
@@ -670,7 +720,6 @@ object PhoneSwingDetector {
         var maxSpeed = 0f
 
         for (dbEvent in finalShots) {
-            dao.insertEvent(dbEvent)
             shotCount++
             val speed = dbEvent.batSpeed ?: 0f
             if (speed > maxSpeed) {
@@ -678,12 +727,12 @@ object PhoneSwingDetector {
             }
         }
 
-        // Write "Session Ended" marker
+        // Build "Session Ended" marker
         val watchEndMs = watchAcc.last().timeNanos / 1_000_000L
         val sessionEndWallMs = watchStartWallMs + (watchEndMs - (watchStartSensorNs / 1_000_000L))
         val lastBatId = finalShots.lastOrNull { it.bat_id != null }?.bat_id ?: sessionConfig.defaultBatId
         val endProfile = sessionConfig.batProfiles[lastBatId]
-        dao.insertEvent(InningsEvent(
+        val sessionEndEvent = InningsEvent(
             inningsId = inningsId,
             timestamp = sessionEndWallMs,
             description = "Session Ended",
@@ -694,7 +743,18 @@ object PhoneSwingDetector {
             bat_weight_grams = endProfile?.weightGrams,
             bat_sensor_offset_knob_cm = endProfile?.sensorOffsetFromKnobCm,
             bat_sensor_offset_toe_cm = endProfile?.sensorOffsetFromToeCm
-        ))
+        )
+
+        // Atomically replace the innings timeline: observers never see a partially
+        // cleared or partially written session, and a failed run leaves prior data intact.
+        database.withTransaction {
+            dao.deleteTimelineForInningsSync(inningsId)
+            dao.insertEvent(sessionStartEvent)
+            for (dbEvent in finalShots) {
+                dao.insertEvent(dbEvent)
+            }
+            dao.insertEvent(sessionEndEvent)
+        }
 
         // Set processed flag
         val prefs = context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)

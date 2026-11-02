@@ -474,6 +474,17 @@ This document captures resolved bugs, architectural changes, key logical finding
     4. **Pipeline Auto-Sync**: Updated `automate_pipeline.py` to automatically execute `reprocess_sessions.py` to restore the phone database whenever a phone is connected.
     5. **Verification**: Verified 108/108 Android unit tests pass, release APK assembled with 16 KB page alignment, deployed to physical phone (`59011FDCR000R5`), and confirmed both sessions display full shots, 3D AHRS angles, and session markers.
 
+### Learning 207: Concurrent `processSession` Runs Triplicated Shots (2 Nov 2026 Session)
+*   **The Problem**: The 2 Nov 10:35 session showed **193 shots** (65 real). The DB had 3 back-to-back blocks of 64/64/65 shots, 3 `"Session Ended"` rows, and 1 `"Session Started"`. The user first saw the Session Sync Recovery card with an error.
+*   **The Root Cause**:
+    1. **No per-innings concurrency guard**: `PhoneSwingDetector.processSession` could be invoked simultaneously by `DataSyncListenerService` (ZIP arrival), the Session Details auto-recovery `LaunchedEffect`, and the "Retry Sync" button.
+    2. **Delete-early / insert-late**: Each run deleted the innings timeline at the *start*, then inserted results minutes later. All three deletes landed before any inserts, so all three result sets survived.
+    3. **Self-reinforcing UI trigger**: The early delete left the session looking unprocessed (no shots / no "Session Ended"), so opening Session Details auto-launched another run, and the immediate "old session" recovery card invited a third. The deleted "Session Started" row also made `retryLocalProcessing` fail ("Could not find session start timestamp").
+*   **The Solution (Invariants)**:
+    1. **Single-flight per innings**: `processSession` takes a per-innings `Mutex` via `tryLock`. A concurrent caller waits for the in-flight run and returns its processed flag instead of re-processing. `PhoneSwingDetector.processingInnings: StateFlow<Set<Long>>` exposes in-flight state.
+    2. **Atomic timeline replacement**: Output events are built in memory and swapped in with `database.withTransaction { delete; insert start/shots/end }`. Never delete an innings timeline before results are ready.
+    3. **UI guard**: Session Details shows a spinner while the innings is in `processingInnings`, auto-recovery runs at most once and never while in flight, `retryLocalProcessing` early-returns if in flight, and the recovery card only appears after a genuine auto-recovery failure or a 60 s timeout.
+
 ### Learning 206: Teacher-Forced Hierarchical Sub-Head Mis-Calibration, Stale Candidate Cache & Stratified Split Starvation (B-114)
 *   **The Problem**:
     *   In the October 28, 2026 retraining run (`master_retraining_2026-10-28_05-45-28.log`), three failures occurred simultaneously:

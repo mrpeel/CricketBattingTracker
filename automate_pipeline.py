@@ -54,6 +54,14 @@ def parse_args():
         "--max-fallback-rate", type=float, default=0.25,
         help="Maximum allowed proportion of fallback swings before alignment fails (default: 0.25)."
     )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Print verbose alignment details including non-swing events and nanosecond timestamps."
+    )
+    parser.add_argument(
+        "--stance-diagnostics", action="store_true",
+        help="Run legacy heuristic stance check alignment diagnostics on facing-up events (default: False)."
+    )
     return parser.parse_args()
 
 def resolve_sensor_path(session_dir, baseName):
@@ -866,6 +874,140 @@ def process_and_format_events(shot_events):
         
     return formatted_shots
 
+def print_session_summary(session_dir, df_aligned, gyro_duration, offset, drift_rate, sync_description=""):
+    """Print an insightful, clean batting performance scorecard for the processed session."""
+    session_name = os.path.basename(os.path.normpath(session_dir))
+    GYRO_TO_KMH = 3.4  # Matches LiveKinematicCoach.kt calibrated constant
+
+    swings = df_aligned[~df_aligned['shot_type'].str.lower().isin(['facing up', 'no shot', 'leave', 'evade'])].copy() if 'shot_type' in df_aligned.columns else df_aligned
+    non_swings = df_aligned[df_aligned['shot_type'].str.lower().isin(['facing up', 'no shot', 'leave', 'evade'])].copy() if 'shot_type' in df_aligned.columns else pd.DataFrame()
+
+    total_events = len(df_aligned)
+    total_swings = len(swings)
+    total_non_swings = len(non_swings)
+    fallback_swings = swings[swings['is_fallback']] if 'is_fallback' in swings.columns else pd.DataFrame()
+
+    mins = int(gyro_duration // 60)
+    secs = int(gyro_duration % 60)
+    dur_str = f"{mins}m {secs:02d}s ({gyro_duration:.1f}s)" if gyro_duration > 0 else "N/A"
+
+    print("\n" + "=" * 80)
+    print(f"🏏  BATTING SESSION SUMMARY: {session_name}")
+    print("=" * 80)
+    print(f"⏱️  Session Duration:    {dur_str}")
+    match_rate_str = f" ({len(fallback_swings)} fallbacks, {((total_swings - len(fallback_swings)) / total_swings * 100):.1f}% physically anchored)" if total_swings > 0 else ""
+    print(f"🏏  Total Swings:        {total_swings} active attacking shots{match_rate_str}")
+    if total_non_swings > 0:
+        print(f"⏸️  Stance / Non-Shots:  {total_non_swings} stance pauses & leaves")
+
+    sync_str = f"Offset: {offset:+.3f}s"
+    if drift_rate != 0.0:
+        sync_str += f" | Drift: {drift_rate * 100:+.4f}%"
+    if sync_description:
+        sync_str += f" ({sync_description})"
+    print(f"🎯  Clock Calibration:   {sync_str}")
+
+    # Equipment & Polar
+    if 'polar_mount_mode' in df_aligned.columns and df_aligned['polar_mount_mode'].notna().any():
+        modes = [m for m in df_aligned['polar_mount_mode'].dropna().unique() if m != 'NONE']
+        mount_mode = modes[0] if modes else 'NONE'
+        bat_name = df_aligned['bat_name'].dropna().iloc[0] if 'bat_name' in df_aligned.columns and df_aligned['bat_name'].notna().any() else "Standard bat"
+        bat_weight = df_aligned['bat_weight_grams'].dropna().iloc[0] if 'bat_weight_grams' in df_aligned.columns and df_aligned['bat_weight_grams'].notna().any() else None
+        weight_str = f" ({bat_weight:.0f}g)" if bat_weight else ""
+        if mount_mode != 'NONE':
+            print(f"📡  Polar & Equipment:   {mount_mode} on \"{bat_name}\"{weight_str}")
+        else:
+            print(f"📡  Equipment:           \"{bat_name}\"{weight_str} (Watch-only)")
+    elif 'bat_name' in df_aligned.columns and df_aligned['bat_name'].notna().any():
+        bat_name = df_aligned['bat_name'].dropna().iloc[0]
+        bat_weight = df_aligned['bat_weight_grams'].dropna().iloc[0] if 'bat_weight_grams' in df_aligned.columns and df_aligned['bat_weight_grams'].notna().any() else None
+        weight_str = f" ({bat_weight:.0f}g)" if bat_weight else ""
+        print(f"🏏  Bat Equipment:       \"{bat_name}\"{weight_str}")
+
+    # Bat Speed & Kinematics
+    if total_swings > 0 and 'impact_gyro_mag' in swings.columns:
+        speeds = swings['impact_gyro_mag'].dropna()
+        if len(speeds) > 0:
+            max_spd = speeds.max()
+            mean_spd = speeds.mean()
+            p50_spd = speeds.median()
+            p25_spd = speeds.quantile(0.25)
+            p75_spd = speeds.quantile(0.75)
+            print(f"\n⚡ BAT SPEED & KINEMATICS (Calibrated factor: {GYRO_TO_KMH} km/h per rad/s)")
+            print(f"  • Max Bat Speed:      {max_spd:.1f} rad/s  ({max_spd * GYRO_TO_KMH:.1f} km/h)")
+            print(f"  • Mean Bat Speed:     {mean_spd:.1f} rad/s  ({mean_spd * GYRO_TO_KMH:.1f} km/h)")
+            print(f"  • Speed Distribution: p25: {p25_spd:.1f} rad/s | Median: {p50_spd:.1f} rad/s | p75: {p75_spd:.1f} rad/s")
+
+        if 'bottom_hand_sync_score' in swings.columns and swings['bottom_hand_sync_score'].notna().any():
+            sync_scores = swings['bottom_hand_sync_score'].dropna()
+            if len(sync_scores) > 0:
+                lead_str = ""
+                if 'bottom_hand_time_lead_ms' in swings.columns and swings['bottom_hand_time_lead_ms'].notna().any():
+                    lead_time = swings['bottom_hand_time_lead_ms'].dropna().mean()
+                    lead_str = f" | Lead time: {lead_time:+.1f} ms"
+                print(f"  • Dual-Hand Sync:     Avg score: {sync_scores.mean():.2f} / 1.00{lead_str}")
+
+        # Shot Distribution
+        print(f"\n📊 SHOT DISTRIBUTION ({total_swings} Swings)")
+        print(f"  {'Shot Type':<24} {'Count':>5} {'Share':>7}   {'Avg Speed':>22}   {'Max Speed':>22}")
+        print("  " + "-" * 80)
+        
+        # Sort by count descending
+        shot_groups = swings.groupby('shot_type')
+        shot_counts = shot_groups.size().sort_values(ascending=False)
+        for st in shot_counts.index:
+            group = shot_groups.get_group(st)
+            cnt = len(group)
+            share = cnt / total_swings * 100
+            s_col = group['impact_gyro_mag'].dropna()
+            if len(s_col) > 0:
+                avg_s = s_col.mean()
+                max_s = s_col.max()
+                avg_str = f"{avg_s:.1f} rad/s ({avg_s * GYRO_TO_KMH:.0f} km/h)"
+                max_str = f"{max_s:.1f} rad/s ({max_s * GYRO_TO_KMH:.0f} km/h)"
+            else:
+                avg_str = "N/A"
+                max_str = "N/A"
+            print(f"  {st:<24} {cnt:>5} {share:>6.1f}%   {avg_str:>22}   {max_str:>22}")
+
+        # Quality Breakdown
+        if 'quality' in swings.columns and swings['quality'].notna().any():
+            q_order = ['good', 'okay', 'poor', 'miss']
+            q_counts = swings['quality'].str.lower().value_counts()
+            q_parts = []
+            for q in q_order:
+                if q in q_counts:
+                    q_parts.append(f"{q.capitalize()}: {q_counts[q]} ({q_counts[q] / total_swings * 100:.1f}%)")
+            for q, c in q_counts.items():
+                if q not in q_order:
+                    q_parts.append(f"{q.capitalize()}: {c} ({c / total_swings * 100:.1f}%)")
+            if q_parts:
+                print(f"\n🎯 SHOT QUALITY BREAKDOWN")
+                print("  • " + " | ".join(q_parts))
+
+        # Bat Face & Launch Profile
+        if 'blade_class' in swings.columns and swings['blade_class'].notna().any():
+            valid_bc = swings[swings['blade_class'].notna() & (swings['blade_class'] != 'N/A')]['blade_class'].value_counts()
+            valid_lc = swings[swings['launch_class'].notna() & (swings['launch_class'] != 'N/A')]['launch_class'].value_counts() if 'launch_class' in swings.columns else []
+            if len(valid_bc) > 0 or len(valid_lc) > 0:
+                print(f"\n📐 BAT FACE & LAUNCH PROFILE (Impact Orientation)")
+                if len(valid_bc) > 0:
+                    bc_total = valid_bc.sum()
+                    bc_parts = [f"{k.replace('_', ' ').title()}: {v} ({v / bc_total * 100:.1f}%)" for k, v in valid_bc.items()]
+                    print(f"  • Blade Face:        " + " | ".join(bc_parts))
+                if len(valid_lc) > 0:
+                    lc_total = valid_lc.sum()
+                    lc_parts = [f"{k.replace('_', ' ').title()}: {v} ({v / lc_total * 100:.1f}%)" for k, v in valid_lc.items()]
+                    print(f"  • Launch Trajectory: " + " | ".join(lc_parts))
+
+    aligned_csv = os.path.join(session_dir, "ground_truth_aligned.csv")
+    print(f"\n💾 SAVED DATASETS")
+    print(f"  • Ground Truth:      {aligned_csv} ({len(df_aligned)} rows, {len(df_aligned.columns)} cols)")
+    combined_parquet = os.path.abspath(os.path.join(session_dir, "..", "combined_sensor_data.parquet"))
+    if os.path.exists(combined_parquet):
+        print(f"  • Unified Parquet:   {combined_parquet}")
+    print("=" * 80 + "\n")
+
 def main():
     args = parse_args()
     
@@ -1283,12 +1425,20 @@ def main():
                 except:
                     pass
  
+    sync_description = ""
     if offset is not None:
+        sync_description = f"Manual override: {offset:+.3f}s"
         print(f"🎯 Using manual clock offset override: {offset:+.3f}s")
     elif sync_tap_offset is not None and sync_tap_drift_rate != 0.0:
         offset = sync_tap_offset
         drift_rate = sync_tap_drift_rate
+        sync_description = f"Calibrated via {matched_count} sync tap sequence{'s' if matched_count > 1 else ''}"
         print(f"🎯 Using multi-point sync tap alignment offset: {offset:+.3f}s, drift rate: {drift_rate:+.7f} (skipping grid search optimization)")
+    elif sync_tap_offset is not None:
+        offset = sync_tap_offset
+        drift_rate = 0.0
+        sync_description = "Calibrated via single-point sync tap"
+        print(f"🎯 Using single-point sync tap alignment offset: {offset:+.3f}s (skipping grid search optimization)")
     else:
         if narrations:
             search_center = sync_tap_offset if sync_tap_offset is not None else (baseline_offset if baseline_offset is not None else 0.0)
@@ -1453,6 +1603,7 @@ def main():
 
             offset = best_offset
             drift_rate = best_drift
+            sync_description = f"Optimized via gyro peak grid search ({best_matches}/{active_shot_count} matches)"
 
             active_shot_count = sum(1 for s in narrations if not any(
                 term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"]
@@ -1472,6 +1623,7 @@ def main():
         else:
             if baseline_offset is not None:
                 offset = baseline_offset
+                sync_description = "Estimated from filename baseline offset"
                 print(f"⚠️ No narrations available. Using baseline filename offset: {offset:+.3f}s")
             else:
                 print("⚠️ WARNING: No narrations and no filename timestamp available for offset.")
@@ -1480,6 +1632,7 @@ def main():
                     offset = float(inp)
                 except:
                     offset = 0.0
+                sync_description = f"Manual prompt: {offset:+.3f}s"
 
     # Filter narrations to exclude out-of-bounds events relative to active watch data logging
     filtered_narrations = []
@@ -1607,7 +1760,8 @@ def main():
         chosen_indices.append(best_j)
     chosen_indices.reverse()
     
-    print("\nAligning spoken narrations with physical movements...")
+    active_count_total = sum(1 for s in narrations if not any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"]))
+    print(f"\nAligning spoken narrations with physical movements ({active_count_total} active swings)...")
     for i, shot in enumerate(narrations):
         audio_t = shot['timestamp_seconds']
         sensor_narr_t = audio_t * (1 + drift_rate) + offset
@@ -1620,10 +1774,23 @@ def main():
         impact_ns = impact_row['time']
         gyro_mag = impact_row['mag'] if not chosen_cand['is_fallback'] else chosen_cand['mag']
         
-        if chosen_cand['is_fallback']:
-            print(f"   💨 '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Fallback at {impact_t:.2f}s sensor (rel) / {impact_ns} (ns)")
+        shot_type_lower = shot['shot_type'].lower()
+        is_non_swing = any(term in shot_type_lower for term in ["no shot", "leave", "facing up", "evade"])
+        is_fallback = bool(chosen_cand['is_fallback'])
+        shot_num_display = f"#{int(shot['shot_number'])}" if shot.get('shot_number') is not None and not pd.isna(shot.get('shot_number')) else f"#{len(aligned_shots) + 1}"
+
+        if getattr(args, "verbose", False):
+            if is_fallback:
+                print(f"   💨 {shot_num_display} '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Fallback at {impact_t:.2f}s sensor (rel) / {impact_ns} (ns)")
+            else:
+                print(f"   🔗 {shot_num_display} '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Swing at {impact_t:.2f}s sensor (rel) / {impact_ns} (ns)")
         else:
-            print(f"   🔗 '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Swing at {impact_t:.2f}s sensor (rel) / {impact_ns} (ns)")
+            if not is_non_swing:
+                if is_fallback:
+                    print(f"   ⚠️ {shot_num_display:>4}  '{shot['narrated_text']}' ({audio_t:.1f}s audio) ➔ Fallback (no peak near {impact_t:.2f}s)")
+                else:
+                    speed_kmh = gyro_mag * 3.4
+                    print(f"   🔗 {shot_num_display:>4}  {shot['shot_type']:<18} ({shot['quality']:<4}) ➔ {impact_t:6.2f}s  (peak: {gyro_mag:4.1f} rad/s | {speed_kmh:3.0f} km/h)")
             
         aligned_shots.append({
             'shot_index': len(aligned_shots) + 1,
@@ -1660,6 +1827,9 @@ def main():
     print(f"\n📊 Alignment Validation check:")
     print(f"   Active swings:         {len(active_swings)}")
     print(f"   Fallback alignments:   {len(fallback_swings)} ({fallback_rate * 100:.1f}%)")
+    non_swing_count = len(aligned_shots) - len(active_swings)
+    if non_swing_count > 0:
+        print(f"   Non-swing markers:     {non_swing_count} (stance setup & leaves)")
     
     if fallback_rate > args.max_fallback_rate:
         # High fallback rate indicates a clock mismatch, bad alignment, or broken parser!
@@ -1707,28 +1877,24 @@ def main():
     print(f"✅ Updated aligned file with angle stats: {aligned_csv_path}")
 
     # Enrich aligned shots with Polar Sense bottom-hand biomechanics features
-    add_polar_features_to_aligned_shots(session_dir, offset=offset, watch_start_epoch=watch_start_epoch)
+    df_polar = add_polar_features_to_aligned_shots(session_dir, offset=offset, watch_start_epoch=watch_start_epoch)
+    if df_polar is not None:
+        df_aligned = df_polar
         
-    steps_path = resolve_sensor_path(session_dir, "WatchSteps.csv")
-    if os.path.exists(steps_path):
-        df_steps = pd.read_csv(steps_path)
-        print(f"📖 Loaded {os.path.basename(steps_path)} for walking steps check")
-    else:
-        df_steps = None
-        
-    # Run Stance Diagnostics for Facing up events
-    stance_events_count = 0
-    for idx, row in df_aligned.iterrows():
-        if row['shot_type'] == "Facing up":
-            run_stance_diagnostics(
-                row['narrated_text'],
-                row['audio_time_seconds'],
-                row['impact_time_seconds'],
-                df_gyro, df_accel, df_gravity, df_orient, df_steps
-            )
-            stance_events_count += 1
-    if stance_events_count == 0:
-        print("ℹ️ No 'Facing up' stance events found in this session.")
+    # Run Stance Diagnostics for Facing up events (legacy heuristic debugging; disabled by default)
+    if getattr(args, "stance_diagnostics", False):
+        stance_events_count = 0
+        for idx, row in df_aligned.iterrows():
+            if row['shot_type'] == "Facing up":
+                run_stance_diagnostics(
+                    row['narrated_text'],
+                    row['audio_time_seconds'],
+                    row['impact_time_seconds'],
+                    df_gyro, df_accel, df_gravity, df_orient, df_steps
+                )
+                stance_events_count += 1
+        if stance_events_count == 0:
+            print("ℹ️ No 'Facing up' stance events found in this session.")
     
     save_segments = getattr(args, "save_segments", False)
     if save_segments:
@@ -1769,6 +1935,16 @@ def main():
     
     # Losslessly compress all raw Watch*.csv files to Watch*.csv.gz and delete original CSVs
     compress_session_csvs(session_dir)
+
+    # Batting session summary scorecard
+    print_session_summary(
+        session_dir=session_dir,
+        df_aligned=df_aligned,
+        gyro_duration=gyro_duration,
+        offset=offset,
+        drift_rate=drift_rate,
+        sync_description=sync_description
+    )
 def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, df_gravity, df_orient, df_steps):
     t_start = t_stance
     t_end = t_stance + 1.5
@@ -2645,6 +2821,7 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     valid_count = df_aligned['bottom_hand_acc_peak'].notna().sum()
     total_count = len(df_aligned)
     print(f"\n✅ Polar Sense features & Phase Timings appended to ground_truth_aligned.csv ({valid_count}/{total_count} shots with Polar data)")
+    return df_aligned
 
 def normalize_shot_class(shot_name):
 

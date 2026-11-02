@@ -131,6 +131,12 @@ class InningsViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun retryLocalProcessing(inningsId: Long, onResult: (Boolean, String) -> Unit) {
+        // Never start a second run while background sync (or a previous retry) is
+        // already processing this innings — concurrent runs duplicated every shot.
+        if (com.mrpeel.cricketbattingtracker.services.PhoneSwingDetector.isProcessing(inningsId)) {
+            onResult(false, "Session is already being processed in the background. Please wait...")
+            return
+        }
         viewModelScope.launch {
             var tempWatchDir: java.io.File? = null
             var tempPolarDir: java.io.File? = null

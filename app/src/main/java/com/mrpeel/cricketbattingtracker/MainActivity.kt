@@ -436,12 +436,19 @@ class MainActivity : ComponentActivity() {
 
                         var processedByRecovery by remember(selectedSessionId) { mutableStateOf(false) }
 
-                        val isProcessing = remember(timeline, selectedSession, processedByRecovery) {
+                        // Innings currently being batch-processed (background sync or a retry).
+                        // While in flight we must NOT launch another run — concurrent runs duplicated shots.
+                        val processingInnings by com.mrpeel.cricketbattingtracker.services.PhoneSwingDetector.processingInnings.collectAsState()
+                        val isBackgroundProcessing = selectedSessionId != null && selectedSessionId in processingInnings
+                        // Auto-recovery runs at most once per opened session (survives branch recomposition).
+                        var autoRecoveryAttempted by remember(selectedSessionId) { mutableStateOf(false) }
+
+                        val isProcessing = remember(timeline, selectedSession, processedByRecovery, isBackgroundProcessing) {
                             val hasShots = timeline.any { it.description.contains("Shot:") || it.batSpeed != null }
                             val hasEnded = timeline.any { it.description == "Session Ended" }
                             val isProcessed = hasShots || hasEnded || processedByRecovery || context.getSharedPreferences("pitch_analytix_prefs", Context.MODE_PRIVATE)
                                 .getBoolean("processed_innings_$selectedSessionId", false)
-                            !isProcessed
+                            isBackgroundProcessing || !isProcessed
                         }
 
                         Column(modifier = Modifier.fillMaxSize()) {
@@ -457,20 +464,32 @@ class MainActivity : ComponentActivity() {
                                 if (isProcessing) {
                                     var autoStatusMsg by remember(selectedSessionId) { mutableStateOf("") }
                                     var isAutoRecovering by remember(selectedSessionId) { mutableStateOf(false) }
+                                    var autoRecoveryFailed by remember(selectedSessionId) { mutableStateOf(false) }
+                                    var recoveryTimeoutElapsed by remember(selectedSessionId) { mutableStateOf(false) }
 
-                                    LaunchedEffect(selectedSessionId) {
-                                        selectedSessionId?.let { id ->
-                                            isAutoRecovering = true
-                                            autoStatusMsg = "Checking phone storage for raw session data..."
-                                            viewModel.retryLocalProcessing(id) { success, msg ->
-                                                isAutoRecovering = false
-                                                if (success) {
-                                                    processedByRecovery = true
-                                                } else {
-                                                    autoStatusMsg = msg
-                                                }
+                                    // Auto-recover only if nothing is already processing this innings, and only once.
+                                    // If background sync is running, wait for it (the key change re-evaluates when it finishes).
+                                    LaunchedEffect(selectedSessionId, isBackgroundProcessing) {
+                                        val id = selectedSessionId ?: return@LaunchedEffect
+                                        if (isBackgroundProcessing || autoRecoveryAttempted) return@LaunchedEffect
+                                        autoRecoveryAttempted = true
+                                        isAutoRecovering = true
+                                        autoStatusMsg = "Checking phone storage for raw session data..."
+                                        viewModel.retryLocalProcessing(id) { success, msg ->
+                                            isAutoRecovering = false
+                                            if (success) {
+                                                processedByRecovery = true
+                                            } else {
+                                                autoRecoveryFailed = true
+                                                autoStatusMsg = msg
                                             }
                                         }
+                                    }
+
+                                    // Recovery actions only surface after a real failure or a 60s timeout.
+                                    LaunchedEffect(selectedSessionId) {
+                                        kotlinx.coroutines.delay(60_000L)
+                                        recoveryTimeoutElapsed = true
                                     }
 
                                     Box(
@@ -485,14 +504,21 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             CircularProgressIndicator(color = Color(0xFF58FF63))
                                             Text(
-                                                text = if (isAutoRecovering) "Processing raw sensor data..." else "Retrieving and processing raw sensor data from watch...",
+                                                text = when {
+                                                    isBackgroundProcessing || isAutoRecovering -> "Processing raw sensor data..."
+                                                    else -> "Retrieving and processing raw sensor data from watch..."
+                                                },
                                                 color = Color.White.copy(alpha = 0.8f),
                                                 fontSize = 14.sp,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
+                                            val progressDetail = when {
+                                                isBackgroundProcessing && !isAutoRecovering -> "Session is being processed in the background. This can take a few minutes."
+                                                else -> autoStatusMsg
+                                            }
                                             Text(
-                                                text = if (autoStatusMsg.isNotEmpty()) autoStatusMsg else "This will take about 1-2 minutes. Please keep your watch close.",
-                                                color = if (autoStatusMsg.isNotEmpty()) Color(0xFF58FF63) else Color.Gray,
+                                                text = if (progressDetail.isNotEmpty()) progressDetail else "This will take about 1-2 minutes. Please keep your watch close.",
+                                                color = if (progressDetail.isNotEmpty()) Color(0xFF58FF63) else Color.Gray,
                                                 fontSize = 11.sp,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
@@ -500,7 +526,11 @@ class MainActivity : ComponentActivity() {
                                             val syncStartedAtMs = remember(selectedSessionId) { System.currentTimeMillis() }
                                             val elapsedMinutes = (System.currentTimeMillis() - syncStartedAtMs) / 60_000L
                                             val isOldSession = sessionStartTimestamp > 0L && (System.currentTimeMillis() - sessionStartTimestamp > 5 * 60_000L)
-                                            if (elapsedMinutes >= 1 || isOldSession) {
+                                            // Only offer recovery actions when nothing is in flight AND either the
+                                            // auto-recovery genuinely failed or we've waited past the timeout.
+                                            val showRecoveryCard = !isBackgroundProcessing && !isAutoRecovering &&
+                                                (autoRecoveryFailed || recoveryTimeoutElapsed)
+                                            if (showRecoveryCard) {
                                                 Spacer(modifier = Modifier.height(24.dp))
                                                 Card(
                                                     colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
@@ -519,7 +549,7 @@ class MainActivity : ComponentActivity() {
                                                             fontWeight = FontWeight.Bold
                                                         )
                                                         Text(
-                                                            text = if (isOldSession) {
+                                                            text = if (isOldSession || autoRecoveryFailed) {
                                                                 "This session was recorded earlier and raw data processing did not finish automatically. If raw files are on the phone, you can retry processing:"
                                                             } else {
                                                                 "This session has been pending for over $elapsedMinutes minutes. If the sync failed, you can choose one of these recovery actions:"
@@ -557,13 +587,18 @@ class MainActivity : ComponentActivity() {
                                                                         viewModel.retryLocalProcessing(id) { success, msg ->
                                                                             isRecovering = false
                                                                             statusMsg = msg
+                                                                            // Hoist result: this card is hidden while the retry is
+                                                                            // in flight, so its local state does not survive.
+                                                                            autoStatusMsg = msg
                                                                             if (success) {
                                                                                 processedByRecovery = true
+                                                                            } else {
+                                                                                autoRecoveryFailed = true
                                                                             }
                                                                         }
                                                                     }
                                                                 },
-                                                                enabled = !isRecovering,
+                                                                enabled = !isRecovering && !isBackgroundProcessing,
                                                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF58FF63), contentColor = Color(0xFF000C1B)),
                                                                 modifier = Modifier.weight(1f),
                                                                 shape = RoundedCornerShape(8.dp)

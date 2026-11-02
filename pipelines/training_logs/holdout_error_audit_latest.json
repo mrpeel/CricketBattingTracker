@@ -25,30 +25,6 @@
   },
   {
     "sid": "session_2026-06-12_12-24-37",
-    "impact_t": 578.02,
-    "gt_cls": "PULL/HOOK/SLOG",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.46,
-    "cand_t": 578.29,
-    "delta_s": 0.27,
-    "narr_text": "pull shot good"
-  },
-  {
-    "sid": "session_2026-06-12_12-24-37",
-    "impact_t": 627.23,
-    "gt_cls": "PULL/HOOK/SLOG",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.44,
-    "cand_t": 627.36,
-    "delta_s": 0.13,
-    "narr_text": "pull shot okay facing up"
-  },
-  {
-    "sid": "session_2026-06-12_12-24-37",
     "impact_t": 632.67,
     "gt_cls": "PULL/HOOK/SLOG",
     "status": "NOT_DETECTED",
@@ -61,39 +37,15 @@
   },
   {
     "sid": "session_2026-06-12_12-24-37",
-    "impact_t": 643.43,
-    "gt_cls": "PULL/HOOK/SLOG",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.53,
-    "cand_t": 643.65,
-    "delta_s": 0.22,
-    "narr_text": "pull shot good"
-  },
-  {
-    "sid": "session_2026-06-12_12-24-37",
-    "impact_t": 664.87,
+    "impact_t": 654.71,
     "gt_cls": "GLANCE/FLICK",
     "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.73,
-    "cand_t": 663.7,
-    "delta_s": -1.17,
-    "narr_text": "quick shot okay facing up"
-  },
-  {
-    "sid": "session_2026-06-12_12-24-37",
-    "impact_t": 705.68,
-    "gt_cls": "PULL/HOOK/SLOG",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.44,
-    "cand_t": 705.77,
-    "delta_s": 0.09,
-    "narr_text": "pull shot okay"
+    "pred_cls": "PULL/HOOK/SLOG",
+    "error_cat": "CROSS_BAT_CONFUSION",
+    "prob": 0.54,
+    "cand_t": 654.65,
+    "delta_s": -0.06,
+    "narr_text": "good shot okay facing up"
   },
   {
     "sid": "session_2026-06-12_12-24-37",
@@ -102,7 +54,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.66,
+    "prob": 0.62,
     "cand_t": 752.84,
     "delta_s": -0.31,
     "narr_text": "pull shot good"
@@ -114,7 +66,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.54,
+    "prob": 0.48,
     "cand_t": 1092.03,
     "delta_s": 0.26,
     "narr_text": "pull shot okay facing up"
@@ -126,7 +78,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.89,
+    "prob": 0.87,
     "cand_t": 1134.83,
     "delta_s": -0.0,
     "narr_text": "pull shot okay"
@@ -138,7 +90,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.54,
+    "prob": 0.48,
     "cand_t": 1210.29,
     "delta_s": 0.2,
     "narr_text": "pull shot okay"
@@ -150,7 +102,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.84,
+    "prob": 0.87,
     "cand_t": 1234.11,
     "delta_s": -0.61,
     "narr_text": "which shot okay facing up"
@@ -162,7 +114,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.6,
+    "prob": 0.52,
     "cand_t": 44.29,
     "delta_s": -1.01,
     "narr_text": "cut shot okay facing up"
@@ -174,7 +126,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.77,
+    "prob": 0.52,
     "cand_t": 82.14,
     "delta_s": -0.14,
     "narr_text": "touch shot four"
@@ -186,7 +138,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.6,
+    "prob": 0.82,
     "cand_t": 173.05,
     "delta_s": -0.46,
     "narr_text": "cut shot four"
@@ -198,7 +150,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.87,
+    "prob": 0.72,
     "cand_t": 500.29,
     "delta_s": -0.52,
     "narr_text": "cut shot okay facing up"
@@ -210,7 +162,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.93,
+    "prob": 0.81,
     "cand_t": 515.62,
     "delta_s": -0.07,
     "narr_text": "cut shot good"
@@ -222,7 +174,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.59,
+    "prob": 0.56,
     "cand_t": 525.88,
     "delta_s": -0.96,
     "narr_text": "cut shot okay"
@@ -234,7 +186,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.93,
+    "prob": 0.68,
     "cand_t": 537.01,
     "delta_s": -0.23,
     "narr_text": "cut shot good"
@@ -246,22 +198,10 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.93,
+    "prob": 0.75,
     "cand_t": 595.25,
     "delta_s": -0.15,
     "narr_text": "cut shot good"
-  },
-  {
-    "sid": "session_2026-06-19_12-25-55",
-    "impact_t": 797.11,
-    "gt_cls": "CUT/PUNCH",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.63,
-    "cand_t": 796.48,
-    "delta_s": -0.63,
-    "narr_text": "cut shot okay facing up"
   },
   {
     "sid": "session_2026-06-19_12-25-55",
@@ -277,26 +217,14 @@
   },
   {
     "sid": "session_2026-06-19_12-25-55",
-    "impact_t": 845.75,
-    "gt_cls": "CUT/PUNCH",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.58,
-    "cand_t": 845.61,
-    "delta_s": -0.14,
-    "narr_text": "cut shot okay facing up"
-  },
-  {
-    "sid": "session_2026-06-19_12-25-55",
     "impact_t": 860.39,
     "gt_cls": "CUT/PUNCH",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DEFLECTION/GUIDE",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.69,
-    "cand_t": 859.04,
-    "delta_s": -1.35,
+    "status": "NOT_DETECTED",
+    "pred_cls": "NONE",
+    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+    "prob": 0.0,
+    "cand_t": 867.78,
+    "delta_s": 7.39,
     "narr_text": "cut shot four facing up"
   },
   {
@@ -330,7 +258,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.67,
+    "prob": 0.63,
     "cand_t": 63.8,
     "delta_s": -1.4,
     "narr_text": "flick shot okay facing up"
@@ -354,22 +282,22 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.84,
+    "prob": 0.92,
     "cand_t": 142.99,
     "delta_s": 0.1,
     "narr_text": "forward defense okay"
   },
   {
     "sid": "session_2026-06-25_12-25-07",
-    "impact_t": 190.29,
+    "impact_t": 222.57,
     "gt_cls": "GLANCE/FLICK",
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.44,
-    "cand_t": 189.94,
-    "delta_s": -0.35,
-    "narr_text": "good shot okay"
+    "prob": 0.57,
+    "cand_t": 222.56,
+    "delta_s": -0.01,
+    "narr_text": "quick shot good"
   },
   {
     "sid": "session_2026-06-25_12-25-07",
@@ -378,7 +306,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.74,
+    "prob": 0.8,
     "cand_t": 602.43,
     "delta_s": -0.5,
     "narr_text": "on drive good"
@@ -390,7 +318,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.6,
+    "prob": 0.55,
     "cand_t": 645.01,
     "delta_s": -0.94,
     "narr_text": "back defense good facing up flick shot okay"
@@ -421,12 +349,24 @@
   },
   {
     "sid": "session_2026-06-28_11-28-09",
+    "impact_t": 192.39,
+    "gt_cls": "SWEEP",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "SWEEP_CONFUSION",
+    "prob": 0.65,
+    "cand_t": 192.79,
+    "delta_s": 0.4,
+    "narr_text": "sweep shot four"
+  },
+  {
+    "sid": "session_2026-06-28_11-28-09",
     "impact_t": 206.55,
     "gt_cls": "SWEEP",
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.74,
+    "prob": 0.81,
     "cand_t": 206.44,
     "delta_s": -0.11,
     "narr_text": "weep shot okay"
@@ -438,7 +378,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.9,
+    "prob": 0.87,
     "cand_t": 216.83,
     "delta_s": -0.02,
     "narr_text": "pull shot ah sweep shot okay"
@@ -450,7 +390,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.52,
+    "prob": 0.62,
     "cand_t": 304.02,
     "delta_s": 0.08,
     "narr_text": "on drive okay"
@@ -462,7 +402,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.52,
+    "prob": 0.46,
     "cand_t": 596.52,
     "delta_s": 0.35,
     "narr_text": "slip shot good"
@@ -474,7 +414,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.89,
+    "prob": 0.81,
     "cand_t": 605.25,
     "delta_s": 0.17,
     "narr_text": "flick shot good"
@@ -498,7 +438,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.78,
+    "prob": 0.7,
     "cand_t": 756.62,
     "delta_s": 0.21,
     "narr_text": "slip shot miss in the round"
@@ -520,9 +460,9 @@
     "impact_t": 1012.49,
     "gt_cls": "SWEEP",
     "status": "MISCLASSIFIED",
-    "pred_cls": "PULL/HOOK/SLOG",
+    "pred_cls": "GLANCE/FLICK",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.36,
+    "prob": 0.45,
     "cand_t": 1012.87,
     "delta_s": 0.38,
     "narr_text": "sweep shot good"
@@ -534,21 +474,9 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.81,
+    "prob": 0.76,
     "cand_t": 1035.35,
     "delta_s": -0.04,
-    "narr_text": "slip shot okay"
-  },
-  {
-    "sid": "session_2026-06-28_11-28-09",
-    "impact_t": 1097.21,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "SWEEP",
-    "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.64,
-    "cand_t": 1096.96,
-    "delta_s": -0.25,
     "narr_text": "slip shot okay"
   },
   {
@@ -558,22 +486,10 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.61,
+    "prob": 0.55,
     "cand_t": 1106.1,
     "delta_s": 0.13,
     "narr_text": "sweep shot okay"
-  },
-  {
-    "sid": "session_2026-06-28_11-28-09",
-    "impact_t": 1128.9,
-    "gt_cls": "DRIVE/DEFENCE",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.57,
-    "cand_t": 1128.66,
-    "delta_s": -0.24,
-    "narr_text": "on drive okay"
   },
   {
     "sid": "session_2026-06-28_11-28-09",
@@ -589,6 +505,18 @@
   },
   {
     "sid": "session_2026-06-28_11-28-09",
+    "impact_t": 1170.12,
+    "gt_cls": "SWEEP",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "SWEEP_CONFUSION",
+    "prob": 0.62,
+    "cand_t": 1170.49,
+    "delta_s": 0.37,
+    "narr_text": "sweep shot okay"
+  },
+  {
+    "sid": "session_2026-06-28_11-28-09",
     "impact_t": 1175.13,
     "gt_cls": "SWEEP",
     "status": "NOT_DETECTED",
@@ -601,39 +529,27 @@
   },
   {
     "sid": "session_2026-07-27_12-47-20",
+    "impact_t": 49.45,
+    "gt_cls": "DRIVE/DEFENCE",
+    "status": "NOT_DETECTED",
+    "pred_cls": "NONE",
+    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+    "prob": 0.0,
+    "cand_t": 67.63,
+    "delta_s": 18.17,
+    "narr_text": "back defense or"
+  },
+  {
+    "sid": "session_2026-07-27_12-47-20",
     "impact_t": 58.09,
     "gt_cls": "DRIVE/DEFENCE",
     "status": "NOT_DETECTED",
     "pred_cls": "NONE",
     "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
     "prob": 0.0,
-    "cand_t": 49.45,
-    "delta_s": -8.64,
+    "cand_t": 67.63,
+    "delta_s": 9.53,
     "narr_text": "back fence good"
-  },
-  {
-    "sid": "session_2026-07-27_12-47-20",
-    "impact_t": 111.97,
-    "gt_cls": "DRIVE/DEFENCE",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.53,
-    "cand_t": 111.97,
-    "delta_s": 0.0,
-    "narr_text": "on drive pour"
-  },
-  {
-    "sid": "session_2026-07-27_12-47-20",
-    "impact_t": 143.34,
-    "gt_cls": "PULL/HOOK/SLOG",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.56,
-    "cand_t": 143.35,
-    "delta_s": 0.0,
-    "narr_text": "pull shot okay"
   },
   {
     "sid": "session_2026-07-27_12-47-20",
@@ -646,6 +562,18 @@
     "cand_t": 588.87,
     "delta_s": -4.97,
     "narr_text": "quick shot miss"
+  },
+  {
+    "sid": "session_2026-07-27_12-47-20",
+    "impact_t": 623.75,
+    "gt_cls": "PULL/HOOK/SLOG",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "VERTICAL_BAT_CONFUSION",
+    "prob": 0.65,
+    "cand_t": 623.75,
+    "delta_s": 0.0,
+    "narr_text": "pull shot okay"
   },
   {
     "sid": "session_2026-07-27_12-47-20",
@@ -666,7 +594,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "PULL/HOOK/SLOG",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.53,
+    "prob": 0.46,
     "cand_t": 1041.11,
     "delta_s": 0.0,
     "narr_text": "which shot good"
@@ -682,6 +610,18 @@
     "cand_t": 75.03,
     "delta_s": 71.0,
     "narr_text": "alright"
+  },
+  {
+    "sid": "session_2026-08-08_10-43-42",
+    "impact_t": 93.73,
+    "gt_cls": "POWER DRIVE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "SUBCLASS_CONFUSION",
+    "prob": 0.5,
+    "cand_t": 93.41,
+    "delta_s": -0.32,
+    "narr_text": "power drive okay facing up"
   },
   {
     "sid": "session_2026-08-08_10-43-42",
@@ -709,12 +649,24 @@
   },
   {
     "sid": "session_2026-08-08_10-43-42",
+    "impact_t": 576.77,
+    "gt_cls": "POWER DRIVE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "SUBCLASS_CONFUSION",
+    "prob": 0.45,
+    "cand_t": 576.77,
+    "delta_s": 0.0,
+    "narr_text": "power drive good"
+  },
+  {
+    "sid": "session_2026-08-08_10-43-42",
     "impact_t": 621.53,
     "gt_cls": "GLANCE/FLICK",
     "status": "MISCLASSIFIED",
     "pred_cls": "POWER DRIVE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.84,
+    "prob": 0.71,
     "cand_t": 621.53,
     "delta_s": 0.0,
     "narr_text": "flick shot good"
@@ -726,7 +678,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.46,
+    "prob": 0.54,
     "cand_t": 646.99,
     "delta_s": 0.0,
     "narr_text": "power drive good"
@@ -750,7 +702,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "POWER DRIVE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.97,
+    "prob": 0.98,
     "cand_t": 698.3,
     "delta_s": 0.0,
     "narr_text": "facing up on drive good"
@@ -762,10 +714,22 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.58,
+    "prob": 0.65,
     "cand_t": 1023.83,
     "delta_s": 0.0,
     "narr_text": "pull shot pour"
+  },
+  {
+    "sid": "session_2026-08-08_10-43-42",
+    "impact_t": 1111.81,
+    "gt_cls": "POWER DRIVE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "SUBCLASS_CONFUSION",
+    "prob": 0.7,
+    "cand_t": 1111.81,
+    "delta_s": 0.0,
+    "narr_text": "power drive okay facing up"
   },
   {
     "sid": "session_2026-08-08_10-43-42",
@@ -781,15 +745,27 @@
   },
   {
     "sid": "session_2026-08-08_10-43-42",
-    "impact_t": 1730.94,
+    "impact_t": 1658.33,
     "gt_cls": "DEFLECTION/GUIDE",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.4,
-    "cand_t": 1730.94,
-    "delta_s": 0.0,
+    "status": "NOT_DETECTED",
+    "pred_cls": "NONE",
+    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+    "prob": 0.0,
+    "cand_t": 1646.78,
+    "delta_s": -11.55,
     "narr_text": "guide okay"
+  },
+  {
+    "sid": "session_2026-08-08_10-43-42",
+    "impact_t": 1694.85,
+    "gt_cls": "DEFLECTION/GUIDE",
+    "status": "NOT_DETECTED",
+    "pred_cls": "NONE",
+    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+    "prob": 0.0,
+    "cand_t": 1702.75,
+    "delta_s": 7.9,
+    "narr_text": "guide okay facing up"
   },
   {
     "sid": "session_2026-08-08_10-43-42",
@@ -822,10 +798,22 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.74,
+    "prob": 0.85,
     "cand_t": 88.11,
     "delta_s": 0.0,
     "narr_text": "swipe shot okay"
+  },
+  {
+    "sid": "session_2026-08-16_14-10-23",
+    "impact_t": 97.28,
+    "gt_cls": "SWEEP",
+    "status": "NOT_DETECTED",
+    "pred_cls": "NONE",
+    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+    "prob": 0.0,
+    "cand_t": 88.11,
+    "delta_s": -9.18,
+    "narr_text": "sweep shot okay"
   },
   {
     "sid": "session_2026-08-16_14-10-23",
@@ -835,8 +823,8 @@
     "pred_cls": "NONE",
     "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
     "prob": 0.0,
-    "cand_t": 97.29,
-    "delta_s": -11.02,
+    "cand_t": 126.85,
+    "delta_s": 18.54,
     "narr_text": "sweep shot okay"
   },
   {
@@ -858,7 +846,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.78,
+    "prob": 0.84,
     "cand_t": 154.34,
     "delta_s": 0.0,
     "narr_text": "slip shot okay"
@@ -868,9 +856,9 @@
     "impact_t": 174.52,
     "gt_cls": "SWEEP",
     "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
+    "pred_cls": "POWER DRIVE",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.17,
+    "prob": 0.18,
     "cand_t": 174.52,
     "delta_s": 0.0,
     "narr_text": "we've shot good"
@@ -882,7 +870,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.79,
+    "prob": 0.86,
     "cand_t": 198.42,
     "delta_s": 0.0,
     "narr_text": "on drive okay"
@@ -894,22 +882,10 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.62,
+    "prob": 0.5,
     "cand_t": 207.71,
     "delta_s": 0.0,
     "narr_text": "straight shot good"
-  },
-  {
-    "sid": "session_2026-08-16_14-10-23",
-    "impact_t": 294.37,
-    "gt_cls": "SWEEP",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "PULL/HOOK/SLOG",
-    "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.3,
-    "cand_t": 295.63,
-    "delta_s": 1.25,
-    "narr_text": "facing up sweep shot okay"
   },
   {
     "sid": "session_2026-08-16_14-10-23",
@@ -918,7 +894,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.7,
+    "prob": 0.69,
     "cand_t": 315.28,
     "delta_s": 0.0,
     "narr_text": "straight shot good"
@@ -930,7 +906,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.74,
+    "prob": 0.56,
     "cand_t": 324.98,
     "delta_s": 0.0,
     "narr_text": "flick shot good"
@@ -942,7 +918,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.74,
+    "prob": 0.68,
     "cand_t": 349.05,
     "delta_s": 0.0,
     "narr_text": "quick shot okay"
@@ -954,22 +930,10 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.74,
+    "prob": 0.72,
     "cand_t": 546.84,
     "delta_s": 0.0,
     "narr_text": "straight shot good"
-  },
-  {
-    "sid": "session_2026-08-16_14-10-23",
-    "impact_t": 560.04,
-    "gt_cls": "PULL/HOOK/SLOG",
-    "status": "NOT_DETECTED",
-    "pred_cls": "NONE",
-    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
-    "prob": 0.0,
-    "cand_t": 568.24,
-    "delta_s": 8.19,
-    "narr_text": "pull shot okay"
   },
   {
     "sid": "session_2026-08-16_14-10-23",
@@ -978,7 +942,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.91,
+    "prob": 0.85,
     "cand_t": 568.24,
     "delta_s": 0.0,
     "narr_text": "sweep shot pull"
@@ -990,7 +954,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.79,
+    "prob": 0.73,
     "cand_t": 642.6,
     "delta_s": 0.0,
     "narr_text": "straight shot good"
@@ -1002,10 +966,22 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "SWEEP",
     "error_cat": "SWEEP_CONFUSION",
-    "prob": 0.93,
+    "prob": 0.91,
     "cand_t": 652.74,
     "delta_s": 0.0,
     "narr_text": "straight shot okay"
+  },
+  {
+    "sid": "session_2026-08-16_14-10-23",
+    "impact_t": 686.7,
+    "gt_cls": "SWEEP",
+    "status": "NOT_DETECTED",
+    "pred_cls": "NONE",
+    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+    "prob": 0.0,
+    "cand_t": 695.84,
+    "delta_s": 9.15,
+    "narr_text": "sweep shot good"
   },
   {
     "sid": "session_2026-08-22_14-25-31",
@@ -1014,7 +990,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "CUT/PUNCH",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.61,
+    "prob": 0.58,
     "cand_t": 59.97,
     "delta_s": 0.0,
     "narr_text": "back foot punch good facing up"
@@ -1062,10 +1038,22 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.97,
+    "prob": 0.94,
     "cand_t": 363.73,
     "delta_s": 0.0,
     "narr_text": "back foot punch okay facing up cut shot okay"
+  },
+  {
+    "sid": "session_2026-08-22_14-25-31",
+    "impact_t": 406.87,
+    "gt_cls": "CUT/PUNCH",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "DRIVE/DEFENCE",
+    "error_cat": "VERTICAL_BAT_CONFUSION",
+    "prob": 0.48,
+    "cand_t": 406.87,
+    "delta_s": 0.0,
+    "narr_text": "cut shot good"
   },
   {
     "sid": "session_2026-08-22_14-25-31",
@@ -1074,7 +1062,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.98,
+    "prob": 0.96,
     "cand_t": 414.57,
     "delta_s": 0.0,
     "narr_text": "alright foot defense okay end of round"
@@ -1086,7 +1074,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "CUT/PUNCH",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.82,
+    "prob": 0.84,
     "cand_t": 584.56,
     "delta_s": 0.0,
     "narr_text": "guide okay facing up"
@@ -1110,7 +1098,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "CUT/PUNCH",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.56,
+    "prob": 0.64,
     "cand_t": 685.22,
     "delta_s": 0.0,
     "narr_text": "that's a punch four"
@@ -1134,7 +1122,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "PULL/HOOK/SLOG",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.83,
+    "prob": 0.86,
     "cand_t": 119.46,
     "delta_s": 0.0,
     "narr_text": "click shot or facing up"
@@ -1146,7 +1134,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.74,
+    "prob": 0.66,
     "cand_t": 124.67,
     "delta_s": 0.0,
     "narr_text": "glide okay facing up"
@@ -1158,7 +1146,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.84,
+    "prob": 0.86,
     "cand_t": 142.71,
     "delta_s": 0.0,
     "narr_text": "glide okay"
@@ -1189,12 +1177,24 @@
   },
   {
     "sid": "session_2026-09-08_12-52-30",
+    "impact_t": 576.33,
+    "gt_cls": "DRIVE/DEFENCE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "CUT/PUNCH",
+    "error_cat": "CROSS_BAT_CONFUSION",
+    "prob": 0.56,
+    "cand_t": 576.33,
+    "delta_s": 0.0,
+    "narr_text": "back foot punch good facing up"
+  },
+  {
+    "sid": "session_2026-09-08_12-52-30",
     "impact_t": 594.85,
     "gt_cls": "DRIVE/DEFENCE",
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.36,
+    "prob": 0.41,
     "cand_t": 594.58,
     "delta_s": -0.26,
     "narr_text": "back foot defense four"
@@ -1206,7 +1206,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.36,
+    "prob": 0.41,
     "cand_t": 594.58,
     "delta_s": 0.0,
     "narr_text": "facing up back foot defense okay"
@@ -1218,7 +1218,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.89,
+    "prob": 0.82,
     "cand_t": 738.76,
     "delta_s": 0.0,
     "narr_text": "back foot punch good facing up cut shot pour"
@@ -1230,7 +1230,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.95,
+    "prob": 0.97,
     "cand_t": 805.18,
     "delta_s": 0.0,
     "narr_text": "push up good facing up"
@@ -1246,6 +1246,18 @@
     "cand_t": 822.57,
     "delta_s": 7.44,
     "narr_text": "push up facing up"
+  },
+  {
+    "sid": "session_2026-09-08_12-52-30",
+    "impact_t": 830.54,
+    "gt_cls": "DRIVE/DEFENCE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "SUBCLASS_CONFUSION",
+    "prob": 0.63,
+    "cand_t": 830.54,
+    "delta_s": 0.0,
+    "narr_text": "on drive okay facing up"
   },
   {
     "sid": "session_2026-09-08_12-52-30",
@@ -1266,7 +1278,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "CUT/PUNCH",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.76,
+    "prob": 0.78,
     "cand_t": 1217.89,
     "delta_s": 0.0,
     "narr_text": "back foot punch good"
@@ -1290,7 +1302,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "CUT/PUNCH",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.93,
+    "prob": 0.91,
     "cand_t": 1259.48,
     "delta_s": 0.0,
     "narr_text": "back foot punch good facing up glide edge facing"
@@ -1314,7 +1326,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "CUT/PUNCH",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.83,
+    "prob": 0.77,
     "cand_t": 1345.95,
     "delta_s": 0.0,
     "narr_text": "back foot punch good"
@@ -1362,7 +1374,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.63,
+    "prob": 0.77,
     "cand_t": 177.87,
     "delta_s": 0.0,
     "narr_text": "on drive good"
@@ -1374,7 +1386,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.62,
+    "prob": 0.75,
     "cand_t": 254.51,
     "delta_s": 0.0,
     "narr_text": "on drive good"
@@ -1386,7 +1398,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.35,
+    "prob": 0.39,
     "cand_t": 299.71,
     "delta_s": 1.46,
     "narr_text": "facing up on drive good"
@@ -1398,7 +1410,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.48,
+    "prob": 0.57,
     "cand_t": 560.86,
     "delta_s": 0.0,
     "narr_text": "on drive good facing up"
@@ -1410,7 +1422,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.65,
+    "prob": 0.73,
     "cand_t": 570.88,
     "delta_s": 0.0,
     "narr_text": "on drive good"
@@ -1422,7 +1434,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.54,
+    "prob": 0.68,
     "cand_t": 646.61,
     "delta_s": 0.0,
     "narr_text": "on drive good"
@@ -1446,7 +1458,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.47,
+    "prob": 0.53,
     "cand_t": 699.57,
     "delta_s": 0.0,
     "narr_text": "on drive good"
@@ -1482,7 +1494,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.72,
+    "prob": 0.81,
     "cand_t": 1129.36,
     "delta_s": 0.0,
     "narr_text": "push shot miss"
@@ -1494,7 +1506,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.76,
+    "prob": 0.81,
     "cand_t": 1146.77,
     "delta_s": 0.0,
     "narr_text": "on drive 4 facing up"
@@ -1504,9 +1516,9 @@
     "impact_t": 1210.75,
     "gt_cls": "DRIVE/DEFENCE",
     "status": "MISCLASSIFIED",
-    "pred_cls": "POWER DRIVE",
+    "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.51,
+    "prob": 0.4,
     "cand_t": 1210.75,
     "delta_s": 0.0,
     "narr_text": "on drive good end of round end of sessions"
@@ -1518,7 +1530,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.7,
+    "prob": 0.74,
     "cand_t": 175.55,
     "delta_s": 0.0,
     "narr_text": "back foot defense or"
@@ -1542,7 +1554,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.84,
+    "prob": 0.86,
     "cand_t": 256.66,
     "delta_s": 0.0,
     "narr_text": "back foot defense pull"
@@ -1554,7 +1566,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.58,
+    "prob": 0.59,
     "cand_t": 269.29,
     "delta_s": 0.0,
     "narr_text": "foot shot okay facing up back foot defense okay in the ground"
@@ -1566,7 +1578,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.76,
+    "prob": 0.59,
     "cand_t": 609.91,
     "delta_s": 0.0,
     "narr_text": "back foot defense poor"
@@ -1578,7 +1590,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.85,
+    "prob": 0.83,
     "cand_t": 665.7,
     "delta_s": 0.0,
     "narr_text": "back foot defense four"
@@ -1590,7 +1602,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.65,
+    "prob": 0.44,
     "cand_t": 674.49,
     "delta_s": 0.0,
     "narr_text": "back foot punch edge"
@@ -1602,7 +1614,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.56,
+    "prob": 0.68,
     "cand_t": 688.04,
     "delta_s": 0.0,
     "narr_text": "glide okay facing it"
@@ -1614,10 +1626,22 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "CUT/PUNCH",
     "error_cat": "CROSS_BAT_CONFUSION",
-    "prob": 0.9,
+    "prob": 0.94,
     "cand_t": 696.3,
     "delta_s": 0.0,
     "narr_text": "crackle punch okay facing it"
+  },
+  {
+    "sid": "session_2026-10-09_12-41-17",
+    "impact_t": 704.35,
+    "gt_cls": "DEFLECTION/GUIDE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "CUT/PUNCH",
+    "error_cat": "CROSS_BAT_CONFUSION",
+    "prob": 0.5,
+    "cand_t": 704.35,
+    "delta_s": 0.0,
+    "narr_text": "glide edge"
   },
   {
     "sid": "session_2026-10-09_12-41-17",
@@ -1626,7 +1650,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DEFLECTION/GUIDE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.7,
+    "prob": 0.68,
     "cand_t": 1002.62,
     "delta_s": 0.0,
     "narr_text": "back foot defense good"
@@ -1638,7 +1662,7 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.73,
+    "prob": 0.8,
     "cand_t": 1097.32,
     "delta_s": 0.0,
     "narr_text": "back foot defense pull"
@@ -1657,12 +1681,24 @@
   },
   {
     "sid": "session_2026-10-09_12-41-17",
+    "impact_t": 1144.86,
+    "gt_cls": "DEFLECTION/GUIDE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "CUT/PUNCH",
+    "error_cat": "CROSS_BAT_CONFUSION",
+    "prob": 0.44,
+    "cand_t": 1144.86,
+    "delta_s": 0.0,
+    "narr_text": "glide okay facing up"
+  },
+  {
+    "sid": "session_2026-10-09_12-41-17",
     "impact_t": 1152.49,
     "gt_cls": "DEFLECTION/GUIDE",
     "status": "MISCLASSIFIED",
     "pred_cls": "DRIVE/DEFENCE",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.5,
+    "prob": 0.57,
     "cand_t": 1152.49,
     "delta_s": 0.0,
     "narr_text": "guide miss"
@@ -1722,10 +1758,22 @@
     "status": "MISCLASSIFIED",
     "pred_cls": "GLANCE/FLICK",
     "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.56,
+    "prob": 0.65,
     "cand_t": 233.82,
     "delta_s": 0.0,
     "narr_text": "back foot defense or facing up"
+  },
+  {
+    "sid": "session_2026-10-17_11-47-47",
+    "impact_t": 255.05,
+    "gt_cls": "DRIVE/DEFENCE",
+    "status": "MISCLASSIFIED",
+    "pred_cls": "GLANCE/FLICK",
+    "error_cat": "SUBCLASS_CONFUSION",
+    "prob": 0.64,
+    "cand_t": 255.05,
+    "delta_s": 0.0,
+    "narr_text": "on drive good"
   },
   {
     "sid": "session_2026-10-17_11-47-47",
@@ -1753,30 +1801,6 @@
   },
   {
     "sid": "session_2026-10-17_11-47-47",
-    "impact_t": 641.0,
-    "gt_cls": "GLANCE/FLICK",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "DRIVE/DEFENCE",
-    "error_cat": "SUBCLASS_CONFUSION",
-    "prob": 0.69,
-    "cand_t": 641.0,
-    "delta_s": 0.0,
-    "narr_text": "flick shot okay facing up"
-  },
-  {
-    "sid": "session_2026-10-17_11-47-47",
-    "impact_t": 648.89,
-    "gt_cls": "PULL/HOOK/SLOG",
-    "status": "MISCLASSIFIED",
-    "pred_cls": "GLANCE/FLICK",
-    "error_cat": "VERTICAL_BAT_CONFUSION",
-    "prob": 0.6,
-    "cand_t": 648.9,
-    "delta_s": 0.0,
-    "narr_text": "pull shot four"
-  },
-  {
-    "sid": "session_2026-10-17_11-47-47",
     "impact_t": 968.86,
     "gt_cls": "PULL/HOOK/SLOG",
     "status": "NOT_DETECTED",
@@ -1786,6 +1810,18 @@
     "cand_t": 963.65,
     "delta_s": -5.2,
     "narr_text": "facing up pull shot miss"
+  },
+  {
+    "sid": "session_2026-10-17_11-47-47",
+    "impact_t": 990.21,
+    "gt_cls": "PULL/HOOK/SLOG",
+    "status": "NOT_DETECTED",
+    "pred_cls": "NONE",
+    "error_cat": "NOT_DETECTED (MISSING_CANDIDATE)",
+    "prob": 0.0,
+    "cand_t": 997.12,
+    "delta_s": 6.91,
+    "narr_text": "pull shot edge"
   },
   {
     "sid": "session_2026-10-17_11-47-47",
