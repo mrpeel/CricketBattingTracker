@@ -568,21 +568,32 @@ object PhoneSwingDetector {
                             azimDevDeg = ahrsRes.azimuthDeviationDeg
                         }
 
-                        // Bat-Sensor-First 3D AHRS + Handle Axial Roll Glance/Flick Disambiguation (matching telemetry_engine.py Rule 2)
-                        if (configuredMount == "BAT_HANDLE" && ahrsRes != null &&
-                            (finalShotType == "DRIVE/DEFENCE" || finalShotType == "POWER DRIVE")
-                        ) {
-                            var batGzMin = 0f
+                        // Shared Stage 3 Post-AHRS Rules (driven by assets/models/stage3_rules_config.json)
+                        var batGzMin = 0f
+                        if (configuredMount == "BAT_HANDLE") {
                             forEachPolarInRange(polarGyro, polarPeakTimeMs - 250L, polarPeakTimeMs + 250L) { s ->
                                 if (s.z < batGzMin) batGzMin = s.z
                             }
-                            val yawDeg = ahrsRes.swingYawDeg
-                            if ((yawDeg <= -17.0f && batGzMin <= -11.5f && det.pSub0Glance >= 0.25f) ||
-                                (yawDeg <= -50.0f && det.pSub0Glance >= 0.50f)
-                            ) {
-                                finalShotType = "GLANCE/FLICK"
-                            }
                         }
+                        val postAhrsFeatures = com.mrpeel.cricketbattingtracker.ml.Stage3RuleEngine.Stage3Features(
+                            postImpactAccRatio = det.postImpactRatio,
+                            hasPolar = hasPolarData,
+                            ahrsValid = (guardRes.isKinematicallyValid && ahrsRes != null),
+                            ahrsBladePitchDeg = ahrsRes?.bladePitchDeg,
+                            ahrsFaceRollDeg = ahrsRes?.faceAngleDeg,
+                            ahrsSwingYawDeg = ahrsRes?.swingYawDeg,
+                            batGzMin = batGzMin,
+                            bottomHandTimeLeadMs = (bottomTimeLeadMs ?: 0L).toFloat()
+                        )
+                        val postAhrsEval = com.mrpeel.cricketbattingtracker.ml.Stage3RuleEngine.applyPostAhrsRules(
+                            currentPredCls = finalShotType,
+                            hierProbs = det.hierProbs,
+                            features = postAhrsFeatures,
+                            polarMountMode = configuredMount,
+                            config = com.mrpeel.cricketbattingtracker.ml.Stage3RuleEngine.loadConfig(context),
+                            priorFiredRules = det.firedRules
+                        )
+                        finalShotType = postAhrsEval.predictedShotType
                     }
                 }
             }

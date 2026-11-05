@@ -64,6 +64,7 @@ from telemetry_engine import (
     HOLDOUT_EMPIRICAL_OFFSETS
 )
 from training_logger import setup_training_logger
+from jev_auditor import run_stage3_jev_shadow_audit
 
 MODEL_PT_PATH = STAGE2_MODEL_PATH
 MODEL_ONNX_PATH = os.path.join(ROOT_DIR, "pipelines", "tcn_ultimate_baseline.onnx")
@@ -597,6 +598,7 @@ def main():
     parser.add_argument("--force-extract", action="store_true", help="Force re-extraction of candidate windows")
     parser.add_argument("--epochs", type=int, default=24, help="Number of training epochs (default: 24)")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size (default: 32)")
+    parser.add_argument("--no-jev-audit", action="store_true", help="Disable Stage 3 Jev shadow audit during evaluation")
     args = parser.parse_args()
 
     print("="*100, flush=True)
@@ -803,6 +805,26 @@ def main():
 {ho_err_summary}
 {ho_err_table}
 """
+
+    if not args.no_jev_audit:
+        try:
+            jev_md, _ = run_stage3_jev_shadow_audit(
+                all_results=metrics.get("all_results", []),
+                holdout_sessions=test_sessions,
+                validation_sessions=val_sessions,
+                verbose=True,
+            )
+            if jev_md:
+                report += f"\n---\n\n{jev_md}\n"
+        except Exception as e_jev:
+            print(f"⚠️ Stage 3 Jev Shadow Audit skipped due to error: {e_jev}", flush=True)
+
+    # Sync shared Stage 3 JSON configuration to Android assets
+    s3_cfg_src = os.path.join(PIPELINES_DIR, "stage3_rules_config.json")
+    s3_cfg_dst = os.path.join(APP_ASSETS_DIR, "stage3_rules_config.json")
+    if os.path.exists(s3_cfg_src):
+        shutil.copy(s3_cfg_src, s3_cfg_dst)
+        print(f"✅ Synced Stage 3 rules config -> {s3_cfg_dst}", flush=True)
 
     with open(REPORT_OUT, 'w') as f:
         f.write(report)

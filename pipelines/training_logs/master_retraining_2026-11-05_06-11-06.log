@@ -1,0 +1,37 @@
+====================================================================================================
+  PITCH ANALYTIX PRO — PERSISTENT RUN LOG
+  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-11-05_06-11-06.log
+  Start Time       : 2026-11-05 06:11:06
+  Command Line     : pipelines/train_and_evaluate_full_scorecard.py --eval-only
+  Python Version   : 3.14.5 (/opt/homebrew/opt/python@3.14/bin/python3.14)
+====================================================================================================
+
+====================================================================================================
+  PHASE 2 MASTER RETRAINING & MULTI-TIER EVALUATION (LEARNED FALSE-POSITIVE REJECTION)
+  Holdout / Validation Sessions (12): session_2026-06-12_12-24-37, session_2026-06-19_12-25-55, session_2026-06-25_12-25-07, session_2026-06-28_11-28-09, session_2026-07-27_12-47-20, session_2026-08-08_10-43-42, session_2026-08-16_14-10-23, session_2026-08-22_14-25-31, session_2026-09-08_12-52-30, session_2026-09-17_12-48-47, session_2026-10-09_12-41-17, session_2026-10-17_11-47-47
+  Execution Device: mps
+  Random Seed: 42 (deterministic)
+====================================================================================================
+
+📦 Dataset Auto-Sync: Discovered 99 usable sessions in live_watch_sessions/
+  ⚡ Auto-compiling unified dataset for session_2026-11-02_10-53-03...
+Traceback (most recent call last):
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py", line 864, in <module>
+    main()
+    ~~~~^^
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py", line 622, in main
+    sync_unified_dataset()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py", line 156, in sync_unified_dataset
+    build_unified_dataset.build_session(s, verbose=False)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Users/neilkloot/Code/CricketBattingTracker/pipelines/build_unified_dataset.py", line 496, in build_session
+    with open(align_path, 'w') as f:
+         ~~~~^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 1] Operation not permitted: '/Users/neilkloot/Code/Batting Sensor Stats/poc_unified_dataset/session_2026-11-02_10-53-03_sensor_alignment.json'
+
+====================================================================================================
+  RUN COMPLETED: 2026-11-05 06:11:07
+  Total Duration: 0:00:00.452904
+  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-11-05_06-11-06.log
+====================================================================================================

@@ -1,0 +1,51 @@
+{
+  "version": "1.1.0",
+  "rules": {
+    "sweep_dual_path_gate": {
+      "enabled": true,
+      "path1_delta_pitch_deg": 10.0,
+      "path1_delta_gz_ms2": 1.2,
+      "path1_min_prob": 0.30,
+      "path2_min_roll_rads": 1.6,
+      "path2_min_prob": 0.35
+    },
+    "non_bat_sweep_to_glance": {
+      "enabled": false,
+      "min_sub0_glance": 0.55,
+      "max_imp_gz_ms2": 5.5,
+      "max_fam_sweep": 0.72,
+      "max_crouch_delta_gz_ms2": 999.0
+    },
+    "bat_vertical_guard_rule1": {
+      "enabled": true,
+      "min_watch_pitch_deg": 65.0,
+      "power_drive_post_ratio": 1.35
+    },
+    "bat_ahrs_glance_rule2": {
+      "enabled": true,
+      "yaw_deg_path1": -17.0,
+      "bat_gz_min_path1": -11.5,
+      "min_sub0_glance_path1": 0.35,
+      "yaw_deg_path2": -50.0,
+      "min_sub0_glance_path2": 0.50
+    },
+    "s1_ahrs_flat_bat": {
+      "enabled": false,
+      "max_blade_pitch_deg": 20.0,
+      "min_post_impact_ratio_pull": 0.65,
+      "max_yaw_deg_glance": -20.0
+    },
+    "s2_power_drive_vs_pull": {
+      "enabled": false,
+      "min_fam_cross": 0.55,
+      "min_sub1_pull": 0.75,
+      "max_blade_pitch_deg": 35.0
+    },
+    "s3_cut_punch_recovery": {
+      "enabled": false,
+      "min_sub1_cut": 0.65,
+      "max_abs_time_lead_ms": 15.0,
+      "min_fam_cross": 0.30
+    }
+  }
+}

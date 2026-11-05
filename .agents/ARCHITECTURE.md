@@ -1,40 +1,40 @@
 # Architecture: Pitch Analytix Pro
 
-This document maps directories, API structures, database schemas, and data flow diagrams.
+This document maps directories, sensor pipelines, machine learning architectures, database schemas, and data flow diagrams.
 
 ---
 
-## 🏗️ System Architecture (Current — Multi-Tier TCN & 3D Bat Orientation AHRS)
+## 🏗️ System Architecture (Current — Multi-Tier TCN, 3D Bat Orientation AHRS & Live Coaching)
 
 > **IMPORTANT**: The on-watch `SwingDetector` classification path was retired in July 2026.
-> The watch records raw sensor data only. All shot detection, Stage 1 stance gating,
+> The watch records raw binary sensor streams (`.bin.gz`) only. All shot detection, Stage 1 stance gating,
 > Stage 2 TCN window classification, 3D Bat Orientation AHRS, and kinematic validation
-> run as an offline batch pipeline on the Android phone (`PhoneSwingDetector.kt`).
+> run as an offline batch pipeline on the Android phone (`PhoneSwingDetector.kt`), complemented by
+> real-time sub-80ms in-ear coaching (`LiveKinematicCoach.kt`) over Polar BLE during active sessions.
 
 ```
 WATCH                        PHONE                               MAC / PIPELINE
 ─────────────────────        ──────────────────────────────────  ─────────────────────────────
 TrackerService               DataSyncListenerService             pipelines/
-  7 sensor streams    ZIP      ↓ unzip watch session               train_and_evaluate_full_scorecard.py
-  .bin.gz per sensor  ──────→  PhoneSwingDetector.kt               → tcn_ultimate_baseline.onnx
+  7 sensor streams    ZIP      ↓ unzip watch session (WakeLock)    train_and_evaluate_full_scorecard.py
+  .bin.gz per sensor  ──────→  PhoneSwingDetector.kt (Mutex)       → tcn_ultimate_baseline.onnx
                                ↓                                   → facing_up_detector.onnx
 Polar Verity Sense             1. load binary watch files          → tcn_norm_stats.json
-  418Hz IMU    BLE   ──────→   2. align Polar & Mount Mode (WRIST / BAT_HANDLE)
+  423Hz IMU    BLE   ──────→   2. align Polar & Mount Mode (WRIST / BAT_HANDLE)
   accel + gyro                 3. Stage 1 Stance (facing_up_detector.onnx) + 4.0s Scan Window
-                               4. 300ms Backswing check (≥8°)
-                               5. 3D Bat Orientation AHRS (OrientationAhrs.kt)
-                               6. Kinematic Detachment Guard (KinematicGuard.kt)
-                               7. Stage 2 TCN 208d Multi-Scale Inference & Binary FP Rejector (TcnModelRunner.kt)
-                               8. Dual-Path Sweep Gate (+ Non-Bat Glance Mitigation) & BAT_HANDLE 3D AHRS Glance Disambiguation
-                               9. → Room DB v12 (57 columns, auto-healing) → Compose UI
+       │                       4. 300ms Backswing check (≥8°)
+       ├─► LiveKinematicCoach  5. 3D Bat Orientation AHRS (OrientationAhrs.kt)
+       │   (Real-time <80ms    6. Kinematic Detachment Guard (KinematicGuard.kt)
+       │    Earcon + TTS)      7. Stage 2 TCN 208d Multi-Scale Inference & Binary FP Rejector (TcnModelRunner.kt)
+       │                       8. Dual-Path Sweep Gate (+ Non-Bat Glance Mitigation) & BAT_HANDLE 3D AHRS Glance Disambiguation
+                               9. → Atomic Swap into Room DB v12 (57 columns, auto-healing) → Compose UI
 ```
-
 
 ---
 
 ## ⌚ Watch Sensor Recording (TrackerService)
 
-The watch no longer classifies shots. Its sole job is high-fidelity sensor recording and ZIP delivery.
+The watch no longer classifies shots. Its sole job is high-fidelity sensor recording and ZIP delivery with `syncWakeLock` protection and 3-attempt retry handover.
 
 | Sensor | Constant | Rate | Binary File |
 |---|---|---|---|
@@ -57,36 +57,46 @@ Legacy `.csv.gz` files preserved alongside `.bin.gz`. Python loads via `load_wat
 ### Data Profiles
 | Profile | Watch Hz | Polar | Description |
 |---|---|---|---|
-| `50hz_watch` | 50Hz | No | Watch-only sessions |
-| `50hz_watch_polar` | 50Hz | Yes | Watch + Polar Verity Sense |
-| `100hz_watch_polar` | 100Hz | Yes | High-frequency watch + Polar |
+| `50hz_watch` | 50Hz | No | Watch-only sessions (`NONE`) |
+| `50hz_watch_polar` | 50Hz | Yes | Watch + Polar Verity Sense (`WRIST` or `BAT_HANDLE`) |
+| `100hz_watch_polar` | 100Hz | Yes | High-frequency watch + Polar (`WRIST` or `BAT_HANDLE`) |
 
 ---
 
 ## 📱 Phone-Side Batch Processing (PhoneSwingDetector.kt)
 
-Triggered by `DataSyncListenerService` after unzipping the watch session ZIP.
+Triggered by `DataSyncListenerService` after unzipping the watch session ZIP, guarded by a single-flight per-innings `Mutex`.
 
 ```
 1. LOAD       Binary sensor files → FloatArray streams (WatchAcc, WatchGyro, WatchRot)
 2. LOAD       Polar BLE stream → polarAcc[], polarGyro[] + PolarMountMode (WRIST vs BAT_HANDLE)
 3. ALIGN      Paired gyro peak regression / 1D cross-correlation → watchToPolarMs() drift correction
-4. STAGE 1    Facing Up Stance Detection (facing_up_detector.onnx, dynamic batch 256)
+4. STAGE 1    Facing Up Stance Detection (facing_up_detector.onnx, dynamic batch 256, high=0.55, low=0.35, surge=1.8, sustain=200ms)
 5. ANCHOR     4.0s single-shot stance peak anchoring (T_peak = argmax(||omega||))
 6. ORIENT     3D Bat Orientation AHRS (OrientationAhrs.kt) → attitude, blade pitch, face roll, swing yaw
-7. GUARD      Kinematic Detachment Guard (KinematicGuard.kt) → catches sensor tumble / separation
+7. GUARD      Kinematic Detachment Guard (KinematicGuard.kt) → catches sensor tumble / separation (contiguous Δt ≤ 15ms)
 8. STAGE 2    28-channel normalization + TCN inference (tcn_ultimate_baseline.onnx via TcnModelRunner.kt) with 208d multi-scale impact-core pooling & binary false-positive rejection (P(no_shot) >= 0.35)
-9. GATING     Dual-Path Sweep Gate (with Non-Bat upright Glance mitigation) + Mount-Aware BAT_HANDLE Consistency Gate (Rule 1 Vertical Bat Guard + Rule 2 3D AHRS Swing Yaw & Axial Roll Glance Disambiguation)
-10. STORE     InningsEvent (57 columns) → Room DB v12 (with auto-repairing onOpen guard) → Compose UI
+9. GATING     Dual-Path Sweep Gate (with Non-Bat upright Glance mitigation) + Mount-Aware BAT_HANDLE Consistency Gate (Rule 1 Vertical Bat Guard + 3D AHRS Swing Yaw & Axial Roll Glance Disambiguation)
+10. STORE     InningsEvent (57 columns) → Atomic transaction in Room DB v12 (with auto-repairing onOpen guard) → Compose UI
 ```
+
+---
+
+## 🎧 Real-Time In-Ear Biomechanical Coaching (`coaching/`)
+
+Runs live during batting sessions inside `PolarSenseService` when a Polar Verity Sense is connected:
+- **[LiveKinematicCoach.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/coaching/LiveKinematicCoach.kt)**: Evaluates a strictly bounded `[-220ms, 0ms]` pre-impact ring buffer upon impact detection ($A_{\text{mag}} > 10\text{g}$, $\omega > 5.5\text{ rad/s}$, 1800ms cooldown). Diagnoses 7 shot-invariant `BAT_HANDLE` flaws (`EARLY_PEAK_DECELERATION`, `STALLED_REACH_PUSH`, `MID_SWING_PLANE_LOOP`, `OUT_OF_PLANE_WIPE`, `LATE_WRIST_RESCUE`, `IMPACT_FACE_TWIST`, `OVERSWING_LOSS_OF_SHAPE`) and 3 `WRIST` flaws.
+- **[EarconAudioPlayer.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/coaching/EarconAudioPlayer.kt)**: Procedural 22.05 kHz 16-bit PCM synthesizer generating 10 distinct failure earcons + 1 crystal chime in memory via `AudioTrack(MODE_STATIC)` (<5ms latency).
+- **[LiveCoachingTtsManager.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/coaching/LiveCoachingTtsManager.kt)**: Schedules post-impact audio ($T+0..300\text{ms}$ silence for bat-ball crack, $T+300..520\text{ms}$ earcon, $T+550..1050\text{ms}$ 2-syllable TTS cue at $1.25\times$ speed, $T+1100\text{ms}+$ mic open for narration) across 3 progressive training stages (`STAGE_1_CALIBRATION`, `STAGE_2_FLOW_STATE`, `STAGE_3_SILENT_DIAGNOSTIC`).
+- Full biomechanical specifications and thresholds are documented in [docs/biomechanical_coaching_reference.md](file:///Users/neilkloot/Code/CricketBattingTracker/docs/biomechanical_coaching_reference.md).
 
 ---
 
 ## 🤖 Machine Learning Model Architecture
 
-### Primary Production Model: BatPlaneGeometryThreeFamilyTCN (tcn_ultimate_baseline.onnx)
+### Primary Production Model: BatPlaneGeometryThreeFamilyTCN (`tcn_ultimate_baseline.onnx`)
 - **Backbone**: 10-layer Dilated Temporal Convolutional Network with non-causal padding and 208-dimensional multi-scale impact-core feature pooling:
-  - Core L5 [16d], Core L7 [64d], Proj Core L10 [64d] (sliced over $\pm 175$ frames / ~827ms around impact peak), combined with Global L7 [64d] context: $16 + 64 + 64 + 64 = 208\text{d}$.
+  - Core L5 [16d], Core L7 [64d], Proj Core L10 [64d] (sliced over $\pm 175$ frames / `[849, 1199]` around impact peak), combined with Global L7 [64d] context: $16 + 64 + 64 + 64 = 208\text{d}$.
 - **Heads**:
   - `head_reject` (Binary Rejection MLP: $208\text{d} \rightarrow 64\text{d} \rightarrow 2\text{d}$): Learned false-positive rejection ($P(\text{no\_shot}) \ge 0.35$).
   - `head_family` (Macro Family Gate: $208\text{d} \rightarrow 64\text{d} \rightarrow 3\text{d}$): Vertical (0), Cross-Bat (1), Floor/Sweep (2).
@@ -95,187 +105,68 @@ Triggered by `DataSyncListenerService` after unzipping the watch session ZIP.
 - **Soft-Routing & Closed-Form Sub-Head Recovery**:
   - Power Drive: $\text{effective\_pd\_fam} = p_{\text{fam}}[0] + 0.85 \cdot p_{\text{fam}}[1]$ (allows high angular momentum and wrist roll without cross-bat collapse).
   - Closed-form quadratic inversion recovers exact $P_{\text{sub0}}(\text{Glance})$ and $P_{\text{fam}}(\text{Sweep})$ from the 9-class post-softmax probabilities at the center frame $t_{\text{mid}}$ for downstream mount-aware Glance/Flick disambiguation.
+- **Training Strategy**: Joint 9-class `NLLLoss` + cross-family Power Drive suppression + hierarchical sub-head loss, trained with on-the-fly kinematic augmentation ($\pm 18$ frame jitter, scaling, noise, 25% Polar channel dropout) and layer-wise discriminative learning rates (`1.5e-4` on L1–7, `5e-4` on L8–10 + Heads).
 - **Normalization**: 28-channel median/MAD normalization stats defined in `app/src/main/assets/models/tcn_norm_stats.json`.
-- **Runtime Engine**: `TcnModelRunner.kt` executing ONNX opset 18 via Microsoft ONNX Runtime Android SDK with deterministic tensor lifecycle closing.
+- **Runtime Engine**: [TcnModelRunner.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/TcnModelRunner.kt) executing ONNX opset 18 via Microsoft ONNX Runtime Android SDK with deterministic tensor lifecycle closing.
 
-### Legacy / Fallback Classifier: 30-Feature Random Forest (GeneratedForest.kt)
-Historical model (transpiled via `generate_kotlin_forest.py`). Retained for historical baseline testing and lightweight comparisons:
-
-```kotlin
-data class SwingFeatures(
-    // ── Watch / top-hand features (16 fields, always populated) ──
-    val s1_gyro_y_std: Float,
-    val s1_gyro_z_std: Float,
-    val s1_deltaX: Float,
-    val s1_deltaZ: Float,
-    val s1_acc_mag: Float,          // Peak linear acceleration magnitude in backswing
-    val s2_gyroMag: Float,
-    val s2_grav_y_mean: Float,
-    val s2_deltaX: Float,
-    val s2_deltaZ: Float,
-    val s3_rollImpactDeg: Float,
-    val s3_yawImpactDeg: Float,
-    val s3_deltaX: Float,
-    val s3_deltaZ: Float,
-    val s3_planeRatio: Float,
-    val s3_gyro_y_min: Float,
-    val s3_acc_peak: Float,         // Peak linear acceleration magnitude at impact
-    // ── Polar / bottom-hand features (14 fields, default 0f when Polar absent) ──
-    val bottom_hand_gyro_peak: Float = 0f,
-    val bottom_hand_acc_peak: Float = 0f,
-    val bottom_hand_gyro_ratio: Float = 0f,
-    val bottom_hand_acc_ratio: Float = 0f,
-    val bottom_hand_time_lead_ms: Float = 0f,
-    val bottom_hand_sync_score: Float = 0f,
-    val s1_bottom_gyro_mag: Float = 0f,
-    val s1_bottom_deltaZ: Float = 0f,
-    val s1_bottom_acc_mag: Float = 0f,  // Peak Polar acc magnitude in backswing
-    val s2_bottom_acc_mean: Float = 0f,
-    val s2_dynamic_ratio_slope: Float = 0f,
-    val s3_bottom_pronation_deg: Float = 0f,
-    val s3_bottom_gyro_y_min: Float = 0f,
-    val s3_bottom_acc_peak: Float = 0f  // Peak Polar acc magnitude at impact
-)
-```
-
-| Parameter | Value |
-|---|---|
-| Trees | 200, max depth 8, balanced_subsample |
-| Routing Models | `GeneratedTopForest` (Watch-only) vs `GeneratedDualForest` (Dual-sensor net practice) |
-| Quality Models | `GeneratedTopQualityForest` (Watch-only) vs `GeneratedDualQualityForest` (Dual-sensor) |
-| Output Classes | CUT/PUNCH, DEFLECTION/GUIDE, DRIVE/DEFENCE, GLANCE/FLICK, POWER DRIVE, PULL/HOOK, SLOG, SWEEP |
-
-Transpiled via `generate_kotlin_forest.py` (big-endian hex-packed binary tree nodes).
-Both `wear/` and `app/` receive identical copies automatically.
-
-### Quality Classifiers (transpiled as GeneratedTopQualityForest / GeneratedDualQualityForest)
-Uses the same 30-feature vector (with Polar defaulted to 0f when absent) to predict shot quality across 4 classes: `good`, `poor`, `miss`, `edge`. Runs offline in Kotlin on the phone app during session reprocessing.
+### Secondary / Quality Classifiers: 30-Feature Random Forest (`GeneratedForest.kt`)
+- Used for shot quality prediction (`good`, `poor`, `miss`, `edge` via `GeneratedTopQualityForest` / `GeneratedDualQualityForest`) and legacy baseline comparisons. Transpiled via `pipelines/generate_kotlin_forest.py`.
 
 ---
 
-## 🐍 Python Pipeline
+## 🐍 Python Pipeline (`pipelines/`)
 
 | Script | Role |
 |---|---|
-| `augment_training_data.py` | Synthetic augmentation from real sensor windows |
-| `evaluate_shot_alignment.py` | Polar-to-watch alignment health + timestamp refinement |
-| `compile_dataset.py` | Builds `combined_features.csv` — reads `.bin.gz` or `.csv.gz`, adds `data_profile`, `watch_hz`, `quality`, and all top/polar features |
-| `generate_kotlin_forest.py` | Trains Dual-Model Random Forests (Top/Dual for both Shot Type and Quality) and transpiles Kotlin classes directly to both modules |
-| `train_quality_classifier.py` | Trains good/poor/miss/edge RF quality classifier |
-| `score_phone_pipeline.py` | **Authoritative scorecard** — reads combined CSVs, reports by session/class/profile |
-| `train_and_evaluate_full_scorecard.py` | **Master TCN Training & Evaluation** — Stratified 4-way split (12 holdout, 7 val, 13 quarantine, 53 train), Layer-wise Discriminative LR ($1.5 \times 10^{-4}$ L1-7, $5.0 \times 10^{-4}$ L8-10+Heads), Validation Macro-F1 Early Stopping (`patience=16`), exports self-contained ONNX opset 18 model (`dynamo=False`) |
-| `model_update_pipeline.py` | Orchestrates all steps end-to-end |
-
-### BatPlaneGeometryThreeFamilyTCN Model Architecture
-- **Backbone**: 10-layer Dilated Temporal Convolutional Network with non-causal padding and 208-dimensional multi-scale impact-core feature pooling (Core L5, Core L7, Proj Core L10, Global L7).
-- **Training Strategy**: Layer-Wise Discriminative Learning Rate:
-  - TCN Layers 1–7: `lr = 1.5e-4` (preserves low-level and mid-level temporal representations).
-  - TCN Layers 8–10 & Multi-Task Heads: `lr = 5e-4`.
-  - Loss: Binary Rejection Cross-Entropy Loss + Weighted Macro Family & Sub-Classifier CE with label smoothing.
-- **Early Stopping & Checkpoint Selection**: Monitored on `val_macro_f1` across 7 designated validation sessions with `patience = 16` epochs, `min_delta = 0.001`, `TOTAL_EPOCHS = 28`. Reloads highest Validation Macro-F1 checkpoint.
-- **Production Asset**: ONNX opset 18 model at `app/src/main/assets/models/tcn_ultimate_baseline.onnx` (`input_imu_stream` -> `output_logits`, 7.1 MB, embedded weights). Evaluated via `TcnModelRunner.kt`.
-
-### Authoritative Scorecard: score_phone_pipeline.py & train_and_evaluate_full_scorecard.py
-
-Reads `combined_features.csv` + `combined_ground_truth_aligned.csv`.
-Replaces the retired `SwingDetectorGroundTruthTest` session replay (which tested the dead on-watch path).
-Writes `phone_pipeline_scorecard.md`.
-
-**CRITICAL**: Accuracy figures are training-set fit (diagnostic only). Real generalisation accuracy requires held-out sessions.
-
----
-
-## 🧪 Kotlin Tests (SwingDetectorGroundTruthTest.kt)
-
-6 model integrity tests only. Session replay was removed — it tested dead code.
-
-| Test | Checks |
-|---|---|
-| `testModelPredictsPullShot` | Model deserialises, returns valid class |
-| `testModelPredictsdriveShot` | Second class path |
-| `testPolarDefaultsWatchOnlyPath` | 14-field watch-only call backward compat |
-| `testFullTwentyFeaturePolarPath` | 20-field phone-path compiles + predicts |
-| `testPredictionIsDeterministic` | Same input → same output × 3 |
-| `testAllEightClassesRegistered` | Extreme values don't crash; NUM_TREES in bounds |
-
-Build time: ~15s.
+| `automate_pipeline.py` (root) | Pulls watch + Polar sessions via ADB, transcribes audio narration via Gemini/Deepgram, solves 2D clock drift alignment, and auto-triggers `reprocess_sessions.py`. |
+| `build_unified_dataset.py` | 423 Hz grid resampling, Tier 3 impact peak alignment ($R^2 > 0.9999$), and mount-aware channel routing (`p_*` vs `b_*`) into unified Parquet files. |
+| `reprocess_session_orientations.py` | Calibrates BLE batching latency (0.25s–0.68s), runs `OrientationAhrs` and `KinematicGuard` across sessions, and backfills continuous `p_rot_qx..w` and aligned `b_acc_*`/`b_gyro_*` into Parquets and `ground_truth_aligned.csv`. |
+| `reprocess_sessions.py` | Rebuilds the 57-column Room v12 SQLite database (`scratch/cricket_tracker_database.db`) from processed ground-truth/TCN outputs and pushes it to the connected Android phone. |
+| `telemetry_engine.py` | Core Python Stage 1 + Stage 2 TCN inference engine, closed-form sub-head recovery, and mount-aware biomechanical consistency gates (1:1 parity with `TcnModelRunner.kt`). |
+| `train_and_evaluate_full_scorecard.py` | **Master TCN Training & Authoritative Scorecard** — Trains `BatPlaneGeometryThreeFamilyTCN` on stratified splits (`dataset_splits.json`), evaluates the 12-session Holdout Test Set & Clean Benchmark, writes `full_dataset_training_scorecard.md`, and exports `tcn_ultimate_baseline.onnx` (`dynamo=False`). |
+| `test_ahrs_and_guard.py` | Unit test suite for Python 3D AHRS and Kinematic Detachment Guard. |
 
 ---
 
 ## 📂 Workspace Layout
 
 ```
-├── .agents/                        # Agent memory & rules
+├── AGENTS.md                       # Root agent rules & system invariants
+├── .agents/                        # Progressive-disclosure docs & workspace skills
+│   ├── ACTIVE_CONTEXT.md           # Active phase, recent backlog (B-110+), current benchmark
+│   ├── ARCHITECTURE.md             # System architecture & pipeline reference
+│   ├── LEARNINGS.md                # Domain-indexed invariants & failure traps
+│   ├── change_logfile.md           # Full feature archive (B-001 through B-116)
+│   ├── archive/LEARNINGS_ARCHIVE.md # Historical post-mortems (#1 through #207)
+│   └── skills/                     # Auto-discovered Antigravity procedural skills
 ├── app/                            # Android companion phone app
 │   └── src/main/java/.../
-│       ├── data/                   # Room DB (InningsEvent, HeartRateEvent)
-│       ├── ml/                     # GeneratedForest.kt (auto-synced from wear/)
-│       └── services/               # DataSyncListenerService, PhoneSwingDetector.kt
+│       ├── coaching/               # LiveKinematicCoach, EarconAudioPlayer, LiveCoachingTtsManager
+│       ├── data/                   # Room DB v12 (AppDatabase, InningsEvent [57 cols])
+│       ├── ml/                     # TcnModelRunner, OrientationAhrs, KinematicGuard, GeneratedForest
+│       ├── services/               # DataSyncListenerService, PhoneSwingDetector, PolarSenseService
+│       └── ui/                     # Compose screens, BiomechanicalUiMapper, Playbook cards
 ├── wear/                           # Wear OS watch app
 │   └── src/main/java/.../
-│       ├── ml/                     # GeneratedForest.kt (source), SwingFeatures
-│       └── services/               # TrackerService (7 sensors → .bin.gz)
-├── pipelines/                      # Python ML pipeline (see table below)
-│   ├── build_unified_dataset.py    # 423Hz grid resampling & Tier 3 impact peak alignment (R² > 0.9999)
-│   ├── run_advanced_baseline_tests.py # Ultimate Advanced Baseline TCN (98.2% recall, 64.8% acc, 64.0% coverage)
-│   ├── run_ablation_study.py       # 8-run systematic ablation study (Downsampling, Derived, Multi-Task)
-│   ├── run_model_architecture_benchmark.py # 5-model backbone suite (TCN, ResNet-18, Conv-LSTM, Inception, Transformer)
-│   ├── train_decoupled_pipeline.py # Decoupled 2-Model Pipeline (Stage 1 TCN + Stage 2 1.8s Conv-LSTM)
-│   └── eval_rf_holdout.py          # Production Random Forest holdout evaluation audit
-├── docs/                           # System documentation & ML experiment reports
-│   └── ml_experiments_summary_2026-07-30.md # Master ML research & scorecard summary
-├── phone_pipeline_scorecard.md     # Authoritative model performance
-├── model_update_analysis.md        # Before/after retraining comparison
-└── automate_pipeline.py            # Audio-sensor alignment (Gemini transcription)
-```
-
-### Key Data Files (/Users/neilkloot/Code/Batting Sensor Stats/)
-```
-live_watch_sessions/session-YYYY-MM-DD_HH-MM-SS/
-    WatchAccelerometer.bin.gz       ← new binary format
-    WatchGyroscope.bin.gz
-    WatchAccelerometer.csv.gz       ← legacy, kept for reference
-    ground_truth_aligned.csv        ← narrated GT + impact timestamps + Polar features
-    latest_timeline.txt             ← shot timeline from phone app
-
-combined_features.csv               ← 20-feature training set (all sessions)
-combined_ground_truth_aligned.csv   ← GT + predicted_shot_type cross-ref
-quality_classifier.pkl              ← good/poor/miss/edge RF
-quality_le.pkl                      ← quality label encoder
+│       ├── ml/                     # SwingDetector (timing reference), GeneratedForest
+│       └── services/               # TrackerService (7 sensors → .bin.gz + ZIP sync)
+├── pipelines/                      # Python ML, AHRS & database reprocessing scripts
+├── docs/                           # Biomechanical coaching reference & ML reports
+│   └── biomechanical_coaching_reference.md
+├── full_dataset_training_scorecard.md # Authoritative TCN holdout & benchmark scorecard
+└── automate_pipeline.py            # End-to-end ADB pull, transcription & alignment orchestrator
 ```
 
 ---
 
 ## 🔗 Key Code Linkages
 
-### Watch App (`:wear`)
-- **[TrackerService.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/services/TrackerService.kt)**: 7 sensor streams → `.bin.gz` + session ZIP via GMS ChannelClient
-- **[SwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/SwingDetector.kt)**: 4-state machine retained on watch for timing reference; classification on watch is lower-fidelity (14 features, no Polar)
-- **[GeneratedForest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt)**: 20-feature transpiled RF (source copy)
-
 ### Phone App (`:app`)
-- **[PhoneSwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/PhoneSwingDetector.kt)**: Full batch pipeline — binary load → Polar align → detect → 20-feature extract → classify
-- **[DataSyncListenerService.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/DataSyncListenerService.kt)**: Receives ZIP, triggers PhoneSwingDetector
-- **[GeneratedForest.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/GeneratedForest.kt)**: Auto-synced copy from `wear/`
+- **[PhoneSwingDetector.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/services/PhoneSwingDetector.kt)**: Offline batch pipeline — binary load $\rightarrow$ Polar align $\rightarrow$ Stage 1 stance $\rightarrow$ 3D AHRS $\rightarrow$ Kinematic Guard $\rightarrow$ Stage 2 TCN $\rightarrow$ atomic Room v12 swap.
+- **[TcnModelRunner.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/TcnModelRunner.kt)**: Stage 1 & Stage 2 ONNX inference runner, 208d impact-core pooling, `head_reject` gating, closed-form sub-head inversion, and mount-aware consistency gates.
+- **[OrientationAhrs.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/OrientationAhrs.kt)** & **[KinematicGuard.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/ml/KinematicGuard.kt)**: 3D bat/wrist attitude estimation and sensor detachment detection.
+- **[LiveKinematicCoach.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/coaching/LiveKinematicCoach.kt)** & **[EarconAudioPlayer.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/coaching/EarconAudioPlayer.kt)**: Real-time pre-impact flaw diagnosis and procedural PCM acoustic feedback.
+- **[AppDatabase.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/data/AppDatabase.kt)** & **[InningsEvent.kt](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/data/InningsEvent.kt)**: Room v12 schema (57 columns) with self-healing `onOpen` integrity guard.
 
-
----
-
-## ⌚ SwingDetector State Machine (Reference — Still Active on Watch)
-
-The watch still runs the 4-state machine for real-time timing reference, but its
-classification output is superseded by the phone-side batch processing.
-
-```
-ACTIVITY_CLASSIFY → FACING_UP_LOCKED (H9 hybrid gate ≥ 1.2s)
-FACING_UP_LOCKED  → MEASURING_ARC    (gyro_mag > 5.0 rad/s)
-MEASURING_ARC     → CONTACT_WAIT     (swing duration ≥ 1.0s)
-CONTACT_WAIT      → ACTIVITY_CLASSIFY (T_peak + 0.75s → evaluateShot())
-```
-
-**H9 Hybrid M-of-N Stance Gate**:
-- Mandatory: `gyro_std(1s) < 1.2 rad/s` + no step event in 1.0s
-- Flexible (≥1 of 3): `accel_std < 2.0`, `ori_disp < 2.0°`, `gravity_y ≤ -3.5`
-- Must hold ≥ 1.2s; 1.5s break tolerance; 2.5s post-shot guard
-
-Empirical validation (session-2026-05-31): Pre-shot TP 78.3%, Walk FP 1.68/min.
+### Watch App (`:wear`)
+- **[TrackerService.kt](file:///Users/neilkloot/Code/CricketBattingTracker/wear/src/main/java/com/mrpeel/cricketbattingtracker/services/TrackerService.kt)**: 7 sensor streams $\rightarrow$ `.bin.gz` + session ZIP via GMS `ChannelClient` with `syncWakeLock`.

@@ -38,6 +38,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from stage3_rules import (
+    load_stage3_config,
+    recover_hierarchical_probs,
+    extract_candidate_stage3_features,
+    apply_stage3_rules,
+)
+
 ROOT_DIR = "/Users/neilkloot/Code/CricketBattingTracker"
 BASE_DIR = "/Users/neilkloot/Code/Batting Sensor Stats"
 DATASET_DIR = os.path.join(BASE_DIR, "poc_unified_dataset")
@@ -479,13 +486,15 @@ def load_parquet_session(session_id, dataset_dir=DATASET_DIR):
 # =============================================================================
 # Stage 2 Unleaked Batch Inference Engine
 # =============================================================================
-def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device, return_sub_probs=False):
+def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device, return_sub_probs=False, return_hier_probs=False):
     """
     STRICT UN-LEAKED MODULE 3 CLASSIFICATION PASS (BATCHED):
     Normalizes 28 continuous IMU features, slices 2,048-sample windows for candidate anchors,
     runs GPU PyTorch forward pass, and returns predictions without reading ground-truth labels.
     """
     if df_parquet is None or len(df_parquet) < 2048 or not candidate_anchors:
+        if return_hier_probs:
+            return [("DRIVE/DEFENCE", 0.50, {}) for _ in candidate_anchors]
         if return_sub_probs:
             return [("DRIVE/DEFENCE", 0.50, 0.0, 0.0) for _ in candidate_anchors]
         return [("DRIVE/DEFENCE", 0.50) for _ in candidate_anchors]
@@ -571,7 +580,9 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
         win_probs = probs[:, w_s:w_e]
         
         if win_probs.shape[1] == 0:
-            if return_sub_probs:
+            if return_hier_probs:
+                preds.append(("DRIVE/DEFENCE", 0.50, {}))
+            elif return_sub_probs:
                 preds.append(("DRIVE/DEFENCE", 0.50, 0.0, 0.0))
             else:
                 preds.append(("DRIVE/DEFENCE", 0.50))
@@ -589,16 +600,13 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
             top_prob = float(shot_class_probs[top_class_rel_idx])
             pred_cls = CLASSES[top_class_idx]
             
-        if return_sub_probs:
+        if return_hier_probs or return_sub_probs:
             q_mid = probs[:, min(max(0, c_off), probs.shape[1] - 1)]
-            k_vert = float(q_mid[3] + q_mid[4] + q_mid[6])
-            a1_cross = float(q_mid[2] + q_mid[5])
-            a2_sweep = float(q_mid[8])
-            b_coef = k_vert + float(q_mid[7]) - 0.85 * a1_cross
-            a0_vert = 0.5 * (b_coef + float(np.sqrt(max(0.0, b_coef * b_coef + 3.4 * a1_cross * k_vert))))
-            p_sub0_glance = float(q_mid[4] / (a0_vert + 1e-12))
-            p_fam_sweep = float(a2_sweep / (a0_vert + a1_cross + a2_sweep + 1e-12))
-            preds.append((pred_cls, top_prob, p_sub0_glance, p_fam_sweep))
+            hier_probs = recover_hierarchical_probs(q_mid)
+            if return_hier_probs:
+                preds.append((pred_cls, top_prob, hier_probs))
+            else:
+                preds.append((pred_cls, top_prob, hier_probs["p_sub0_glance"], hier_probs["p_fam_sweep"]))
         else:
             preds.append((pred_cls, top_prob))
         
@@ -608,7 +616,7 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
 # =============================================================================
 # Continuous Multi-Tier Evaluation Harness
 # =============================================================================
-def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stats, device, holdout_sessions=HOLDOUT_SESSIONS, sessions_dir=SESSIONS_DIR):
+def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stats, device, holdout_sessions=HOLDOUT_SESSIONS, sessions_dir=SESSIONS_DIR, stage3_config=None):
     """
     Executes full hierarchical Multi-Tier Telemetry Pipeline on a single session DataFrame.
     """
@@ -780,98 +788,27 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
         
     # 5. Evaluate Candidate Windows (Stage 2 Unleaked Batched GPU Pass)
     candidate_anchors = [c["anchor_f"] for c in candidate_windows]
-    preds = predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device, return_sub_probs=True)
+    preds = predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model, norm_stats, device, return_hier_probs=True)
     
-    # 6. Post-Classification Precision Filters
+    # 6. Post-Classification Precision Filters (Shared Configurable Stage 3 Rule Engine)
     filtered_candidates = []
     last_accepted_t = -999.0
     last_was_sweep = False
     
     for i_cand, c in enumerate(candidate_windows):
         t_cand = c["anchor_t"]
-        pred_cls, top_prob, p_sub0_glance, p_fam_sweep = preds[i_cand]
+        raw_pred_cls, top_prob, hier_probs = preds[i_cand]
         f_peak = c["anchor_f"]
         
-        # Calibrated Dual-Path Sweep Gate
-        if pred_cls == "SWEEP":
-            f_start = max(0, f_peak - 211)  # 500ms at 423 Hz
-            gx_win = channels_12[f_start : f_peak + 1, 6] if channels_12.shape[1] > 6 else np.zeros(f_peak + 1 - f_start)
-            gy_win = channels_12[f_start : f_peak + 1, 7] if channels_12.shape[1] > 7 else np.zeros(f_peak + 1 - f_start)
-            gz_win = channels_12[f_start : f_peak + 1, 8] if channels_12.shape[1] > 8 else np.zeros(f_peak + 1 - f_start)
-            
-            delta_gz = float(np.ptp(gz_win))
-            denom = np.sqrt(gx_win**2 + gy_win**2 + 1e-6)
-            pitch_deg = np.rad2deg(np.arctan2(gz_win, denom))
-            delta_pitch = float(np.ptp(pitch_deg))
-
-            w_roll_win = channels_12[f_start : f_peak + 1, 3] if channels_12.shape[1] > 3 else np.zeros(f_peak + 1 - f_start)
-            omega_roll = float(np.max(np.abs(w_roll_win)))
-
-            # Path 1: Kneeling / Slog Sweep (Crouch Tilt >= 10 deg OR delta_gz >= 1.2 m/s^2, Softmax floor >= 0.30)
-            is_path1 = (delta_pitch >= 10.0 or delta_gz >= 1.2) and (top_prob >= 0.30)
-
-            # Path 2: Standing Paddle / Fine Lap Sweep (Wrist Roll >= 1.6 rad/s and Softmax floor >= 0.35)
-            is_path2 = (omega_roll >= 1.6) and (top_prob >= 0.35)
-
-            if not (is_path1 or is_path2):
-                pred_cls = "NO_SHOT"
-            elif polar_mount_mode != "BAT_HANDLE":
-                # Non-Bat Mitigation (WRIST / NONE): Rescue upright Glance/Flick misclassified as Sweep due to wrist roll
-                imp_s = max(0, f_peak - 20)
-                imp_e = min(num_samples, f_peak + 20)
-                imp_gz = float(np.mean(channels_12[imp_s:imp_e, 8])) if (channels_12.shape[1] > 8 and imp_e > imp_s) else 6.0
-                if p_sub0_glance >= 0.55 and imp_gz < 5.5 and p_fam_sweep < 0.72:
-                    pred_cls = "GLANCE/FLICK"
-
-        # Biomechanical Physical Consistency Gate (Spatial Attitude & Bat-Sensor-First Disambiguation) - ONLY FOR BAT_HANDLE MOUNT
-        if polar_mount_mode == "BAT_HANDLE" and f_peak < len(df_parquet):
-            # Rule 1: Vertical Bat Gate (matching TcnModelRunner.kt sensorMatrix[15..18] = w_rot)
-            if 'w_rot_qx' in df_parquet.columns:
-                wqx = float(df_parquet['w_rot_qx'].iloc[f_peak])
-                wqy = float(df_parquet['w_rot_qy'].iloc[f_peak])
-                wqz = float(df_parquet['w_rot_qz'].iloc[f_peak])
-                wqw = float(df_parquet['w_rot_qw'].iloc[f_peak])
-                if (wqx*wqx + wqy*wqy + wqz*wqz + wqw*wqw) > 0.5:
-                    wvz = 2.0 * (wqy * wqz - wqx * wqw)
-                    wpitch_deg = float(np.rad2deg(np.arcsin(np.clip(abs(wvz), 0.0, 1.0))))
-                    if wpitch_deg >= 65.0 and pred_cls in ["PULL/HOOK/SLOG", "CUT/PUNCH"]:
-                        post_ratio = float(df_parquet['post_impact_acc_ratio'].iloc[f_peak]) if 'post_impact_acc_ratio' in df_parquet.columns else 1.0
-                        pred_cls = "POWER DRIVE" if post_ratio >= 1.35 else "DRIVE/DEFENCE"
-
-            # Rule 2: 3D Bat AHRS Swing Yaw + Handle Axial Roll Glance/Flick Disambiguation (matching PhoneSwingDetector.kt ahrs.evaluateShot)
-            if 'p_rot_qx' in df_parquet.columns and pred_cls in ["DRIVE/DEFENCE", "POWER DRIVE"]:
-                qx = float(df_parquet['p_rot_qx'].iloc[f_peak])
-                qy = float(df_parquet['p_rot_qy'].iloc[f_peak])
-                qz = float(df_parquet['p_rot_qz'].iloc[f_peak])
-                qw = float(df_parquet['p_rot_qw'].iloc[f_peak])
-                if (qx*qx + qy*qy + qz*qz + qw*qw) > 0.5:
-                    f_still = f_peak
-                    f_min_scan = max(0, f_peak - 635)
-                    qx_col = df_parquet['p_rot_qx'].values
-                    qy_col = df_parquet['p_rot_qy'].values
-                    qz_col = df_parquet['p_rot_qz'].values
-                    qw_col = df_parquet['p_rot_qw'].values
-                    while f_still > f_min_scan:
-                        prev_idx = f_still - 1
-                        if (qx_col[prev_idx]**2 + qy_col[prev_idx]**2 + qz_col[prev_idx]**2 + qw_col[prev_idx]**2) > 0.5:
-                            f_still = prev_idx
-                        else:
-                            break
-                    qx0, qy0, qz0, qw0 = float(qx_col[f_still]), float(qy_col[f_still]), float(qz_col[f_still]), float(qw_col[f_still])
-                    qrx =  qw0 * qx - qx0 * qw - qy0 * qz + qz0 * qy
-                    qry =  qw0 * qy + qx0 * qz - qy0 * qw - qz0 * qx
-                    qrz =  qw0 * qz - qx0 * qy + qy0 * qx - qz0 * qw
-                    qrw =  qw0 * qw + qx0 * qx + qy0 * qy + qz0 * qz
-                    swing_yaw_deg = float(np.rad2deg(np.arctan2(2.0 * (qrw * qrz - qrx * qry), 1.0 - 2.0 * (qry * qry + qrz * qrz))))
-
-                    bat_gz_min = 0.0
-                    if 'b_gyro_z' in df_parquet.columns:
-                        bgz_slice = df_parquet['b_gyro_z'].iloc[max(0, f_peak - 106) : min(len(df_parquet), f_peak + 106)].values
-                        if len(bgz_slice) > 0:
-                            bat_gz_min = float(np.min(bgz_slice))
-
-                    if (swing_yaw_deg <= -17.0 and bat_gz_min <= -11.5 and p_sub0_glance >= 0.25) or (swing_yaw_deg <= -50.0 and p_sub0_glance >= 0.50):
-                        pred_cls = "GLANCE/FLICK"
+        s3_features = extract_candidate_stage3_features(df_parquet, channels_12, f_peak, polar_mount_mode=polar_mount_mode)
+        pred_cls, fired_rules = apply_stage3_rules(
+            raw_pred_cls=raw_pred_cls,
+            top_prob=top_prob,
+            hier_probs=hier_probs,
+            features=s3_features,
+            polar_mount_mode=polar_mount_mode,
+            config=stage3_config,
+        )
 
         # Dynamic Class-Aware NMS
         req_gap = 2.4 if (last_was_sweep or pred_cls == "SWEEP") else 1.8
@@ -884,8 +821,13 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
         last_accepted_t = t_cand
         last_was_sweep = (pred_cls == "SWEEP")
         
+        c["raw_tcn_cls"] = raw_pred_cls
         c["pred_cls"] = pred_cls
         c["prob"] = top_prob
+        c["fired_rules"] = fired_rules
+        c["hier_probs"] = hier_probs
+        c["stage3_features"] = s3_features
+        c["polar_mount_mode"] = polar_mount_mode
         filtered_candidates.append(c)
     
     results = []
@@ -908,10 +850,16 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
             "sid": sid,
             "tier": c["tier"],
             "t": t_cand,
+            "f_peak": c["anchor_f"],
             "is_tp": is_tp,
             "gt_cls": gt_cls,
+            "raw_tcn_cls": c.get("raw_tcn_cls", pred_cls),
             "pred_cls": pred_cls,
             "prob": top_prob,
+            "fired_rules": c.get("fired_rules", []),
+            "hier_probs": c.get("hier_probs", {}),
+            "stage3_features": c.get("stage3_features", {}),
+            "polar_mount_mode": c.get("polar_mount_mode", polar_mount_mode),
             "is_holdout": is_holdout,
             "peak_acc": c["peak_acc"],
             "peak_gyr": c["peak_gyr"],
@@ -1284,6 +1232,7 @@ def evaluate_multitier_scorecard(
         "tr_f1": tr_f1,
         "tr_cls_acc": tr_cls_acc,
         "full_cls_acc": full_cls_acc,
+        "all_results": all_results,
         "df_res": df_res,
         "all_gt_events": all_gt_events,
         "session_offsets": session_offsets,

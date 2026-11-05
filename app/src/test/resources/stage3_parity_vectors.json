@@ -1,0 +1,528 @@
+{
+  "prod_config": {
+    "version": "1.1.0",
+    "rules": {
+      "sweep_dual_path_gate": {
+        "enabled": true,
+        "path1_delta_pitch_deg": 10.0,
+        "path1_delta_gz_ms2": 1.2,
+        "path1_min_prob": 0.3,
+        "path2_min_roll_rads": 1.6,
+        "path2_min_prob": 0.35
+      },
+      "non_bat_sweep_to_glance": {
+        "enabled": false,
+        "min_sub0_glance": 0.55,
+        "max_imp_gz_ms2": 5.5,
+        "max_fam_sweep": 0.72,
+        "max_crouch_delta_gz_ms2": 999.0
+      },
+      "bat_vertical_guard_rule1": {
+        "enabled": true,
+        "min_watch_pitch_deg": 65.0,
+        "power_drive_post_ratio": 1.35
+      },
+      "bat_ahrs_glance_rule2": {
+        "enabled": true,
+        "yaw_deg_path1": -17.0,
+        "bat_gz_min_path1": -11.5,
+        "min_sub0_glance_path1": 0.35,
+        "yaw_deg_path2": -50.0,
+        "min_sub0_glance_path2": 0.5
+      },
+      "s1_ahrs_flat_bat": {
+        "enabled": false,
+        "max_blade_pitch_deg": 20.0,
+        "min_post_impact_ratio_pull": 0.65,
+        "max_yaw_deg_glance": -20.0
+      },
+      "s2_power_drive_vs_pull": {
+        "enabled": false,
+        "min_fam_cross": 0.55,
+        "min_sub1_pull": 0.75,
+        "max_blade_pitch_deg": 35.0
+      },
+      "s3_cut_punch_recovery": {
+        "enabled": false,
+        "min_sub1_cut": 0.65,
+        "max_abs_time_lead_ms": 15.0,
+        "min_fam_cross": 0.3
+      }
+    }
+  },
+  "all_on_config": {
+    "version": "1.1.0",
+    "rules": {
+      "sweep_dual_path_gate": {
+        "enabled": true,
+        "path1_delta_pitch_deg": 10.0,
+        "path1_delta_gz_ms2": 1.2,
+        "path1_min_prob": 0.3,
+        "path2_min_roll_rads": 1.6,
+        "path2_min_prob": 0.35
+      },
+      "non_bat_sweep_to_glance": {
+        "enabled": true,
+        "min_sub0_glance": 0.55,
+        "max_imp_gz_ms2": 5.5,
+        "max_fam_sweep": 0.72,
+        "max_crouch_delta_gz_ms2": 999.0
+      },
+      "bat_vertical_guard_rule1": {
+        "enabled": true,
+        "min_watch_pitch_deg": 65.0,
+        "power_drive_post_ratio": 1.35
+      },
+      "bat_ahrs_glance_rule2": {
+        "enabled": true,
+        "yaw_deg_path1": -17.0,
+        "bat_gz_min_path1": -11.5,
+        "min_sub0_glance_path1": 0.35,
+        "yaw_deg_path2": -50.0,
+        "min_sub0_glance_path2": 0.5
+      },
+      "s1_ahrs_flat_bat": {
+        "enabled": true,
+        "max_blade_pitch_deg": 20.0,
+        "min_post_impact_ratio_pull": 0.65,
+        "max_yaw_deg_glance": -20.0
+      },
+      "s2_power_drive_vs_pull": {
+        "enabled": true,
+        "min_fam_cross": 0.55,
+        "min_sub1_pull": 0.75,
+        "max_blade_pitch_deg": 35.0
+      },
+      "s3_cut_punch_recovery": {
+        "enabled": true,
+        "min_sub1_cut": 0.65,
+        "max_abs_time_lead_ms": 15.0,
+        "min_fam_cross": 0.3
+      }
+    }
+  },
+  "prob_recovery_cases": [
+    {
+      "q_mid": [
+        0.02,
+        0.0,
+        0.05,
+        0.7,
+        0.1,
+        0.02,
+        0.03,
+        0.06,
+        0.02
+      ],
+      "expected": {
+        "p_no_shot": 0.02,
+        "p_is_shot": 0.98,
+        "p_fam_vert": 0.9078081497079848,
+        "p_fam_cross": 0.07170477244854835,
+        "p_fam_sweep": 0.020487077842442386,
+        "p_sub0_drive": 0.7898670272075962,
+        "p_sub0_pd": 0.06344338202415509,
+        "p_sub0_glance": 0.11283814674394231,
+        "p_sub0_defl": 0.03385144402318269,
+        "p_sub1_pull": 0.7142857142755101,
+        "p_sub1_cut": 0.285714285710204
+      }
+    },
+    {
+      "q_mid": [
+        0.01,
+        0.0,
+        0.12,
+        0.04,
+        0.02,
+        0.03,
+        0.01,
+        0.75,
+        0.02
+      ],
+      "expected": {
+        "p_no_shot": 0.01,
+        "p_is_shot": 0.99,
+        "p_fam_vert": 0.8057490866360599,
+        "p_fam_cross": 0.17139786473188004,
+        "p_fam_sweep": 0.02285304863091734,
+        "p_sub0_drive": 0.05672497557842638,
+        "p_sub0_pd": 0.9007312927365314,
+        "p_sub0_glance": 0.02836248778921319,
+        "p_sub0_defl": 0.014181243894606595,
+        "p_sub1_pull": 0.7999999999946666,
+        "p_sub1_cut": 0.19999999999866666
+      }
+    },
+    {
+      "q_mid": [
+        0.03,
+        0.0,
+        0.02,
+        0.08,
+        0.35,
+        0.01,
+        0.01,
+        0.02,
+        0.48
+      ],
+      "expected": {
+        "p_no_shot": 0.03,
+        "p_is_shot": 0.97,
+        "p_fam_vert": 0.47365555968672773,
+        "p_fam_cross": 0.030961437665425893,
+        "p_fam_sweep": 0.4953830026468143,
+        "p_sub0_drive": 0.17431197013478797,
+        "p_sub0_pd": 0.04128416425649209,
+        "p_sub0_glance": 0.7626148693396972,
+        "p_sub0_defl": 0.021788996266848496,
+        "p_sub1_pull": 0.6666666666444445,
+        "p_sub1_cut": 0.33333333332222226
+      }
+    },
+    {
+      "q_mid": [
+        0.02,
+        0.0,
+        0.65,
+        0.05,
+        0.03,
+        0.15,
+        0.02,
+        0.06,
+        0.02
+      ],
+      "expected": {
+        "p_no_shot": 0.02,
+        "p_is_shot": 0.98,
+        "p_fam_vert": 0.11660687240526928,
+        "p_fam_cross": 0.8618469537499058,
+        "p_fam_sweep": 0.021546173843747646,
+        "p_sub0_drive": 0.46194047998870236,
+        "p_sub0_pd": 0.07611904001396316,
+        "p_sub0_glance": 0.2771642879932214,
+        "p_sub0_defl": 0.18477619199548093,
+        "p_sub1_pull": 0.8124999999989844,
+        "p_sub1_cut": 0.1874999999997656
+      }
+    },
+    {
+      "q_mid": [
+        0.04,
+        0.0,
+        0.1,
+        0.08,
+        0.04,
+        0.62,
+        0.04,
+        0.05,
+        0.03
+      ],
+      "expected": {
+        "p_no_shot": 0.04,
+        "p_is_shot": 0.96,
+        "p_fam_vert": 0.18559286672623965,
+        "p_fam_cross": 0.7818308479417675,
+        "p_fam_sweep": 0.03257628533090698,
+        "p_sub0_drive": 0.4680680661255271,
+        "p_sub0_pd": 0.0638638677433868,
+        "p_sub0_glance": 0.23403403306276355,
+        "p_sub0_defl": 0.23403403306276355,
+        "p_sub1_pull": 0.138888888888696,
+        "p_sub1_cut": 0.8611111111099152
+      }
+    },
+    {
+      "q_mid": [
+        0.42,
+        0.0,
+        0.1,
+        0.2,
+        0.08,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ],
+      "expected": {
+        "p_no_shot": 0.42,
+        "p_is_shot": 0.5800000000000001,
+        "p_fam_vert": 0.6473354072591506,
+        "p_fam_cross": 0.2644984445543146,
+        "p_fam_sweep": 0.08816614818477153,
+        "p_sub0_drive": 0.5447942268928628,
+        "p_sub0_pd": 0.10108952562412338,
+        "p_sub0_glance": 0.21791769075714515,
+        "p_sub0_defl": 0.1361985567232157,
+        "p_sub1_pull": 0.6666666666622222,
+        "p_sub1_cut": 0.3333333333311111
+      }
+    }
+  ],
+  "rule_cases": [
+    {
+      "name": "sweep_rejected_low_crouch_and_roll",
+      "config_mode": "prod",
+      "raw_pred_cls": "SWEEP",
+      "top_prob": 0.45,
+      "q_mid": [
+        0.03,
+        0.0,
+        0.02,
+        0.08,
+        0.25,
+        0.01,
+        0.01,
+        0.02,
+        0.58
+      ],
+      "polar_mount_mode": "WRIST",
+      "features": {
+        "delta_gz": 0.6,
+        "delta_pitch": 5.2,
+        "omega_roll": 1.1,
+        "imp_gz": 4.2,
+        "post_impact_acc_ratio": 0.9,
+        "has_polar": true
+      },
+      "expected_pred": "NO_SHOT",
+      "expected_fired": [
+        "sweep_dual_path_reject"
+      ]
+    },
+    {
+      "name": "crouched_sweep_preserved_prod_v1_1",
+      "config_mode": "prod",
+      "raw_pred_cls": "SWEEP",
+      "top_prob": 0.54,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.01,
+        0.03,
+        0.38,
+        0.01,
+        0.01,
+        0.01,
+        0.53
+      ],
+      "polar_mount_mode": "NONE",
+      "features": {
+        "delta_gz": 7.52,
+        "delta_pitch": 28.4,
+        "omega_roll": 2.4,
+        "imp_gz": 3.53,
+        "post_impact_acc_ratio": 1.1,
+        "has_polar": false
+      },
+      "expected_pred": "SWEEP",
+      "expected_fired": []
+    },
+    {
+      "name": "upright_sweep_to_glance_when_enabled",
+      "config_mode": "all_on",
+      "raw_pred_cls": "SWEEP",
+      "top_prob": 0.42,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.01,
+        0.04,
+        0.36,
+        0.01,
+        0.01,
+        0.01,
+        0.54
+      ],
+      "polar_mount_mode": "WRIST",
+      "features": {
+        "delta_gz": 0.85,
+        "delta_pitch": 6.0,
+        "omega_roll": 2.1,
+        "imp_gz": 4.1,
+        "post_impact_acc_ratio": 1.0,
+        "has_polar": true
+      },
+      "expected_pred": "GLANCE/FLICK",
+      "expected_fired": [
+        "non_bat_sweep_to_glance"
+      ]
+    },
+    {
+      "name": "bat_vertical_guard_rule1_power_drive",
+      "config_mode": "prod",
+      "raw_pred_cls": "PULL/HOOK/SLOG",
+      "top_prob": 0.62,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.62,
+        0.1,
+        0.05,
+        0.08,
+        0.02,
+        0.09,
+        0.02
+      ],
+      "polar_mount_mode": "BAT_HANDLE",
+      "features": {
+        "watch_pitch_deg": 71.5,
+        "post_impact_acc_ratio": 1.48,
+        "ahrs_valid": true,
+        "ahrs_blade_pitch_deg": 42.0,
+        "ahrs_swing_yaw_deg": -5.0,
+        "bat_gz_min": -6.0,
+        "has_polar": true
+      },
+      "expected_pred": "POWER DRIVE",
+      "expected_fired": [
+        "bat_vertical_guard_rule1"
+      ]
+    },
+    {
+      "name": "bat_vertical_guard_rule1_drive_defence",
+      "config_mode": "prod",
+      "raw_pred_cls": "CUT/PUNCH",
+      "top_prob": 0.58,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.12,
+        0.15,
+        0.05,
+        0.58,
+        0.02,
+        0.04,
+        0.02
+      ],
+      "polar_mount_mode": "BAT_HANDLE",
+      "features": {
+        "watch_pitch_deg": 68.0,
+        "post_impact_acc_ratio": 1.12,
+        "ahrs_valid": true,
+        "ahrs_blade_pitch_deg": 45.0,
+        "ahrs_swing_yaw_deg": -4.0,
+        "bat_gz_min": -5.0,
+        "has_polar": true
+      },
+      "expected_pred": "DRIVE/DEFENCE",
+      "expected_fired": [
+        "bat_vertical_guard_rule1"
+      ]
+    },
+    {
+      "name": "bat_ahrs_glance_rule2_blocked_below_035",
+      "config_mode": "prod",
+      "raw_pred_cls": "DRIVE/DEFENCE",
+      "top_prob": 0.55,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.04,
+        0.55,
+        0.27,
+        0.02,
+        0.02,
+        0.05,
+        0.03
+      ],
+      "polar_mount_mode": "BAT_HANDLE",
+      "features": {
+        "watch_pitch_deg": 40.0,
+        "post_impact_acc_ratio": 1.05,
+        "ahrs_valid": true,
+        "ahrs_blade_pitch_deg": 34.0,
+        "ahrs_swing_yaw_deg": -34.16,
+        "bat_gz_min": -14.6,
+        "has_polar": true
+      },
+      "expected_pred": "DRIVE/DEFENCE",
+      "expected_fired": []
+    },
+    {
+      "name": "bat_ahrs_glance_rule2_fires_above_035",
+      "config_mode": "prod",
+      "raw_pred_cls": "DRIVE/DEFENCE",
+      "top_prob": 0.5,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.04,
+        0.45,
+        0.35,
+        0.02,
+        0.02,
+        0.07,
+        0.03
+      ],
+      "polar_mount_mode": "BAT_HANDLE",
+      "features": {
+        "watch_pitch_deg": 38.0,
+        "post_impact_acc_ratio": 1.05,
+        "ahrs_valid": true,
+        "ahrs_blade_pitch_deg": 32.0,
+        "ahrs_swing_yaw_deg": -24.5,
+        "bat_gz_min": -13.2,
+        "has_polar": true
+      },
+      "expected_pred": "GLANCE/FLICK",
+      "expected_fired": [
+        "bat_ahrs_glance_rule2"
+      ]
+    },
+    {
+      "name": "candidate_s2_pd_to_pull_when_enabled",
+      "config_mode": "all_on",
+      "raw_pred_cls": "POWER DRIVE",
+      "top_prob": 0.48,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.52,
+        0.04,
+        0.02,
+        0.08,
+        0.01,
+        0.29,
+        0.02
+      ],
+      "polar_mount_mode": "WRIST",
+      "features": {
+        "post_impact_acc_ratio": 1.42,
+        "has_polar": true,
+        "bottom_hand_time_lead_ms": 8.0
+      },
+      "expected_pred": "PULL/HOOK/SLOG",
+      "expected_fired": [
+        "s2_power_drive_vs_pull"
+      ]
+    },
+    {
+      "name": "candidate_s3_cut_recovery_when_enabled",
+      "config_mode": "all_on",
+      "raw_pred_cls": "DRIVE/DEFENCE",
+      "top_prob": 0.44,
+      "q_mid": [
+        0.02,
+        0.0,
+        0.08,
+        0.44,
+        0.04,
+        0.32,
+        0.03,
+        0.05,
+        0.02
+      ],
+      "polar_mount_mode": "WRIST",
+      "features": {
+        "post_impact_acc_ratio": 1.08,
+        "has_polar": true,
+        "bottom_hand_time_lead_ms": -6.0
+      },
+      "expected_pred": "CUT/PUNCH",
+      "expected_fired": [
+        "s3_cut_punch_recovery"
+      ]
+    }
+  ]
+}

@@ -110,6 +110,8 @@ class TcnModelRunner(
         }
     }
 
+    val stage3Config: Stage3RuleEngine.Stage3Config = Stage3RuleEngine.loadConfig(context)
+
     data class DetectionResult(
         val frameIndex: Int,
         val timestampMs: Long,
@@ -119,7 +121,9 @@ class TcnModelRunner(
         val peakGyro: Float = 0f,
         val postImpactRatio: Float = 0f,
         val pSub0Glance: Float = 0f,
-        val pFamSweep: Float = 0f
+        val pFamSweep: Float = 0f,
+        val hierProbs: Stage3RuleEngine.HierarchicalProbs = Stage3RuleEngine.HierarchicalProbs(),
+        val firedRules: List<String> = emptyList()
     )
 
     data class CandidateAnchor(
@@ -412,7 +416,8 @@ class TcnModelRunner(
             val predClass: String,
             val topProb: Float,
             val pSub0Glance: Float = 0f,
-            val pFamSweep: Float = 0f
+            val pFamSweep: Float = 0f,
+            val hierProbs: Stage3RuleEngine.HierarchicalProbs = Stage3RuleEngine.HierarchicalProbs()
         )
         val candidatePredictions = mutableListOf<CandidatePrediction>()
 
@@ -463,8 +468,7 @@ class TcnModelRunner(
                 var topShotIdx = 3 // default to DRIVE/DEFENCE
                 var sumNoShotProb = 0f
                 var validFrames = 0
-                var pSub0Glance = 0f
-                var pFamSweep = 0f
+                var hierProbs = Stage3RuleEngine.HierarchicalProbs()
 
                 for (t in wStart..wEnd) {
                     val frameLogits = FloatArray(numClasses) { c ->
@@ -493,13 +497,7 @@ class TcnModelRunner(
                         }
 
                         if (t == tMid && numClasses >= 9) {
-                            val kVert = (probs[3] + probs[4] + probs[6]).toDouble()
-                            val a1Cross = (probs[2] + probs[5]).toDouble()
-                            val a2Sweep = probs[8].toDouble()
-                            val bCoef = kVert + probs[7].toDouble() - 0.85 * a1Cross
-                            val a0Vert = 0.5 * (bCoef + sqrt(max(0.0, bCoef * bCoef + 3.4 * a1Cross * kVert)))
-                            pSub0Glance = (probs[4].toDouble() / (a0Vert + 1e-12)).toFloat()
-                            pFamSweep = (a2Sweep / (a0Vert + a1Cross + a2Sweep + 1e-12)).toFloat()
+                            hierProbs = Stage3RuleEngine.recoverHierarchicalProbs(probs)
                         }
                     }
                 }
@@ -513,8 +511,9 @@ class TcnModelRunner(
                     CandidatePrediction(
                         predClass = predClass,
                         topProb = if (predClass == "no_shot") avgNoShotProb else maxShotProb,
-                        pSub0Glance = pSub0Glance,
-                        pFamSweep = pFamSweep
+                        pSub0Glance = hierProbs.pSub0Glance,
+                        pFamSweep = hierProbs.pFamSweep,
+                        hierProbs = hierProbs
                     )
                 )
             } catch (e: Exception) {
@@ -536,92 +535,23 @@ class TcnModelRunner(
             val cand = candidateWindows[i]
             val anchorF = cand.anchorFrame
             val candPred = candidatePredictions[i]
-            var predShotType = candPred.predClass
             val topProb = candPred.topProb
 
-            val postImpactRatio = sensorMatrix[26][anchorF]
-
-            // Gate 2: Calibrated Dual-Path Sweep Gate
-            if (predShotType == "SWEEP") {
-                val fStart = max(0, anchorF - 211) // 500ms at 423 Hz
-                var minGz = Float.MAX_VALUE; var maxGz = -Float.MAX_VALUE
-                var minPitch = Float.MAX_VALUE; var maxPitch = -Float.MAX_VALUE
-                var maxRollVel = 0f
-
-                for (k in fStart..anchorF) {
-                    val gx = sensorMatrix[12][k]
-                    val gy = sensorMatrix[13][k]
-                    val gz = sensorMatrix[14][k]
-
-                    if (gz < minGz) minGz = gz
-                    if (gz > maxGz) maxGz = gz
-
-                    val denom = sqrt((gx * gx + gy * gy + 1e-6).toDouble()).toFloat()
-                    val pitchDeg = Math.toDegrees(atan2(gz.toDouble(), denom.toDouble())).toFloat()
-                    if (!pitchDeg.isNaN()) {
-                        if (pitchDeg < minPitch) minPitch = pitchDeg
-                        if (pitchDeg > maxPitch) maxPitch = pitchDeg
-                    }
-
-                    val roll = abs(sensorMatrix[3][k])
-                    if (!roll.isNaN() && roll > maxRollVel) maxRollVel = roll
-                }
-
-                val deltaGz = if (maxGz.isNaN() || minGz.isNaN() || minGz > maxGz) 0f else maxGz - minGz
-                val deltaPitch = if (maxPitch.isNaN() || minPitch.isNaN() || minPitch > maxPitch) 0f else maxPitch - minPitch
-
-                // Path 1: Kneeling / Slog Sweep (Crouch Tilt >= 10 deg OR delta_gz >= 1.2 m/s2, Softmax floor >= 0.30)
-                val isPath1 = (deltaPitch >= 10.0f || deltaGz >= 1.2f) && (topProb >= 0.30f)
-
-                // Path 2: Standing Paddle / Fine Lap Sweep (Wrist Roll >= 1.6 rad/s and Softmax floor >= 0.35)
-                val isPath2 = (maxRollVel >= 1.6f) && (topProb >= 0.35f)
-
-                if (!isPath1 && !isPath2) {
-                    predShotType = "no_shot"
-                } else if (polarMountMode != "BAT_HANDLE") {
-                    // Non-Bat Mitigation (WRIST / NONE): Rescue upright Glance/Flick misclassified as Sweep due to wrist roll
-                    val impS = max(0, anchorF - 20)
-                    val impE = min(numFrames - 1, anchorF + 19)
-                    var sumImpGz = 0f
-                    var cntImpGz = 0
-                    for (k in impS..impE) {
-                        val wAz = sensorMatrix[8][k]
-                        if (!wAz.isNaN()) {
-                            sumImpGz += wAz
-                            cntImpGz++
-                        }
-                    }
-                    val impGz = if (cntImpGz > 0) sumImpGz / cntImpGz else 6.0f
-                    if (candPred.pSub0Glance >= 0.55f && impGz < 5.5f && candPred.pFamSweep < 0.72f) {
-                        predShotType = "GLANCE/FLICK"
-                    }
-                }
-            }
-
-            // Gate 2.5: Biomechanical Physical Consistency Gate (Spatial Attitude) - ONLY FOR BAT_HANDLE
-            // Note: sensorMatrix[15..18] is w_rot (Galaxy Watch on lead wrist).
-            // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat pull/hook/cut).
-            // Rule 2 (forcing DRIVE to PULL if pitch <= 40 deg) was removed because reaching drives, cover drives,
-            // on-drives, and flick shots naturally exhibit pitch angles of 20°-40° (and wrist pitch regularly settles
-            // in 15°-35°), causing catastrophic false conversions to PULL/HOOK/SLOG.
-            if (polarMountMode == "BAT_HANDLE") {
-                val qx = sensorMatrix[15][anchorF]; val qy = sensorMatrix[16][anchorF]
-                val qz = sensorMatrix[17][anchorF]; val qw = sensorMatrix[18][anchorF]
-                val qMag = qx*qx + qy*qy + qz*qz + qw*qw
-                if (!qMag.isNaN() && qMag in 0.5f..1.5f) {
-                    val vz = 2.0f * (qy * qz - qx * qw)
-                    if (!vz.isNaN()) {
-                        val clampedVz = abs(vz).coerceIn(0f, 1f)
-                        val pitchDeg = Math.toDegrees(asin(clampedVz.toDouble())).toFloat()
-                        if (!pitchDeg.isNaN()) {
-                            // Rule 1: Vertical Bat Gate (pitch >= 65 deg cannot be cross-bat)
-                            if (pitchDeg >= 65.0f && (predShotType == "PULL/HOOK/SLOG" || predShotType == "CUT/PUNCH")) {
-                                predShotType = if (postImpactRatio >= 1.35f) "POWER DRIVE" else "DRIVE/DEFENCE"
-                            }
-                        }
-                    }
-                }
-            }
+            val preAhrsFeatures = Stage3RuleEngine.extractPreAhrsFeatures(
+                sensorMatrix = sensorMatrix,
+                anchorF = anchorF,
+                numFrames = numFrames
+            )
+            val ruleEval = Stage3RuleEngine.applyPreAhrsRules(
+                rawPredCls = candPred.predClass,
+                topProb = topProb,
+                hierProbs = candPred.hierProbs,
+                features = preAhrsFeatures,
+                polarMountMode = polarMountMode,
+                config = stage3Config
+            )
+            val predShotType = ruleEval.predictedShotType
+            val postImpactRatio = preAhrsFeatures.postImpactAccRatio
 
             // Gate 3: Dynamic Class-Aware NMS (2.4s for SWEEP, 1.8s for standard classes)
             val isSweep = (predShotType == "SWEEP")
@@ -631,7 +561,7 @@ class TcnModelRunner(
                 continue
             }
 
-            if (predShotType == "no_shot" || predShotType == "pre_shot") {
+            if (predShotType == "no_shot" || predShotType == "NO_SHOT" || predShotType == "pre_shot") {
                 continue
             }
 
@@ -648,7 +578,9 @@ class TcnModelRunner(
                     peakGyro = cand.peakGyro,
                     postImpactRatio = postImpactRatio,
                     pSub0Glance = candPred.pSub0Glance,
-                    pFamSweep = candPred.pFamSweep
+                    pFamSweep = candPred.pFamSweep,
+                    hierProbs = candPred.hierProbs,
+                    firedRules = ruleEval.firedRules
                 )
             )
         }
