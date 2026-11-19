@@ -2338,12 +2338,42 @@ fun TimelineItem(
                 }
 
                 if (event.shotType != null) {
-                    Text(
-                        text = event.description,
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = event.description,
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        event.impact_quality_score?.let { score ->
+                            val edgeRisk = event.impact_edge_risk ?: 0f
+                            val isEdge = edgeRisk >= 0.56f && score < 52f
+                            val (pillText, pillColor) = when {
+                                isEdge -> "EDGE ${(edgeRisk * 100f).toInt()}%" to Color(0xFFFF5252)
+                                score >= 64f -> "MIDDLE ${score.toInt()}" to Color(0xFF58FF63)
+                                score >= 46f -> "CLEAN ${score.toInt()}" to Color(0xFF38BDF8)
+                                else -> "MISHIT ${score.toInt()}" to Color(0xFFFFBF00)
+                            }
+                            val srcBadge = if (event.impact_quality_source == "MULTIMODAL") "🎙+🏏" else "🏏"
+                            Box(
+                                modifier = Modifier
+                                    .background(pillColor.copy(alpha = 0.14f), RoundedCornerShape(6.dp))
+                                    .border(1.dp, pillColor.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "$srcBadge $pillText",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = pillColor
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (event.batSpeed != null) {
@@ -2414,7 +2444,12 @@ fun TimelineItem(
                         timeLeadMs = event.bottom_hand_time_lead_ms?.toFloat(),
                         gyroRatio = event.bottom_hand_gyro_ratio,
                         accRatio = event.bottom_hand_acc_ratio,
-                        polarMountMode = event.polar_mount_mode
+                        polarMountMode = event.polar_mount_mode,
+                        impactQualityScore = event.impact_quality_score,
+                        impactEdgeRisk = event.impact_edge_risk,
+                        impactQualitySource = event.impact_quality_source,
+                        polarContactDipPct = event.polar_contact_dip_pct,
+                        handleRattleRadS = event.handle_rattle_rad_s
                     )
 
                     val statusColor = if (bioState.displaysWarning) Color(0xFFFFBF00) else Color(0xFF58FF63)
@@ -2550,6 +2585,51 @@ fun TimelineItem(
                                     Column {
                                         Text(if (isBatHandle) "Wrist-Bat" else "Inter-Wrist", fontSize = 7.sp, color = Color.Gray)
                                         Text(String.format(java.util.Locale.US, "%.1f°", event.relative_wrist_angle_deg), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Impact Quality & Sweet-Spot Contact Telemetry ──
+                        if (event.impact_quality_score != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                bioState.impactQualityTitle.ifEmpty { "IMPACT QUALITY & CONTACT" },
+                                fontSize = 7.sp,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Sweet-Spot", fontSize = 7.sp, color = Color.Gray)
+                                    Text("${event.impact_quality_score.toInt()}/100", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = statusColor)
+                                }
+                                event.impact_edge_risk?.let { er ->
+                                    Column {
+                                        Text("Edge Risk", fontSize = 7.sp, color = Color.Gray)
+                                        Text("${(er * 100f).toInt()}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (er >= 0.56f) Color(0xFFFF5252) else Color.White)
+                                    }
+                                }
+                                event.polar_contact_dip_pct?.let { dip ->
+                                    Column {
+                                        Text("Speed Dip", fontSize = 7.sp, color = Color.Gray)
+                                        Text(String.format(java.util.Locale.US, "%.0f%%", dip), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                                event.handle_rattle_rad_s?.let { rattle ->
+                                    Column {
+                                        Text("Rattle", fontSize = 7.sp, color = Color.Gray)
+                                        Text(String.format(java.util.Locale.US, "%.2f rad/s", rattle), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                                event.impact_aud_snr_db?.let { snr ->
+                                    Column {
+                                        Text("Crack SNR", fontSize = 7.sp, color = Color.Gray)
+                                        Text(String.format(java.util.Locale.US, "%+.0f dB", snr), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
                                     }
                                 }
                             }

@@ -121,9 +121,12 @@ def main():
             continue
 
         print(f"\n[{idx:02d}/{len(session_dirs)}] 🎙️ Processing {session_id} ({reason})...")
-        audio_path = compress_audio_in_place(audio_path)
-        
-        raw_text, err = transcribe_session_with_retries(audio_path, model_name=args.model)
+        upload_audio_path = compress_audio_in_place(audio_path, in_place=False)
+        try:
+            raw_text, err = transcribe_session_with_retries(upload_audio_path, model_name=args.model)
+        finally:
+            if upload_audio_path != audio_path and os.path.exists(upload_audio_path):
+                os.remove(upload_audio_path)
         
         if raw_text:
             with open(raw_transcript_path, "w", encoding="utf-8") as f:

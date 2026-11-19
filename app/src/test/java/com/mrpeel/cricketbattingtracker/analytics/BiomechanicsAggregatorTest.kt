@@ -223,4 +223,30 @@ class BiomechanicsAggregatorTest {
         assertTrue(profile.keyTechnicalObservation.contains("Top-hand dominant steering"))
         assertEquals(100.0f, profile.percentageOfRepertoire, 0.01f)
     }
+
+    @Test
+    fun testLongitudinalImpactQualityAggregation() {
+        val shots = (0 until 5).map { idx ->
+            InningsEvent(
+                inningsId = 2L,
+                timestamp = 1000L + idx * 1000L,
+                description = "Drive $idx",
+                batSpeed = 85f,
+                efficiency = 85f,
+                shotType = "DRIVE/DEFENCE",
+                impact_quality_score = if (idx < 3) 70f else 40f,
+                impact_edge_risk = if (idx >= 3) 0.65f else 0.15f,
+                impact_quality_source = "MULTIMODAL",
+                polar_contact_dip_pct = if (idx < 3) 26f else 10f
+            )
+        }
+        val result = BiomechanicsAggregator.aggregate(shots)
+        assertEquals(58, result.overallMiddlingScore)
+        val profile = result.classProfiles["DRIVE/DEFENCE"]!!
+        assertEquals(5, profile.impactScoredSampleCount)
+        assertEquals(58f, profile.meanImpactScore, 0.1f)
+        assertEquals(60f, profile.middledRatePct, 0.1f)
+        assertEquals(40f, profile.highEdgeRiskRatePct, 0.1f)
+        assertEquals(26f, profile.medianContactDipPct, 0.1f)
+    }
 }

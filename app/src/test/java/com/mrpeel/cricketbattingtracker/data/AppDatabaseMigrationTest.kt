@@ -89,8 +89,8 @@ class AppDatabaseMigrationTest {
 
         AppDatabase.ensureSchemaIntegrity(fakeDb)
 
-        // All 7 missing v12 columns must have been repaired via ALTER TABLE
-        assertEquals("Must execute exactly 7 repair ALTER TABLE statements", 7, executedSql.size)
+        // All 7 missing v12 columns + 6 missing v13 columns (13 total) must be repaired via ALTER TABLE
+        assertEquals("Must execute exactly 13 repair ALTER TABLE statements", 13, executedSql.size)
         assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN blade_pitch_deg REAL") })
         assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN face_angle_deg REAL") })
         assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN swing_yaw_deg REAL") })
@@ -98,6 +98,7 @@ class AppDatabaseMigrationTest {
         assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN azimuth_deviation_deg REAL") })
         assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN polar_mount_type TEXT") })
         assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN is_kinematically_valid INTEGER") })
+        assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN impact_quality_score REAL") })
     }
 
     @Test
@@ -144,30 +145,123 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun testReprocessSessionsDDLMatchesRoomV12Entity() {
+    fun testMigration12To13ExecutesAllSixColumnAdditions() {
+        val executedSql = mutableListOf<String>()
+        val fakeDb = Proxy.newProxyInstance(
+            SupportSQLiteDatabase::class.java.classLoader,
+            arrayOf(SupportSQLiteDatabase::class.java)
+        ) { _, method, args ->
+            if (method.name == "execSQL" && args != null && args.isNotEmpty()) {
+                executedSql.add(args[0] as String)
+            }
+            null
+        } as SupportSQLiteDatabase
+
+        AppDatabase.MIGRATION_12_13.migrate(fakeDb)
+
+        assertEquals("Must execute exactly 6 ALTER TABLE commands", 6, executedSql.size)
+        assertTrue(executedSql.any { it.contains("impact_quality_score REAL") })
+        assertTrue(executedSql.any { it.contains("impact_edge_risk REAL") })
+        assertTrue(executedSql.any { it.contains("impact_quality_source TEXT") })
+        assertTrue(executedSql.any { it.contains("polar_contact_dip_pct REAL") })
+        assertTrue(executedSql.any { it.contains("handle_rattle_rad_s REAL") })
+        assertTrue(executedSql.any { it.contains("impact_aud_snr_db REAL") })
+    }
+
+    @Test
+    fun testEnsureSchemaIntegrityRepairsMissingV13Columns() {
+        val v13Cols = setOf(
+            "impact_quality_score",
+            "impact_edge_risk",
+            "impact_quality_source",
+            "polar_contact_dip_pct",
+            "handle_rattle_rad_s",
+            "impact_aud_snr_db"
+        )
+        val legacy57Columns = listOf("id", "inningsId", "timestamp", "description") +
+            AppDatabase.REQUIRED_INNINGS_EVENT_COLUMNS.keys.toList().filterNot { it in v13Cols }
+        assertEquals(57, legacy57Columns.size)
+
+        var cursorRowIdx = -1
+        val fakeCursor = Proxy.newProxyInstance(
+            android.database.Cursor::class.java.classLoader,
+            arrayOf(android.database.Cursor::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "getColumnIndex" -> if (args?.get(0) == "name") 0 else -1
+                "moveToNext" -> {
+                    cursorRowIdx++
+                    cursorRowIdx < legacy57Columns.size
+                }
+                "getString" -> legacy57Columns[cursorRowIdx]
+                "close" -> null
+                else -> null
+            }
+        } as android.database.Cursor
+
+        val executedSql = mutableListOf<String>()
+        val fakeDb = Proxy.newProxyInstance(
+            SupportSQLiteDatabase::class.java.classLoader,
+            arrayOf(SupportSQLiteDatabase::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "query" -> fakeCursor
+                "execSQL" -> {
+                    if (args != null && args.isNotEmpty()) {
+                        executedSql.add(args[0] as String)
+                    }
+                    null
+                }
+                else -> null
+            }
+        } as SupportSQLiteDatabase
+
+        AppDatabase.ensureSchemaIntegrity(fakeDb)
+
+        assertEquals("Must execute exactly 6 repair ALTER TABLE statements", 6, executedSql.size)
+        assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN impact_quality_score REAL") })
+        assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN impact_edge_risk REAL") })
+        assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN impact_quality_source TEXT") })
+        assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN polar_contact_dip_pct REAL") })
+        assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN handle_rattle_rad_s REAL") })
+        assertTrue(executedSql.any { it.contains("ALTER TABLE innings_events ADD COLUMN impact_aud_snr_db REAL") })
+    }
+
+    @Test
+    fun testReprocessSessionsDDLMatchesRoomV13Entity() {
         val reprocessScript = File("../pipelines/reprocess_sessions.py").takeIf { it.exists() }
             ?: File("pipelines/reprocess_sessions.py")
         assertTrue("reprocess_sessions.py must exist", reprocessScript.exists())
         val scriptContent = reprocessScript.readText()
 
-        // 1. Check Room v12 identity hash
-        val expectedV12Hash = "36946e68af413e8cc2fca0555e69b534"
+        // 1. Check Room v13 identity hash
+        val expectedV13Hash = "5c315000c2432885aa553965709b202a"
         assertTrue(
-            "reprocess_sessions.py must insert the Room v12 hash",
-            scriptContent.contains("VALUES(42, '$expectedV12Hash')")
+            "reprocess_sessions.py must insert the Room v13 hash",
+            scriptContent.contains("VALUES(42, '$expectedV13Hash')")
+        )
+        assertTrue(
+            "reprocess_sessions.py must set PRAGMA user_version = 13",
+            scriptContent.contains("PRAGMA user_version = 13")
         )
 
-        // 2. Check all 7 v12 orientation and kinematic guard columns are in CREATE TABLE
-        val v12Columns = listOf(
+        // 2. Check all 7 v12 + 6 v13 columns are in CREATE TABLE
+        val requiredDdlDefs = listOf(
             "blade_pitch_deg REAL",
             "face_angle_deg REAL",
             "swing_yaw_deg REAL",
             "relative_wrist_angle_deg REAL",
             "azimuth_deviation_deg REAL",
             "polar_mount_type TEXT",
-            "is_kinematically_valid INTEGER"
+            "is_kinematically_valid INTEGER",
+            "impact_quality_score REAL",
+            "impact_edge_risk REAL",
+            "impact_quality_source TEXT",
+            "polar_contact_dip_pct REAL",
+            "handle_rattle_rad_s REAL",
+            "impact_aud_snr_db REAL"
         )
-        for (col in v12Columns) {
+        for (col in requiredDdlDefs) {
             assertTrue("reprocess_sessions.py CREATE TABLE must define '$col'", scriptContent.contains(col))
         }
 
@@ -179,7 +273,7 @@ class AppDatabaseMigrationTest {
             )
         }
 
-        // 4. Verify INSERT INTO statement includes all 7 columns and placeholders match
+        // 4. Verify INSERT INTO statement includes all v12+v13 columns and placeholders match
         val insertMatch = Regex("""INSERT INTO innings_events\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)""", RegexOption.DOT_MATCHES_ALL)
             .findAll(scriptContent)
             .firstOrNull { it.value.contains("blade_pitch_deg") }
@@ -197,7 +291,12 @@ class AppDatabaseMigrationTest {
             placeholders.size
         )
 
-        for (col in listOf("blade_pitch_deg", "face_angle_deg", "swing_yaw_deg", "relative_wrist_angle_deg", "azimuth_deviation_deg", "polar_mount_type", "is_kinematically_valid")) {
+        for (col in listOf(
+            "blade_pitch_deg", "face_angle_deg", "swing_yaw_deg", "relative_wrist_angle_deg",
+            "azimuth_deviation_deg", "polar_mount_type", "is_kinematically_valid",
+            "impact_quality_score", "impact_edge_risk", "impact_quality_source",
+            "polar_contact_dip_pct", "handle_rattle_rad_s", "impact_aud_snr_db"
+        )) {
             assertTrue("INSERT INTO columns must include '$col'", insertedCols.contains(col))
         }
     }

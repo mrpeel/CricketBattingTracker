@@ -337,8 +337,9 @@ object PhoneSwingDetector {
         }
 
         val finalShots = mutableListOf<InningsEvent>()
+        val polarInputsForImpact = mutableListOf<com.mrpeel.cricketbattingtracker.ml.ImpactQualityRunner.PolarShotInput>()
 
-        for (det in finalDetectedList) {
+        for ((shotIdx, det) in finalDetectedList.withIndex()) {
             val shotWallMs = det.timestampMs
             val relShotMs = shotWallMs - watchStartWallMs
             val targetSensorNs = watchStartSensorNs + (relShotMs * 1_000_000L)
@@ -677,6 +678,50 @@ object PhoneSwingDetector {
                 BatSessionManager.getBatIdAtTime(shotWallMs)
             }
 
+            if (hasPolarData && alignment != null && sessionConfig.polarMountMode == "BAT_HANDLE" && batIdForShot != 0 && (isKinematicallyValid != false)) {
+                val polarApproxMs = alignment.watchToPolarMs(shotWallMs)
+                var peakAccSample: PolarSample? = null
+                forEachPolarInRange(polarAcc, polarApproxMs - 200L, polarApproxMs + 120L) { s ->
+                    if (peakAccSample == null || s.mag > peakAccSample!!.mag) {
+                        peakAccSample = s
+                    }
+                }
+                peakAccSample?.let { pk ->
+                    val winAcc = mutableListOf<PolarSample>()
+                    val winGyr = mutableListOf<PolarSample>()
+                    forEachPolarInRange(polarAcc, pk.phoneMs - 110L, pk.phoneMs + 145L) { winAcc.add(it) }
+                    forEachPolarInRange(polarGyro, pk.phoneMs - 110L, pk.phoneMs + 145L) { winGyr.add(it) }
+                    if (winAcc.size >= 16 && winGyr.size >= 16) {
+                        fun polarRelSec(s: PolarSample): Double {
+                            val dtMs = (s.phoneMs - pk.phoneMs) / 1000.0
+                            val dtNs = (s.sensorNs - pk.sensorNs) / 1_000_000_000.0
+                            return if (kotlin.math.abs(dtMs - dtNs) < 0.25) dtNs else dtMs
+                        }
+                        val ptA = DoubleArray(winAcc.size) { polarRelSec(winAcc[it]) }
+                        val pAx = FloatArray(winAcc.size) { winAcc[it].x }
+                        val pAy = FloatArray(winAcc.size) { winAcc[it].y }
+                        val pAz = FloatArray(winAcc.size) { winAcc[it].z }
+                        val ptG = DoubleArray(winGyr.size) { polarRelSec(winGyr[it]) }
+                        val pGx = FloatArray(winGyr.size) { winGyr[it].x }
+                        val pGy = FloatArray(winGyr.size) { winGyr[it].y }
+                        val pGz = FloatArray(winGyr.size) { winGyr[it].z }
+                        com.mrpeel.cricketbattingtracker.ml.ImpactQualityRunner.extractPolarPatchAndScalars(
+                            ptA, pAx, pAy, pAz, ptG, pGx, pGy, pGz
+                        )?.let { (polMat, polScalars) ->
+                            val contactRelS = (alignment.polarToWatchMs(pk.phoneMs) - watchStartWallMs) / 1000.0
+                            polarInputsForImpact.add(
+                                com.mrpeel.cricketbattingtracker.ml.ImpactQualityRunner.PolarShotInput(
+                                    shotIndex = shotIdx,
+                                    contactRelTimeS = contactRelS,
+                                    polMat = polMat,
+                                    polarScalars = polScalars
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
             finalShots.add(InningsEvent(
                 inningsId = inningsId,
                 timestamp = shotWallMs,
@@ -741,6 +786,48 @@ object PhoneSwingDetector {
         // Build "Session Ended" marker
         val watchEndMs = watchAcc.last().timeNanos / 1_000_000L
         val sessionEndWallMs = watchStartWallMs + (watchEndMs - (watchStartSensorNs / 1_000_000L))
+
+        // Score multimodal Acoustic + 423Hz Polar Impact Quality (or Polar-only ONNX fallback)
+        if (polarInputsForImpact.isNotEmpty()) {
+            try {
+                var waitedMs = 0L
+                while (AudioRecordManager.isRecording.value && waitedMs < 2000L) {
+                    kotlinx.coroutines.delay(150L)
+                    waitedMs += 150L
+                }
+                val audioFile = com.mrpeel.cricketbattingtracker.ml.AudioImpactDecoder.findMatchingNarrationAudio(
+                    context = context,
+                    sessionStartWallMs = watchStartWallMs,
+                    sessionEndWallMs = sessionEndWallMs
+                )
+                val preds = com.mrpeel.cricketbattingtracker.ml.ImpactQualityRunner(context).use { runner ->
+                    runner.scoreSessionShots(
+                        shots = polarInputsForImpact,
+                        audioFile = audioFile,
+                        sessionStartWallMs = watchStartWallMs
+                    )
+                }
+                for ((shotIdx, pred) in preds) {
+                    if (shotIdx in finalShots.indices) {
+                        val existing = finalShots[shotIdx]
+                        val st = existing.shotType ?: "SHOT"
+                        finalShots[shotIdx] = existing.copy(
+                            description = "$st (${pred.sweetSpotLabel})",
+                            impact_quality_score = pred.score,
+                            impact_edge_risk = pred.edgeRisk,
+                            impact_quality_source = pred.source,
+                            polar_contact_dip_pct = pred.contactDipPct,
+                            handle_rattle_rad_s = pred.handleRattleRadS,
+                            impact_aud_snr_db = pred.audSnrDb
+                        )
+                    }
+                }
+                Log.i(TAG, "Scored ${preds.size}/${polarInputsForImpact.size} shots via ImpactQualityRunner (audio=${audioFile?.name ?: "none"})")
+            } catch (e: Exception) {
+                Log.w(TAG, "ImpactQualityRunner scoring failed, retaining RandomForest fallback: ${e.message}")
+            }
+        }
+
         val lastBatId = finalShots.lastOrNull { it.bat_id != null }?.bat_id ?: sessionConfig.defaultBatId
         val endProfile = sessionConfig.batProfiles[lastBatId]
         val sessionEndEvent = InningsEvent(

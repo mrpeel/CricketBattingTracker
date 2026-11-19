@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [InningsEvent::class, HeartRateEvent::class], version = 12, exportSchema = false)
+@Database(entities = [InningsEvent::class, HeartRateEvent::class], version = 13, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun inningsEventDao(): InningsEventDao
 
@@ -93,7 +93,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Migration 12→13: Add acoustic + 423Hz Polar impact quality columns to innings_events. */
+        internal val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN impact_quality_score REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN impact_edge_risk REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN impact_quality_source TEXT")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN polar_contact_dip_pct REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN handle_rattle_rad_s REAL")
+                db.execSQL("ALTER TABLE innings_events ADD COLUMN impact_aud_snr_db REAL")
+            }
+        }
+
         internal val REQUIRED_INNINGS_EVENT_COLUMNS = mapOf(
+            "impact_quality_score" to "REAL",
+            "impact_edge_risk" to "REAL",
+            "impact_quality_source" to "TEXT",
+            "polar_contact_dip_pct" to "REAL",
+            "handle_rattle_rad_s" to "REAL",
+            "impact_aud_snr_db" to "REAL",
             "blade_pitch_deg" to "REAL",
             "face_angle_deg" to "REAL",
             "swing_yaw_deg" to "REAL",
@@ -198,7 +216,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "cricket_tracker_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)

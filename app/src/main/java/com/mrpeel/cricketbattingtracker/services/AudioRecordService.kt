@@ -86,6 +86,19 @@ class AudioRecordService : Service() {
             // ── Step 2: Set up the recorder, pinning it to the resolved BT device if present ──
             setupMediaRecorder(file, btDevice)
             mediaRecorder?.start()
+            val recordStartWallMs = System.currentTimeMillis()
+
+            val deviceDesc = btDevice?.productName?.toString() ?: "Built-in Microphone"
+            val deviceTypeName = deviceTypeLabel(btDevice?.type)
+            val audioSourceName = if (btDevice != null) "VOICE_COMMUNICATION" else "MIC"
+            writeAudioMetadataSidecar(
+                audioFile = file,
+                startWallMs = recordStartWallMs,
+                deviceName = deviceDesc,
+                deviceType = btDevice?.type ?: AudioDeviceInfo.TYPE_BUILTIN_MIC,
+                deviceTypeName = deviceTypeName,
+                audioSource = audioSourceName
+            )
 
             AudioRecordManager.updateRecordingState(true)
             AudioRecordManager.updateElapsedSeconds(0L)
@@ -94,8 +107,7 @@ class AudioRecordService : Service() {
             startTimer()
             startAmplitudeListener()
 
-            val deviceDesc = btDevice?.productName ?: "built-in microphone"
-            Log.d(TAG, "MediaRecorder started on [$deviceDesc]. Output: ${file.absolutePath}")
+            Log.d(TAG, "MediaRecorder started on [$deviceDesc ($deviceTypeName), source=$audioSourceName, 44.1kHz/128kbps]. Output: ${file.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start recording", e)
             withContext(Dispatchers.Main) {
@@ -147,8 +159,6 @@ class AudioRecordService : Service() {
             return null
         }
 
-        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-
         val bluetoothDevice = audioManager.availableCommunicationDevices.firstOrNull {
             it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
             it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
@@ -156,15 +166,18 @@ class AudioRecordService : Service() {
         }
 
         if (bluetoothDevice == null) {
-            Log.d(TAG, "No Bluetooth communication device found; using built-in mic.")
+            Log.d(TAG, "No Bluetooth communication device found; using built-in mic (MODE_NORMAL).")
+            audioManager.mode = AudioManager.MODE_NORMAL
             return null
         }
 
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
         Log.d(TAG, "Found BT device: ${bluetoothDevice.productName} (type=${bluetoothDevice.type}). Requesting route…")
 
         val requested = audioManager.setCommunicationDevice(bluetoothDevice)
         if (!requested) {
             Log.w(TAG, "setCommunicationDevice returned false for ${bluetoothDevice.productName}; using built-in mic.")
+            audioManager.mode = AudioManager.MODE_NORMAL
             return null
         }
 
@@ -191,6 +204,7 @@ class AudioRecordService : Service() {
             Log.w(TAG, "BT route confirmation timed out after ${BT_CONNECT_TIMEOUT_MS}ms; using built-in mic.")
             // The route was requested but not confirmed — clear it so we don't record silence.
             audioManager.clearCommunicationDevice()
+            audioManager.mode = AudioManager.MODE_NORMAL
             null
         }
     }
@@ -244,7 +258,15 @@ class AudioRecordService : Service() {
         }
 
         recorder.apply {
-            setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+            // Keep VOICE_COMMUNICATION when routed to Bluetooth SCO/BLE so OEM HALs never drop
+            // headset voice narration; use raw MIC when falling back to the built-in microphone.
+            setAudioSource(
+                if (preferredDevice != null) {
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                } else {
+                    MediaRecorder.AudioSource.MIC
+                }
+            )
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             setAudioSamplingRate(44100)
@@ -283,6 +305,10 @@ class AudioRecordService : Service() {
                 if (file.exists()) {
                     file.delete()
                     Log.d(TAG, "Recording file discarded/deleted: ${file.name}")
+                }
+                val metaFile = File(file.parentFile, file.nameWithoutExtension + ".meta.json")
+                if (metaFile.exists()) {
+                    metaFile.delete()
                 }
             }
         } else {
@@ -358,6 +384,40 @@ class AudioRecordService : Service() {
                 }
                 delay(100)
             }
+        }
+    }
+
+    private fun deviceTypeLabel(type: Int?): String = when (type) {
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "BLUETOOTH_SCO"
+        AudioDeviceInfo.TYPE_BLE_HEADSET -> "BLE_HEADSET"
+        AudioDeviceInfo.TYPE_BLE_SPEAKER -> "BLE_SPEAKER"
+        AudioDeviceInfo.TYPE_BUILTIN_MIC, null -> "BUILTIN_MIC"
+        else -> "DEVICE_$type"
+    }
+
+    private fun writeAudioMetadataSidecar(
+        audioFile: File,
+        startWallMs: Long,
+        deviceName: String,
+        deviceType: Int,
+        deviceTypeName: String,
+        audioSource: String
+    ) {
+        try {
+            val metaFile = File(audioFile.parentFile, audioFile.nameWithoutExtension + ".meta.json")
+            val json = org.json.JSONObject().apply {
+                put("audio_file", audioFile.name)
+                put("start_wall_ms", startWallMs)
+                put("device_name", deviceName)
+                put("device_type", deviceType)
+                put("device_type_name", deviceTypeName)
+                put("audio_source", audioSource)
+                put("sample_rate", 44100)
+                put("bitrate", 128000)
+            }
+            metaFile.writeText(json.toString(2))
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed writing audio metadata sidecar: ${e.message}")
         }
     }
 

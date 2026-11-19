@@ -353,4 +353,23 @@ class LiveKinematicCoachTest {
         assertNull(fakeFeedback.lastPlayedEarcon)
         assertEquals(0, fakeFeedback.earconCount)
     }
+
+    @Test
+    fun testMishitHandleShockRuleTriggersWhenCleanPrePlaneButHighPostRattleAndLowDip() {
+        val coach = LiveKinematicCoach()
+        val fault = coach.diagnoseShotInvariant(
+            ShotInvariantMetrics(
+                peakGyroRadS = 18.0f,
+                speedKmh = 61.2f,
+                velocityRetention = 0.92f,
+                accelSlope = 0.10f,
+                planeWobbleDeg = 7.0f,
+                twistSpikeRatio = 0.20f,
+                axialJerkRadS = 1.5f,
+                contactDipPct = 5.0f,
+                postContactRattleRadS = 2.4f
+            )
+        )
+        assertEquals(LiveShotFault.MISHIT_HANDLE_SHOCK, fault)
+    }
 }

@@ -295,4 +295,32 @@ class DiagnosticRulesEngineTest {
         assertTrue(drillIds.contains(DiagnosticRulesEngine.DRILL_PULL_TEE_SLAPS.id))
         assertTrue(drillIds.contains(DiagnosticRulesEngine.DRILL_DROP_DRIVES.id))
     }
+
+    @Test
+    fun testMiddlingAndEdgeRiskDiagnosticFaults() {
+        val profile = createProfile(
+            shotClass = "DRIVE/DEFENCE",
+            timeLeads = listOf(10f, 12f, 14f, 10f, 12f),
+            gyroRatios = listOf(0.55f, 0.55f, 0.55f, 0.55f, 0.55f),
+            accRatios = listOf(0.45f, 0.45f, 0.45f, 0.45f, 0.45f)
+        ).copy(
+            impactScoredSampleCount = 5,
+            meanImpactScore = 42.0f,
+            middledRatePct = 20.0f,
+            highEdgeRiskRatePct = 40.0f,
+            medianContactDipPct = 11.0f,
+            rawImpactScores = listOf(38f, 40f, 42f, 44f, 65f),
+            rawEdgeRisks = listOf(0.62f, 0.64f, 0.20f, 0.18f, 0.10f)
+        )
+
+        val lowMid = DiagnosticRulesEngine.checkLowMiddlingRate(profile)
+        assertNotNull(lowMid)
+        assertEquals(DiagnosticFaultCode.FAULT_LOW_MIDDLING_RATE, lowMid!!.faultCode)
+        assertEquals(DiagnosticRulesEngine.DRILL_MIDDLE_FINDING_DROP.id, lowMid.drill.id)
+
+        val highEdge = DiagnosticRulesEngine.checkHighEdgeRisk(profile)
+        assertNotNull(highEdge)
+        assertEquals(DiagnosticFaultCode.FAULT_HIGH_EDGE_RISK, highEdge!!.faultCode)
+        assertEquals(DiagnosticRulesEngine.DRILL_LATE_EYELINE_CHECK.id, highEdge.drill.id)
+    }
 }

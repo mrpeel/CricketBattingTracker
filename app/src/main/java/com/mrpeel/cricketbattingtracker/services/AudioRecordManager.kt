@@ -104,6 +104,10 @@ object AudioRecordManager {
                 file.delete()
                 Log.d(TAG, "Deleted recording: ${file.name}")
             }
+            val metaFile = File(file.parentFile, file.nameWithoutExtension + ".meta.json")
+            if (metaFile.exists()) {
+                metaFile.delete()
+            }
             refreshRecordings(context)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete recording: ${e.message}", e)

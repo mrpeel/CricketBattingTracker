@@ -51,6 +51,7 @@ class VideoRecordService : Service(), LifecycleOwner {
     private var activeRecording: Recording? = null
     private var outputFile: File? = null
     private var startEpoch = 0L
+    private var btCommunicationRouted = false
     private val ticker = Handler(Looper.getMainLooper())
     private val tickRunnable = object : Runnable {
         override fun run() {
@@ -91,12 +92,25 @@ class VideoRecordService : Service(), LifecycleOwner {
         ticker.removeCallbacks(tickRunnable)
         cameraExecutor.shutdown()
 
-        // Cleanup Bluetooth SCO if it was enabled
+        // Cleanup Bluetooth audio routing if it was enabled
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        @Suppress("DEPRECATION")
-        if (audioManager.isBluetoothScoOn) {
-            audioManager.isBluetoothScoOn = false
-            audioManager.stopBluetoothSco()
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                if (btCommunicationRouted) {
+                    audioManager.clearCommunicationDevice()
+                    audioManager.mode = AudioManager.MODE_NORMAL
+                    btCommunicationRouted = false
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                if (audioManager.isBluetoothScoOn) {
+                    audioManager.isBluetoothScoOn = false
+                    audioManager.stopBluetoothSco()
+                    audioManager.mode = AudioManager.MODE_NORMAL
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error cleaning up BT routing on video destroy: ${e.message}")
         }
 
         super.onDestroy()
@@ -177,19 +191,45 @@ class VideoRecordService : Service(), LifecycleOwner {
                 )
                 val videoCapture = videoCaptureBuilder.build()
 
-                // Select audio input: prefer BT SCO mic, fall back to phone mic
+                // Select audio input: prefer BT headset (SCO/BLE) cleanly on API 31+, else fall back to phone mic
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-                val hasBluetooth = audioManager
-                    .getDevices(AudioManager.GET_DEVICES_INPUTS)
-                    .any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
-                if (hasBluetooth) {
-                    @Suppress("DEPRECATION")
-                    audioManager.startBluetoothSco()
-                    @Suppress("DEPRECATION")
-                    audioManager.isBluetoothScoOn = true
-                    Log.d(TAG, "Using Bluetooth SCO microphone")
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    val hasBtPerm = checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) ==
+                        android.content.pm.PackageManager.PERMISSION_GRANTED
+                    val btCommDevice = if (hasBtPerm) {
+                        audioManager.availableCommunicationDevices.firstOrNull {
+                            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                            it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                            it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+                        }
+                    } else null
+
+                    if (btCommDevice != null) {
+                        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                        if (audioManager.setCommunicationDevice(btCommDevice)) {
+                            btCommunicationRouted = true
+                            Log.d(TAG, "Video using BT headset mic: ${btCommDevice.productName}")
+                        } else {
+                            audioManager.mode = AudioManager.MODE_NORMAL
+                            Log.w(TAG, "setCommunicationDevice failed for video; using built-in mic")
+                        }
+                    } else {
+                        audioManager.mode = AudioManager.MODE_NORMAL
+                        Log.d(TAG, "BT headset not connected — video using built-in phone mic")
+                    }
                 } else {
-                    Log.d(TAG, "Bluetooth SCO not available — using phone mic")
+                    val hasBluetooth = audioManager
+                        .getDevices(AudioManager.GET_DEVICES_INPUTS)
+                        .any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+                    if (hasBluetooth) {
+                        @Suppress("DEPRECATION")
+                        audioManager.startBluetoothSco()
+                        @Suppress("DEPRECATION")
+                        audioManager.isBluetoothScoOn = true
+                        Log.d(TAG, "Using legacy Bluetooth SCO microphone for video")
+                    } else {
+                        Log.d(TAG, "Bluetooth SCO not available — using phone mic for video")
+                    }
                 }
 
                 cameraProvider.unbindAll()

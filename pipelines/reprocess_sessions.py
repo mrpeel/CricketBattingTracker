@@ -69,6 +69,7 @@ POLAR_FEATURE_COLS = [
 
 sys.path.append(ROOT_DIR)
 from automate_pipeline import load_watch_sensor
+from impact_quality_model import score_session_directory_impact_quality
 
 def run_cmd(args):
     res = subprocess.run(args, capture_output=True, text=True)
@@ -77,6 +78,11 @@ def run_cmd(args):
 def pull_database():
     print("⏳ Pulling database from phone...")
     tmp_path = LOCAL_DB_PATH + ".tmp"
+    tmp_wal = tmp_path + "-wal"
+    tmp_shm = tmp_path + "-shm"
+    for p in (tmp_path, tmp_wal, tmp_shm):
+        if os.path.exists(p):
+            os.remove(p)
     try:
         with open(tmp_path, "wb") as f:
             res = subprocess.run(
@@ -84,20 +90,43 @@ def pull_database():
                 stdout=f,
                 stderr=subprocess.PIPE
             )
-        if res.returncode != 0:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        if res.returncode != 0 or not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
+            for p in (tmp_path, tmp_wal, tmp_shm):
+                if os.path.exists(p):
+                    os.remove(p)
             print(f"⚠️ ADB pull failed: {res.stderr.decode().strip()}")
             if os.path.exists(LOCAL_DB_PATH):
                 print(f"ℹ️ Falling back to existing local database file: {LOCAL_DB_PATH}")
                 return True
             return False
+
+        # Also pull any active WAL/SHM sidecars so uncheckpointed Room writes are preserved cleanly
+        for suffix, dest in (("-wal", tmp_wal), ("-shm", tmp_shm)):
+            with open(dest, "wb") as sf:
+                sres = subprocess.run(
+                    ["adb", "-d", "shell", f"run-as {PACKAGE_NAME} cat databases/cricket_tracker_database{suffix}"],
+                    stdout=sf,
+                    stderr=subprocess.PIPE
+                )
+            if sres.returncode != 0 or os.path.getsize(dest) == 0:
+                os.remove(dest)
+
+        # Checkpoint any pulled WAL into the single tmp_path file before replacing LOCAL_DB_PATH
+        chk_conn = sqlite3.connect(tmp_path)
+        chk_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        chk_conn.execute("PRAGMA journal_mode=DELETE")
+        chk_conn.close()
+        for p in (tmp_wal, tmp_shm, LOCAL_DB_PATH + "-wal", LOCAL_DB_PATH + "-shm"):
+            if os.path.exists(p):
+                os.remove(p)
+
         shutil.move(tmp_path, LOCAL_DB_PATH)
         print(f"✅ Successfully pulled database to: {LOCAL_DB_PATH}")
         return True
     except Exception as e:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        for p in (tmp_path, tmp_wal, tmp_shm):
+            if os.path.exists(p):
+                os.remove(p)
         print(f"⚠️ Pull failed: {e}")
         if os.path.exists(LOCAL_DB_PATH):
             print(f"ℹ️ Falling back to existing local database file: {LOCAL_DB_PATH}")
@@ -107,6 +136,30 @@ def pull_database():
 def push_database():
     print("⏳ Pushing database back to phone...")
     try:
+        if not os.path.exists(LOCAL_DB_PATH) or os.path.getsize(LOCAL_DB_PATH) == 0:
+            print(f"❌ Local database file missing or empty: {LOCAL_DB_PATH}")
+            return False
+
+        local_size = os.path.getsize(LOCAL_DB_PATH)
+
+        # CRITICAL: Force-stop the app BEFORE replacing SQLite files so Room's open
+        # WAL/SHM mmaps cannot race with dd or trigger destructive migration/corruption.
+        subprocess.run(["adb", "-d", "shell", f"am force-stop {PACKAGE_NAME}"], check=False)
+        rm_res = subprocess.run(
+            [
+                "adb", "-d", "shell",
+                f"run-as {PACKAGE_NAME} rm -f databases/cricket_tracker_database "
+                f"databases/cricket_tracker_database-wal "
+                f"databases/cricket_tracker_database-shm "
+                f"databases/cricket_tracker_database-journal"
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if rm_res.returncode != 0:
+            print(f"❌ Failed to clear old device database files: {rm_res.stderr.decode()}")
+            return False
+
         with open(LOCAL_DB_PATH, "rb") as f:
             res = subprocess.run(
                 ["adb", "-d", "shell", f"run-as {PACKAGE_NAME} dd of=databases/cricket_tracker_database"],
@@ -117,9 +170,18 @@ def push_database():
         if res.returncode != 0:
             print(f"❌ Failed to restore database on phone: {res.stderr.decode()}")
             return False
-        
-        subprocess.run(["adb", "-d", "shell", f"run-as {PACKAGE_NAME} rm -f databases/cricket_tracker_database-wal databases/cricket_tracker_database-shm databases/cricket_tracker_database-journal"])
-        print("✅ Database successfully restored on device.")
+
+        stat_res = subprocess.run(
+            ["adb", "-d", "shell", f"run-as {PACKAGE_NAME} stat -c %s databases/cricket_tracker_database"],
+            capture_output=True,
+            text=True,
+        )
+        remote_size_str = stat_res.stdout.strip()
+        if stat_res.returncode != 0 or remote_size_str != str(local_size):
+            print(f"❌ Push size mismatch (local={local_size}, remote={remote_size_str!r})")
+            return False
+
+        print(f"✅ Database successfully restored on device ({local_size} bytes).")
         return True
     except Exception as e:
         print(f"❌ Push failed: {e}")
@@ -812,6 +874,7 @@ def process_single_session_raw(session_dir, rf_top_type, rf_dual_type, le_type, 
                     "is_kinematically_valid": int(bool(row['is_kinematically_valid'])) if pd.notna(row.get('is_kinematically_valid')) else None,
                     "bat_id": int(row['bat_id']) if (pd.notna(row.get('bat_id')) and str(row.get('bat_id')).strip() != '') else None,
                     "bat_name": str(row['bat_name']) if pd.notna(row.get('bat_name')) else None,
+                    "has_gt_quality": bool(gt_qual),
                     "features": feats
                 })
             return sorted(shots, key=lambda x: x["timestamp_offset_s"])
@@ -1020,7 +1083,13 @@ def main():
             relative_wrist_angle_deg REAL,
             azimuth_deviation_deg REAL,
             polar_mount_type TEXT,
-            is_kinematically_valid INTEGER
+            is_kinematically_valid INTEGER,
+            impact_quality_score REAL,
+            impact_edge_risk REAL,
+            impact_quality_source TEXT,
+            polar_contact_dip_pct REAL,
+            handle_rattle_rad_s REAL,
+            impact_aud_snr_db REAL
         )
     """)
     c.execute("""
@@ -1032,8 +1101,8 @@ def main():
         )
     """)
     c.execute("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY, identity_hash TEXT)")
-    c.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES(42, '36946e68af413e8cc2fca0555e69b534')")
-    c.execute("PRAGMA user_version = 12")
+    c.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES(42, '5c315000c2432885aa553965709b202a')")
+    c.execute("PRAGMA user_version = 13")
     conn.commit()
 
     session_dirs = sorted(glob.glob(os.path.join(SESSIONS_DIR, "session-*")) + 
@@ -1123,7 +1192,45 @@ def main():
         
         # Re-run peak detection and classifications
         shots = process_single_session_raw(sdir, rf_top_type, rf_dual_type, le_type, rf_top_qual, rf_dual_qual, le_qual)
-        
+
+        def resolve_shot_bat_id(shot_item, shot_t_ms):
+            if "bat_id" in shot_item and shot_item["bat_id"] is not None and pd.notna(shot_item["bat_id"]):
+                return int(shot_item["bat_id"])
+            bid = initial_bat_id
+            if bat_switches:
+                for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_offset_s", 0) if "timestamp_offset_s" in x else x.get("timestamp_ms", 0)):
+                    if "timestamp_offset_s" in sw:
+                        sw_time_ms = session_start_ms + int(float(sw["timestamp_offset_s"]) * 1000.0)
+                    else:
+                        sw_time_ms = int(sw.get("timestamp_ms", 0))
+                    if sw_time_ms <= shot_t_ms:
+                        bid = int(sw.get("bat_id", bid))
+            return bid
+
+        # Score multimodal acoustic + 423Hz Polar impact quality for BAT_HANDLE shots
+        impact_results = [None] * len(shots)
+        if shots and polar_mount_mode == "BAT_HANDLE" and has_polar_dir:
+            try:
+                w_acc_df = load_watch_sensor(sdir, "WatchAccelerometer")
+                if w_acc_df is not None and not w_acc_df.empty:
+                    w_t_arr = w_acc_df["seconds_elapsed"].to_numpy(dtype=np.float64)
+                    w_m_arr = np.sqrt(w_acc_df["x"]**2 + w_acc_df["y"]**2 + w_acc_df["z"]**2).to_numpy(dtype=np.float64)
+                    shot_ts_list = [float(s["timestamp_offset_s"]) for s in shots]
+                    shot_detached_list = [
+                        resolve_shot_bat_id(s, session_start_ms + int(s["timestamp_offset_s"] * 1000)) == 0
+                        for s in shots
+                    ]
+                    impact_results = score_session_directory_impact_quality(
+                        session_dir=sdir,
+                        shot_timestamps_s=shot_ts_list,
+                        shot_detached_flags=shot_detached_list,
+                        w_t_acc=w_t_arr,
+                        w_m_acc=w_m_arr,
+                        session_start_ms=session_start_ms,
+                    )
+            except Exception as imp_err:
+                print(f"  ⚠️ Impact quality scoring skipped for {session_name}: {imp_err}")
+
         init_name, init_weight, init_knob, init_toe = get_bat_specs(initial_bat_id)
         # Write Session Started marker
         c.execute("""
@@ -1139,34 +1246,25 @@ def main():
             st = normalise_shot_type(shot.get("shot_type", "")) or shot.get("shot_type", "UNKNOWN")
             shot["shot_type"] = st
             shot_time_ms = session_start_ms + int(shot["timestamp_offset_s"] * 1000)
-            
+
+            imp_res = impact_results[i - 1] if (i - 1) < len(impact_results) else None
+            eff_quality = shot["quality"]
+            if not shot.get("has_gt_quality", False) and imp_res is not None:
+                eff_quality = imp_res["predicted_quality"]
+
             sweet_spot = {
                 "good": "Excellent",
                 "poor": "Poor",
                 "miss": "Miss",
                 "edge": "Edge"
-            }.get(shot["quality"], "Good")
+            }.get(eff_quality, "Good")
             
             desc = f"{shot['shot_type']} ({sweet_spot}) ✨ Reprocessed"
             f = shot["features"]
             efficiency = float(shot.get("efficiency", f.get("efficiency", 90.0)))
             impact_time_ms = int(shot.get("impact_time_ms", f.get("reaction_time_ms", 350)))
 
-            # Authoritative bat resolution:
-            # 1. Row-level bat_id from ground_truth_aligned.csv (if valid)
-            # 2. Dynamic timeline switch matching against shot_time_ms using session_start_ms
-            if "bat_id" in shot and shot["bat_id"] is not None and pd.notna(shot["bat_id"]):
-                curr_bat_id = int(shot["bat_id"])
-            else:
-                curr_bat_id = initial_bat_id
-                if bat_switches:
-                    for sw in sorted(bat_switches, key=lambda x: x.get("timestamp_offset_s", 0) if "timestamp_offset_s" in x else x.get("timestamp_ms", 0)):
-                        if "timestamp_offset_s" in sw:
-                            sw_time_ms = session_start_ms + int(float(sw["timestamp_offset_s"]) * 1000.0)
-                        else:
-                            sw_time_ms = int(sw.get("timestamp_ms", 0))
-                        if sw_time_ms <= shot_time_ms:
-                            curr_bat_id = int(sw.get("bat_id", curr_bat_id))
+            curr_bat_id = resolve_shot_bat_id(shot, shot_time_ms)
 
             curr_name, curr_weight, curr_knob, curr_toe = get_bat_specs(curr_bat_id)
             if "bat_name" in shot and pd.notna(shot.get("bat_name")) and str(shot["bat_name"]).strip():
@@ -1197,7 +1295,8 @@ def main():
                     swing_feature_s3_roll_deg, swing_feature_s3_yaw_deg, swing_feature_s3_delta_x, swing_feature_s3_delta_z,
                     swing_feature_s3_plane_ratio, swing_feature_s3_gyro_y_min, polar_mount_mode, bat_id,
                     bat_name, bat_weight_grams, bat_sensor_offset_knob_cm, bat_sensor_offset_toe_cm,
-                    blade_pitch_deg, face_angle_deg, swing_yaw_deg, relative_wrist_angle_deg, azimuth_deviation_deg, polar_mount_type, is_kinematically_valid
+                    blade_pitch_deg, face_angle_deg, swing_yaw_deg, relative_wrist_angle_deg, azimuth_deviation_deg, polar_mount_type, is_kinematically_valid,
+                    impact_quality_score, impact_edge_risk, impact_quality_source, polar_contact_dip_pct, handle_rattle_rad_s, impact_aud_snr_db
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?,
@@ -1207,7 +1306,8 @@ def main():
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?
                 )
             """, (
                 session_start_ms, shot_time_ms, desc, shot["bat_speed"], shot["impact_force"], impact_time_ms, shot["shot_type"], efficiency,
@@ -1226,7 +1326,13 @@ def main():
                 None if is_shot_detached else shot.get("relative_wrist_angle_deg"),
                 None if is_shot_detached else shot.get("azimuth_deviation_deg"),
                 "WATCH_ONLY" if is_shot_detached else shot.get("polar_mount_type"),
-                1 if is_shot_detached else shot.get("is_kinematically_valid")
+                1 if is_shot_detached else shot.get("is_kinematically_valid"),
+                None if (is_shot_detached or imp_res is None) else imp_res.get("impact_quality_score"),
+                None if (is_shot_detached or imp_res is None) else imp_res.get("impact_edge_risk"),
+                None if (is_shot_detached or imp_res is None) else imp_res.get("impact_quality_source"),
+                None if (is_shot_detached or imp_res is None) else imp_res.get("polar_contact_dip_pct"),
+                None if (is_shot_detached or imp_res is None) else imp_res.get("handle_rattle_rad_s"),
+                None if (is_shot_detached or imp_res is None) else imp_res.get("impact_aud_snr_db"),
             ))
             
         # Write Session Ended marker
@@ -1277,6 +1383,11 @@ def main():
         })
 
     conn.commit()
+    try:
+        c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        c.execute("PRAGMA journal_mode=DELETE")
+    except Exception as e:
+        print(f"⚠️ WAL checkpoint warning before push: {e}")
     conn.close()
     
     # Print Summary Statistics Table

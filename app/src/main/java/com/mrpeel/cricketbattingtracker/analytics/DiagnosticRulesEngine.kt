@@ -11,7 +11,9 @@ enum class DiagnosticFaultCode(val codeString: String) {
     FAULT_DRIVE_TAKEOVER("FAULT_DRIVE_TAKEOVER"),
     FAULT_CUT_ASYNC("FAULT_CUT_ASYNC"),
     FAULT_SWEEP_ARMS("FAULT_SWEEP_ARMS"),
-    FAULT_FLICK_EARLY("FAULT_FLICK_EARLY")
+    FAULT_FLICK_EARLY("FAULT_FLICK_EARLY"),
+    FAULT_LOW_MIDDLING_RATE("FAULT_LOW_MIDDLING_RATE"),
+    FAULT_HIGH_EDGE_RISK("FAULT_HIGH_EDGE_RISK")
 }
 
 /**
@@ -111,12 +113,34 @@ object DiagnosticRulesEngine {
         prescription = "3 sets of 12 flicks."
     )
 
+    val DRILL_MIDDLE_FINDING_DROP = PrescriptionDrill(
+        id = "drill_middle_finding_drop",
+        name = "Middle-Finding Under-Eye Soft Drop Drill",
+        targetFaultCodes = listOf(DiagnosticFaultCode.FAULT_LOW_MIDDLING_RATE),
+        setup = "Soft tennis or leather balls dropped vertically 1m in front of front crease.",
+        execution = "Watch the ball onto the sweet spot directly under your eyes with a relaxed bottom-hand pressure (60%), focusing on a deep, muted thud rather than hard swing speed.",
+        biomechanicalFocus = "Calibrates clean center-face momentum transfer (contact angular-speed dip >= 22% with low handle rattle).",
+        prescription = "4 sets of 12 balanced contacts before facing bowling machine."
+    )
+
+    val DRILL_LATE_EYELINE_CHECK = PrescriptionDrill(
+        id = "drill_late_eyeline_check",
+        name = "Late Contact & Narrow-Blade Track Drill",
+        targetFaultCodes = listOf(DiagnosticFaultCode.FAULT_HIGH_EDGE_RISK),
+        setup = "Use a half-width middling bat or tape the outer 30% of the blade; medium-pace throwdowns on off-stump channel.",
+        execution = "Commit head position to the pitch of the ball first and hold hands inside the line until the ball arrives beneath your nose.",
+        biomechanicalFocus = "Eliminates reaching away from the body so the center of gravity aligns cleanly behind impact and edge-torsion spikes drop.",
+        prescription = "3 sets of 15 disciplined contacts."
+    )
+
     val ALL_CATALOGUE_DRILLS = listOf(
         DRILL_PULL_TEE_SLAPS,
         DRILL_DROP_DRIVES,
         DRILL_WALL_PUNCH,
         DRILL_CORE_SWEEPS,
-        DRILL_PAD_CLEARANCE
+        DRILL_PAD_CLEARANCE,
+        DRILL_MIDDLE_FINDING_DROP,
+        DRILL_LATE_EYELINE_CHECK
     )
 
     /**
@@ -143,6 +167,10 @@ object DiagnosticRulesEngine {
                 "GLANCE/FLICK" -> {
                     checkFlickEarly(profile)?.let { detectedFaults.add(it) }
                 }
+            }
+            if (profile.impactScoredSampleCount >= 5) {
+                checkLowMiddlingRate(profile)?.let { detectedFaults.add(it) }
+                checkHighEdgeRisk(profile)?.let { detectedFaults.add(it) }
             }
         }
 
@@ -380,6 +408,70 @@ object DiagnosticRulesEngine {
             faultRate = faultRate,
             sampleCount = profile.sampleCount,
             drill = DRILL_PAD_CLEARANCE
+        )
+    }
+
+    /**
+     * FAULT_LOW_MIDDLING_RATE: Persistent Off-Center Contact
+     * Trigger: impactScoredSampleCount >= 5 AND (middledRatePct < 30f || meanImpactScore < 48f)
+     */
+    fun checkLowMiddlingRate(profile: ShotClassStatisticalProfile): DiagnosticFaultReport? {
+        if (profile.impactScoredSampleCount < 5) return null
+        val isTriggered = profile.middledRatePct < 30f || profile.meanImpactScore < 48f
+        if (!isTriggered) return null
+
+        val nonCleanCount = profile.rawImpactScores.count { it < 55f }
+        val faultRate = (nonCleanCount.toFloat() / profile.impactScoredSampleCount.toFloat()) * 100f
+        val observedKinematics = String.format(
+            Locale.US,
+            "Mean Sweet-Spot: %.0f/100 • Middled: %.0f%% • Contact Dip: %.0f%%",
+            profile.meanImpactScore,
+            profile.middledRatePct,
+            profile.medianContactDipPct
+        )
+
+        return DiagnosticFaultReport(
+            faultCode = DiagnosticFaultCode.FAULT_LOW_MIDDLING_RATE,
+            shotClass = profile.shotClass,
+            title = "Low Sweet-Spot Middling Rate",
+            identifiedPattern = "Persistent Off-Center Ball Striking (${profile.impactScoredSampleCount} contacts analyzed)",
+            observedKinematics = observedKinematics,
+            optimalTargetKinematics = "Optimal Contact: Sweet-Spot >= 62/100 (>45% middled, >= 22% clean energy transfer)",
+            primaryTechnicalFlaw = "Strike point drifting toward toe/heel or early reaching away from the eyes.",
+            quantifiedImpact = "Moves contact to the sweet spot for cleaner boundary carry with less physical effort.",
+            faultRate = faultRate,
+            sampleCount = profile.impactScoredSampleCount,
+            drill = DRILL_MIDDLE_FINDING_DROP
+        )
+    }
+
+    /**
+     * FAULT_HIGH_EDGE_RISK: Elevated Outer-Edge Exposure
+     * Trigger: impactScoredSampleCount >= 5 AND highEdgeRiskRatePct > 22f
+     */
+    fun checkHighEdgeRisk(profile: ShotClassStatisticalProfile): DiagnosticFaultReport? {
+        if (profile.impactScoredSampleCount < 5) return null
+        if (profile.highEdgeRiskRatePct <= 22f) return null
+
+        val observedKinematics = String.format(
+            Locale.US,
+            "High Edge Risk Rate: %.0f%% • Mean Sweet-Spot: %.0f/100",
+            profile.highEdgeRiskRatePct,
+            profile.meanImpactScore
+        )
+
+        return DiagnosticFaultReport(
+            faultCode = DiagnosticFaultCode.FAULT_HIGH_EDGE_RISK,
+            shotClass = profile.shotClass,
+            title = "Elevated Edge-Contact Risk",
+            identifiedPattern = "High Acoustic/Handle Torsion Edge Signature (${profile.impactScoredSampleCount} contacts)",
+            observedKinematics = observedKinematics,
+            optimalTargetKinematics = "Optimal Edge Exposure: <= 12% of strokes showing thin-edge handle recoil",
+            primaryTechnicalFlaw = "Reaching out or poking with hard hands away from body balance line.",
+            quantifiedImpact = "Cuts outside-edge slip/keeper dismissal risk while steadying blade path.",
+            faultRate = profile.highEdgeRiskRatePct,
+            sampleCount = profile.impactScoredSampleCount,
+            drill = DRILL_LATE_EYELINE_CHECK
         )
     }
 }

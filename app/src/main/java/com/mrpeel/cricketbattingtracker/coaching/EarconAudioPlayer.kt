@@ -120,6 +120,10 @@ class EarconAudioPlayer(private val isEnabled: Boolean = true) {
                 // Brassy High-to-Low "Crack" (1400 Hz -> 500 Hz sawtooth drop with fast decay, 180 ms)
                 generateSawtoothDrop(1400.0, 500.0, 0.180)
             }
+            LiveShotFault.MISHIT_HANDLE_SHOCK -> {
+                // Hollow Wood Clack (1150 Hz -> 380 Hz damped resonant clack, 160 ms)
+                generateHollowWoodClack(1150.0, 380.0, 0.160)
+            }
 
             // ── Family D: Tempo & Balance Envelope ──
             LiveShotFault.OVERSWING_LOSS_OF_SHAPE -> {
@@ -354,6 +358,28 @@ class EarconAudioPlayer(private val isEnabled: Boolean = true) {
             val wave = 0.65 * sin(TWO_PI * f1 * i / SAMPLE_RATE) + 0.35 * sin(TWO_PI * f2 * i / SAMPLE_RATE)
             val env = exp(-t * 4.5)
             val sample = (wave * env * 28000).toInt().coerceIn(-32767, 32767)
+
+            pcm[i * 2] = (sample and 0xFF).toByte()
+            pcm[i * 2 + 1] = ((sample shr 8) and 0xFF).toByte()
+        }
+        return pcm
+    }
+
+    private fun generateHollowWoodClack(startHz: Double, endHz: Double, durationSec: Double): ByteArray {
+        val totalSamples = (SAMPLE_RATE * durationSec).toInt()
+        val pcm = ByteArray(totalSamples * 2)
+        var phase = 0.0
+
+        for (i in 0 until totalSamples) {
+            val t = i.toDouble() / totalSamples
+            val freq = endHz + (startHz - endHz) * exp(-t * 7.0)
+            phase += TWO_PI * freq / SAMPLE_RATE
+
+            val noiseBurst = (Math.random() * 2.0 - 1.0) * exp(-t * 24.0)
+            val tone = 0.72 * sin(phase) + 0.28 * sin(phase * 1.62)
+            val env = exp(-t * 6.5)
+            val raw = (tone * env + 0.35 * noiseBurst).coerceIn(-1.0, 1.0)
+            val sample = (raw * 27000).toInt().coerceIn(-32767, 32767)
 
             pcm[i * 2] = (sample and 0xFF).toByte()
             pcm[i * 2 + 1] = ((sample shr 8) and 0xFF).toByte()

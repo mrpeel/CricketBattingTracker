@@ -12,5 +12,8 @@ data class BiomechanicalUiState(
     val powerPatternDescription: String,
     val powerSliderVal: Float,
     val coachingInsight: String,
-    val displaysWarning: Boolean
+    val displaysWarning: Boolean,
+    val impactQualityTitle: String = "",
+    val impactQualityDetail: String = "",
+    val impactQualitySliderVal: Float = 0.0f
 )

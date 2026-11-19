@@ -48,7 +48,14 @@ data class ShotClassStatisticalProfile(
     val keyTechnicalObservation: String,
     val rawTimeLeads: List<Float>,
     val rawGyroRatios: List<Float>,
-    val rawAccRatios: List<Float>
+    val rawAccRatios: List<Float>,
+    val impactScoredSampleCount: Int = 0,
+    val meanImpactScore: Float = 0f,
+    val middledRatePct: Float = 0f,
+    val highEdgeRiskRatePct: Float = 0f,
+    val medianContactDipPct: Float = 0f,
+    val rawImpactScores: List<Float> = emptyList(),
+    val rawEdgeRisks: List<Float> = emptyList()
 ) {
     val hasSufficientDualData: Boolean get() = dualSensorSampleCount >= BiomechanicsAggregator.MIN_SHOTS_PER_CLASS_THRESHOLD
 }
@@ -65,7 +72,8 @@ data class LongitudinalAggregationResult(
     val classProfiles: Map<String, ShotClassStatisticalProfile>, // Classes with N >= 5
     val insufficientDataClasses: Map<String, Int>, // Classes with 1 <= N < 5 (class -> count)
     val shotFamilyDistribution: Map<String, Int>, // All canonical shot classes -> count
-    val validDualSensorEvents: List<InningsEvent>
+    val validDualSensorEvents: List<InningsEvent>,
+    val overallMiddlingScore: Int? = null
 )
 
 /**
@@ -156,6 +164,7 @@ object BiomechanicsAggregator {
 
         var totalAmberWarningShots = 0
         var totalEvaluatedDualShots = 0
+        val allImpactScores = mutableListOf<Float>()
 
         for ((shotClass, classEvents) in groupedByCanonical) {
             val count = classEvents.size
@@ -232,6 +241,23 @@ object BiomechanicsAggregator {
                 medianAcc = if (dualCount > 0) accDist.median else 1.0f
             )
 
+            val impactScores = classEvents.mapNotNull { it.impact_quality_score }
+            allImpactScores.addAll(impactScores)
+            val edgeRisks = classEvents.mapNotNull { it.impact_edge_risk }
+            val contactDips = classEvents.mapNotNull { it.polar_contact_dip_pct }
+            val impactCount = impactScores.size
+            val meanImpactScore = if (impactCount > 0) impactScores.sum() / impactCount.toFloat() else 0f
+            val middledRate = if (impactCount > 0) {
+                (impactScores.count { it >= 62f }.toFloat() / impactCount.toFloat()) * 100f
+            } else 0f
+            val highEdgeRate = if (impactCount > 0 && edgeRisks.isNotEmpty()) {
+                val edgeHits = classEvents.count {
+                    (it.impact_edge_risk ?: 0f) >= 0.56f && (it.impact_quality_score ?: 100f) < 52f
+                }
+                (edgeHits.toFloat() / impactCount.toFloat()) * 100f
+            } else 0f
+            val medianDip = computeDistribution(contactDips)?.median ?: 0f
+
             classProfiles[shotClass] = ShotClassStatisticalProfile(
                 shotClass = shotClass,
                 sampleCount = count,
@@ -254,7 +280,14 @@ object BiomechanicsAggregator {
                 keyTechnicalObservation = technicalObservation,
                 rawTimeLeads = timeLeads,
                 rawGyroRatios = gyroRatios,
-                rawAccRatios = accRatios
+                rawAccRatios = accRatios,
+                impactScoredSampleCount = impactCount,
+                meanImpactScore = meanImpactScore,
+                middledRatePct = middledRate,
+                highEdgeRiskRatePct = highEdgeRate,
+                medianContactDipPct = medianDip,
+                rawImpactScores = impactScores,
+                rawEdgeRisks = edgeRisks
             )
         }
 
@@ -263,6 +296,11 @@ object BiomechanicsAggregator {
             ((optimalShots.toFloat() / totalEvaluatedDualShots.toFloat()) * 100f).roundToInt().coerceIn(0, 100)
         } else {
             100
+        }
+        val overallMiddling = if (allImpactScores.isNotEmpty()) {
+            (allImpactScores.sum() / allImpactScores.size.toFloat()).roundToInt().coerceIn(0, 100)
+        } else {
+            null
         }
 
         return LongitudinalAggregationResult(
@@ -274,7 +312,8 @@ object BiomechanicsAggregator {
             classProfiles = classProfiles,
             insufficientDataClasses = insufficientDataClasses,
             shotFamilyDistribution = shotFamilyDistribution,
-            validDualSensorEvents = dualSensorEvents
+            validDualSensorEvents = dualSensorEvents,
+            overallMiddlingScore = overallMiddling
         )
     }
 

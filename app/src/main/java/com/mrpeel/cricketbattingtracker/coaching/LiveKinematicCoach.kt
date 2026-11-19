@@ -94,6 +94,15 @@ enum class LiveShotFault(
         acousticIntuition = "Sounds harsh and over-twisted, mimicking the bat twisting in a loose grip at contact.",
         biomechanicalFix = "The bat handle experienced a sharp axial twist spike right at impact alongside velocity loss because your grip was too loose at the moment of contact, allowing the ball to turn the bat in your hands. Firm up your grip through ball contact so the face stays square."
     ),
+    MISHIT_HANDLE_SHOCK(
+        shotName = "Off-Center Mishit / Handle Recoil",
+        failureDescription = "Swing plane was clean, but <10% speed transfer and sharp post-impact handle rattle (>1.8 rad/s) indicate an edge or off-center strike.",
+        cue = "Find the middle",
+        family = FailureFamily.FAMILY_C_FACE_INSTABILITY,
+        acousticDesign = "Hollow Wood Clack (1150 Hz -> 380 Hz damped resonant clack, 160 ms)",
+        acousticIntuition = "Sounds thin, woody, and hollow—mirroring handle vibration when the ball misses the sweet spot.",
+        biomechanicalFix = "Your downswing plane was tidy, but instead of transferring clean momentum into the ball (~28% speed dip on middled hits), contact glanced off-center and rattled the bat handle. Keep your head still over the crease and let the ball come under your eyes onto the sweet spot."
+    ),
 
     // ── Family D: Tempo & Balance Envelope ──
     OVERSWING_LOSS_OF_SHAPE(
@@ -128,7 +137,9 @@ data class ShotInvariantMetrics(
     val accelSlope: Float,
     val planeWobbleDeg: Float,
     val twistSpikeRatio: Float,
-    val axialJerkRadS: Float
+    val axialJerkRadS: Float,
+    val contactDipPct: Float = 0.0f,
+    val postContactRattleRadS: Float = 0.0f
 )
 
 /**
@@ -166,6 +177,7 @@ class LiveKinematicCoach(
         const val GYRO_TO_KMH = 3.4f                  // Calibrated bat-handle rad/s to sweet-spot km/h factor
 
         // Post-impact delivery schedule
+        const val POST_IMPACT_CAPTURE_MS = 48L        // Capture [0ms, +45ms] handle recoil & dip before classifying
         const val SILENCE_DELAY_MS = 300L             // T+0 to 300ms: Silence for physical acoustic crack
         const val TTS_AFTER_EARCON_DELAY_MS = 250L    // T+550ms: Cue fires after earcon finishes
     }
@@ -360,24 +372,94 @@ class LiveKinematicCoach(
         )
     }
 
-    private fun evaluateImpact(impactTimeMs: Long, peakAccG: Float, metrics: ShotInvariantMetrics) {
-        val fault = diagnoseShotInvariant(metrics)
-        Log.i(
-            TAG,
-            "⚡ Evaluated Shot at ${impactTimeMs}ms: speed=%.1f km/h (%.1f rad/s), acc=%.1f g, retention=%.2f, slope=%.2f, wobble=%.1f°, twistRatio=%.2f, jerk=%.1f -> $fault"
-                .format(
-                    metrics.speedKmh,
-                    metrics.peakGyroRadS,
-                    peakAccG,
-                    metrics.velocityRetention,
-                    metrics.accelSlope,
-                    metrics.planeWobbleDeg,
-                    metrics.twistSpikeRatio,
-                    metrics.axialJerkRadS
-                )
-        )
+    private fun enrichWithPostImpactWindow(
+        impactTimeMs: Long,
+        preMetrics: ShotInvariantMetrics
+    ): ShotInvariantMetrics {
+        val available = min(sampleCount, bufferSize)
+        if (available < 4) return preMetrics
 
-        dispatchScheduledFeedback(fault, metrics.speedKmh)
+        val postIndices = mutableListOf<Int>()
+        for (i in available - 1 downTo 0) {
+            val ringIdx = (bufferIndex - 1 - i + bufferSize * 2) % bufferSize
+            val ts = gyroTimestamps[ringIdx]
+            if (ts > 0L && (ts - impactTimeMs) in 0L..45L) {
+                postIndices.add(ringIdx)
+            }
+        }
+        if (postIndices.size < 4) return preMetrics
+
+        var minPostGyro = Float.POSITIVE_INFINITY
+        for (idx in postIndices) {
+            if (gyroMags[idx] < minPostGyro) minPostGyro = gyroMags[idx]
+        }
+        val dipPct = (((preMetrics.peakGyroRadS - minPostGyro) / (preMetrics.peakGyroRadS + 1e-6f)) * 100f)
+            .coerceIn(0f, 100f)
+
+        val diffs = DoubleArray(postIndices.size - 1) { k ->
+            (gyroY[postIndices[k + 1]] - gyroY[postIndices[k]]).toDouble()
+        }
+        val mu = diffs.average()
+        var varSum = 0.0
+        for (d in diffs) varSum += (d - mu) * (d - mu)
+        val rattle = sqrt(varSum / diffs.size).toFloat()
+
+        return preMetrics.copy(
+            contactDipPct = dipPct,
+            postContactRattleRadS = rattle
+        )
+    }
+
+    private fun evaluateImpact(impactTimeMs: Long, peakAccG: Float, metrics: ShotInvariantMetrics) {
+        if (syncExecutionForTesting) {
+            val enriched = enrichWithPostImpactWindow(impactTimeMs, metrics)
+            val fault = diagnoseShotInvariant(enriched)
+            Log.i(
+                TAG,
+                "⚡ Evaluated Shot at ${impactTimeMs}ms: speed=%.1f km/h (%.1f rad/s), acc=%.1f g, retention=%.2f, slope=%.2f, wobble=%.1f°, twistRatio=%.2f, jerk=%.1f, dip=%.1f%%, rattle=%.2f -> $fault"
+                    .format(
+                        enriched.speedKmh,
+                        enriched.peakGyroRadS,
+                        peakAccG,
+                        enriched.velocityRetention,
+                        enriched.accelSlope,
+                        enriched.planeWobbleDeg,
+                        enriched.twistSpikeRatio,
+                        enriched.axialJerkRadS,
+                        enriched.contactDipPct,
+                        enriched.postContactRattleRadS
+                    )
+            )
+            dispatchScheduledFeedback(fault, enriched.speedKmh, initialDelayMs = SILENCE_DELAY_MS)
+            return
+        }
+
+        coroutineScope.launch {
+            delay(POST_IMPACT_CAPTURE_MS)
+            val enriched = enrichWithPostImpactWindow(impactTimeMs, metrics)
+            val fault = diagnoseShotInvariant(enriched)
+            Log.i(
+                TAG,
+                "⚡ Evaluated Shot at ${impactTimeMs}ms: speed=%.1f km/h (%.1f rad/s), acc=%.1f g, retention=%.2f, slope=%.2f, wobble=%.1f°, twistRatio=%.2f, jerk=%.1f, dip=%.1f%%, rattle=%.2f -> $fault"
+                    .format(
+                        enriched.speedKmh,
+                        enriched.peakGyroRadS,
+                        peakAccG,
+                        enriched.velocityRetention,
+                        enriched.accelSlope,
+                        enriched.planeWobbleDeg,
+                        enriched.twistSpikeRatio,
+                        enriched.axialJerkRadS,
+                        enriched.contactDipPct,
+                        enriched.postContactRattleRadS
+                    )
+            )
+            dispatchScheduledFeedback(
+                fault = fault,
+                speedKmh = enriched.speedKmh,
+                initialDelayMs = (SILENCE_DELAY_MS - POST_IMPACT_CAPTURE_MS).coerceAtLeast(0L)
+            )
+        }
     }
 
     /**
@@ -438,6 +520,15 @@ class LiveKinematicCoach(
             return LiveShotFault.IMPACT_FACE_TWIST
         }
 
+        // 8. Off-Center Mishit / Handle Flexural Recoil:
+        // Clean pre-impact swing plane, yet impact failed to transfer clean momentum (< 10% speed dip)
+        // while inducing sharp post-contact handle rattle (> 1.8 rad/s).
+        if (peakGyro >= 12.0f && retention >= 0.80f &&
+            metrics.contactDipPct < 10.0f && metrics.postContactRattleRadS > 1.8f
+        ) {
+            return LiveShotFault.MISHIT_HANDLE_SHOCK
+        }
+
         // Controlled technical envelope -> Clean stroke
         return LiveShotFault.CLEAN_STROKE
     }
@@ -449,7 +540,11 @@ class LiveKinematicCoach(
      * T+550 to 1050ms: Voice cue or speed integer (depending on mode)
      * T+1100ms onwards: Silence, mic channel prioritized
      */
-    private fun dispatchScheduledFeedback(fault: LiveShotFault, speedKmh: Float) {
+    private fun dispatchScheduledFeedback(
+        fault: LiveShotFault,
+        speedKmh: Float,
+        initialDelayMs: Long = SILENCE_DELAY_MS
+    ) {
         val feedback = audioFeedback ?: return
         if (!feedback.isEnabled) return
 
@@ -463,8 +558,10 @@ class LiveKinematicCoach(
         }
 
         coroutineScope.launch {
-            // T + 0 to 300 ms: Silence for the natural crack of the bat
-            delay(SILENCE_DELAY_MS)
+            // Remaining wait until T + 300 ms: preserves silence for the natural crack of the bat
+            if (initialDelayMs > 0L) {
+                delay(initialDelayMs)
+            }
 
             when (mode) {
                 CoachingMode.STAGE_1_CALIBRATION -> {

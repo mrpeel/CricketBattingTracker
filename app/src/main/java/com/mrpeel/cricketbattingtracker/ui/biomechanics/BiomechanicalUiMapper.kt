@@ -21,7 +21,12 @@ object BiomechanicalUiMapper {
         timeLeadMs: Float?,
         gyroRatio: Float?,
         accRatio: Float?,
-        polarMountMode: String? = null
+        polarMountMode: String? = null,
+        impactQualityScore: Float? = null,
+        impactEdgeRisk: Float? = null,
+        impactQualitySource: String? = null,
+        polarContactDipPct: Float? = null,
+        handleRattleRadS: Float? = null
     ): BiomechanicalUiState {
         val shotUpper = shotClass?.uppercase(Locale.ROOT) ?: ""
         val isBatHandle = polarMountMode?.equals("BAT_HANDLE", ignoreCase = true) == true
@@ -30,45 +35,103 @@ object BiomechanicalUiMapper {
         if (timeLeadMs == null || gyroRatio == null || accRatio == null ||
             (timeLeadMs == 0f && gyroRatio == 0f && accRatio == 0f)
         ) {
-            return BiomechanicalUiState(
-                sequencingTitle = if (isBatHandle) "Lead Wrist Path" else "Top-Hand Path",
-                sequencingDescription = if (isBatHandle) {
-                    "Single-sensor tracking downswing path from your lead wrist."
-                } else {
-                    "Single-wrist lead tracking top-hand downswing path."
-                },
-                sequencingSliderVal = 0.70f,
-                powerPatternTitle = if (isBatHandle) "Lead Wrist Speed" else "Lead Wrist Tracking",
-                powerPatternDescription = if (isBatHandle) {
-                    "Lead wrist sensor tracking swing speed and impact timing."
-                } else {
-                    "Top-hand sensor tracking swing speed and impact path."
-                },
-                powerSliderVal = 0.70f,
-                coachingInsight = if (isBatHandle) {
-                    "Attach second sensor to bat handle to enable bat swing timing and speed analysis."
-                } else {
-                    "Connect second sensor on trailing wrist for dual-hand coordination diagnostics."
-                },
-                displaysWarning = false
+            return enrichWithImpactQuality(
+                base = BiomechanicalUiState(
+                    sequencingTitle = if (isBatHandle) "Lead Wrist Path" else "Top-Hand Path",
+                    sequencingDescription = if (isBatHandle) {
+                        "Single-sensor tracking downswing path from your lead wrist."
+                    } else {
+                        "Single-wrist lead tracking top-hand downswing path."
+                    },
+                    sequencingSliderVal = 0.70f,
+                    powerPatternTitle = if (isBatHandle) "Lead Wrist Speed" else "Lead Wrist Tracking",
+                    powerPatternDescription = if (isBatHandle) {
+                        "Lead wrist sensor tracking swing speed and impact timing."
+                    } else {
+                        "Top-hand sensor tracking swing speed and impact path."
+                    },
+                    powerSliderVal = 0.70f,
+                    coachingInsight = if (isBatHandle) {
+                        "Attach second sensor to bat handle to enable bat swing timing and speed analysis."
+                    } else {
+                        "Connect second sensor on trailing wrist for dual-hand coordination diagnostics."
+                    },
+                    displaysWarning = false
+                ),
+                impactQualityScore = impactQualityScore,
+                impactEdgeRisk = impactEdgeRisk,
+                impactQualitySource = impactQualitySource,
+                polarContactDipPct = polarContactDipPct,
+                handleRattleRadS = handleRattleRadS
             )
         }
 
-        if (isBatHandle) {
-            return mapBatHandleDynamics(shotUpper, timeLeadMs, gyroRatio, accRatio)
+        val mapped = if (isBatHandle) {
+            mapBatHandleDynamics(shotUpper, timeLeadMs, gyroRatio, accRatio)
+        } else {
+            when {
+                "PULL" in shotUpper || "HOOK" in shotUpper -> mapPullHook(timeLeadMs, gyroRatio, accRatio)
+                "POWER" in shotUpper -> mapPowerDrive(timeLeadMs, gyroRatio, accRatio)
+                "DRIVE" in shotUpper || "DEFENCE" in shotUpper || "BLOCK" in shotUpper -> mapDriveDefence(timeLeadMs, gyroRatio, accRatio)
+                "GLANCE" in shotUpper || "FLICK" in shotUpper -> mapGlanceFlick(timeLeadMs, gyroRatio, accRatio)
+                "CUT" in shotUpper || "PUNCH" in shotUpper -> mapCutPunch(timeLeadMs, gyroRatio, accRatio)
+                "DEFLECTION" in shotUpper || "GUIDE" in shotUpper -> mapDeflectionGuide(timeLeadMs, gyroRatio, accRatio)
+                "SLOG" in shotUpper -> mapSlog(timeLeadMs, gyroRatio, accRatio)
+                "SWEEP" in shotUpper -> mapSweep(timeLeadMs, gyroRatio, accRatio)
+                else -> mapGenericFallback(timeLeadMs, gyroRatio, accRatio)
+            }
+        }
+        return enrichWithImpactQuality(
+            base = mapped,
+            impactQualityScore = impactQualityScore,
+            impactEdgeRisk = impactEdgeRisk,
+            impactQualitySource = impactQualitySource,
+            polarContactDipPct = polarContactDipPct,
+            handleRattleRadS = handleRattleRadS
+        )
+    }
+
+    private fun enrichWithImpactQuality(
+        base: BiomechanicalUiState,
+        impactQualityScore: Float?,
+        impactEdgeRisk: Float?,
+        impactQualitySource: String?,
+        polarContactDipPct: Float?,
+        handleRattleRadS: Float?
+    ): BiomechanicalUiState {
+        if (impactQualityScore == null) return base
+        val scoreInt = impactQualityScore.toInt().coerceIn(0, 100)
+        val edgeRisk = impactEdgeRisk ?: 0f
+        val edgePct = (edgeRisk * 100f).toInt().coerceIn(0, 100)
+        val srcLabel = if (impactQualitySource == "MULTIMODAL") "Audio+423Hz" else "423Hz Handle"
+        val isHighEdge = edgeRisk >= 0.56f && impactQualityScore < 52f
+
+        val title = when {
+            isHighEdge -> "High Edge Risk ($srcLabel • $scoreInt/100)"
+            impactQualityScore >= 64f -> "Sweet-Spot Middle ($srcLabel • $scoreInt/100)"
+            impactQualityScore >= 46f -> "Clean Contact ($srcLabel • $scoreInt/100)"
+            else -> "Off-Center Mishit ($srcLabel • $scoreInt/100)"
         }
 
-        return when {
-            "PULL" in shotUpper || "HOOK" in shotUpper -> mapPullHook(timeLeadMs, gyroRatio, accRatio)
-            "POWER" in shotUpper -> mapPowerDrive(timeLeadMs, gyroRatio, accRatio)
-            "DRIVE" in shotUpper || "DEFENCE" in shotUpper || "BLOCK" in shotUpper -> mapDriveDefence(timeLeadMs, gyroRatio, accRatio)
-            "GLANCE" in shotUpper || "FLICK" in shotUpper -> mapGlanceFlick(timeLeadMs, gyroRatio, accRatio)
-            "CUT" in shotUpper || "PUNCH" in shotUpper -> mapCutPunch(timeLeadMs, gyroRatio, accRatio)
-            "DEFLECTION" in shotUpper || "GUIDE" in shotUpper -> mapDeflectionGuide(timeLeadMs, gyroRatio, accRatio)
-            "SLOG" in shotUpper -> mapSlog(timeLeadMs, gyroRatio, accRatio)
-            "SWEEP" in shotUpper -> mapSweep(timeLeadMs, gyroRatio, accRatio)
-            else -> mapGenericFallback(timeLeadMs, gyroRatio, accRatio)
+        val parts = mutableListOf("Edge risk $edgePct%")
+        polarContactDipPct?.let { parts.add(String.format(Locale.US, "Contact dip %.0f%%", it)) }
+        handleRattleRadS?.let { parts.add(String.format(Locale.US, "Handle rattle %.2f rad/s", it)) }
+
+        val updatedInsight = if (isHighEdge && !base.displaysWarning) {
+            "Action: Play closer to the eyes — bat face met the outer edge with sharp handle recoil."
+        } else if (impactQualityScore < 44f && !base.displaysWarning && (handleRattleRadS ?: 0f) > 1.8f) {
+            "Action: Soften top-hand grip slightly and wait under the eyes to transfer energy through the middle."
+        } else {
+            base.coachingInsight
         }
+
+        return base.copy(
+            coachingInsight = updatedInsight,
+            displaysWarning = base.displaysWarning || isHighEdge,
+            impactQualityTitle = title,
+            impactQualityDetail = parts.joinToString(" • "),
+            impactQualitySliderVal = (impactQualityScore / 100f).coerceIn(0f, 1f)
+        )
     }
 
     private fun mapPullHook(timeLeadMs: Float, gyroRatio: Float, accRatio: Float): BiomechanicalUiState {

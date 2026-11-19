@@ -431,4 +431,40 @@ class BiomechanicalUiMapperTest {
             }
         }
     }
+
+    @Test
+    fun testImpactQualityEnrichmentHighEdgeAndMiddle() {
+        val middleState = BiomechanicalUiMapper.mapToUiState(
+            shotClass = "DRIVE/DEFENCE",
+            timeLeadMs = -5f,
+            gyroRatio = 1.25f,
+            accRatio = 1.0f,
+            polarMountMode = "BAT_HANDLE",
+            impactQualityScore = 76.0f,
+            impactEdgeRisk = 0.12f,
+            impactQualitySource = "MULTIMODAL",
+            polarContactDipPct = 27.5f,
+            handleRattleRadS = 0.42f
+        )
+        assertTrue(middleState.impactQualityTitle.contains("Sweet-Spot Middle"))
+        assertTrue(middleState.impactQualityTitle.contains("Audio+423Hz"))
+        assertTrue(middleState.impactQualityDetail.contains("Contact dip 28%"))
+        assertFalse(middleState.displaysWarning)
+
+        val edgeState = BiomechanicalUiMapper.mapToUiState(
+            shotClass = "DRIVE/DEFENCE",
+            timeLeadMs = -5f,
+            gyroRatio = 1.25f,
+            accRatio = 1.0f,
+            polarMountMode = "BAT_HANDLE",
+            impactQualityScore = 38.0f,
+            impactEdgeRisk = 0.68f,
+            impactQualitySource = "POLAR",
+            polarContactDipPct = 8.0f,
+            handleRattleRadS = 2.40f
+        )
+        assertTrue(edgeState.impactQualityTitle.contains("High Edge Risk"))
+        assertTrue(edgeState.displaysWarning)
+        assertTrue(edgeState.coachingInsight.contains("outer edge"))
+    }
 }

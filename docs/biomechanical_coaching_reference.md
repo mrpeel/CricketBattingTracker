@@ -32,7 +32,7 @@ When the Polar Verity Sense streams accelerometer and gyroscope samples (`PolarS
 3. **Active Downswing Strictly Inside `[-220ms, 0ms]`**: The gyroscope ring buffer within the `220 ms` window immediately preceding the impact must have `peakGyroRadS >= 5.5 rad/s` (`MIN_SWING_GYRO_RAD_S = 5.5f`). *Practice swings or waggles older than 220 ms are ignored, preventing stationary stance taps from triggering false cues.*
 
 ### 1.2 Shot-Invariant Kinematic Metrics (`ShotInvariantMetrics`)
-Across all 1,289 empirical bat-mounted shots (spanning all 15 shot types: Drives, Flicks, Glances, Cuts, Punches, Pulls, Slogs, Sweeps, Guides, and Defenses), the following 6 metrics are invariant to the shot played:
+Across all 1,289 empirical bat-mounted shots (spanning all 15 shot types: Drives, Flicks, Glances, Cuts, Punches, Pulls, Slogs, Sweeps, Guides, and Defenses), the following 6 pre-impact metrics and 2 post-impact `[0ms, +45ms]` contact-recoil metrics are invariant to the shot played:
 
 1. **`peakGyroRadS` & `speedKmh`**:
    * Peak 3D angular velocity magnitude $\omega_{\text{peak}} = \max \|\vec{\omega}(t)\|$ (in `rad/s`) inside `[-220ms, 0ms]`.
@@ -50,6 +50,10 @@ Across all 1,289 empirical bat-mounted shots (spanning all 15 shot types: Drives
    * Axial handle roll range ($\max(\omega_y) - \min(\omega_y)$) over the final `13` samples (~30 ms) divided by `peakGyroRadS`. Normalizing by swing speed and pairing with `planeWobbleDeg > 12°` ensures that smooth, natural forearm pronation on a **Flick** or **Pull** (where `planeWobbleDeg` is ~6.5°) is **never** flagged as a fault.
 6. **`axialJerkRadS` ($\max |\Delta \omega_y|$)**:
    * Maximum sample-to-sample axial handle roll jump (in `rad/s`) in the final 30 ms before impact, capturing sudden blade twist/instability at contact.
+7. **`contactDipPct`**:
+   * Post-impact `[0ms, +45ms]` angular-speed drop percentage relative to the pre-impact swing peak (`[-220ms, 0ms]`): clean centered strikes transfer momentum into the ball (~28% mean drop on good shots vs <10% on mishits/glances).
+8. **`postContactRattleRadS`**:
+   * RMS high-frequency axial/flexural handle rattle (in `rad/s`) across `[0ms, +45ms]` after impact, elevated on off-center and edge contacts (`> 1.8 rad/s`).
 
 ### 1.3 Post-Impact Audio Delivery Timeline
 To avoid masking the physical sound of the ball hitting the bat or interfering with voice narration (`AudioRecordService`), audio playback follows a strict millisecond schedule after impact ($T = 0\text{ ms}$):
@@ -66,7 +70,7 @@ To avoid masking the physical sound of the ball hitting the bat or interfering w
 | **Stage 3: Silent Diagnostic** (`STAGE_3_SILENT_DIAGNOSTIC`) | Plays **Fault Earcon ONLY if the exact same fault occurs twice in a row** (`isRepeatFault`) | **Completely Silent** | Filters out one-off anomalies; only interrupts when a technical flaw repeats consecutively. |
 
 ### 1.5 Shot-Invariant Evaluation Order & Thresholds (`diagnoseShotInvariant`)
-Rules are evaluated in the following `1 -> 8` order:
+Rules are evaluated in the following `1 -> 9` order (rules 1–7 and 9 evaluate immediately on the pre-impact window, while rule 8 waits `POST_IMPACT_CAPTURE_MS = 48 ms` to inspect `[0ms, +45ms]` handle recoil before scheduling the `T + 300 ms` audio cue):
 
 | Priority | Enum (`LiveShotFault`) | Family | Trigger Condition (`diagnoseShotInvariant`) | Spoken Cue (TTS) | Procedural Earcon Synthesis (`EarconAudioPlayer.kt`) |
 | :---: | :--- | :--- | :--- | :--- | :--- |
@@ -77,9 +81,10 @@ Rules are evaluated in the following `1 -> 8` order:
 | **5** | `OUT_OF_PLANE_WIPE` | B. 3D Swing Plane Stability | `planeWobbleDeg > 16.5f && twistSpikeRatio > 0.38f` | **`"Head to the ball"`** | **Metallic Scrape**: Ring-modulated white noise $\times$ sine carrier sweeping $2200\text{ Hz} \rightarrow 700\text{ Hz}$ over $200\text{ ms}$ |
 | **6** | `LATE_WRIST_RESCUE` | C. Impact Wrist & Face Control | `twistSpikeRatio > 0.55f && planeWobbleDeg > 12.0f` | **`"Roll smoothly"`** | **Tight Dissonant Minor-Second Buzz**: Clipped dual-tone $500\text{ Hz} + 530\text{ Hz}$ beating wave over $200\text{ ms}$ |
 | **7** | `IMPACT_FACE_TWIST` | C. Impact Wrist & Face Control | `axialJerkRadS > 5.5f && velocityRetention < 0.82f` | **`"Tighten grip"`** | **Brassy High-to-Low "Crack"**: Sawtooth wave drop $1400\text{ Hz} \rightarrow 500\text{ Hz}$ with fast exponential decay over $180\text{ ms}$ |
-| **8** | `CLEAN_STROKE` | *None (Clean Hit)* | *Fallback when no fault rule (1–7) triggers* | **`"${speedKmh.toInt()}"`** *(or `"Solid"` in static catalog)* | **Crystal Harmonic Dual Chime**: Pure harmonic $880\text{ Hz} (65\%) + 1760\text{ Hz} (35\%)$ chime over $150\text{ ms}$ |
+| **8** | `MISHIT_HANDLE_SHOCK` | C. Impact Wrist & Face Control | `peakGyroRadS >= 12.0f && velocityRetention >= 0.80f && contactDipPct < 10.0f && postContactRattleRadS > 1.8f` | **`"Find the middle"`** | **Hollow Wood Clack**: Damped resonant clack sweeping $1150\text{ Hz} \rightarrow 380\text{ Hz}$ over $160\text{ ms}$ (`generateHollowWoodClack`) |
+| **9** | `CLEAN_STROKE` | *None (Clean Hit)* | *Fallback when no fault rule (1–8) triggers* | **`"${speedKmh.toInt()}"`** *(or `"Solid"` in static catalog)* | **Crystal Harmonic Dual Chime**: Pure harmonic $880\text{ Hz} (65\%) + 1760\text{ Hz} (35\%)$ chime over $150\text{ ms}$ |
 
-### 1.6 Detailed Playbook Coaching Notes & Acoustic Intuition (All 7 Shot-Invariant Faults)
+### 1.6 Detailed Playbook Coaching Notes & Acoustic Intuition (All 8 Shot-Invariant Faults)
 
 #### Family A: Downswing Timing & Continuity (*Acoustic Theme: Power Drop & Stalled Transients*)
 1. **`EARLY_PEAK_DECELERATION` — Checked / Decelerating Swing**
@@ -120,8 +125,14 @@ Rules are evaluated in the following `1 -> 8` order:
    * **Acoustic Intuition**: Brassy sawtooth drop ($1400 \rightarrow 500\text{ Hz}$) sounds harsh and over-twisted, mimicking the bat twisting in a loose grip at contact.
    * **Coaching Note & Biomechanical Fix**: *"The bat handle experienced a sharp axial twist spike right at impact alongside velocity loss because your grip was too loose at the moment of contact, allowing the ball to turn the bat in your hands. Firm up your grip through ball contact so the face stays square."*
 
+7. **`MISHIT_HANDLE_SHOCK` — Off-Center Mishit / Handle Recoil**
+   * **Spoken Cue**: `"Find the middle"`
+   * **Failure Description**: Swing plane was clean, but `<10%` speed transfer (`contactDipPct < 10.0f`) and sharp post-impact handle rattle (`postContactRattleRadS > 1.8f`) indicate an edge or off-center strike.
+   * **Acoustic Intuition**: Hollow wood clack ($1150 \rightarrow 380\text{ Hz}$) sounds thin, woody, and hollow—mirroring handle vibration when the ball misses the sweet spot.
+   * **Coaching Note & Biomechanical Fix**: *"Your downswing plane was tidy, but instead of transferring clean momentum into the ball (~28% speed dip on middled hits), contact glanced off-center and rattled the bat handle. Keep your head still over the crease and let the ball come under your eyes onto the sweet spot."*
+
 #### Family D: Tempo & Balance Envelope (*Acoustic Theme: Detuned LFO Siren*)
-7. **`OVERSWING_LOSS_OF_SHAPE` — Over-Swinging (Loss of Shape)**
+8. **`OVERSWING_LOSS_OF_SHAPE` — Over-Swinging (Loss of Shape)**
    * **Spoken Cue**: `"Hold your shape"`
    * **Failure Description**: Swinging at >31 rad/s while losing plane stability (>14.5°) or decelerating.
    * **Acoustic Intuition**: Wobbly detuned siren ($600 \pm 80\text{ Hz}$) sounds "out of balance" and spinning off-axis, matching torso/head drift from over-hitting.
@@ -208,6 +219,18 @@ When the Polar sensor is worn on the trailing (bottom) wrist, card section heade
 | **`SLOG`** | • `-25..-5 ms`: **Co-Explosive Snap** (90%)<br>• `> 0 ms`: **Hesitant Arc** (25%, ⚠️ Warning)<br>• Other: **Unbalanced Release** (45%) | • `gyro >= 1.75 && acc >= 1.50`: **Maximum Release** (95%)<br>• `gyro < 1.30`: **Restricted Arc Power** (30%)<br>• Other: **High Arc Velocity** (70%) | *"Unleash continuous bottom-hand wrist snap from top of backswing through an unrestricted hitting arc."* |
 | **`SWEEP`** | • `-10..+5 ms`: **Phase-Locked Torque** (85%)<br>• `> +15 ms`: **Uncoupled Rotation** (25%, ⚠️ Warning)<br>• Other: **Asymmetrical Sweep Arc** (50%) | • `gyro in 1.05..1.30 && acc in 0.90..1.20`: **Torso-Linked Sweep** (85%)<br>• `acc < 0.70`: **Arm-Only Sweep** (25%, ⚠️ Warning)<br>• Other: **Guided Horizontal Sweep** (60%) | *"Crouch low over front knee and drive sweep arc using torso rotational torque rather than arm-only pulling."* |
 
+### 2.3 Impact Quality & Contact Enrichment (`BiomechanicalUiMapper.enrichWithImpactQuality`)
+When `impactQualityScore` (0–100 from `impact_quality_multimodal.onnx` `Audio+423Hz` or `impact_quality_polar.onnx` `423Hz Handle`) is present on an `InningsEvent`, `BiomechanicalUiMapper` enriches every shot card with a sweet-spot contact summary (`impactQualityTitle` & `impactQualitySubtitle`):
+
+| Tier Condition | `impactQualityTitle` Format | `displaysWarning` Override? | `coachingInsight` Override (when base has no warning) |
+| :--- | :--- | :---: | :--- |
+| `impactEdgeRisk >= 0.56f && impactQualityScore < 52f` | `High Edge Risk (<Source> • <Score>/100)` | Yes (`true`) | *"Action: Play closer to the eyes — bat face met the outer edge with sharp handle recoil."* |
+| `impactQualityScore >= 64f` | `Sweet-Spot Middle (<Source> • <Score>/100)` | Preserved | *(Preserves kinematic insight)* |
+| `impactQualityScore >= 46f` | `Clean Contact (<Source> • <Score>/100)` | Preserved | *(Preserves kinematic insight)* |
+| `impactQualityScore < 46f` | `Off-Center Mishit (<Source> • <Score>/100)` | Preserved | If `score < 44f && handleRattleRadS > 1.8f`: *"Action: Soften top-hand grip slightly and wait under the eyes to transfer energy through the middle."* |
+
+*`impactQualitySubtitle` displays `Edge risk XX% • Contact dip XX% • Handle rattle X.XX rad/s`.*
+
 ---
 
 ## 📊 Part 3: Longitudinal Repertoire Diagnostics & Corrective Drills (`DiagnosticRulesEngine.kt`)
@@ -216,7 +239,7 @@ When the Polar sensor is worn on the trailing (bottom) wrist, card section heade
 * [`DiagnosticRulesEngine.kt`](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/analytics/DiagnosticRulesEngine.kt)
 * [`BiomechanicsAggregator.kt`](file:///Users/neilkloot/Code/CricketBattingTracker/app/src/main/java/com/mrpeel/cricketbattingtracker/analytics/BiomechanicsAggregator.kt)
 
-Across all stored dual-sensor sessions (for any canonical shot class with $N \ge 5$ shots), the Insights Dashboard evaluates 6 longitudinal fault gates and ranks the top 1–2 primary flaws by fault rate:
+Across all stored dual-sensor sessions (for any canonical shot class with $N \ge 5$ shots), the Insights Dashboard evaluates 8 longitudinal fault gates and ranks the top 1–2 primary flaws by fault rate:
 
 ### 3.1 Longitudinal Diagnostic Fault Matrix
 | Fault Code | Shot Class | Title & Identified Pattern | Trigger Gate | Optimal Target Kinematics | Primary Technical Flaw & Quantified Impact | Linked Drill |
@@ -227,6 +250,8 @@ Across all stored dual-sensor sessions (for any canonical shot class with $N \ge
 | **`FAULT_CUT_ASYNC`** | `CUT/PUNCH` | **Delayed Bottom-Wrist Lock on Cut**<br>*(Asynchronous Dual-Wrist Lock on Cut Shots)* | `median(timeLeadMs) > +10 ms` **OR** `median(accRatio) < 0.75` | `-5 ms to +5 ms` synchronous lock (`accRatio >= 0.85x`) | **Flaw**: Hands disconnect at impact; blade face trails lateral punch plane.<br>**Impact**: Prevents open-face edges; increases square punching power by +10 km/h. | `DRILL_WALL_PUNCH` |
 | **`FAULT_SWEEP_ARMS`** | `SWEEP` | **Arm-Dominated Sweep Rotation**<br>*(Uncoupled Arm Drag on Sweep Strokes)* | `median(accRatio) < 0.80` **OR** `median(timeLeadMs) > +12 ms` | `accRatio >= 0.90x` linked to torso torque (`<= +5 ms`) | **Flaw**: Arms dragging independently rather than linking to core torso turn.<br>**Impact**: Enhances ball-striking consistency and placement torque across front knee. | `DRILL_CORE_SWEEPS` |
 | **`FAULT_FLICK_EARLY`** | `GLANCE/FLICK` | **Premature Wrist Roll on Flick**<br>*(Early Wrist Roll Closing Blade on Pad Flicks)* | `median(timeLeadMs) < -20 ms` **OR** `median(gyroRatio) < 1.00` | `-15 ms to -5 ms` wrist snap (`gyroRatio >= 1.20x`) | **Flaw**: Premature wrist roll closing blade before impact line.<br>**Impact**: Sharpens pad-clearance angle; eliminates leading-edge risks to mid-on. | `DRILL_PAD_CLEARANCE` |
+| **`FAULT_LOW_MIDDLING_RATE`** | *Any Class* (`impactScored >= 5`) | **Persistent Off-Center Contact**<br>*(Low Sweet-Spot Consistency)* | `middledRatePct < 30%` **OR** `meanImpactScore < 48` | `>= 45%` clean sweet-spot contacts (`>= 22%` contact dip) | **Flaw**: Ball repeatedly striking outer blade/toe rather than center sweet spot.<br>**Impact**: Saps punch/carry even on full bat speed due to poor momentum transfer. | `DRILL_MIDDLE_FINDING_DROP` |
+| **`FAULT_HIGH_EDGE_RISK`** | *Any Class* (`impactScored >= 5`) | **Elevated Edge-Contact Risk**<br>*(High Acoustic/Handle Torsion Edge Signature)* | `highEdgeRiskRatePct > 22%` | `<= 12%` of strokes showing thin-edge handle recoil | **Flaw**: Reaching out or poking with hard hands away from body balance line.<br>**Impact**: Cuts outside-edge slip/keeper dismissal risk while steadying blade path. | `DRILL_LATE_EYELINE_CHECK` |
 
 ### 3.2 Prescriptive Corrective Drill Catalogue
 1. **`DRILL_PULL_TEE_SLAPS` — Single-Hand Trailing Arm Tee Slaps**
@@ -263,6 +288,20 @@ Across all stored dual-sensor sessions (for any canonical shot class with $N \ge
    * **Execution**: Hold wrist cock until bat reaches front pad line before releasing bottom-wrist snap through mid-wicket.
    * **Biomechanical Focus**: Delays wrist turnover until the exact impact plane (`-15ms <= Δt <= -5ms`) with active pronation (`gyroRatio >= 1.00`).
    * **Prescription**: 3 sets of 12 flicks.
+
+6. **`DRILL_MIDDLE_FINDING_DROP` — Middle-Finding Under-Eye Soft Drop Drill**
+   * **Target Faults**: `FAULT_LOW_MIDDLING_RATE`
+   * **Setup**: Soft tennis or leather balls dropped vertically 1m in front of front crease.
+   * **Execution**: Watch the ball onto the sweet spot directly under your eyes with a relaxed bottom-hand pressure (60%), focusing on a deep, muted thud rather than hard swing speed.
+   * **Biomechanical Focus**: Calibrates clean center-face momentum transfer (contact angular-speed dip >= 22% with low handle rattle).
+   * **Prescription**: 4 sets of 12 balanced contacts before facing bowling machine.
+
+7. **`DRILL_LATE_EYELINE_CHECK` — Late Contact & Narrow-Blade Track Drill**
+   * **Target Faults**: `FAULT_HIGH_EDGE_RISK`
+   * **Setup**: Use a half-width middling bat or tape the outer 30% of the blade; medium-pace throwdowns on off-stump channel.
+   * **Execution**: Commit head position to the pitch of the ball first and hold hands inside the line until the ball arrives beneath your nose.
+   * **Biomechanical Focus**: Eliminates reaching away from the body so the center of gravity aligns cleanly behind impact and edge-torsion spikes drop.
+   * **Prescription**: 3 sets of 15 disciplined contacts.
 
 ---
 

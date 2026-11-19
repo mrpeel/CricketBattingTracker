@@ -80,7 +80,8 @@ fun InsightsDashboardScreen(
                 totalSessions = aggregation.totalSessionsAnalyzed,
                 totalDualShots = aggregation.totalDualSensorShots,
                 totalDualSessions = aggregation.totalDualSessionsAnalyzed,
-                activeFamiliesCount = aggregation.classProfiles.size
+                activeFamiliesCount = aggregation.classProfiles.size,
+                overallMiddlingScore = aggregation.overallMiddlingScore
             )
         }
 
@@ -196,7 +197,8 @@ fun RepertoireOverviewHeader(
     totalSessions: Int,
     totalDualShots: Int,
     totalDualSessions: Int,
-    activeFamiliesCount: Int
+    activeFamiliesCount: Int,
+    overallMiddlingScore: Int? = null
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF001B3D)),
@@ -281,7 +283,15 @@ fun RepertoireOverviewHeader(
                                 letterSpacing = 0.5.sp
                             )
                             Text(
-                                if (totalDualShots > 0) "$totalDualShots dual ($totalDualSessions sess)" else "Watch single-sensor",
+                                if (totalDualShots > 0) {
+                                    if (overallMiddlingScore != null) {
+                                        "$totalDualShots dual • Middle $overallMiddlingScore/100"
+                                    } else {
+                                        "$totalDualShots dual ($totalDualSessions sess)"
+                                    }
+                                } else {
+                                    "Watch single-sensor"
+                                },
                                 fontSize = 9.sp,
                                 color = Color(0xFFBCD2FE).copy(alpha = 0.8f)
                             )
@@ -457,6 +467,30 @@ fun ShotClassDeepDiveCard(profile: ShotClassStatisticalProfile) {
                         subtitle = "Velocity retention",
                         valueColor = Color(0xFFBCD2FE)
                     )
+                }
+
+                if (profile.impactScoredSampleCount > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        KpiMetricTile(
+                            modifier = Modifier.weight(1f),
+                            title = "SWEET-SPOT",
+                            value = "${profile.meanImpactScore.roundToInt()}",
+                            unit = "/100",
+                            subtitle = "${profile.middledRatePct.roundToInt()}% middled",
+                            valueColor = if (profile.meanImpactScore >= 60f) Color(0xFF58FF63) else if (profile.meanImpactScore >= 48f) Color(0xFF38BDF8) else Color(0xFFFFBF00)
+                        )
+                        KpiMetricTile(
+                            modifier = Modifier.weight(1f),
+                            title = "EDGE RISK",
+                            value = "${profile.highEdgeRiskRatePct.roundToInt()}%",
+                            unit = "",
+                            subtitle = "Contact dip ${profile.medianContactDipPct.roundToInt()}%",
+                            valueColor = if (profile.highEdgeRiskRatePct > 22f) Color(0xFFFF5252) else Color(0xFF58FF63)
+                        )
+                    }
                 }
             }
 

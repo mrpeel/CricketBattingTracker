@@ -31,9 +31,25 @@ class BiomechanicalViewBinder(private val rootView: View) {
         timeLeadMs: Float?,
         gyroRatio: Float?,
         accRatio: Float?,
-        polarMountMode: String? = null
+        polarMountMode: String? = null,
+        impactQualityScore: Float? = null,
+        impactEdgeRisk: Float? = null,
+        impactQualitySource: String? = null,
+        polarContactDipPct: Float? = null,
+        handleRattleRadS: Float? = null
     ) {
-        val state = BiomechanicalUiMapper.mapToUiState(shotClass, timeLeadMs, gyroRatio, accRatio, polarMountMode)
+        val state = BiomechanicalUiMapper.mapToUiState(
+            shotClass = shotClass,
+            timeLeadMs = timeLeadMs,
+            gyroRatio = gyroRatio,
+            accRatio = accRatio,
+            polarMountMode = polarMountMode,
+            impactQualityScore = impactQualityScore,
+            impactEdgeRisk = impactEdgeRisk,
+            impactQualitySource = impactQualitySource,
+            polarContactDipPct = polarContactDipPct,
+            handleRattleRadS = handleRattleRadS
+        )
         bindState(state)
     }
 

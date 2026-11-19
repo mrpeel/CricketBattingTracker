@@ -154,17 +154,22 @@ def load_watch_sensor(session_dir, baseName):
         
     return pd.DataFrame()
 
-def compress_audio_in_place(audio_path):
+def compress_audio_in_place(audio_path, in_place=False):
+    """
+    Create a speech-optimized 16 kHz mono 24 kbps AAC copy for transcription upload.
+    By default (in_place=False), preserves the original 44.1 kHz recording intact on disk
+    so wideband (>8 kHz) impact acoustics remain available for quality analysis.
+    """
     if not audio_path or not os.path.exists(audio_path):
         return audio_path
-    
-    # Skip if file size is already very small (e.g. less than 4.5MB, meaning it's likely already compressed)
+
+    # Skip if file size is already very small (e.g. less than 4.5MB)
     if os.path.getsize(audio_path) < 4.5 * 1024 * 1024:
         print(f"ℹ️ Audio file is already small ({os.path.getsize(audio_path)/1024/1024:.2f}MB). Skipping compression.")
         return audio_path
-        
-    temp_path = audio_path + ".tmp.m4a"
-    print(f"🎵 Compressing voice narration audio to speech-optimized 16kHz mono 24kbps AAC...")
+
+    temp_path = audio_path + (".tmp.m4a" if in_place else ".transcribe_16k.m4a")
+    print("🎵 Creating speech-optimized 16kHz mono 24kbps AAC upload copy (preserving original 44.1kHz audio)...")
     cmd = [
         "ffmpeg", "-y", "-i", audio_path,
         "-ac", "1", "-ar", "16000", "-b:a", "24k", "-c:a", "aac",
@@ -174,10 +179,14 @@ def compress_audio_in_place(audio_path):
     if res.returncode == 0 and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
         orig_size = os.path.getsize(audio_path)
         new_size = os.path.getsize(temp_path)
-        os.replace(temp_path, audio_path)
-        print(f"✅ Audio compressed successfully: {orig_size / 1024 / 1024:.2f}MB → {new_size / 1024 / 1024:.2f}MB")
+        if in_place:
+            os.replace(temp_path, audio_path)
+            print(f"✅ Audio compressed in-place: {orig_size / 1024 / 1024:.2f}MB → {new_size / 1024 / 1024:.2f}MB")
+            return audio_path
+        print(f"✅ Prepared upload copy: {orig_size / 1024 / 1024:.2f}MB → {new_size / 1024 / 1024:.2f}MB (raw preserved)")
+        return temp_path
     else:
-        print("⚠️ Warning: FFmpeg audio compression failed or produced empty file. Retaining original.")
+        print("⚠️ Warning: FFmpeg audio compression failed or produced empty file. Using original.")
         if os.path.exists(temp_path):
             os.remove(temp_path)
     return audio_path
@@ -491,6 +500,18 @@ def pull_audio_from_phone(phone_id, dest_dir):
     local_path = os.path.join(dest_dir, local_name)
     print(f"📥 Pulling phone audio file: {newest_file} → {local_path}")
     subprocess.run(["adb", "-s", phone_id, "pull", newest_file, local_path], check=True)
+
+    # Also pull companion .meta.json sidecar written by AudioRecordService (best-effort)
+    remote_meta = os.path.splitext(newest_file)[0] + ".meta.json"
+    local_meta = os.path.splitext(local_path)[0] + ".meta.json"
+    meta_check = subprocess.run(
+        ["adb", "-s", phone_id, "shell", f"test -f '{remote_meta}' && echo yes"],
+        capture_output=True, text=True
+    )
+    if meta_check.returncode == 0 and "yes" in meta_check.stdout:
+        print(f"📥 Pulling audio metadata sidecar: {remote_meta} → {local_meta}")
+        subprocess.run(["adb", "-s", phone_id, "pull", remote_meta, local_meta], check=False)
+
     return local_path
 
 def pull_polar_from_phone(phone_id, session_dir):
@@ -1050,8 +1071,7 @@ def main():
             print("❌ ERROR: File does not exist.")
             sys.exit(1)
             
-    # Compress voice narration to speech-optimized mono 16kHz 24kbps AAC
-    audio_path = compress_audio_in_place(audio_path)
+    # Preserve original 44.1 kHz audio on disk; create compressed upload copy only on demand below.
             
     # 4. Load Gyroscope sensor file (needed for MMSS conversion and offset alignment)
     df_gyro = load_watch_sensor(session_dir, "WatchGyroscope")
@@ -1115,7 +1135,12 @@ def main():
                 with open(deepgram_cache_path, "r", encoding="utf-8") as f:
                     deepgram_data = json.load(f)
             else:
-                deepgram_data = call_deepgram_api(audio_path, deepgram_key, model="nova-3")
+                upload_audio_path = compress_audio_in_place(audio_path, in_place=False)
+                try:
+                    deepgram_data = call_deepgram_api(upload_audio_path, deepgram_key, model="nova-3")
+                finally:
+                    if upload_audio_path != audio_path and os.path.exists(upload_audio_path):
+                        os.remove(upload_audio_path)
                 with open(deepgram_cache_path, "w", encoding="utf-8") as f:
                     json.dump(deepgram_data, f, indent=2)
 
@@ -1145,8 +1170,9 @@ def main():
                 raw_text = f.read()
         else:
             preferred_model = getattr(args, "model", "gemini-3.5-flash")
+            upload_audio_path = compress_audio_in_place(audio_path, in_place=False)
             try:
-                raw_text = transcribe_audio_gemini(audio_path, preferred_model=preferred_model)
+                raw_text = transcribe_audio_gemini(upload_audio_path, preferred_model=preferred_model)
                 print(f"Successfully transcribed raw audio via Gemini ({preferred_model}).")
             except RuntimeError as e:
                 print(e)
@@ -1154,6 +1180,9 @@ def main():
             except Exception as e:
                 print(f"❌ Gemini transcription failed unexpectedly: {e}")
                 sys.exit(1)
+            finally:
+                if upload_audio_path != audio_path and os.path.exists(upload_audio_path):
+                    os.remove(upload_audio_path)
 
             # Save Stage 1 raw transcript
             with open(raw_transcript_path, "w", encoding="utf-8") as f:
@@ -1603,11 +1632,10 @@ def main():
 
             offset = best_offset
             drift_rate = best_drift
-            sync_description = f"Optimized via gyro peak grid search ({best_matches}/{active_shot_count} matches)"
-
             active_shot_count = sum(1 for s in narrations if not any(
                 term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"]
             ))
+            sync_description = f"Optimized via gyro peak grid search ({best_matches}/{active_shot_count} matches)"
             print(f"🎯 Clock offset and drift optimized against raw gyroscope peaks:")
             if baseline_offset is not None:
                 print(f"   Filename baseline offset:  {baseline_offset:+.3f}s")
@@ -1665,8 +1693,12 @@ def main():
         
         cands = []
         if is_non_swing:
+            # "Facing up" is spoken while setting up in stance (~0.5s), whereas "no shot"/"leave"
+            # is spoken after the ball passes (~2.5s); keeping "facing up" near sensor_narr_t prevents
+            # post-shot "facing up" markers from blocking real impacts 2s earlier.
+            non_swing_offset = 0.5 if "facing up" in shot_type_lower else 2.5
             cands.append({
-                'time': sensor_narr_t - 2.5,
+                'time': sensor_narr_t - non_swing_offset,
                 'mag': 1.0,
                 'is_fallback': True
             })
@@ -1696,9 +1728,9 @@ def main():
         if lag < -7.0:
             return -999999.0
         elif lag < 0.0:
-            return np.log(mag) - ((lag - 2.5) ** 2) / 4.5 - 5.0
+            return np.log(mag) - ((lag - 1.5) ** 2) / 6.0 - 5.0
         else:
-            return np.log(mag) - ((lag - 2.5) ** 2) / 4.5
+            return np.log(mag) - ((lag - 1.5) ** 2) / 6.0
 
     # DP Table
     M = len(narrations)

@@ -177,5 +177,54 @@ class TestKinematicGuard(unittest.TestCase):
         self.assertIn("BALLISTIC_FREE_FLIGHT_TUMBLE", res.anomaly_reason)
 
 
+class TestImpactQualityModel(unittest.TestCase):
+    def test_polar_patch_and_onnx_scoring(self):
+        from impact_quality_model import (
+            extract_polar_patch_and_scalars,
+            compute_log_mel_and_audio_scalars,
+            score_session_shots_onnx,
+            SAMPLE_RATE,
+        )
+
+        # Synthetic 423 Hz Polar swing: strong pre-impact rotation + 28% post-impact dip + sharp impact
+        pt = np.linspace(9.5, 10.5, 423, dtype=np.float64)
+        p_acc = np.zeros((423, 3), dtype=np.float32)
+        p_acc[:, 2] = 9.81
+        p_acc[211, 2] = 320.0
+        p_gyro = np.zeros((423, 3), dtype=np.float32)
+        pre = (pt >= 9.88) & (pt < 10.00)
+        post = (pt > 10.00) & (pt <= 10.06)
+        p_gyro[pre, 0] = 20.0
+        p_gyro[post, 0] = 14.0
+
+        pol_mat, scalars = extract_polar_patch_and_scalars(pt, p_acc, pt, p_gyro, t_c=10.0)
+        self.assertEqual(pol_mat.shape, (8, 68))
+        self.assertTrue(np.isfinite(pol_mat).all())
+        self.assertIn("wide_dip_pct", scalars)
+        self.assertGreater(scalars["wide_dip_pct"], 0.15)
+
+        results = score_session_shots_onnx(
+            [{"t_c": 10.0, "pol_mat": pol_mat, "scalars": scalars}],
+            audio_path=None,
+        )
+        self.assertEqual(len(results), 1)
+        r = results[0]
+        self.assertEqual(r["impact_quality_source"], "POLAR")
+        self.assertTrue(0.0 <= r["impact_quality_score"] <= 100.0)
+        self.assertTrue(0.0 <= r["impact_edge_risk"] <= 1.0)
+        self.assertGreater(r["polar_contact_dip_pct"], 15.0)
+
+        # Audio scalar / log-mel extraction check
+        bg = np.random.default_rng(42).normal(0, 0.002, int(0.20 * SAMPLE_RATE)).astype(np.float32)
+        seg = np.random.default_rng(7).normal(0, 0.002, int(0.25 * SAMPLE_RATE)).astype(np.float32)
+        c_idx = int(0.10 * SAMPLE_RATE)
+        t_burst = np.arange(800, dtype=np.float32) / SAMPLE_RATE
+        seg[c_idx:c_idx + 800] += 0.25 * np.exp(-t_burst * 60.0) * np.sin(2.0 * np.pi * 650.0 * t_burst)
+        mel, aud_scalars = compute_log_mel_and_audio_scalars(seg, bg, scalars["g_pre_pk"])
+        self.assertEqual(mel.shape, (24, 31))
+        self.assertTrue(np.isfinite(mel).all())
+        self.assertGreater(aud_scalars["aud_snr_db"], 5.0)
+
+
 if __name__ == "__main__":
     unittest.main()

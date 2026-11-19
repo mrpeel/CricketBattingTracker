@@ -74,6 +74,14 @@ data class InningsEvent(
     val azimuth_deviation_deg: Float? = null,
     val polar_mount_type: String? = null,
     val is_kinematically_valid: Boolean? = null,
+
+    // Acoustic + 423Hz Polar Impact Quality & Sweet-Spot Diagnostics
+    val impact_quality_score: Float? = null,
+    val impact_edge_risk: Float? = null,
+    val impact_quality_source: String? = null,
+    val polar_contact_dip_pct: Float? = null,
+    val handle_rattle_rad_s: Float? = null,
+    val impact_aud_snr_db: Float? = null,
 )
 
 @Entity(tableName = "heart_rate_events")
