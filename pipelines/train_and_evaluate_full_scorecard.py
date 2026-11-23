@@ -38,6 +38,7 @@ import glob
 import math
 import shutil
 import random
+import warnings
 import argparse
 import datetime
 import numpy as np
@@ -61,7 +62,7 @@ from telemetry_engine import (
     FacingUpTCN, StanceTracker, AdvancedTCNBlock, BatPlaneGeometryThreeFamilyTCN,
     estimate_session_clock_offset, load_parquet_session, predict_candidate_batch_unleaked,
     run_session_multitier, format_class_table, evaluate_multitier_scorecard,
-    HOLDOUT_EMPIRICAL_OFFSETS
+    extract_high_energy_bypass_candidates, HOLDOUT_EMPIRICAL_OFFSETS
 )
 from training_logger import setup_training_logger
 from jev_auditor import run_stage3_jev_shadow_audit
@@ -231,6 +232,17 @@ def extract_session_candidate_windows(sid, s1, med, mad, is_train=True):
         tier = "TIER_1_HIGH" if peak_acc >= 30.0 else "TIER_3_SOFT_TOUCH"
         if peak_gyr >= 1.0 and delta_theta >= 0.14:
             cands.append({"anchor_f": peak_f, "anchor_t": t_peak, "peak_gyr": peak_gyr, "peak_acc": peak_acc, "tier": tier})
+
+    # High-Energy Stage 1 Bypass (matches telemetry_engine.py & TcnModelRunner.kt)
+    for bp in extract_high_energy_bypass_candidates(w_gyr_mag, w_acc_mag, [c["anchor_f"] for c in cands]):
+        pf = bp["anchor_f"]
+        cands.append({
+            "anchor_f": pf,
+            "anchor_t": float(t_grid[pf]),
+            "peak_gyr": bp["peak_gyr"],
+            "peak_acc": bp["peak_acc"],
+            "tier": "TIER_1_HIGH",
+        })
 
     # 1.8s NMS deduplication
     cands.sort(key=lambda c: c["anchor_t"])
@@ -839,12 +851,17 @@ def main():
         model.eval()
         dummy_input = torch.randn(1, NUM_FEATURES, WINDOW_LEN, device='cpu')
         model_cpu = model.to('cpu')
-        torch.onnx.export(
-            model_cpu, dummy_input, MODEL_ONNX_PATH, export_params=True, opset_version=18,
-            do_constant_folding=True, input_names=['input_imu_stream'], output_names=['output_logits'],
-            dynamic_axes={'input_imu_stream': {0: 'batch_size', 2: 'sequence_length'}, 'output_logits': {0: 'batch_size', 2: 'sequence_length'}},
-            dynamo=False
-        )
+        # Use TorchScript-based export with deprecation warning filtered.
+        # TorchScript export ensures a single self-contained .onnx file (~7.4 MB)
+        # without external .data files, guaranteed compatible with Android ONNX Runtime 1.20 assets.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            torch.onnx.export(
+                model_cpu, dummy_input, MODEL_ONNX_PATH, export_params=True, opset_version=18,
+                do_constant_folding=True, input_names=['input_imu_stream'], output_names=['output_logits'],
+                dynamic_axes={'input_imu_stream': {0: 'batch_size', 2: 'sequence_length'}, 'output_logits': {0: 'batch_size', 2: 'sequence_length'}},
+                dynamo=False
+            )
         shutil.copy(MODEL_ONNX_PATH, APP_ONNX_PATH)
         print(f"🏆 PASSED Quality Gate (Holdout Precision={ho_precision:.1f}%, Overall Precision={micro_precision:.1f}%, Holdout F1={ho_f1:.1f}%). Exported ONNX model & updated production Android app assets: {APP_ONNX_PATH}")
 

@@ -1560,6 +1560,50 @@ def main():
                 except:
                     pass
  
+    # 6b. High-gyro global cross-correlation sanity anchor (guards against bogus filename or false sync-tap offsets)
+    xcorr_impact_lag = None
+    gyro_times_xc = df_gyro['seconds_elapsed'].to_numpy()
+    gyro_mags_xc = df_gyro['mag'].to_numpy()
+    if offset is None and narrations and len(gyro_times_xc) > 100:
+        active_audio_ts = [
+            float(s['timestamp_seconds']) for s in narrations
+            if not any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"])
+        ]
+        if len(active_audio_ts) >= 4:
+            dt_xc = 0.05
+            n_bins = int(np.ceil(float(gyro_times_xc[-1]) / dt_xc)) + 1
+            imu_hi = np.zeros(n_bins, dtype=np.float32)
+            bin_idx = np.clip((gyro_times_xc / dt_xc).astype(int), 0, n_bins - 1)
+            np.maximum.at(imu_hi, bin_idx, np.clip(gyro_mags_xc - 6.0, 0.0, 20.0).astype(np.float32))
+            gt_sig = np.zeros(n_bins, dtype=np.float32)
+            for at in active_audio_ts:
+                bi = int(at / dt_xc)
+                if 0 <= bi < n_bins:
+                    gt_sig[bi] = 1.0
+            gt_smooth = np.convolve(gt_sig, np.ones(21, dtype=np.float32), mode='same')
+            corr = np.correlate(imu_hi, gt_smooth, mode='full')
+            zero_lag = len(gt_smooth) - 1
+            search_lo = min(-40.0, (baseline_offset - 15.0) if baseline_offset is not None else -40.0)
+            search_hi = max(40.0, (baseline_offset + 15.0) if baseline_offset is not None else 40.0)
+            lag_lo = max(-zero_lag, int(np.floor(search_lo / dt_xc)))
+            lag_hi = min(len(corr) - 1 - zero_lag, int(np.ceil(search_hi / dt_xc)))
+            if lag_hi > lag_lo:
+                sub_corr = corr[zero_lag + lag_lo : zero_lag + lag_hi + 1]
+                best_lag_bin = lag_lo + int(np.argmax(sub_corr))
+                xcorr_impact_lag = best_lag_bin * dt_xc
+                print(f"🔎 High-gyro cross-correlation impact lag anchor: {xcorr_impact_lag:+.2f}s (implied narr offset ≈ {xcorr_impact_lag + 2.0:+.2f}s)")
+
+    # Validate sync_tap_offset against high-gyro xcorr anchor (speech must occur ~0-5.5s after impact)
+    if sync_tap_offset is not None and xcorr_impact_lag is not None:
+        implied_speech_delay = sync_tap_offset - xcorr_impact_lag
+        if implied_speech_delay < -0.5 or implied_speech_delay > 5.5:
+            print(
+                f"⚠️ Rejecting sync-tap offset ({sync_tap_offset:+.3f}s): disagrees with high-gyro xcorr "
+                f"impact lag ({xcorr_impact_lag:+.2f}s, implied speech delay {implied_speech_delay:+.2f}s outside [-0.5s, +5.5s])."
+            )
+            sync_tap_offset = None
+            sync_tap_drift_rate = 0.0
+
     sync_description = ""
     if offset is not None:
         sync_description = f"Manual override: {offset:+.3f}s"
@@ -1576,8 +1620,12 @@ def main():
         print(f"🎯 Using single-point sync tap alignment offset: {offset:+.3f}s (skipping grid search optimization)")
     else:
         if narrations:
-            search_center = sync_tap_offset if sync_tap_offset is not None else (baseline_offset if baseline_offset is not None else 0.0)
-            search_range = 1.5 if sync_tap_offset is not None else 2.5
+            if xcorr_impact_lag is not None:
+                search_center = xcorr_impact_lag + 2.0
+                search_range = 2.5
+            else:
+                search_center = baseline_offset if baseline_offset is not None else 0.0
+                search_range = 2.5
             print(f"🔍 Starting clock offset and drift optimization grid search against raw gyroscope peaks")
             print(f"   (center={search_center:+.3f}s, range=\u00b1{search_range}s)")
             print(f"   ⚠️  Scoring is based ONLY on raw sensor peak matches — no watch detections used.")

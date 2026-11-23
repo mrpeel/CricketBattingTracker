@@ -150,7 +150,8 @@ def group_words_into_phrases(words, max_silence_gap=0.80):
             phrases.append({
                 'start': round(current[0]['start'], 2),
                 'end': round(current[-1]['end'], 2),
-                'text': text
+                'text': text,
+                'words': list(current),
             })
             current = [words[i]]
         else:
@@ -161,7 +162,8 @@ def group_words_into_phrases(words, max_silence_gap=0.80):
         phrases.append({
             'start': round(current[0]['start'], 2),
             'end': round(current[-1]['end'], 2),
-            'text': text
+            'text': text,
+            'words': list(current),
         })
         
     return phrases
@@ -178,12 +180,165 @@ def load_ground_truth_lexicon():
             print(f"⚠️ Warning loading lexicon: {e}")
     return {}
 
+_FACING_FIRST_WORD = {"facing", "pacing", "placing", "icing", "basing", "macing", "lacing"}
+_FACING_TWO_WORD = {
+    ("facing", "up"), ("pacing", "up"), ("placing", "up"), ("icing", "up"),
+    ("basing", "up"), ("macing", "up"), ("lacing", "up"),
+}
+_BOUNDARY_TWO_WORD = _FACING_TWO_WORD | {
+    ("no", "shot"), ("nice", "shot"), ("and", "shot"), ("end", "of"),
+}
+_BOUNDARY_ONE_WORD = {"leave", "evade", "facing", "lacing"}
+_QUALITY_BOUNDARY_WORDS = {
+    "good", "okay", "ok", "poor", "bad", "miss", "missed", "edge", "edged",
+    "excellent", "perfect", "pour", "four", "ground", "lift",
+}
+_PARTIAL_SHOT_PREFIX_WORDS = {
+    "foot", "back", "forward", "power", "cover", "straight", "off", "on",
+    "pull", "hook", "flick", "glance", "cut", "square", "sweep", "reverse",
+    "late", "switch", "quick", "flip", "full", "push", "slog", "guide",
+    "deflection", "glide", "defense", "defence",
+}
+
+
+def _match_shot_type(text_lower, lexicon):
+    """Match normalized phrase text against lexicon and phonetic fallbacks."""
+    if lexicon:
+        for canonical_term, variants in lexicon.items():
+            if any(v.lower() in text_lower for v in variants):
+                return canonical_term
+
+    if "power drive" in text_lower or any(w in text_lower for w in ["tower drive", "now drive", "we'll drive"]):
+        return "Power drive"
+    if "cover drive" in text_lower or "cover" in text_lower:
+        return "Cover drive"
+    if "straight drive" in text_lower or "straight" in text_lower:
+        return "Straight drive"
+    if "off drive" in text_lower:
+        return "Off drive"
+    if "on drive" in text_lower:
+        return "On drive"
+    if "drive" in text_lower and not any(p in text_lower for p in ["cover", "off", "on", "power", "straight", "square", "back foot", "backfoot", "tower", "now", "we'll", "great", "forward"]):
+        return "Straight drive"
+    if any(d in text_lower for d in ["defense", "defence", "defensive", "block", "forward edge"]):
+        return "Forward defense"
+    if "the shot" in text_lower and any(q in text_lower for q in ["good", "okay", "ok", "poor", "bad", "miss", "edge", "edged", "excellent", "decent", "perfect", "smoked", "terrible", "pour"]):
+        return "Flick shot"
+    return None
+
+
+def _make_subphrase(words_slice):
+    return {
+        'start': round(words_slice[0]['start'], 2),
+        'end': round(words_slice[-1]['end'], 2),
+        'text': " ".join(w['word'] for w in words_slice),
+        'words': list(words_slice),
+    }
+
+
+def _split_leading_facing_up(words_slice, lexicon):
+    """If a segment begins with one or more 'facing [up]' tokens followed by a shot or partial shot prefix, split them."""
+    if len(words_slice) < 2:
+        return [_make_subphrase(words_slice)]
+
+    clean = [w['word'].lower().strip(".,!?") for w in words_slice]
+    if clean[0] not in _FACING_FIRST_WORD:
+        return [_make_subphrase(words_slice)]
+
+    # Consume consecutive leading facing / stuttered 'facing up up' tokens
+    split_idx = 0
+    while split_idx < len(clean):
+        if clean[split_idx] in _FACING_FIRST_WORD:
+            split_idx += 1
+            while split_idx < len(clean) and clean[split_idx] == "up":
+                split_idx += 1
+        else:
+            break
+
+    if split_idx == 0 or split_idx >= len(words_slice):
+        return [_make_subphrase(words_slice)]
+
+    tail_words = words_slice[split_idx:]
+    tail_clean = clean[split_idx:]
+    tail_text = " ".join(w['word'] for w in tail_words).lower()
+    tail_type = _match_shot_type(tail_text, lexicon)
+    is_valid_shot_tail = tail_type is not None and tail_type != "Facing up"
+    is_partial_shot_prefix = (
+        len(tail_clean) <= 3
+        and tail_clean[0] in _PARTIAL_SHOT_PREFIX_WORDS
+    )
+    if is_valid_shot_tail or is_partial_shot_prefix:
+        return [_make_subphrase(words_slice[:split_idx]), _make_subphrase(tail_words)]
+    return [_make_subphrase(words_slice)]
+
+
+def _split_phrase_into_subphrases(phrase, lexicon):
+    """Split multi-event Deepgram phrases at word-level stance, leave, and back-to-back shot boundaries."""
+    words = phrase.get('words')
+    if not words or len(words) < 2:
+        return [phrase]
+
+    clean = [w['word'].lower().strip(".,!?") for w in words]
+    segments = []
+    curr = []
+    i = 0
+    while i < len(words):
+        wi = clean[i]
+        wnext = clean[i + 1] if i + 1 < len(words) else ""
+        is_facing_boundary = (wi, wnext) in _FACING_TWO_WORD or wi in ("facing", "lacing")
+        is_other_two_boundary = (not is_facing_boundary) and ((wi, wnext) in _BOUNDARY_TWO_WORD)
+        is_other_one_boundary = (not is_facing_boundary) and (not is_other_two_boundary) and (wi in _BOUNDARY_ONE_WORD or wi == "round")
+
+        if curr:
+            curr_clean = [w['word'].lower().strip(".,!?") for w in curr]
+            if is_facing_boundary:
+                # Always split before 'facing [up]' unless curr itself is only repeated facing/up tokens
+                if not all(w in (_FACING_FIRST_WORD | {"up"}) for w in curr_clean):
+                    segments.append(curr)
+                    curr = []
+            elif is_other_two_boundary or is_other_one_boundary:
+                curr_text = " ".join(w['word'] for w in curr).lower()
+                if _match_shot_type(curr_text, lexicon) is not None:
+                    segments.append(curr)
+                    curr = []
+            elif curr_clean[-1] in _QUALITY_BOUNDARY_WORDS and wi in _PARTIAL_SHOT_PREFIX_WORDS:
+                # Split back-to-back shots with no 'facing up' between them (e.g. 'cover drive okay back foot [defense]')
+                curr_text = " ".join(w['word'] for w in curr).lower()
+                curr_type = _match_shot_type(curr_text, lexicon)
+                if curr_type is not None and curr_type != "Facing up":
+                    tail_text = " ".join(w['word'] for w in words[i:]).lower()
+                    tail_type = _match_shot_type(tail_text, lexicon)
+                    is_two_word_prefix = (wi, wnext) in {
+                        ("back", "foot"), ("forward", "defense"), ("forward", "defence"),
+                        ("power", "drive"), ("cover", "drive"), ("straight", "drive"),
+                        ("off", "drive"), ("on", "drive"), ("pull", "shot"), ("hook", "shot"),
+                        ("flick", "shot"), ("cut", "shot"), ("sweep", "shot"), ("leg", "glance"),
+                        ("foot", "shot"), ("square", "cut"),
+                    }
+                    if (tail_type is not None and tail_type != "Facing up") or is_two_word_prefix:
+                        segments.append(curr)
+                        curr = []
+        curr.append(words[i])
+        i += 1
+    if curr:
+        segments.append(curr)
+
+    out = []
+    for seg in segments:
+        out.extend(_split_leading_facing_up(seg, lexicon))
+    return out
+
+
 def process_phrases_with_lexicon(phrases):
     """
     Format phrases into structured shot events using lexicon, phrase stitching, and bat change logic.
     Returns: (formatted_shots, raw_transcript_lines, bat_switches, admin_headers, unrecognized_phrases)
     """
     lexicon = load_ground_truth_lexicon()
+    expanded_phrases = []
+    for p in phrases:
+        expanded_phrases.extend(_split_phrase_into_subphrases(p, lexicon))
+    phrases = expanded_phrases
     
     formatted_shots = []
     raw_transcript_lines = []
@@ -201,23 +356,34 @@ def process_phrases_with_lexicon(phrases):
         text_lower = raw_text.lower()
         t_sec = p['start']
 
-        # Lookahead stitching: If current phrase is unmatched and next phrase occurs within 1.5s, test combined text
+        # Lookahead stitching:
+        # 1. If current phrase is unmatched and next phrase within 1.5s completes a known term.
+        # 2. Or if current phrase is a shot and next phrase within 1.5s is a standalone quality/modifier tail (e.g. "okay", "four", "miss").
+        curr_shot_match = _match_shot_type(text_lower, lexicon)
+        already_matched = (
+            curr_shot_match is not None
+            or any(h in text_lower for h in ["round ", "end of round", "end of session", "tap tap tap"])
+            or any(b in text_lower for b in ["iron bat", "iron bus", "eye in", "thin bat", "light bat", "i invest", "i end that", "i am back", "boy in that", "giant", "nicolls", "nichs", "heavy bat", "turn out", "game bat", "game back", "game day bat", "normal bat", "standard bat", "getting back"])
+        )
         if idx + 1 < len(phrases):
             next_p = phrases[idx + 1]
             gap = next_p['start'] - p['end']
             if gap <= 1.5:
-                comb_text = raw_text + " " + next_p['text'].strip()
-                comb_lower = comb_text.lower()
-                matched_comb = False
-                if lexicon:
-                    for canonical_term, variants in lexicon.items():
-                        if any(v.lower() in comb_lower for v in variants):
-                            matched_comb = True
-                            break
-                if matched_comb or any(b in comb_lower for b in ["iron bat", "gray nicolls", "game bat", "getting back"]):
-                    raw_text = comb_text
-                    text_lower = comb_lower
-                    idx += 1  # Stitched next phrase!
+                next_text = next_p['text'].strip()
+                next_lower = next_text.lower()
+                if not already_matched:
+                    comb_text = raw_text + " " + next_text
+                    comb_lower = comb_text.lower()
+                    matched_comb = _match_shot_type(comb_lower, lexicon) is not None
+                    if matched_comb or any(b in comb_lower for b in ["iron bat", "gray nicolls", "game bat", "getting back"]):
+                        raw_text = comb_text
+                        text_lower = comb_lower
+                        idx += 1  # Stitched next phrase!
+                elif curr_shot_match not in (None, "Facing up") and _match_shot_type(next_lower, lexicon) is None:
+                    if any(q in next_lower for q in ["good", "okay", "ok", "poor", "bad", "miss", "missed", "edge", "edged", "excellent", "perfect", "nailed", "smoked", "decent", "average", "terrible", "pour", "four"]):
+                        raw_text = raw_text + " " + next_text
+                        text_lower = raw_text.lower()
+                        idx += 1
 
         mins = int(t_sec // 60)
         secs = t_sec % 60
@@ -246,36 +412,12 @@ def process_phrases_with_lexicon(phrases):
             continue
 
         # 3. Shot Type Mapping via Lexicon
-        shot_type = None
-        if lexicon:
-            for canonical_term, variants in lexicon.items():
-                if any(v.lower() in text_lower for v in variants):
-                    shot_type = canonical_term
-                    break
-
+        shot_type = _match_shot_type(text_lower, lexicon)
         if shot_type is None:
-            # Fallbacks for STT phonetic mishearings
-            if "power drive" in text_lower or any(w in text_lower for w in ["tower drive", "now drive", "we'll drive"]):
-                shot_type = "Power drive"
-            elif "cover drive" in text_lower or "cover" in text_lower:
-                shot_type = "Cover drive"
-            elif "straight drive" in text_lower or "straight" in text_lower:
-                shot_type = "Straight drive"
-            elif "off drive" in text_lower:
-                shot_type = "Off drive"
-            elif "on drive" in text_lower:
-                shot_type = "On drive"
-            elif "drive" in text_lower and not any(p in text_lower for p in ["cover", "off", "on", "power", "straight", "square", "back foot", "backfoot", "tower", "now", "we'll", "great", "forward"]):
-                shot_type = "Straight drive"
-            elif any(d in text_lower for d in ["defense", "defence", "defensive", "block", "forward edge"]):
-                shot_type = "Forward defense"
-            elif "the shot" in text_lower and any(q in text_lower for q in ["good", "okay", "ok", "poor", "bad", "miss", "edge", "edged", "excellent", "decent", "perfect", "smoked", "terrible", "pour"]):
-                shot_type = "Flick shot"
-            else:
-                if not detected_bat:
-                    unrecognized_phrases.append({'timestamp': t_sec, 'text': raw_text})
-                idx += 1
-                continue
+            if not detected_bat:
+                unrecognized_phrases.append({'timestamp': t_sec, 'text': raw_text})
+            idx += 1
+            continue
 
         # 4. Determine Shot Number
         is_swing = shot_type not in ["Facing up", "No shot", "Leave", "Evade"]

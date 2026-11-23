@@ -112,9 +112,9 @@ def normalise_shot_type(st):
     s = (st or '').lower()
     if 'power drive' in s or 'lofted drive' in s:
         return 'POWER DRIVE'
-    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'which shot' in s or 'slog' in s:
+    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'slog' in s:
         return 'PULL/HOOK/SLOG'
-    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s or 'foot shot' in s:
+    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s or 'foot shot' in s or 'slick shot' in s or 'fix shot' in s or 'which shot' in s:
         return 'GLANCE/FLICK'
     if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
         return 'DEFLECTION/GUIDE'
@@ -213,6 +213,84 @@ class StanceTracker:
                 if self.sustain_count >= self.sustain_ms:
                     self.state = "FACING_UP"
             return self.state, False
+
+
+# =============================================================================
+# Stage 1 High-Energy Bypass (100% Python <-> Kotlin Parity)
+# =============================================================================
+BYPASS_MIN_GYRO_RAD_S = 10.0
+BYPASS_MIN_ACC_SHOCKWAVE_MS2 = 50.0
+BYPASS_SHOCKWAVE_HALF_WINDOW_FRAMES = 63  # ±150ms at 423 Hz
+BYPASS_MIN_BACKSWING_RAD = 0.14
+BYPASS_EXCLUSION_FRAMES = 635             # 1.5s at 423 Hz
+
+
+def extract_high_energy_bypass_candidates(
+    w_gyr_mag,
+    w_acc_mag,
+    existing_anchor_frames,
+    min_gyro=BYPASS_MIN_GYRO_RAD_S,
+    min_acc_shockwave=BYPASS_MIN_ACC_SHOCKWAVE_MS2,
+    shockwave_half_window=BYPASS_SHOCKWAVE_HALF_WINDOW_FRAMES,
+    min_backswing_rad=BYPASS_MIN_BACKSWING_RAD,
+    exclusion_frames=BYPASS_EXCLUSION_FRAMES,
+):
+    """
+    Deterministic, SciPy-free High-Energy Stage 1 Bypass (mirrors TcnModelRunner.extractHighEnergyBypassPeaks).
+    Recovers rapid-cadence or unsettled-stance swings that missed Stage 1's 1.0s stillness gate
+    whenever wrist angular velocity >= 10.0 rad/s and ±150ms impact shockwave >= 50.0 m/s^2.
+    """
+    n = len(w_gyr_mag)
+    if n < 3:
+        return []
+
+    # 1. Plateau-aware strict local maxima above min_gyro (handles 100Hz -> 423Hz forward-fill plateaus)
+    raw_peaks = []
+    i = 1
+    while i < n - 1:
+        v = float(w_gyr_mag[i])
+        if v >= min_gyro and v > float(w_gyr_mag[i - 1]):
+            j = i
+            while j + 1 < n and float(w_gyr_mag[j + 1]) == v:
+                j += 1
+            if j + 1 < n and float(w_gyr_mag[j + 1]) < v:
+                mid = (i + j) // 2
+                raw_peaks.append((v, mid))
+            i = j + 1
+        else:
+            i += 1
+
+    # 2. Greedy descending-height suppression with exclusion_frames spacing
+    raw_peaks.sort(key=lambda item: (-item[0], item[1]))
+    selected_peaks = []
+    for _, idx in raw_peaks:
+        if all(abs(idx - prev_idx) >= exclusion_frames for prev_idx in selected_peaks):
+            selected_peaks.append(idx)
+    selected_peaks.sort()
+
+    # 3. Filter against existing Stage 1 anchors, ±150ms shockwave floor, and 300ms backswing displacement
+    existing_list = list(existing_anchor_frames)
+    bypass = []
+    for pf in selected_peaks:
+        if any(abs(pf - ef) < exclusion_frames for ef in existing_list):
+            continue
+        acc_lo = max(0, pf - shockwave_half_window)
+        acc_hi = min(n, pf + shockwave_half_window + 1)
+        peak_acc_150 = float(np.max(w_acc_mag[acc_lo:acc_hi]))
+        if peak_acc_150 < min_acc_shockwave:
+            continue
+        f_pre_300ms = max(0, pf - 127)
+        delta_theta = float(np.sum(w_gyr_mag[f_pre_300ms : pf + 1]) * (1.0 / 423.0))
+        if delta_theta < min_backswing_rad:
+            continue
+        bypass.append({
+            "anchor_f": pf,
+            "peak_gyr": float(w_gyr_mag[pf]),
+            "peak_acc": float(w_acc_mag[pf]),
+            "peak_acc_150": peak_acc_150,
+            "delta_theta_backswing": delta_theta,
+        })
+    return bypass
 
 
 # =============================================================================
@@ -726,8 +804,27 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
                 "t_exit": t_exit,
                 "delta_theta_backswing": delta_theta_backswing
             })
-            
-    # 1.8s NMS Refractory Period: Suppress duplicate candidate window triggers within 1.8s
+
+    # 3b. High-Energy Stage 1 Bypass: recover rapid-cadence / unsettled-stance swings (w >= 10 rad/s, ±150ms acc >= 50 m/s^2)
+    bypass_peaks = extract_high_energy_bypass_candidates(
+        w_gyr_mag=w_gyr_mag,
+        w_acc_mag=w_acc_mag,
+        existing_anchor_frames=[c["anchor_f"] for c in candidate_windows],
+    )
+    for bp in bypass_peaks:
+        pf = bp["anchor_f"]
+        candidate_windows.append({
+            "tier": "TIER_1_HIGH",
+            "anchor_t": float(t_grid[pf]),
+            "anchor_f": pf,
+            "peak_acc": bp["peak_acc"],
+            "peak_gyr": bp["peak_gyr"],
+            "t_exit": float(t_grid[pf]),
+            "delta_theta_backswing": bp["delta_theta_backswing"],
+            "is_stage1_bypass": True,
+        })
+
+    # Chronological order before Stage 2 / Stage 3 / Class-Aware NMS
     candidate_windows.sort(key=lambda c: c["anchor_t"])
     dedup_candidates = []
     for c in candidate_windows:

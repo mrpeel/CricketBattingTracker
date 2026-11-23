@@ -133,8 +133,111 @@ class TcnModelRunner(
         val peakAcc: Float,
         val peakGyro: Float,
         val exitFrame: Int,
+        val deltaThetaBackswing: Float,
+        val isStage1Bypass: Boolean = false
+    )
+
+    data class BypassPeak(
+        val anchorFrame: Int,
+        val peakGyro: Float,
+        val peakAcc: Float,
+        val peakAcc150: Float,
         val deltaThetaBackswing: Float
     )
+
+    companion object {
+        // High-Energy Stage 1 Bypass constants (100% parity with pipelines/telemetry_engine.py)
+        const val BYPASS_MIN_GYRO_RAD_S = 10.0f
+        const val BYPASS_MIN_ACC_SHOCKWAVE_MS2 = 50.0f
+        const val BYPASS_SHOCKWAVE_HALF_WINDOW_FRAMES = 63 // ±150ms at 423 Hz
+        const val BYPASS_MIN_BACKSWING_RAD = 0.14f
+        const val BYPASS_EXCLUSION_FRAMES = 635            // 1.5s at 423 Hz
+
+        /**
+         * Deterministic, SciPy-free High-Energy Stage 1 Bypass (mirrors telemetry_engine.extract_high_energy_bypass_candidates).
+         * Recovers rapid-cadence or unsettled-stance swings that missed Stage 1's 1.0s stillness gate
+         * whenever wrist angular velocity >= 10.0 rad/s and ±150ms impact shockwave >= 50.0 m/s^2.
+         */
+        fun extractHighEnergyBypassPeaks(
+            wGyroMag: FloatArray,
+            wAccMag: FloatArray,
+            existingAnchorFrames: List<Int>,
+            minGyro: Float = BYPASS_MIN_GYRO_RAD_S,
+            minAccShockwave: Float = BYPASS_MIN_ACC_SHOCKWAVE_MS2,
+            shockwaveHalfWindow: Int = BYPASS_SHOCKWAVE_HALF_WINDOW_FRAMES,
+            minBackswingRad: Float = BYPASS_MIN_BACKSWING_RAD,
+            exclusionFrames: Int = BYPASS_EXCLUSION_FRAMES
+        ): List<BypassPeak> {
+            val n = min(wGyroMag.size, wAccMag.size)
+            if (n < 3) return emptyList()
+
+            // 1. Plateau-aware strict local maxima above minGyro (handles 100Hz -> 423Hz forward-fill plateaus)
+            val rawPeaks = mutableListOf<Pair<Float, Int>>()
+            var i = 1
+            while (i < n - 1) {
+                val v = wGyroMag[i]
+                if (v >= minGyro && v > wGyroMag[i - 1]) {
+                    var j = i
+                    while (j + 1 < n && wGyroMag[j + 1] == v) {
+                        j++
+                    }
+                    if (j + 1 < n && wGyroMag[j + 1] < v) {
+                        val mid = (i + j) / 2
+                        rawPeaks.add(v to mid)
+                    }
+                    i = j + 1
+                } else {
+                    i++
+                }
+            }
+
+            // 2. Greedy descending-height suppression with exclusionFrames spacing
+            rawPeaks.sortWith(compareByDescending<Pair<Float, Int>> { it.first }.thenBy { it.second })
+            val selectedPeaks = mutableListOf<Int>()
+            for ((_, idx) in rawPeaks) {
+                if (selectedPeaks.all { prevIdx -> abs(idx - prevIdx) >= exclusionFrames }) {
+                    selectedPeaks.add(idx)
+                }
+            }
+            selectedPeaks.sort()
+
+            // 3. Filter against existing Stage 1 anchors, ±150ms shockwave floor, and 300ms backswing displacement
+            val bypass = mutableListOf<BypassPeak>()
+            for (pf in selectedPeaks) {
+                if (existingAnchorFrames.any { ef -> abs(pf - ef) < exclusionFrames }) {
+                    continue
+                }
+                val accLo = max(0, pf - shockwaveHalfWindow)
+                val accHi = min(n - 1, pf + shockwaveHalfWindow)
+                var peakAcc150 = 0f
+                for (k in accLo..accHi) {
+                    if (wAccMag[k] > peakAcc150) peakAcc150 = wAccMag[k]
+                }
+                if (peakAcc150 < minAccShockwave) {
+                    continue
+                }
+                val fPre300ms = max(0, pf - 127)
+                var sumGyro = 0f
+                for (k in fPre300ms..pf) {
+                    sumGyro += wGyroMag[k]
+                }
+                val deltaTheta = sumGyro * (1.0f / 423.0f)
+                if (deltaTheta < minBackswingRad) {
+                    continue
+                }
+                bypass.add(
+                    BypassPeak(
+                        anchorFrame = pf,
+                        peakGyro = wGyroMag[pf],
+                        peakAcc = wAccMag[pf],
+                        peakAcc150 = peakAcc150,
+                        deltaThetaBackswing = deltaTheta
+                    )
+                )
+            }
+            return bypass
+        }
+    }
 
     /**
      * Stance State Machine Tracker with configurable sustain guard.
@@ -402,6 +505,30 @@ class TcnModelRunner(
                 )
             }
         }
+
+        // 3b. High-Energy Stage 1 Bypass: recover rapid-cadence / unsettled-stance swings
+        val bypassPeaks = extractHighEnergyBypassPeaks(
+            wGyroMag = wGyroMag,
+            wAccMag = wAccMag,
+            existingAnchorFrames = candidateWindows.map { it.anchorFrame }
+        )
+        for (bp in bypassPeaks) {
+            val pf = bp.anchorFrame
+            val tMs = timestampsMs.getOrElse(pf) { 0L }
+            candidateWindows.add(
+                CandidateAnchor(
+                    tier = "TIER_1_HIGH",
+                    anchorFrame = pf,
+                    anchorTimestampMs = tMs,
+                    peakAcc = bp.peakAcc,
+                    peakGyro = bp.peakGyro,
+                    exitFrame = pf,
+                    deltaThetaBackswing = bp.deltaThetaBackswing,
+                    isStage1Bypass = true
+                )
+            )
+        }
+        candidateWindows.sortBy { it.anchorFrame }
 
         if (candidateWindows.isEmpty()) {
             return emptyList()
