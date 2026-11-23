@@ -514,8 +514,79 @@ def pull_audio_from_phone(phone_id, dest_dir):
 
     return local_path
 
-def pull_polar_from_phone(phone_id, session_dir):
-    """Pull the most recent Polar Sense session from the phone and save to PolarSense/ subdirectory."""
+def resolve_watch_session_start_ms(session_dir):
+    """Resolve the watch session start wall-clock timestamp (ms) from latest_timeline.txt or folder name.
+
+    Intentionally excludes session_config.json so it can be used to validate whether a Polar
+    session or session_config.json actually belongs to this watch recording.
+    """
+    timeline_path = os.path.join(session_dir, "latest_timeline.txt")
+    if os.path.exists(timeline_path):
+        try:
+            with open(timeline_path, "r") as tf:
+                for line in tf:
+                    if line.startswith("SYSTEM_START:"):
+                        m_ts = re.search(r"Ts=(\d+)", line)
+                        if m_ts:
+                            return int(m_ts.group(1))
+        except Exception:
+            pass
+
+    folder_name = os.path.basename(os.path.normpath(session_dir))
+    m_fn = re.match(r"session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", folder_name)
+    if m_fn:
+        parts = [int(x) for x in m_fn.groups()]
+        dt_fn = datetime.datetime(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
+        return int(dt_fn.timestamp() * 1000)
+
+    return None
+
+
+def parse_polar_session_timestamp_ms(polar_name):
+    """Parse wall-clock start timestamp (ms) from a polar_session_YYYY-MM-DD_HH-mm-ss(.zip) name."""
+    clean = polar_name[:-4] if polar_name.endswith(".zip") else polar_name
+    m = re.match(r"polar_session[-_](\d{4})-(\d{2})-(\d{2})_(\d{2})[-_](\d{2})[-_](\d{2})", clean)
+    if not m:
+        return None
+    parts = [int(x) for x in m.groups()]
+    dt_p = datetime.datetime(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
+    return int(dt_p.timestamp() * 1000)
+
+
+def select_matching_polar_session(sessions, watch_start_ms, max_skew_seconds=900):
+    """Select the Polar session closest in time to watch_start_ms within max_skew_seconds.
+
+    Returns (matched_name, delta_seconds, closest_name) where matched_name is None if no Polar
+    session falls within the allowed proximity window.
+    """
+    if not sessions:
+        return None, None, None
+
+    if watch_start_ms is None:
+        return sorted(sessions)[-1], None, sorted(sessions)[-1]
+
+    best_name = None
+    best_delta_s = None
+    for s in sessions:
+        p_ms = parse_polar_session_timestamp_ms(s)
+        if p_ms is None:
+            continue
+        delta_s = abs(p_ms - watch_start_ms) / 1000.0
+        if best_delta_s is None or delta_s < best_delta_s:
+            best_delta_s = delta_s
+            best_name = s
+
+    if best_name is None:
+        return None, None, None
+
+    if best_delta_s <= max_skew_seconds:
+        return best_name, best_delta_s, best_name
+
+    return None, best_delta_s, best_name
+
+
+def pull_polar_from_phone(phone_id, session_dir, max_skew_seconds=900):
+    """Pull the matching Polar Sense session from the phone if its timestamp matches the watch session."""
     print(f"Searching connected phone ({phone_id}) for Polar Sense session data...")
     polar_base = "/sdcard/Android/data/com.mrpeel.cricketbattingtracker/files/polar_sessions"
     cmd = ["adb", "-s", phone_id, "shell", "ls", polar_base]
@@ -529,7 +600,24 @@ def pull_polar_from_phone(phone_id, session_dir):
         print("⚠️ No polar_session_* directories found on the phone.")
         return False
 
-    latest_session = sorted(sessions)[-1]
+    watch_start_ms = resolve_watch_session_start_ms(session_dir)
+    latest_session, delta_s, closest_session = select_matching_polar_session(
+        sessions, watch_start_ms, max_skew_seconds=max_skew_seconds
+    )
+    if latest_session is None:
+        if closest_session is not None and delta_s is not None:
+            print(
+                f"⚠️ Skipping stale Polar Sense session '{closest_session}' "
+                f"({delta_s / 60.0:.1f} min away from watch session start; max allowed ±{max_skew_seconds // 60} min). "
+                "Treating as watch-only session."
+            )
+        else:
+            print("⚠️ Found polar_session_* entries on phone, but none had a parseable timestamp matching this session.")
+        return False
+
+    if delta_s is not None:
+        print(f"🎯 Matched Polar Sense session '{latest_session}' (Δt = {delta_s:.1f}s from watch start).")
+
     polar_phone_path = f"{polar_base}/{latest_session}"
     local_polar_dir = os.path.join(session_dir, "PolarSense")
     os.makedirs(local_polar_dir, exist_ok=True)
@@ -572,10 +660,28 @@ def pull_polar_from_phone(phone_id, session_dir):
         print("⚠️ Polar Sense directory pulled but contains no files.")
         return False
 
+    # Post-pull timestamp verification against PolarSense/session_config.json
+    polar_cfg = os.path.join(local_polar_dir, "session_config.json")
+    if watch_start_ms is not None and os.path.exists(polar_cfg):
+        try:
+            with open(polar_cfg, "r") as cf:
+                p_cfg_data = json.load(cf)
+            p_start_ms = p_cfg_data.get("start_time_ms")
+            if p_start_ms is not None:
+                cfg_delta_s = abs(int(p_start_ms) - watch_start_ms) / 1000.0
+                if cfg_delta_s > max_skew_seconds:
+                    print(
+                        f"⚠️ Pulled PolarSense/session_config.json start_time_ms is {cfg_delta_s / 60.0:.1f} min "
+                        f"from watch start (max ±{max_skew_seconds // 60} min). Removing mismatched PolarSense data."
+                    )
+                    shutil.rmtree(local_polar_dir, ignore_errors=True)
+                    return False
+        except Exception as e:
+            print(f"⚠️ Could not verify PolarSense/session_config.json timestamp: {e}")
+
     print(f"✅ Pulled {len(pulled_files)} Polar Sense files from {latest_session}.")
 
     # If session_config.json was pulled into PolarSense, also ensure a copy in session_dir
-    polar_cfg = os.path.join(local_polar_dir, "session_config.json")
     root_cfg = os.path.join(session_dir, "session_config.json")
     if os.path.exists(polar_cfg) and not os.path.exists(root_cfg):
         import shutil
@@ -2738,10 +2844,27 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
     initial_bat_id = 1 if polar_mount_mode == "BAT_HANDLE" else 0
     bat_switches = []
     bat_profiles = {}
+    cfg = {}
+    cfg_valid = False
     if os.path.exists(config_path):
         try:
             with open(config_path, "r") as f:
-                cfg = json.load(f)
+                loaded_cfg = json.load(f)
+            watch_start_ms_check = resolve_watch_session_start_ms(session_dir)
+            cfg_start_ms_check = loaded_cfg.get("start_time_ms")
+            if (
+                watch_start_ms_check is not None
+                and cfg_start_ms_check is not None
+                and abs(int(cfg_start_ms_check) - watch_start_ms_check) > 3600 * 1000
+            ):
+                skew_min = abs(int(cfg_start_ms_check) - watch_start_ms_check) / 60000.0
+                print(
+                    f"⚠️ Ignoring stale session_config.json at {config_path} "
+                    f"(start_time_ms is {skew_min:.1f} min away from watch session start)."
+                )
+            else:
+                cfg = loaded_cfg
+                cfg_valid = True
                 polar_mount_mode = cfg.get("polar_mount_mode", polar_mount_mode)
                 initial_bat_id = int(cfg.get("initial_bat_id", 1 if polar_mount_mode == "BAT_HANDLE" else 0))
                 bat_switches = cfg.get("bat_switches", [])
@@ -2767,11 +2890,11 @@ def add_polar_features_to_aligned_shots(session_dir, offset=None, watch_start_ep
             return ("Eye in bat", 1200.0, 31.0, 55.0)
         return (None, None, None, None)
 
-    polar_detachment_s = cfg.get("polar_detachment_time_s") if os.path.exists(config_path) else None
+    polar_detachment_s = cfg.get("polar_detachment_time_s") if cfg_valid else None
 
     # Resolve authoritative session start wall clock ms for switch timing
     session_start_ms = None
-    if os.path.exists(config_path):
+    if cfg_valid:
         session_start_ms = cfg.get("start_time_ms")
     if not session_start_ms:
         timeline_path = os.path.join(session_dir, "latest_timeline.txt")
