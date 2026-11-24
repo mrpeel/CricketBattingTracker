@@ -83,6 +83,27 @@ class TestDeepgramPhraseSplitting(unittest.TestCase):
         self.assertEqual(real_shots[1]["shot_type"], "Back foot defense")
         self.assertAlmostEqual(real_shots[1]["timestamp_seconds"], 857.10, places=2)
 
+    def test_lexicon_excludes_alright_and_maps_slip_shot_to_sweep(self):
+        words = _mk_words([
+            ("alright", 10.0), ("let's", 10.4), ("get", 10.8), ("going", 11.2),
+            ("slip", 20.0), ("shot", 20.4), ("okay", 20.8),
+        ])
+        phrases = tdg.group_words_into_phrases(words, max_silence_gap=0.80)
+        shots, _, _, _, _ = tdg.process_phrases_with_lexicon(phrases)
+        self.assertEqual(len(shots), 1)
+        self.assertEqual(shots[0]["shot_type"], "Sweep shot")
+
+    def test_normalise_shot_type_back_foot_punch_is_cut_punch(self):
+        sys.path.insert(0, os.path.join(ROOT_DIR, "pipelines"))
+        from telemetry_engine import normalise_shot_type as te_norm
+        from build_unified_dataset import normalise_shot_type as bud_norm
+
+        for fn in (te_norm, bud_norm):
+            self.assertEqual(fn("Back foot punch"), "CUT/PUNCH")
+            self.assertEqual(fn("Back foot defense"), "DRIVE/DEFENCE")
+            self.assertEqual(fn("Back foot drive"), "DRIVE/DEFENCE")
+            self.assertEqual(fn("Square upper cut"), "DEFLECTION/GUIDE")
+
 
 if __name__ == "__main__":
     unittest.main()

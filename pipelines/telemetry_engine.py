@@ -118,10 +118,10 @@ def normalise_shot_type(st):
         return 'GLANCE/FLICK'
     if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
         return 'DEFLECTION/GUIDE'
-    if 'cover drive' in s or 'straight drive' in s or 'on drive' in s or 'off drive' in s or 'drive' in s or 'back foot' in s or 'forward defense' in s or 'back defense' in s or 'defence' in s or 'defense' in s:
-        return 'DRIVE/DEFENCE'
     if 'cut' in s or 'punch' in s:
         return 'CUT/PUNCH'
+    if 'cover drive' in s or 'straight drive' in s or 'on drive' in s or 'off drive' in s or 'drive' in s or 'back foot' in s or 'forward defense' in s or 'back defense' in s or 'defence' in s or 'defense' in s:
+        return 'DRIVE/DEFENCE'
     if 'sweep' in s:
         return 'SWEEP'
     return None

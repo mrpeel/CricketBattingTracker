@@ -1,8 +1,8 @@
 ====================================================================================================
   PITCH ANALYTIX PRO — PERSISTENT RUN LOG
-  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-11-05_13-25-46.log
-  Start Time       : 2026-11-05 13:25:46
-  Command Line     : pipelines/train_and_evaluate_full_scorecard.py
+  Session Log File : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-11-24_12-56-47.log
+  Start Time       : 2026-11-24 12:56:47
+  Command Line     : pipelines/train_and_evaluate_full_scorecard.py --force-extract
   Python Version   : 3.14.5 (/opt/homebrew/opt/python@3.14/bin/python3.14)
 ====================================================================================================
 
@@ -13,17 +13,49 @@
   Random Seed: 42 (deterministic)
 ====================================================================================================
 
-📦 Dataset Auto-Sync: Discovered 100 usable sessions in live_watch_sessions/
-  ⚡ Auto-compiling unified dataset for session_2026-11-05_12-59-39...
-✅ Auto-Sync Completed: Compiled 1 new/updated unified parquet sessions.
+📦 Dataset Auto-Sync: Discovered 111 usable sessions in live_watch_sessions/
+  ⚡ Auto-compiling unified dataset for session_2026-05-30_15-04-41...
+  ⚡ Auto-compiling unified dataset for session_2026-05-31_14-12-10...
+  ⚡ Auto-compiling unified dataset for session_2026-06-01_12-23-38...
+  ⚡ Auto-compiling unified dataset for session_2026-06-07_14-34-24...
+  ⚡ Auto-compiling unified dataset for session_2026-06-08_12-22-26...
+  ⚡ Auto-compiling unified dataset for session_2026-06-09_12-16-49...
+  ⚡ Auto-compiling unified dataset for session_2026-06-13_10-59-04...
+  ⚡ Auto-compiling unified dataset for session_2026-06-14_13-16-12...
+  ⚡ Auto-compiling unified dataset for session_2026-06-15_12-21-37...
+  ⚡ Auto-compiling unified dataset for session_2026-06-16_15-39-33...
+  ⚡ Auto-compiling unified dataset for session_2026-06-19_12-25-55...
+  ⚡ Auto-compiling unified dataset for session_2026-06-21_13-53-17...
+  ⚡ Auto-compiling unified dataset for session_2026-06-22_12-27-26...
+  ⚡ Auto-compiling unified dataset for session_2026-06-23_12-24-48...
+  ⚡ Auto-compiling unified dataset for session_2026-06-25_12-25-07...
+  ⚡ Auto-compiling unified dataset for session_2026-06-26_12-22-13...
+  ⚡ Auto-compiling unified dataset for session_2026-06-27_14-12-40...
+  ⚡ Auto-compiling unified dataset for session_2026-06-28_11-28-09...
+  ⚡ Auto-compiling unified dataset for session_2026-07-02_12-38-53...
+  ⚡ Auto-compiling unified dataset for session_2026-07-04_12-19-20...
+  ⚡ Auto-compiling unified dataset for session_2026-07-05_16-27-16...
+  ⚡ Auto-compiling unified dataset for session_2026-07-06_12-25-05...
+  ⚡ Auto-compiling unified dataset for session_2026-07-07_15-10-50...
+  ⚡ Auto-compiling unified dataset for session_2026-07-11_12-51-39...
+  ⚡ Auto-compiling unified dataset for session_2026-07-12_11-23-59...
+  ⚡ Auto-compiling unified dataset for session_2026-07-13_12-17-57...
+  ⚡ Auto-compiling unified dataset for session_2026-07-17_12-30-41...
+  ⚡ Auto-compiling unified dataset for session_2026-07-18_13-44-09...
+  ⚡ Auto-compiling unified dataset for session_2026-07-21_12-43-37...
+  ⚡ Auto-compiling unified dataset for session_2026-09-05_16-26-41...
+  ⚡ Auto-compiling unified dataset for session_2026-09-06_12-14-46...
+  ⚡ Auto-compiling unified dataset for session_2026-09-11_12-44-50...
+  ⚡ Auto-compiling unified dataset for session_2026-11-16_12-45-46...
+✅ Auto-Sync Completed: Compiled 33 new/updated unified parquet sessions.
 
-Loading dataset splits: Train=71, Val=9, Test=12, Quarantined=8 (Total: 100)...
+Loading dataset splits: Train=79, Val=9, Test=12, Quarantined=11 (Total: 111)...
 ✅ Saved feature normalization stats -> /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_norm_stats.json
 ✅ Copied feature normalization stats -> /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/tcn_norm_stats.json
-⚡ Extracting candidate windows with hard-negative mining across 71 train and 9 val sessions...
-✅ Extracted & cached 4959 training and 592 validation candidate windows.
+⚡ Extracting candidate windows with hard-negative mining across 79 train and 9 val sessions...
+✅ Extracted & cached 5661 training and 630 validation candidate windows.
 
-✅ Prepared TensorDatasets: Train=4959 windows, Val=592 windows.
+✅ Prepared TensorDatasets: Train=5661 windows, Val=630 windows.
 
 ===============================================================================================
 🚀 UNIFIED PHASE 2 REJECTOR TRAINING (EPOCHS 1 TO 24)
@@ -33,40 +65,40 @@ Loading dataset splits: Train=71, Val=9, Test=12, Quarantined=8 (Total: 100)...
    Loss: Rejector CE + 0.6*Family/Sub CE + 1.0*Joint 9-Class NLL + Cross-Family PD Suppression
    Early Stopping: Patience = 16, Min Delta = 0.001 (monitoring Validation Macro-F1)
 ===============================================================================================
-Epoch  1/24 (LR: 0.000030/0.000100) - Train Loss: 4.1827 | Val Loss: 2.9639 | Val All-Acc: 55.91% | Val Shot-Acc: 51.75% | Val Macro-F1: 0.5021 ⭐ Best Checkpoint
-Epoch  2/24 (LR: 0.000060/0.000200) - Train Loss: 2.6533 | Val Loss: 2.1365 | Val All-Acc: 75.17% | Val Shot-Acc: 80.00% | Val Macro-F1: 0.7574 ⭐ Best Checkpoint
-Epoch  3/24 (LR: 0.000090/0.000300) - Train Loss: 2.0889 | Val Loss: 1.9565 | Val All-Acc: 73.48% | Val Shot-Acc: 79.38% | Val Macro-F1: 0.7345
-Epoch  4/24 (LR: 0.000120/0.000400) - Train Loss: 1.8716 | Val Loss: 1.7132 | Val All-Acc: 75.51% | Val Shot-Acc: 82.27% | Val Macro-F1: 0.7576 ⭐ Best Checkpoint
-Epoch  5/24 (LR: 0.000119/0.000398) - Train Loss: 1.7203 | Val Loss: 1.6355 | Val All-Acc: 77.03% | Val Shot-Acc: 84.12% | Val Macro-F1: 0.7660 ⭐ Best Checkpoint
-Epoch  6/24 (LR: 0.000117/0.000390) - Train Loss: 1.6169 | Val Loss: 1.5478 | Val All-Acc: 78.04% | Val Shot-Acc: 85.77% | Val Macro-F1: 0.7824 ⭐ Best Checkpoint
-Epoch  7/24 (LR: 0.000114/0.000378) - Train Loss: 1.5780 | Val Loss: 1.5329 | Val All-Acc: 79.39% | Val Shot-Acc: 86.39% | Val Macro-F1: 0.7983 ⭐ Best Checkpoint
-Epoch  8/24 (LR: 0.000109/0.000362) - Train Loss: 1.4927 | Val Loss: 1.7924 | Val All-Acc: 75.51% | Val Shot-Acc: 82.89% | Val Macro-F1: 0.7529
-Epoch  9/24 (LR: 0.000103/0.000342) - Train Loss: 1.4585 | Val Loss: 1.5970 | Val All-Acc: 78.04% | Val Shot-Acc: 84.54% | Val Macro-F1: 0.7846
-Epoch 10/24 (LR: 0.000095/0.000318) - Train Loss: 1.4248 | Val Loss: 1.5308 | Val All-Acc: 78.21% | Val Shot-Acc: 84.74% | Val Macro-F1: 0.7863
-Epoch 11/24 (LR: 0.000088/0.000291) - Train Loss: 1.3493 | Val Loss: 1.5858 | Val All-Acc: 79.05% | Val Shot-Acc: 84.95% | Val Macro-F1: 0.7876
-Epoch 12/24 (LR: 0.000079/0.000262) - Train Loss: 1.3277 | Val Loss: 1.5588 | Val All-Acc: 78.72% | Val Shot-Acc: 85.57% | Val Macro-F1: 0.7870
-Epoch 13/24 (LR: 0.000070/0.000232) - Train Loss: 1.2680 | Val Loss: 1.5853 | Val All-Acc: 78.89% | Val Shot-Acc: 83.92% | Val Macro-F1: 0.7926
-Epoch 14/24 (LR: 0.000061/0.000201) - Train Loss: 1.2175 | Val Loss: 1.5485 | Val All-Acc: 79.73% | Val Shot-Acc: 86.39% | Val Macro-F1: 0.7944
-Epoch 15/24 (LR: 0.000051/0.000169) - Train Loss: 1.1828 | Val Loss: 1.5249 | Val All-Acc: 80.07% | Val Shot-Acc: 85.98% | Val Macro-F1: 0.7989 ⭐ Best Checkpoint
-Epoch 16/24 (LR: 0.000042/0.000139) - Train Loss: 1.1353 | Val Loss: 1.5339 | Val All-Acc: 80.91% | Val Shot-Acc: 85.57% | Val Macro-F1: 0.8091 ⭐ Best Checkpoint
-Epoch 17/24 (LR: 0.000033/0.000110) - Train Loss: 1.0969 | Val Loss: 1.5751 | Val All-Acc: 79.22% | Val Shot-Acc: 84.95% | Val Macro-F1: 0.7922
-Epoch 18/24 (LR: 0.000026/0.000083) - Train Loss: 1.0824 | Val Loss: 1.5340 | Val All-Acc: 78.55% | Val Shot-Acc: 82.89% | Val Macro-F1: 0.7887
-Epoch 19/24 (LR: 0.000018/0.000059) - Train Loss: 1.0305 | Val Loss: 1.5728 | Val All-Acc: 79.39% | Val Shot-Acc: 84.74% | Val Macro-F1: 0.7925
-Epoch 20/24 (LR: 0.000012/0.000039) - Train Loss: 1.0127 | Val Loss: 1.5523 | Val All-Acc: 80.07% | Val Shot-Acc: 84.12% | Val Macro-F1: 0.8008
-Epoch 21/24 (LR: 0.000007/0.000023) - Train Loss: 0.9894 | Val Loss: 1.5573 | Val All-Acc: 79.05% | Val Shot-Acc: 84.33% | Val Macro-F1: 0.7905
-Epoch 22/24 (LR: 0.000004/0.000011) - Train Loss: 0.9785 | Val Loss: 1.5782 | Val All-Acc: 78.55% | Val Shot-Acc: 83.92% | Val Macro-F1: 0.7844
-Epoch 23/24 (LR: 0.000002/0.000003) - Train Loss: 0.9712 | Val Loss: 1.5653 | Val All-Acc: 79.39% | Val Shot-Acc: 83.71% | Val Macro-F1: 0.7928
-Epoch 24/24 (LR: 0.000001/0.000001) - Train Loss: 0.9703 | Val Loss: 1.5562 | Val All-Acc: 79.05% | Val Shot-Acc: 84.54% | Val Macro-F1: 0.7903
+Epoch  1/24 (LR: 0.000030/0.000100) - Train Loss: 3.6553 | Val Loss: 2.5785 | Val All-Acc: 72.70% | Val Shot-Acc: 72.39% | Val Macro-F1: 0.7009 ⭐ Best Checkpoint
+Epoch  2/24 (LR: 0.000060/0.000200) - Train Loss: 2.0761 | Val Loss: 1.7846 | Val All-Acc: 81.90% | Val Shot-Acc: 84.46% | Val Macro-F1: 0.8235 ⭐ Best Checkpoint
+Epoch  3/24 (LR: 0.000090/0.000300) - Train Loss: 1.6140 | Val Loss: 1.4676 | Val All-Acc: 83.65% | Val Shot-Acc: 86.65% | Val Macro-F1: 0.8375 ⭐ Best Checkpoint
+Epoch  4/24 (LR: 0.000120/0.000400) - Train Loss: 1.4299 | Val Loss: 1.4533 | Val All-Acc: 80.16% | Val Shot-Acc: 83.00% | Val Macro-F1: 0.8050
+Epoch  5/24 (LR: 0.000119/0.000398) - Train Loss: 1.3366 | Val Loss: 1.2708 | Val All-Acc: 86.03% | Val Shot-Acc: 89.76% | Val Macro-F1: 0.8626 ⭐ Best Checkpoint
+Epoch  6/24 (LR: 0.000117/0.000390) - Train Loss: 1.2539 | Val Loss: 1.3258 | Val All-Acc: 84.60% | Val Shot-Acc: 87.39% | Val Macro-F1: 0.8472
+Epoch  7/24 (LR: 0.000114/0.000378) - Train Loss: 1.1920 | Val Loss: 1.2577 | Val All-Acc: 85.40% | Val Shot-Acc: 88.85% | Val Macro-F1: 0.8549
+Epoch  8/24 (LR: 0.000109/0.000362) - Train Loss: 1.1374 | Val Loss: 1.2549 | Val All-Acc: 85.71% | Val Shot-Acc: 89.40% | Val Macro-F1: 0.8569
+Epoch  9/24 (LR: 0.000103/0.000342) - Train Loss: 1.1249 | Val Loss: 1.3279 | Val All-Acc: 83.49% | Val Shot-Acc: 86.47% | Val Macro-F1: 0.8416
+Epoch 10/24 (LR: 0.000095/0.000318) - Train Loss: 1.0637 | Val Loss: 1.1989 | Val All-Acc: 87.94% | Val Shot-Acc: 91.22% | Val Macro-F1: 0.8786 ⭐ Best Checkpoint
+Epoch 11/24 (LR: 0.000088/0.000291) - Train Loss: 1.0598 | Val Loss: 1.1833 | Val All-Acc: 86.19% | Val Shot-Acc: 89.40% | Val Macro-F1: 0.8645
+Epoch 12/24 (LR: 0.000079/0.000262) - Train Loss: 1.0187 | Val Loss: 1.1805 | Val All-Acc: 86.83% | Val Shot-Acc: 90.49% | Val Macro-F1: 0.8652
+Epoch 13/24 (LR: 0.000070/0.000232) - Train Loss: 0.9917 | Val Loss: 1.2095 | Val All-Acc: 85.71% | Val Shot-Acc: 88.30% | Val Macro-F1: 0.8559
+Epoch 14/24 (LR: 0.000061/0.000201) - Train Loss: 0.9646 | Val Loss: 1.2267 | Val All-Acc: 85.87% | Val Shot-Acc: 89.76% | Val Macro-F1: 0.8609
+Epoch 15/24 (LR: 0.000051/0.000169) - Train Loss: 0.9168 | Val Loss: 1.1786 | Val All-Acc: 86.83% | Val Shot-Acc: 90.13% | Val Macro-F1: 0.8702
+Epoch 16/24 (LR: 0.000042/0.000139) - Train Loss: 0.8891 | Val Loss: 1.2067 | Val All-Acc: 86.03% | Val Shot-Acc: 88.67% | Val Macro-F1: 0.8591
+Epoch 17/24 (LR: 0.000033/0.000110) - Train Loss: 0.8578 | Val Loss: 1.1903 | Val All-Acc: 86.83% | Val Shot-Acc: 89.76% | Val Macro-F1: 0.8723
+Epoch 18/24 (LR: 0.000026/0.000083) - Train Loss: 0.8400 | Val Loss: 1.1807 | Val All-Acc: 87.46% | Val Shot-Acc: 90.49% | Val Macro-F1: 0.8760
+Epoch 19/24 (LR: 0.000018/0.000059) - Train Loss: 0.8223 | Val Loss: 1.2003 | Val All-Acc: 86.83% | Val Shot-Acc: 89.76% | Val Macro-F1: 0.8698
+Epoch 20/24 (LR: 0.000012/0.000039) - Train Loss: 0.8156 | Val Loss: 1.2326 | Val All-Acc: 86.98% | Val Shot-Acc: 89.76% | Val Macro-F1: 0.8727
+Epoch 21/24 (LR: 0.000007/0.000023) - Train Loss: 0.7874 | Val Loss: 1.2351 | Val All-Acc: 86.67% | Val Shot-Acc: 89.03% | Val Macro-F1: 0.8707
+Epoch 22/24 (LR: 0.000004/0.000011) - Train Loss: 0.7798 | Val Loss: 1.1992 | Val All-Acc: 87.14% | Val Shot-Acc: 89.40% | Val Macro-F1: 0.8753
+Epoch 23/24 (LR: 0.000002/0.000003) - Train Loss: 0.7778 | Val Loss: 1.2086 | Val All-Acc: 86.98% | Val Shot-Acc: 89.40% | Val Macro-F1: 0.8728
+Epoch 24/24 (LR: 0.000001/0.000001) - Train Loss: 0.7842 | Val Loss: 1.2111 | Val All-Acc: 86.67% | Val Shot-Acc: 89.03% | Val Macro-F1: 0.8696
 
-✅ Reloaded best model checkpoint from Epoch 16 (Best Val Macro-F1: 0.8091, Shot Acc: 85.57%) -> /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_ultimate_baseline.pt
+✅ Reloaded best model checkpoint from Epoch 10 (Best Val Macro-F1: 0.8786, Shot Acc: 91.22%) -> /Users/neilkloot/Code/CricketBattingTracker/pipelines/tcn_ultimate_baseline.pt
 
-3. Evaluating BENCHMARK DATASET across ALL 92 clean physical sessions via Telemetry Engine...
+3. Evaluating BENCHMARK DATASET across ALL 100 clean physical sessions via Telemetry Engine...
 
 ==========================================================
   AUDITED HIERARCHICAL MULTI-TIER TELEMETRY PIPELINE
 ==========================================================
   Execution Device : mps
-  Total Sessions   : 92 physical sessions
+  Total Sessions   : 100 physical sessions
   Holdout Set (12)  : ['session_2026-06-12_12-24-37', 'session_2026-06-19_12-25-55', 'session_2026-06-25_12-25-07', 'session_2026-06-28_11-28-09', 'session_2026-07-27_12-47-20', 'session_2026-08-08_10-43-42', 'session_2026-08-16_14-10-23', 'session_2026-08-22_14-25-31', 'session_2026-09-08_12-52-30', 'session_2026-09-17_12-48-47', 'session_2026-10-09_12-41-17', 'session_2026-10-17_11-47-47']
   Processing sessions directly from Parquet...
 
@@ -76,86 +108,110 @@ Epoch 24/24 (LR: 0.000001/0.000001) - Train Loss: 0.9703 | Val Loss: 1.5562 | Va
 
 1️⃣ CANDIDATE DETECTIONS & SYSTEM PRECISION:
 ----------------------------------------------------------------------
-  • Total Ground-Truth Physical Shots: 5345
-  • Total System Candidate Detections: 5262
-  • Matched True Positive Detections : 4816
-  • False Alarm Detections (FP)      : 446 (8.5% of detections)
-  • Missed Physical Shots (FN)       : 529 (9.9% of GT)
-  • Global Pipeline Recall           : 🏆 90.10%
-  • Global System Precision          : 🏆 91.52%
-  • Global System F1 Score           : 🏆 90.81%
+  • Total Ground-Truth Physical Shots: 6234
+  • Total System Candidate Detections: 6346
+  • Matched True Positive Detections : 6024
+  • False Alarm Detections (FP)      : 322 (5.1% of detections)
+  • Missed Physical Shots (FN)       : 210 (3.4% of GT)
+  • Global Pipeline Recall           : 🏆 96.63%
+  • Global System Precision          : 🏆 94.93%
+  • Global System F1 Score           : 🏆 95.77%
 
 🎯 SWEEP CANDIDATE PRECISION & DETECTION RATIO:
 ----------------------------------------------------------------------
-  • Total Ground-Truth SWEEP Shots   : 271
-  • SWEEP Candidate Detections       : 🏆 330
-  • SWEEP Detections-to-GT Ratio     : 🏆 121.8%
+  • Total Ground-Truth SWEEP Shots   : 311
+  • SWEEP Candidate Detections       : 🏆 361
+  • SWEEP Detections-to-GT Ratio     : 🏆 116.1%
 
 2️⃣ TIER BREAKDOWN (Peak Motion Aligned [T_peak - 1.0s, T_peak + 1.5s]):
 ----------------------------------------------------------------------
 | Tier                    | Total Detections | True Positives | Precision (%) |
 ----------------------------------------------------------------------
-| TIER_1_HIGH             |             4396 |           4048 |        92.08% |
-| TIER_3_SOFT_TOUCH       |              866 |            768 |        88.68% |
+| TIER_1_HIGH             |             5377 |           5128 |        95.37% |
+| TIER_3_SOFT_TOUCH       |              969 |            896 |        92.47% |
 ----------------------------------------------------------------------
 
 3️⃣ GRANULAR UNSEEN HOLDOUT SET SCORECARD (AUTOMATIC ALIGNMENT):
 ======================================================================
   • Designated Holdout Sessions : ['session_2026-06-12_12-24-37', 'session_2026-06-19_12-25-55', 'session_2026-06-25_12-25-07', 'session_2026-06-28_11-28-09', 'session_2026-07-27_12-47-20', 'session_2026-08-08_10-43-42', 'session_2026-08-16_14-10-23', 'session_2026-08-22_14-25-31', 'session_2026-09-08_12-52-30', 'session_2026-09-17_12-48-47', 'session_2026-10-09_12-41-17', 'session_2026-10-17_11-47-47']
-  • Ground-Truth Physical Shots : 714
-  • Total Candidate Detections  : 723
-  • True Positive Detections    : 661
-  • False Positive Detections   : 62
-  • Adjusted Holdout Detection Recall    : 🏆 92.58% (661/714 GT shots detected)
-  • Adjusted Holdout Detection Precision : 🏆 91.42% (661/723 candidates valid)
-  • Adjusted Holdout Detection F1 Score  : 🏆 92.00%
+  • Ground-Truth Physical Shots : 769
+  • Total Candidate Detections  : 771
+  • True Positive Detections    : 740
+  • False Positive Detections   : 31
+  • Adjusted Holdout Detection Recall    : 🏆 96.23% (740/769 GT shots detected)
+  • Adjusted Holdout Detection Precision : 🏆 95.98% (740/771 candidates valid)
+  • Adjusted Holdout Detection F1 Score  : 🏆 96.10%
 
 --- CALCULATED TIMESTAMP DRIFT OFFSETS (dt_offset) & PER-SESSION PERFORMANCE ---
 ---------------------------------------------------------------------------------------------------
 | Session ID               | Calculated dt Offset | GT Shots | Detections | TPs | Recall (%) | Precision (%) |
 ---------------------------------------------------------------------------------------------------
-| session_2026-06-12_12-24-37 |              -0.50s |       70 |         70 |  68 |      97.1% |         97.1% |
-| session_2026-06-19_12-25-55 |              -0.15s |       56 |         58 |  55 |      98.2% |         94.8% |
-| session_2026-06-25_12-25-07 |              -0.15s |       65 |         64 |  61 |      93.8% |         95.3% |
-| session_2026-06-28_11-28-09 |              -0.25s |       52 |         54 |  50 |      96.2% |         92.6% |
-| session_2026-07-27_12-47-20 |              +0.00s |       53 |         54 |  48 |      90.6% |         88.9% |
-| session_2026-08-08_10-43-42 |              +0.00s |       77 |         83 |  69 |      89.6% |         83.1% |
-| session_2026-08-16_14-10-23 |              +0.00s |       50 |         50 |  49 |      98.0% |         98.0% |
-| session_2026-08-22_14-25-31 |              +0.00s |       51 |         48 |  46 |      90.2% |         95.8% |
-| session_2026-09-08_12-52-30 |              +0.00s |       57 |         56 |  48 |      84.2% |         85.7% |
-| session_2026-09-17_12-48-47 |              +0.00s |       62 |         60 |  57 |      91.9% |         95.0% |
-| session_2026-10-09_12-41-17 |              +0.00s |       51 |         59 |  49 |      96.1% |         83.1% |
-| session_2026-10-17_11-47-47 |              +0.00s |       70 |         67 |  61 |      87.1% |         91.0% |
+| session_2026-06-12_12-24-37 |              +0.00s |       76 |         75 |  74 |      97.4% |         98.7% |
+| session_2026-06-19_12-25-55 |              +0.00s |       64 |         63 |  60 |      93.8% |         95.2% |
+| session_2026-06-25_12-25-07 |              +0.00s |       66 |         66 |  64 |      97.0% |         97.0% |
+| session_2026-06-28_11-28-09 |              +0.00s |       56 |         55 |  55 |      98.2% |        100.0% |
+| session_2026-07-27_12-47-20 |              +0.00s |       62 |         61 |  61 |      98.4% |        100.0% |
+| session_2026-08-08_10-43-42 |              +0.00s |       86 |         81 |  79 |      91.9% |         97.5% |
+| session_2026-08-16_14-10-23 |              +0.00s |       50 |         51 |  50 |     100.0% |         98.0% |
+| session_2026-08-22_14-25-31 |              +0.00s |       53 |         52 |  52 |      98.1% |        100.0% |
+| session_2026-09-08_12-52-30 |              +0.00s |       66 |         67 |  62 |      93.9% |         92.5% |
+| session_2026-09-17_12-48-47 |              +0.00s |       66 |         68 |  65 |      98.5% |         95.6% |
+| session_2026-10-09_12-41-17 |              +0.00s |       54 |         61 |  51 |      94.4% |         83.6% |
+| session_2026-10-17_11-47-47 |              +0.00s |       70 |         71 |  67 |      95.7% |         94.4% |
 ---------------------------------------------------------------------------------------------------
 
 4️⃣ PEAK-ALIGNED HOLDOUT CLASSIFICATION ACCURACY PER SHOT TYPE:
 ===================================================================================================
 | Shot Type        | GT Count | Detected TPs | Class Correct | Classification Acc (%) | Shot Recall (%) |
 ===================================================================================================
-| PULL/HOOK/SLOG   |      134 |          126 |           113 |                 89.68% |          84.33% |
-| DRIVE/DEFENCE    |      196 |          181 |           145 |                 80.11% |          73.98% |
-| GLANCE/FLICK     |      131 |          122 |            99 |                 81.15% |          75.57% |
-| CUT/PUNCH        |       70 |           65 |            55 |                 84.62% |          78.57% |
-| DEFLECTION/GUIDE |       76 |           65 |            58 |                 89.23% |          76.32% |
-| POWER DRIVE      |       48 |           45 |            33 |                 73.33% |          68.75% |
-| SWEEP            |       59 |           57 |            55 |                 96.49% |          93.22% |
+| PULL/HOOK/SLOG   |      142 |          140 |           126 |                 90.00% |          88.73% |
+| DRIVE/DEFENCE    |      182 |          170 |           123 |                 72.35% |          67.58% |
+| GLANCE/FLICK     |      129 |          127 |           114 |                 89.76% |          88.37% |
+| CUT/PUNCH        |      120 |          120 |           116 |                 96.67% |          96.67% |
+| DEFLECTION/GUIDE |       79 |           67 |            63 |                 94.03% |          79.75% |
+| POWER DRIVE      |       50 |           49 |            45 |                 91.84% |          90.00% |
+| SWEEP            |       67 |           67 |            63 |                 94.03% |          94.03% |
 ===================================================================================================
-  🏆 OVERALL HOLDOUT CLASSIFICATION ACCURACY: 84.42% (558/661 correct across detected shots)
+  🏆 OVERALL HOLDOUT CLASSIFICATION ACCURACY: 87.84% (650/740 correct across detected shots)
 ===================================================================================================
 
 
 ===================================================================================================================
 📊 BENCHMARK DATASET TRAINING & HOLDOUT EVALUATION SCORECARD
   Training Strategy: Phase 2 Learned False-Positive Rejection (Bat-Plane 3-Family Multi-Scale TCN)
-  Validation Summary: Total Epochs = 24, Best Val Macro-F1 = 0.8091 (Shot Acc: 85.57%, Val Loss: 1.5339 at Epoch 16)
+  Validation Summary: Total Epochs = 24, Best Val Macro-F1 = 0.8786 (Shot Acc: 91.22%, Val Loss: 1.1989 at Epoch 10)
 ===================================================================================================================
-  Holdout Test Set (12 Sessions): Recall = 92.6%, Precision = 91.4%, F1 = 92.0%, Class Acc = 84.4%
-  Training Set (71 Sessions):               Recall = 89.7%, Precision = 91.5%, F1 = 90.6%, Class Acc = 94.4%
-  Clean Benchmark Total (92 Sessions):     Recall = 90.1%, Precision = 91.5%, F1 = 90.8%
+  Holdout Test Set (12 Sessions): Recall = 96.2%, Precision = 96.0%, F1 = 96.1%, Class Acc = 87.8%
+  Training Set (79 Sessions):               Recall = 96.7%, Precision = 94.8%, F1 = 95.7%, Class Acc = 92.8%
+  Clean Benchmark Total (100 Sessions):     Recall = 96.6%, Precision = 94.9%, F1 = 95.8%
 ===================================================================================================================
 
 
-🔍 Running Stage 3 Rule Health & Jev Shadow Audit (336 boundary/rule shots across 4816 TP detections)...
+🔍 Running Stage 3 Rule Health & Jev Shadow Audit (385 boundary/rule shots across 6024 TP detections)...
+
+================================================================================
+🔍 STAGE 3 RULE HEALTH & JEV SHADOW AUDIT SUMMARY
+================================================================================
+• Evaluated 385 boundary/rule candidate shots across 6024 TP detections.
+• API Telemetry: 1 cache hits, 350 live calls (median latency 366 ms, est cost $0.0000 USD).
+• Production Rules Health:
+  - bat_vertical_guard_rule1 : ℹ️ DORMANT (SAFE GUARD) (0 fires, Clean Net: +0, Holdout Net: +0)
+  - bat_ahrs_glance_rule2    : ℹ️ DORMANT (SAFE GUARD) (0 fires, Clean Net: +0, Holdout Net: +0)
+• Shadow Candidate Rules:
+  - non_bat_sweep_to_glance  : ⏸️ DISABLED (Net -7) (12 fires, Clean Net: -7, Holdout Net: -1)
+  - s1_ahrs_flat_bat         : ⏸️ DISABLED (Net -100) (125 fires, Clean Net: -100, Holdout Net: -18)
+  - s2_power_drive_vs_pull   : ⏸️ DISABLED (Net +7) (19 fires, Clean Net: +7, Holdout Net: +0)
+  - s3_cut_punch_recovery    : ⏸️ DISABLED (Net +0) (0 fires, Clean Net: +0, Holdout Net: +0)
+• Missed Regimes: 💡 Surfaced 57 shots across 12 clusters where TCN missed & Jev matched GT:
+    - 15 shots: TCN='GLANCE/FLICK' -> GT/Jev='DRIVE/DEFENCE' [NONE]
+    - 14 shots: TCN='GLANCE/FLICK' -> GT/Jev='DRIVE/DEFENCE' [BAT_HANDLE]
+    - 7 shots: TCN='CUT/PUNCH' -> GT/Jev='DRIVE/DEFENCE' [WRIST]
+    - 6 shots: TCN='SWEEP' -> GT/Jev='DRIVE/DEFENCE' [WRIST]
+    - ... and 8 other cluster(s) (see full scorecard)
+• Threshold Drift: ✅ Optimal on 9-session Validation set (no drift detected).
+• Master Report: Detailed tables saved to full_dataset_training_scorecard.md
+================================================================================
+
 ✅ Synced Stage 3 rules config -> /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/stage3_rules_config.json
 
 ✅ Saved master scorecard report to /Users/neilkloot/Code/CricketBattingTracker/full_dataset_training_scorecard.md
@@ -163,14 +219,12 @@ Epoch 24/24 (LR: 0.000001/0.000001) - Train Loss: 0.9703 | Val Loss: 1.5562 | Va
 ================================================================================
 🔒 PRODUCTION ONNX QUALITY GATE CHECK
 ================================================================================
-/Users/neilkloot/Code/CricketBattingTracker/pipelines/train_and_evaluate_full_scorecard.py:842: DeprecationWarning: You are using the legacy TorchScript-based ONNX export. Starting in PyTorch 2.9, the new torch.export-based ONNX exporter has become the default. Learn more about the new export logic: https://docs.pytorch.org/docs/stable/onnx_export.html. For exporting control flow: https://pytorch.org/tutorials/beginner/onnx/export_control_flow_model_to_onnx_tutorial.html
-  torch.onnx.export(
-🏆 PASSED Quality Gate (Holdout Precision=91.4%, Overall Precision=91.5%, Holdout F1=92.0%). Exported ONNX model & updated production Android app assets: /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/tcn_ultimate_baseline.onnx
+🏆 PASSED Quality Gate (Holdout Precision=96.0%, Overall Precision=94.9%, Holdout F1=96.1%). Exported ONNX model & updated production Android app assets: /Users/neilkloot/Code/CricketBattingTracker/app/src/main/assets/models/tcn_ultimate_baseline.onnx
 ✅ ONNX Runtime verification passed! Output shape: (1, 9, 2048)
 ================================================================================
 
 ====================================================================================================
-  RUN COMPLETED: 2026-11-05 14:24:28
-  Total Duration: 0:58:42.270831
-  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-11-05_13-25-46.log
+  RUN COMPLETED: 2026-11-24 14:14:44
+  Total Duration: 1:17:57.313081
+  Log Saved to  : /Users/neilkloot/Code/CricketBattingTracker/pipelines/training_logs/master_retraining_2026-11-24_12-56-47.log
 ====================================================================================================

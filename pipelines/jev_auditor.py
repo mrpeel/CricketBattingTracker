@@ -553,4 +553,43 @@ def run_stage3_jev_shadow_audit(
     except Exception:
         pass
 
+    if verbose:
+        print("\n" + "=" * 80)
+        print("🔍 STAGE 3 RULE HEALTH & JEV SHADOW AUDIT SUMMARY")
+        print("=" * 80)
+        print(f"• Evaluated {len(candidates_for_jev)} boundary/rule candidate shots across {len(tp_rows)} TP detections.")
+        print(
+            f"• API Telemetry: {client.stats['cache_hits']} cache hits, {client.stats['api_calls']} live calls "
+            f"(median latency {med_lat:.0f} ms, est cost ${paid_cost_usd:.4f} USD)."
+        )
+        print("• Production Rules Health:")
+        prod_rules = [r for r in rule_ids if rule_stats[r]["enabled"]]
+        for rid in prod_rules:
+            st = rule_stats[rid]
+            print(f"  - {rid:<25}: {st['status']} ({st['fires_all']} fires, Clean Net: {st['net_all']:+d}, Holdout Net: {st['net_ho']:+d})")
+        
+        print("• Shadow Candidate Rules:")
+        shadow_rules = [r for r in rule_ids if not rule_stats[r]["enabled"]]
+        for rid in shadow_rules:
+            st = rule_stats[rid]
+            print(f"  - {rid:<25}: {st['status']} ({st['fires_all']} fires, Clean Net: {st['net_all']:+d}, Holdout Net: {st['net_ho']:+d})")
+        
+        total_missed = sum(missed_clusters.values())
+        if total_missed == 0:
+            print("• Missed Regimes: ✅ None detected across Validation and Holdout splits.")
+        else:
+            print(f"• Missed Regimes: 💡 Surfaced {total_missed} shots across {len(missed_clusters)} clusters where TCN missed & Jev matched GT:")
+            for (p_cls, g_cls, mnt), cnt in sorted(missed_clusters.items(), key=lambda x: -x[1])[:4]:
+                print(f"    - {cnt} shots: TCN='{p_cls}' -> GT/Jev='{g_cls}' [{mnt}]")
+            if len(missed_clusters) > 4:
+                print(f"    - ... and {len(missed_clusters) - 4} other cluster(s) (see full scorecard)")
+        
+        if not drift_recommendations:
+            print("• Threshold Drift: ✅ Optimal on 9-session Validation set (no drift detected).")
+        else:
+            for rec in drift_recommendations:
+                print(f"• Threshold Drift: ⚠️ {rec}")
+        print("• Master Report: Detailed tables saved to full_dataset_training_scorecard.md")
+        print("=" * 80 + "\n", flush=True)
+
     return "\n".join(md), summary_record

@@ -71,16 +71,16 @@ def normalise_shot_type(st):
     s = (st or '').lower()
     if 'power drive' in s or 'lofted drive' in s:
         return 'POWER DRIVE'
-    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'which shot' in s or 'slog' in s:
+    if 'pull' in s or 'hook' in s or 'full shot' in s or 'push up' in s or 'slog' in s:
         return 'PULL/HOOK/SLOG'
-    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s or 'foot shot' in s:
+    if 'flick' in s or 'click' in s or 'quick' in s or 'glance' in s or 'leg glance' in s or 'foot shot' in s or 'slick shot' in s or 'fix shot' in s or 'which shot' in s:
         return 'GLANCE/FLICK'
     if 'guide' in s or 'deflection' in s or 'steer' in s or 'glide' in s or 'square upper cut' in s:
         return 'DEFLECTION/GUIDE'
-    if 'cover drive' in s or 'straight drive' in s or 'on drive' in s or 'off drive' in s or 'drive' in s or 'back foot' in s or 'forward defense' in s or 'back defense' in s or 'defence' in s or 'defense' in s:
-        return 'DRIVE/DEFENCE'
     if 'cut' in s or 'punch' in s:
         return 'CUT/PUNCH'
+    if 'cover drive' in s or 'straight drive' in s or 'on drive' in s or 'off drive' in s or 'drive' in s or 'back foot' in s or 'forward defense' in s or 'back defense' in s or 'defence' in s or 'defense' in s:
+        return 'DRIVE/DEFENCE'
     if 'sweep' in s:
         return 'SWEEP'
     if 'leave' in s:
@@ -279,37 +279,84 @@ def rotate_vectors_quat(q_arr, v_arr):
     return np.column_stack([rx, ry, rz]).astype(np.float32)
 
 def find_impact_peaks_alignment(w_gyro_rel, w_gyro_mags, polar_phone_times, polar_acc_mags, sys_start_ms):
-    """Tier 3 alignment: Cross-correlate watch gyro peaks with Polar acc peaks."""
+    """Tier 3 alignment: Coarse FFT envelope cross-correlation + robust peak regression."""
     from scipy.signal import find_peaks
     if len(w_gyro_mags) == 0 or len(polar_acc_mags) == 0:
         return None
-    w_pks_idx, _ = find_peaks(w_gyro_mags, height=3.5, distance=75)
+
+    w_t_s = np.asarray(w_gyro_rel, dtype=np.float64) / 1000.0
+    p_rel_s = (np.asarray(polar_phone_times, dtype=np.float64) - float(sys_start_ms)) / 1000.0
+    w_gm = np.asarray(w_gyro_mags, dtype=np.float64)
+    p_am = np.asarray(polar_acc_mags, dtype=np.float64)
+
+    # 1. Coarse global cross-correlation on 50ms max-pooled envelopes (±45s around initial offset)
+    #    so phone/watch clock skew or early Polar start (>3s) never misses the matching window.
+    dt = 0.05
+    base_offset_s = float(p_rel_s[0])
+    p_shifted_s = p_rel_s - base_offset_s
+    t_min = min(float(w_t_s[0]), float(p_shifted_s[0])) - 1.0
+    t_max = max(float(w_t_s[-1]), float(p_shifted_s[-1])) + 1.0
+    n_bins = min(int((t_max - t_min) / dt) + 2, 200_000)
+
+    init_offset = base_offset_s * 1000.0
+    if n_bins >= 64:
+        w_env = np.zeros(n_bins, dtype=np.float64)
+        p_env = np.zeros(n_bins, dtype=np.float64)
+        wi = np.clip(((w_t_s - t_min) / dt).astype(np.int64), 0, n_bins - 1)
+        np.maximum.at(w_env, wi, w_gm)
+        pi = np.clip(((p_shifted_s - t_min) / dt).astype(np.int64), 0, n_bins - 1)
+        np.maximum.at(p_env, pi, np.clip(p_am - 9.81, 0.0, 200.0))
+
+        max_lag_bins = min(int(45.0 / dt), n_bins - 1)
+        fft_len = 1 << int(np.ceil(np.log2(2 * n_bins)))
+        cc = np.fft.irfft(np.fft.rfft(p_env, n=fft_len) * np.conj(np.fft.rfft(w_env, n=fft_len)), n=fft_len)
+        pos_cc = cc[:max_lag_bins + 1]
+        neg_cc = cc[fft_len - max_lag_bins:]
+        lags_bins = np.concatenate([np.arange(-max_lag_bins, 0), np.arange(0, max_lag_bins + 1)])
+        cc_win = np.concatenate([neg_cc, pos_cc])
+        if float(np.max(cc_win)) > 0.0:
+            best_lag_bins = int(lags_bins[int(np.argmax(cc_win))])
+            init_offset = (base_offset_s + best_lag_bins * dt) * 1000.0
+
+    # 2. Match high-energy physical peaks within ±1.5s of coarse lag
+    w_pks_idx, _ = find_peaks(w_gm, height=6.0, distance=100)
+    if len(w_pks_idx) < 5:
+        w_pks_idx, _ = find_peaks(w_gm, height=3.5, distance=75)
     if len(w_pks_idx) < 3:
-        w_pks_idx, _ = find_peaks(w_gyro_mags, height=2.0, distance=50)
+        w_pks_idx, _ = find_peaks(w_gm, height=2.0, distance=50)
     if len(w_pks_idx) < 3:
         return None
-    w_pks_ms = np.array([w_gyro_rel[i] for i in w_pks_idx])
+    w_pks_ms = w_t_s[w_pks_idx] * 1000.0
 
-    p_pks_idx, _ = find_peaks(polar_acc_mags, height=12.0, distance=200)
+    p_pks_idx, _ = find_peaks(p_am, height=25.0, distance=250)
+    if len(p_pks_idx) < 5:
+        p_pks_idx, _ = find_peaks(p_am, height=12.0, distance=200)
     if len(p_pks_idx) < 3:
-        p_pks_idx, _ = find_peaks(polar_acc_mags, height=8.0, distance=100)
+        p_pks_idx, _ = find_peaks(p_am, height=8.0, distance=100)
     if len(p_pks_idx) < 3:
         return None
-    p_pks_ms = np.array([polar_phone_times[i] - sys_start_ms for i in p_pks_idx])
+    p_pks_ms = p_rel_s[p_pks_idx] * 1000.0
 
-    init_offset = float(polar_phone_times[0] - sys_start_ms)
     matches = []
     for w_t in w_pks_ms:
         exp_p = w_t + init_offset
         diffs = np.abs(p_pks_ms - exp_p)
-        best_i = np.argmin(diffs)
-        if diffs[best_i] < 3000.0:  # within 3s window
-            matches.append((w_t, p_pks_ms[best_i]))
+        best_i = int(np.argmin(diffs))
+        if diffs[best_i] < 1500.0:
+            matches.append((float(w_t), float(p_pks_ms[best_i])))
 
     if len(matches) < 3:
         return None
     w_m = np.array([m[0] for m in matches], dtype=float)
     p_m = np.array([m[1] for m in matches], dtype=float)
+
+    # 3. Robust median-offset inlier filter (±500ms) before OLS regression
+    med_off = float(np.median(p_m - w_m))
+    inliers = np.abs((p_m - w_m) - med_off) < 500.0
+    if int(inliers.sum()) >= 3:
+        w_m = w_m[inliers]
+        p_m = p_m[inliers]
+        matches = [m for m, ok in zip(matches, inliers) if ok]
 
     n = len(w_m); sx = w_m.sum(); sy = p_m.sum(); sxy = (w_m * p_m).sum(); sx2 = (w_m ** 2).sum()
     denom = (n * sx2 - sx * sx)
@@ -318,9 +365,11 @@ def find_impact_peaks_alignment(w_gyro_rel, w_gyro_mags, polar_phone_times, pola
     slope = (n * sxy - sx * sy) / denom
     intercept = (sy - slope * sx) / n
     pred = slope * w_m + intercept
-    ss_res = float(((p_m - pred) ** 2).sum())
+    res_ms = p_m - pred
+    ss_res = float((res_ms ** 2).sum())
     ss_tot = float(((p_m - p_m.mean()) ** 2).sum())
     r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+    res_std_ms = float(np.std(res_ms))
 
     if r2 < 0.90:
         return None
@@ -328,9 +377,10 @@ def find_impact_peaks_alignment(w_gyro_rel, w_gyro_mags, polar_phone_times, pola
         'offsetMs': float(intercept),
         'driftRate': float(slope - 1.0),
         'method': 'impact_peak_regression',
-        'n_anchors': n,
+        'n_anchors': int(n),
         'r_squared': float(r2),
-        'confidence': 'high' if r2 >= 0.99 else 'medium',
+        'residual_std_ms': res_std_ms,
+        'confidence': 'high' if (r2 >= 0.99 and res_std_ms < 250.0) else 'medium',
         'anchor_pairs_ms': [[float(m[0]), float(m[1])] for m in matches[:10]],
     }
 
@@ -338,6 +388,20 @@ def align_polar_to_watch(watch_taps, polar_phone_times, polar_acc_mags, w_gyro_r
     """Returns alignment dict with confidence metrics, or None."""
     if polar_phone_times is None or len(polar_phone_times) == 0:
         return None
+
+    # Prefer high-confidence global cross-correlation impact-peak regression when available,
+    # since TAP_SEQ matching with low 12 m/s² thresholds can latch onto non-tap motion peaks.
+    impact_align = None
+    if w_gyro_rel is not None and w_gyro_mags is not None:
+        impact_align = find_impact_peaks_alignment(w_gyro_rel, w_gyro_mags, polar_phone_times, polar_acc_mags, sys_start_ms)
+        if (
+            impact_align is not None
+            and impact_align.get('confidence') == 'high'
+            and impact_align.get('n_anchors', 0) >= 10
+            and abs(impact_align.get('driftRate', 0.0)) <= 0.002
+        ):
+            return impact_align
+
     matches = []
     if watch_taps:
         for w_wall_ms, _ in watch_taps:
@@ -377,11 +441,9 @@ def align_polar_to_watch(watch_taps, polar_phone_times, polar_acc_mags, w_gyro_r
             'anchor_pairs_ms': [[float(m[0]), float(m[1])] for m in matches],
         }
 
-    # Tier 3: Impact-Peak Cross-Correlation
-    if w_gyro_rel is not None and w_gyro_mags is not None:
-        impact_align = find_impact_peaks_alignment(w_gyro_rel, w_gyro_mags, polar_phone_times, polar_acc_mags, sys_start_ms)
-        if impact_align is not None:
-            return impact_align
+    # Tier 3 fallback: lower-confidence impact-peak alignment if available
+    if impact_align is not None:
+        return impact_align
 
     # Ultimate fallback if no anchors or peaks match
     return fallback_wall_clock_alignment(polar_phone_times, sys_start_ms)
@@ -591,6 +653,7 @@ def build_session(session_name, verbose=True):
             config_path = polar_cfg
     polar_mount_mode = 0  # 0: NONE, 1: WRIST, 2: BAT_HANDLE
     polar_mount_mode_str = "NONE"
+    polar_detachment_time_s = None
     initial_bat_id = 0
     bat_profiles = {}
     bat_switches = []
@@ -599,6 +662,7 @@ def build_session(session_name, verbose=True):
             with open(config_path, "r") as cf:
                 cfg = json.load(cf)
                 polar_mount_mode_str = cfg.get("polar_mount_mode", "WRIST" if has_polar else "NONE")
+                polar_detachment_time_s = cfg.get("polar_detachment_time_s")
                 if polar_mount_mode_str == "BAT_HANDLE":
                     polar_mount_mode = 2
                 elif polar_mount_mode_str == "WRIST":
@@ -708,12 +772,26 @@ def build_session(session_name, verbose=True):
         b_acc_grid = np.zeros((n_rows, 3), dtype=np.float32)
         b_gyro_grid = np.zeros((n_rows, 3), dtype=np.float32)
 
+    # Mask out Polar channels after mid-session detachment / battery cutoff
+    detached_mask = (bat_id_arr == 0) if polar_mount_mode == 2 else np.zeros(n_rows, dtype=bool)
+    if polar_detachment_time_s is not None:
+        detached_mask = detached_mask | (grid_ms >= float(polar_detachment_time_s) * 1000.0)
+    if np.any(detached_mask):
+        b_acc_grid[detached_mask] = 0.0
+        b_gyro_grid[detached_mask] = 0.0
+        wrist_p_acc_grid[detached_mask] = 0.0
+        wrist_p_gyro_grid[detached_mask] = 0.0
+        wrist_p_mag_grid[detached_mask] = 0.0
+
     # ---- build DataFrame ----
     df = pd.DataFrame()
     df['t_ms'] = grid_ms
     df['session_id'] = session_name
-    df['has_polar'] = int(has_polar)
-    df['polar_mount_mode'] = np.where(bat_id_arr == 0, 0, polar_mount_mode)
+    has_polar_arr = np.full(n_rows, int(has_polar), dtype=np.int32)
+    if np.any(detached_mask):
+        has_polar_arr[detached_mask] = 0
+    df['has_polar'] = has_polar_arr
+    df['polar_mount_mode'] = np.where(detached_mask, 0, polar_mount_mode)
     df['bat_id'] = bat_id_arr
     df['bat_name'] = bat_name_arr
     df['bat_weight_grams'] = bat_weight_arr

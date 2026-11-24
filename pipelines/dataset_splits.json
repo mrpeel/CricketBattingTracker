@@ -1,5 +1,5 @@
 {
-  "_comment": "Authoritative stratified dataset partitions for Stage 2 training and the telemetry-engine scorecard across 86 clean sessions (65 Train, 9 Validation, 12 Holdout Test). Both Validation (524 GT shots) and Holdout Test (722 GT shots) are stratified across all 3 sensor mount modes (NONE, WRIST, BAT_HANDLE) and all 7 canonical shot classes (>=34 shots/class in Val, >=48 shots/class in Holdout) without starving Train of any mount x class combination.",
+  "_comment": "Authoritative stratified dataset partitions for Stage 2 training and the telemetry-engine scorecard across 90 clean sessions (69 Train, 9 Validation, 12 Holdout Test). Both Validation (524 GT shots) and Holdout Test (722 GT shots) are stratified across all 3 sensor mount modes (NONE, WRIST, BAT_HANDLE) and all 7 canonical shot classes (>=34 shots/class in Val, >=48 shots/class in Holdout) without starving Train of any mount x class combination. Corrupted/severely misaligned sessions are isolated in quarantine.",
   "holdout_test": [
     "session_2026-06-12_12-24-37",
     "session_2026-06-19_12-25-55",
@@ -26,10 +26,13 @@
     "session_2026-10-15_12-49-52"
   ],
   "quarantine": {
+    "session_2026-07-12_11-23-59": "quarantine_partial: 30.4% recall, severe non-linear narration drift (-5.2s to +3.4s) causing false negative hard mining",
+    "session_2026-07-21_12-43-37": "quarantine_partial: 70.7% recall, late-session audio time warping and drift (-4.9s to +3.5s) causing candidate misalignment",
     "session_2026-09-06_12-14-46": "quarantine_partial: 70.6% recall, 2D drift alignment pending Phase 5 Stage 1 rotation augmentation",
     "session_2026-07-17_12-30-41": "quarantine_partial: 64.9% recall, rapid setup stance pending Phase 5 Stage 1 rotation augmentation",
     "session_2026-09-05_16-26-41": "quarantine_partial: 46.4% recall, rapid setup stance pending Phase 5 Stage 1 rotation augmentation",
-    "session_2026-07-11_12-51-39": "quarantine_partial: 47.3% recall, rapid setup stance pending Phase 5 Stage 1 rotation augmentation"
+    "session_2026-07-11_12-51-39": "quarantine_partial: 47.3% recall, rapid setup stance pending Phase 5 Stage 1 rotation augmentation",
+    "session_2026-11-16_12-45-46": "quarantine_impaired: Polar Verity Sense BLE stream dropped permanently at +2.28s (0 shots with bat-handle data) plus 31 un-narrated impacts"
   },
   "archived_impaired": {
     "session_2026-05-30_15-04-41": "archived_impaired: early May watch hardware orientation rotation (gy ~ -4.0 m/s^2 vs -7.5 m/s^2), missing impact timestamps",

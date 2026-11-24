@@ -1186,9 +1186,13 @@ def main():
         sys.exit(1)
         
     df_gyro['mag'] = np.sqrt(df_gyro['x']**2 + df_gyro['y']**2 + df_gyro['z']**2)
-    start_time_ns = df_gyro.iloc[0]['time']
+    start_time_ns = int(df_gyro.iloc[0]['time'])
     start_time_ms = int(start_time_ns / 1_000_000)
-    gyro_duration = df_gyro.iloc[-1]['seconds_elapsed']
+    # Normalize seconds_elapsed to always start at 0.0 relative to start_time_ns (100% parity with build_unified_dataset.py)
+    if abs(float(df_gyro['seconds_elapsed'].iloc[0])) > 0.5:
+        print(f"⏱️  Normalizing non-zero WatchGyroscope seconds_elapsed[0]={float(df_gyro['seconds_elapsed'].iloc[0]):+.2f}s -> 0.00s")
+    df_gyro['seconds_elapsed'] = (df_gyro['time'] - start_time_ns) / 1e9
+    gyro_duration = float(df_gyro.iloc[-1]['seconds_elapsed'])
 
     # Precalculate all raw gyroscope peaks in the session using scipy find_peaks with prominence >= 0.5 rad/s.
     # Set peak distance to ~0.1s minimum gap based on sampling frequency.
@@ -1365,6 +1369,8 @@ def main():
     sync_tap_drift_rate = 0.0
     
     df_acc = load_watch_sensor(session_dir, "WatchAccelerometer")
+    if not df_acc.empty:
+        df_acc['seconds_elapsed'] = (df_acc['time'] - start_time_ns) / 1e9
     if offset is None and not df_acc.empty:
         temp_wav = None
         try:

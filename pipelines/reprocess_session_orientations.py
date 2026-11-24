@@ -95,8 +95,9 @@ def load_session_streams(session_id):
     duration_ns_a = p_sns_a[-1] - p_sns_a[0]
     p_t_acc_s = p_start_rel_s + (p_sns_a - p_sns_a[0]) / duration_ns_a * (p_end_rel_s - p_start_rel_s)
 
-    duration_ns_g = p_sns_g[-1] - p_sns_g[0]
-    p_t_gyr_s = p_start_rel_s + (p_sns_g - p_sns_g[0]) / duration_ns_g * (p_end_rel_s - p_start_rel_s)
+    # Polar ACC and GYRO share the same hardware sensor_ns crystal clock; map GYRO onto ACC's scale
+    # so slight start/stop differences between streams do not skew gyro relative to accel impacts.
+    p_t_gyr_s = p_start_rel_s + (p_sns_g - p_sns_a[0]) / duration_ns_a * (p_end_rel_s - p_start_rel_s)
 
     # Calibrate constant BLE packet batching latency offset using sensor-only impact peaks
     from scipy.signal import find_peaks
@@ -381,6 +382,10 @@ def reprocess_session(session_id):
                     det_mask = time_arr >= float(polar_detachment_s)
                     for col in ["b_acc_x", "b_acc_y", "b_acc_z", "b_gyro_x", "b_gyro_y", "b_gyro_z"]:
                         df_pq.loc[det_mask, col] = 0.0
+                    if "has_polar" in df_pq.columns:
+                        df_pq.loc[det_mask, "has_polar"] = 0
+                    if "polar_mount_mode" in df_pq.columns:
+                        df_pq.loc[det_mask, "polar_mount_mode"] = 0
 
         df_pq.to_parquet(parquet_path, index=False)
         print(f"  ✅ Updated {parquet_path} with continuous p_rot_q* and crystal-clock b_acc/b_gyro channels")

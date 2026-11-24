@@ -5,12 +5,8 @@
     "guyed",
     "clyde",
     "live",
-    "right",
-    "alright",
     "quiet",
-    "why",
     "wide",
-    "good good",
     "late guide"
   ],
   "Cut shot": [
@@ -29,9 +25,9 @@
     "flict shot",
     "click shot",
     "quick shot",
-    "slip shot",
     "flip shot",
     "switch up",
+    "switch shot",
     "for shot",
     "mitch shot",
     "good shot",
@@ -46,7 +42,9 @@
     "slit shot",
     "flick",
     "leg flick",
-    "foot shot"
+    "foot shot",
+    "slick shot",
+    "fix shot"
   ],
   "Glance": [
     "glance",
@@ -125,10 +123,10 @@
     "swipe shot",
     "swingshot",
     "free shot",
-    "switch shot",
     "shred shot",
     "weep shot",
     "sleep shot",
+    "slip shot",
     "three shot",
     "sling shot",
     "slingshot",
