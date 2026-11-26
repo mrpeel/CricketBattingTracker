@@ -1654,8 +1654,9 @@ def main():
 
                     cands = []
                     if is_non_swing:
+                        non_swing_offset = 0.5 if "facing up" in shot_type_lower else 2.5
                         cands.append({
-                            'time': sensor_narr_t - 2.5,
+                            'time': sensor_narr_t - non_swing_offset,
                             'mag': 1.0,
                             'is_fallback': True
                         })
@@ -1669,79 +1670,13 @@ def main():
                         window_peaks = sorted(window_peaks, key=lambda x: x['mag'], reverse=True)[:5]
                         cands.extend(window_peaks)
                         cands.append({
-                            'time': sensor_narr_t - 2.5,
+                            'time': sensor_narr_t - 0.8,
                             'mag': 1.0,
                             'is_fallback': True
                         })
                     all_candidates.append(cands)
 
-                def calculate_candidate_score(cand, sensor_narr_t):
-                    t = cand['time']
-                    mag = cand['mag']
-                    is_fallback = cand['is_fallback']
-                    if is_fallback:
-                        return -3.0
-                    lag = sensor_narr_t - t
-                    if lag < -7.0:
-                        return -999999.0
-                    elif lag < 0.0:
-                        return np.log(mag) - ((lag - 2.5) ** 2) / 4.5 - 5.0
-                    else:
-                        return np.log(mag) - ((lag - 2.5) ** 2) / 4.5
-
-                # DP alignment
-                M = len(narrations)
-                dp = []
-                parent = []
-
-                first_narr_t = narrations[0]['timestamp_seconds'] * (1 + d) + o
-                dp.append([calculate_candidate_score(cand, first_narr_t) for cand in all_candidates[0]])
-                parent.append([-1] * len(all_candidates[0]))
-
-                for i in range(1, M):
-                    sensor_narr_t = narrations[i]['timestamp_seconds'] * (1 + d) + o
-                    dp_i = []
-                    parent_i = []
-                    for j, cand in enumerate(all_candidates[i]):
-                        best_score = -999999.0
-                        best_k = -1
-                        score_j = calculate_candidate_score(cand, sensor_narr_t)
-
-                        prev_type_lower = narrations[i-1]['shot_type'].lower()
-                        prev_is_non_swing = any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade"])
-                        curr_type_lower = narrations[i]['shot_type'].lower()
-                        curr_is_non_swing = any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade"])
-                        min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
-
-                        for k, prev_cand in enumerate(all_candidates[i-1]):
-                            if prev_cand['time'] < cand['time'] - min_gap:
-                                val = dp[i-1][k] + score_j
-                                if val > best_score:
-                                    best_score = val
-                                    best_k = k
-
-                        if best_k == -1:
-                            for k, prev_cand in enumerate(all_candidates[i-1]):
-                                if prev_cand['time'] < cand['time']:
-                                    val = dp[i-1][k] + score_j
-                                    if val > best_score:
-                                        best_score = val
-                                        best_k = k
-                        if best_k == -1:
-                            best_k = 0
-                            best_score = dp[i-1][0] + score_j
-
-                        dp_i.append(best_score)
-                        parent_i.append(best_k)
-                    dp.append(dp_i)
-                    parent.append(parent_i)
-
-                best_j = int(np.argmax(dp[M-1]))
-                chosen_indices = [best_j]
-                for i in range(M-1, 0, -1):
-                    best_j = parent[i][best_j]
-                    chosen_indices.append(best_j)
-                chosen_indices.reverse()
+                chosen_indices = align_narrations_dp(narrations, all_candidates, o, d)
 
                 # Score = count of active shots that matched a REAL gyroscope peak (not fallback)
                 # MAE = average lag from narration timestamp to matched peak for non-fallbacks
@@ -1872,85 +1807,13 @@ def main():
                     
             cands.extend(peaks)
             cands.append({
-                'time': sensor_narr_t - 2.5,
+                'time': sensor_narr_t - 0.8,
                 'mag': 1.0,
                 'is_fallback': True
             })
         all_candidates.append(cands)
         
-    def calculate_candidate_score(cand, sensor_narr_t):
-        t = cand['time']
-        mag = cand['mag']
-        is_fallback = cand['is_fallback']
-        if is_fallback:
-            return -3.0
-        lag = sensor_narr_t - t
-        if lag < -7.0:
-            return -999999.0
-        elif lag < 0.0:
-            return np.log(mag) - ((lag - 1.5) ** 2) / 6.0 - 5.0
-        else:
-            return np.log(mag) - ((lag - 1.5) ** 2) / 6.0
-
-    # DP Table
-    M = len(narrations)
-    dp = []
-    parent = []
-    
-    # Initialize first step
-    first_narr_t = narrations[0]['timestamp_seconds'] * (1 + drift_rate) + offset
-    dp.append([calculate_candidate_score(cand, first_narr_t) for cand in all_candidates[0]])
-    parent.append([-1] * len(all_candidates[0]))
-    
-    for i in range(1, M):
-        sensor_narr_t = narrations[i]['timestamp_seconds'] * (1 + drift_rate) + offset
-        dp_i = []
-        parent_i = []
-        for j, cand in enumerate(all_candidates[i]):
-            best_score = -999999.0
-            best_k = -1
-            score_j = calculate_candidate_score(cand, sensor_narr_t)
-            
-            # Enforce chronological order with min gap
-            # Swing-to-swing gap: 1.5s. Non-swing gap: 0.5s.
-            prev_type_lower = narrations[i-1]['shot_type'].lower()
-            prev_is_non_swing = any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade"])
-            curr_type_lower = narrations[i]['shot_type'].lower()
-            curr_is_non_swing = any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade"])
-            min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
-            
-            for k, prev_cand in enumerate(all_candidates[i-1]):
-                if prev_cand['time'] < cand['time'] - min_gap:
-                    val = dp[i-1][k] + score_j
-                    if val > best_score:
-                        best_score = val
-                        best_k = k
-                        
-            # Dynamic relaxation if no path is valid
-            if best_k == -1:
-                for k, prev_cand in enumerate(all_candidates[i-1]):
-                    if prev_cand['time'] < cand['time']:
-                        val = dp[i-1][k] + score_j
-                        if val > best_score:
-                            best_score = val
-                            best_k = k
-            if best_k == -1:
-                # Force fallback to the first candidate of the previous step
-                best_k = 0
-                best_score = dp[i-1][0] + score_j
-                
-            dp_i.append(best_score)
-            parent_i.append(best_k)
-        dp.append(dp_i)
-        parent.append(parent_i)
-        
-    # Backtrack
-    best_j = int(np.argmax(dp[M-1]))
-    chosen_indices = [best_j]
-    for i in range(M-1, 0, -1):
-        best_j = parent[i][best_j]
-        chosen_indices.append(best_j)
-    chosen_indices.reverse()
+    chosen_indices = align_narrations_dp(narrations, all_candidates, offset, drift_rate)
     
     active_count_total = sum(1 for s in narrations if not any(term in s['shot_type'].lower() for term in ["no shot", "leave", "facing up", "evade"]))
     print(f"\nAligning spoken narrations with physical movements ({active_count_total} active swings)...")
@@ -2062,11 +1925,28 @@ def main():
     else:
         print("📖 Loaded WatchSteps for walking steps check")
         
-    print("📈 Computing Blade and Launch angles at impact...")
-    df_aligned = add_angle_stats_to_aligned_shots(df_aligned, df_orient)
-    # Overwrite the CSV with new columns
-    df_aligned.to_csv(aligned_csv_path, index=False)
-    print(f"✅ Updated aligned file with angle stats: {aligned_csv_path}")
+    has_polar_dir = os.path.isdir(os.path.join(session_dir, "PolarSense"))
+    if has_polar_dir:
+        print("📈 Computing Blade and Launch angles at impact...")
+        df_aligned = add_angle_stats_to_aligned_shots(df_aligned, df_orient)
+        df_aligned.to_csv(aligned_csv_path, index=False)
+        print(f"✅ Updated aligned file with angle stats: {aligned_csv_path}")
+    else:
+        print("ℹ️ Watch-only session (no PolarSense/): gating uncalibrated watch blade/launch angles to N/A.")
+        df_aligned['blade_angle_deg'] = np.nan
+        df_aligned['blade_class'] = "N/A"
+        df_aligned['launch_angle_deg'] = np.nan
+        df_aligned['launch_class'] = "N/A"
+        df_aligned.to_csv(aligned_csv_path, index=False)
+        root_cfg = os.path.join(session_dir, "session_config.json")
+        if not os.path.exists(root_cfg):
+            watch_start_ms = resolve_watch_session_start_ms(session_dir)
+            cfg_payload = {"polar_mount_mode": "NONE"}
+            if watch_start_ms is not None:
+                cfg_payload["start_time_ms"] = int(watch_start_ms)
+            with open(root_cfg, "w") as f_cfg:
+                json.dump(cfg_payload, f_cfg, indent=2)
+            print(f"✅ Wrote watch-only session_config.json (polar_mount_mode=NONE): {root_cfg}")
 
     # Enrich aligned shots with Polar Sense bottom-hand biomechanics features
     df_polar = add_polar_features_to_aligned_shots(session_dir, offset=offset, watch_start_epoch=watch_start_epoch)
@@ -2234,6 +2114,90 @@ def run_stance_diagnostics(narrated_text, audio_t, t_stance, df_gyro, df_accel, 
             fails.append(f"[FLEXIBLE] Only {flexible_count}/{MIN_FLEXIBLE} passed: failing={', '.join(flex_fails)}")
         print(f"  Failed: {'; '.join(fails)}")
     print("-----------------------------------------------------------------------")
+
+def score_alignment_candidate(cand, sensor_narr_t):
+    """Scores a physical gyro peak candidate for a spoken narration timestamp.
+
+    Empirical narration lag (sensor_narr_t - impact_t) has median ~0.65s (p10=0.25s, p90=1.2s).
+    Centers the prior at +1.0s with gentle tolerance for small negative lags [-1.2s, 0.0s]
+    (minor audio/clock jitter or early narration) instead of a steep -5.0 cliff at 0.0s, while
+    strongly penalizing large negative lags (< -1.2s) and out-of-window peaks.
+    """
+    t = cand['time']
+    mag = max(float(cand['mag']), 1e-3)
+    if cand.get('is_fallback'):
+        return -3.0
+    lag = sensor_narr_t - t
+    if lag < -7.0:
+        return -999999.0
+    base = float(np.log(mag)) - ((lag - 1.2) ** 2) / 8.0
+    if lag < -1.2:
+        return base - 5.0 - ((lag + 1.2) ** 2)
+    if lag < 0.0:
+        return base - 1.0 * abs(lag)
+    return base
+
+
+def align_narrations_dp(narrations, all_candidates, offset, drift_rate):
+    """Monotonic DP alignment enforcing chronological order (including Facing up barriers)."""
+    M = len(narrations)
+    if M == 0:
+        return []
+    dp = []
+    parent = []
+
+    first_narr_t = narrations[0]['timestamp_seconds'] * (1 + drift_rate) + offset
+    dp.append([score_alignment_candidate(cand, first_narr_t) for cand in all_candidates[0]])
+    parent.append([-1] * len(all_candidates[0]))
+
+    for i in range(1, M):
+        sensor_narr_t = narrations[i]['timestamp_seconds'] * (1 + drift_rate) + offset
+        dp_i = []
+        parent_i = []
+        prev_type_lower = narrations[i - 1]['shot_type'].lower()
+        prev_is_non_swing = any(term in prev_type_lower for term in ["no shot", "leave", "facing up", "evade"])
+        curr_type_lower = narrations[i]['shot_type'].lower()
+        curr_is_non_swing = any(term in curr_type_lower for term in ["no shot", "leave", "facing up", "evade"])
+        min_gap = 0.5 if (prev_is_non_swing or curr_is_non_swing) else 1.5
+
+        for j, cand in enumerate(all_candidates[i]):
+            best_score = -1e12
+            best_k = -1
+            score_j = score_alignment_candidate(cand, sensor_narr_t)
+
+            for k, prev_cand in enumerate(all_candidates[i - 1]):
+                if prev_cand['time'] < cand['time'] - min_gap:
+                    val = dp[i - 1][k] + score_j
+                    if val > best_score:
+                        best_score = val
+                        best_k = k
+
+            if best_k == -1:
+                for k, prev_cand in enumerate(all_candidates[i - 1]):
+                    if prev_cand['time'] < cand['time']:
+                        val = dp[i - 1][k] + score_j - 2.0
+                        if val > best_score:
+                            best_score = val
+                            best_k = k
+
+            if best_k == -1:
+                # Heavy penalty for violating chronological order (e.g. snapping before Facing up)
+                best_k = int(np.argmax(dp[i - 1]))
+                best_score = dp[i - 1][best_k] + score_j - 1000.0
+
+            dp_i.append(best_score)
+            parent_i.append(best_k)
+        dp.append(dp_i)
+        parent.append(parent_i)
+
+    best_j = int(np.argmax(dp[M - 1]))
+    chosen_indices = [best_j]
+    for i in range(M - 1, 0, -1):
+        best_j = parent[i][best_j]
+        chosen_indices.append(best_j)
+    chosen_indices.reverse()
+    return chosen_indices
+
 
 def add_angle_stats_to_aligned_shots(df_aligned, df_orient):
     def multiply_quats(q1, q2):

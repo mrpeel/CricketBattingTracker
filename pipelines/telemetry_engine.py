@@ -694,6 +694,34 @@ def predict_candidate_batch_unleaked(df_parquet, candidate_anchors, stage2_model
 # =============================================================================
 # Continuous Multi-Tier Evaluation Harness
 # =============================================================================
+def resolve_session_mount_mode(sid, df_parquet, sessions_dir=SESSIONS_DIR):
+    """Resolves authoritative polar_mount_mode ('NONE', 'WRIST', 'BAT_HANDLE').
+
+    Prefers session_config.json when present, otherwise infers from Parquet
+    metadata ('polar_mount_mode' / 'has_polar') so watch-only sessions without
+    session_config.json are never mis-tagged as 'WRIST'.
+    """
+    cfg_path = os.path.join(sessions_dir, sid, "session_config.json")
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path) as f_cfg:
+                cfg_mode = json.load(f_cfg).get("polar_mount_mode")
+            if cfg_mode:
+                return str(cfg_mode)
+        except Exception:
+            pass
+    if df_parquet is not None:
+        if "polar_mount_mode" in df_parquet.columns:
+            mode_vals = df_parquet["polar_mount_mode"].dropna()
+            mode_int = int(mode_vals.max()) if len(mode_vals) > 0 else 0
+            return {0: "NONE", 1: "WRIST", 2: "BAT_HANDLE"}.get(mode_int, "NONE")
+        if "has_polar" in df_parquet.columns:
+            hp_vals = df_parquet["has_polar"].dropna()
+            if len(hp_vals) == 0 or int(hp_vals.max()) == 0:
+                return "NONE"
+    return "NONE"
+
+
 def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stats, device, holdout_sessions=HOLDOUT_SESSIONS, sessions_dir=SESSIONS_DIR, stage3_config=None):
     """
     Executes full hierarchical Multi-Tier Telemetry Pipeline on a single session DataFrame.
@@ -709,15 +737,8 @@ def run_session_multitier(sid, df_parquet, stage1_model, stage2_model, norm_stat
     w_acc_mag = np.linalg.norm(channels_12[:, 0:3], axis=1)
     w_gyr_mag = np.linalg.norm(channels_12[:, 3:6], axis=1)
 
-    # Load session configuration to determine mount mode
-    cfg_path = os.path.join(sessions_dir, sid, "session_config.json")
-    polar_mount_mode = "WRIST"
-    if os.path.exists(cfg_path):
-        try:
-            with open(cfg_path) as f_cfg:
-                polar_mount_mode = json.load(f_cfg).get("polar_mount_mode", "WRIST")
-        except Exception:
-            pass
+    # Load session configuration (or infer from Parquet) to determine mount mode
+    polar_mount_mode = resolve_session_mount_mode(sid, df_parquet, sessions_dir=sessions_dir)
     
     # 1. Stage 1 Stance Inference over continuous windows
     window_len = 423

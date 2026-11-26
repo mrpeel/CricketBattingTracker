@@ -374,7 +374,12 @@ def process_phrases_with_lexicon(phrases):
                 if not already_matched:
                     comb_text = raw_text + " " + next_text
                     comb_lower = comb_text.lower()
-                    matched_comb = _match_shot_type(comb_lower, lexicon) is not None
+                    next_shot_match = _match_shot_type(next_lower, lexicon)
+                    comb_shot_match = _match_shot_type(comb_lower, lexicon)
+                    # Only stitch across phrases if the next phrase isn't already a standalone
+                    # "Facing up" marker — otherwise an unmatched shot utterance (e.g.
+                    # "footshot is") gets swallowed into the following "facing up".
+                    matched_comb = (comb_shot_match is not None) and (next_shot_match != "Facing up")
                     if matched_comb or any(b in comb_lower for b in ["iron bat", "gray nicolls", "game bat", "getting back"]):
                         raw_text = comb_text
                         text_lower = comb_lower

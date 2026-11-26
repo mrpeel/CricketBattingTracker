@@ -104,6 +104,67 @@ class TestDeepgramPhraseSplitting(unittest.TestCase):
             self.assertEqual(fn("Back foot drive"), "DRIVE/DEFENCE")
             self.assertEqual(fn("Square upper cut"), "DEFLECTION/GUIDE")
 
+    def test_footshot_and_oh_shut_lexicon_and_no_facing_up_swallow(self):
+        # Mimics Nov 26 'footshot is' + 'facing up' + 'footshot four' and Nov 24 'oh shut okay'
+        phrases = [
+            {"start": 528.58, "end": 529.60, "text": "footshot is"},
+            {"start": 531.06, "end": 531.80, "text": "facing up"},
+            {"start": 536.18, "end": 537.10, "text": "footshot four"},
+            {"start": 540.00, "end": 540.50, "text": "what is this"},
+            {"start": 541.50, "end": 542.20, "text": "facing up"},
+            {"start": 545.00, "end": 545.90, "text": "oh shut okay"},
+            {"start": 550.00, "end": 550.30, "text": "facing"},
+            {"start": 551.10, "end": 551.40, "text": "up"},
+        ]
+        shots, _, _, _, _ = tdg.process_phrases_with_lexicon(phrases)
+        self.assertEqual(
+            [(s["shot_type"], s["quality"], round(s["timestamp_seconds"], 2)) for s in shots],
+            [
+                ("Flick shot", "good", 528.58),
+                ("Facing up", "good", 531.06),
+                ("Flick shot", "poor", 536.18),
+                ("Facing up", "good", 541.50),
+                ("Pull shot", "okay", 545.00),
+                ("Facing up", "good", 550.00),
+            ],
+        )
+
+    def test_dp_alignment_respects_facing_up_barrier_and_small_negative_lag(self):
+        import automate_pipeline as ap
+
+        # Mimics Nov 24 Shot #37: Facing up at 564.3s, pull shot spoken at 567.85s,
+        # real 27.3 rad/s impact at 568.57s (lag = -0.72s) vs tiny 4.1 rad/s noise at 563.53s (before Facing up)
+        narrations = [
+            {"timestamp_seconds": 564.30, "shot_type": "Facing up"},
+            {"timestamp_seconds": 567.85, "shot_type": "Pull shot"},
+        ]
+        all_candidates = [
+            [{"time": 563.80, "mag": 1.0, "is_fallback": True}],
+            [
+                {"time": 563.53, "mag": 4.1, "is_fallback": False},
+                {"time": 568.57, "mag": 27.3, "is_fallback": False},
+                {"time": 567.05, "mag": 1.0, "is_fallback": True},
+            ],
+        ]
+        chosen = ap.align_narrations_dp(narrations, all_candidates, offset=0.0, drift_rate=0.0)
+        self.assertEqual(chosen, [0, 1])
+
+        # Mimics Nov 26 Shot #53: delayed narration ('glance pour' at 831.30s) after Facing up (826.50s),
+        # real 16.2 rad/s hit at 827.96s (lag=+3.34s) should beat 9.19 rad/s bat twirl at 830.57s (lag=+0.73s)
+        s_real = ap.score_alignment_candidate({"time": 827.96, "mag": 16.2, "is_fallback": False}, 831.30)
+        s_twirl = ap.score_alignment_candidate({"time": 830.57, "mag": 9.19, "is_fallback": False}, 831.30)
+        self.assertGreater(s_real, s_twirl)
+
+    def test_telemetry_engine_mount_mode_defaults_to_none_without_polar(self):
+        import pandas as pd
+        sys.path.insert(0, os.path.join(ROOT_DIR, "pipelines"))
+        from telemetry_engine import resolve_session_mount_mode
+
+        df_none = pd.DataFrame({"has_polar": [0, 0], "polar_mount_mode": [0, 0]})
+        df_bat = pd.DataFrame({"has_polar": [1, 1], "polar_mount_mode": [2, 2]})
+        self.assertEqual(resolve_session_mount_mode("nonexistent_session_id", df_none, sessions_dir="/tmp"), "NONE")
+        self.assertEqual(resolve_session_mount_mode("nonexistent_session_id", df_bat, sessions_dir="/tmp"), "BAT_HANDLE")
+
 
 if __name__ == "__main__":
     unittest.main()
